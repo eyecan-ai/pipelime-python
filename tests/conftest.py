@@ -19,8 +19,13 @@ def items_folder(data_folder) -> Path:
 
 
 @pytest.fixture(scope="session")
-def minimnist_dataset_path(datasets_folder) -> Path:
-    return datasets_folder / "underfolder_minimnist"
+def minimnist_dataset(datasets_folder) -> dict:
+    return {
+        "path": datasets_folder / "underfolder_minimnist",
+        "root_keys": ["cfg", "numbers", "pose"],
+        "item_keys": ["image", "label", "mask", "metadata", "points"],
+        "len": 20,
+    }
 
 
 @pytest.fixture(scope="session")

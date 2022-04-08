@@ -16,14 +16,15 @@ class UnderfolderReader(pls.SamplesSequence):
 
     :param folder: the root folder of the Underfolder dataset.
     :type folder: t.Union[str, Path]
-    :param copy_root_files: propagates root files to samples, defaults to True
-    :type copy_root_files: bool, optional
+    :param merge_root_items: adds root items as shared items to each sample (sample
+        values take precedence), defaults to True.
+    :type merge_root_items: bool, optional
     """
 
-    def __init__(self, folder: t.Union[str, Path], copy_root_files: bool = True):
+    def __init__(self, folder: t.Union[str, Path], merge_root_items: bool = True):
         super().__init__()
         folder = Path(folder)
-        self._copy_root_files = copy_root_files
+        self._merge_root_items = merge_root_items
         self._samples: t.Sequence[pls.Sample] = []
         self._root_sample = pls.Sample(None)
 
@@ -70,13 +71,13 @@ class UnderfolderReader(pls.SamplesSequence):
     def _extract_key(self, name: str) -> str:
         return name.partition(".")[0]
 
-    def _extract_id_key(self, name: str) -> t.Optional[t.Tuple[int, str]]:
+    def _extract_id_key(self, name: str) -> t.Optional[t.Tuple[str, str]]:
         id_key_split = name.partition("_")
         if not id_key_split[2]:
-            return None
+            return None  # pragma: no cover
         try:
             return (id_key_split[0], self._extract_key(id_key_split[2]))
-        except ValueError:
+        except ValueError:  # pragma: no cover
             return None
 
     def size(self) -> int:
@@ -84,4 +85,4 @@ class UnderfolderReader(pls.SamplesSequence):
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self._samples[idx]
-        return self._root_sample.merge(sample) if self._copy_root_files else sample
+        return self._root_sample.merge(sample) if self._merge_root_items else sample
