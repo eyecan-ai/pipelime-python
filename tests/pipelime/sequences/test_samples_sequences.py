@@ -4,6 +4,21 @@ import typing as t
 
 
 class TestSamplesSequences:
+    def test_is_normalized(self, minimnist_dataset: dict):
+        import pipelime.items as pli
+
+        sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=minimnist_dataset["path"]
+        ).cat(
+            pls.SamplesSequence.from_list(  # type: ignore
+                [pls.Sample({"__": pli.UnknownItem()})]
+            )
+        )
+
+        assert sseq.is_normalized(1)
+        assert sseq.is_normalized(5)
+        assert not sseq.is_normalized()
+
     @pytest.mark.parametrize("merge_root_items", [True, False])
     def test_from_underfolder(self, minimnist_dataset: dict, merge_root_items):
         sseq = pls.SamplesSequence.from_underfolder(  # type: ignore

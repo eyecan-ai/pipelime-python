@@ -96,6 +96,11 @@ class TestSample:
         )
         assert np.all(other_sample[target_key]() == new_value)
 
+    def test_change_key_invalid(self):
+        sample, _ = self._np_sample()
+        other_sample = sample.change_key("__", "--", False)
+        assert other_sample is sample
+
     @pytest.mark.parametrize("delete_old_key", [True, False])
     def test_change_key(self, delete_old_key):
         sample, data = self._np_sample()
@@ -162,11 +167,11 @@ class TestSample:
             for k in data
         )
 
-    def test_merge(self):
+    def _merge_test(self, fn):
         sample_1, data_1 = self._np_sample()
         sample_2, data_2 = self._mixed_sample()
 
-        other_sample = sample_1.merge(sample_2)
+        other_sample = fn(sample_1, sample_2)
 
         only_1 = {k for k in data_1.keys() if k not in data_2.keys()}
         only_2 = {k for k in data_2.keys() if k not in data_1.keys()}
@@ -185,3 +190,9 @@ class TestSample:
             for k, v in other_sample.items()
         )
         assert all(other_sample[k] is not sample_1[k] for k in and_1_2)
+
+    def test_merge(self):
+        self._merge_test(lambda x1, x2: x1.merge(x2))
+
+    def test_update(self):
+        self._merge_test(lambda x1, x2: x1.update(x2))

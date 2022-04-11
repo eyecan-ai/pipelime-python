@@ -71,9 +71,9 @@ class Sample(t.Mapping[str, Item]):
             {k: v for k, v in self._data.items() if k not in key_to_remove}
         )
 
-    def extract_keys(self, *key_to_keep: str) -> "Sample":
+    def extract_keys(self, *keys_to_keep: str) -> "Sample":
         return Sample(
-            {k: v for k, v in self._data.items() if k in key_to_keep}
+            {k: v for k, v in self._data.items() if k in keys_to_keep}
         )
 
     def merge(self, other: "Sample") -> "Sample":
@@ -136,7 +136,7 @@ class SamplesSequence(t.Sequence[Sample]):
         :param subcls: the subclass type that will be returned.
         :type subcls: t.Type[SamplesSequence]
         """
-        if not issubclass(subcls, SamplesSequence):
+        if not issubclass(subcls, SamplesSequence):  # pragma: no cover
             raise TypeError(
                 "SamplesSequence.register_functional"
                 " should be used only with subclasses."
@@ -180,6 +180,9 @@ class SamplesSequence(t.Sequence[Sample]):
         :rtype: int
         """
         return len(str(len(self)))
+
+    def __add__(self, other: "SamplesSequence") -> "SamplesSequence":
+        return self.cat(other)  # type: ignore
 
 
 def as_samples_sequence_functional(fn_name: str, is_static: bool = False):

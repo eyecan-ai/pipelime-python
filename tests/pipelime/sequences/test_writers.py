@@ -3,7 +3,6 @@ from pathlib import Path
 import pipelime.sequences as pls
 
 import typing as t
-import collections.abc as tc
 
 
 class TestSamplesSequenceWriters:
@@ -71,7 +70,7 @@ class TestSamplesSequenceWriters:
 
         for sample in dest:
             for key, item in sample.items():
-                assert isinstance(item._file_sources, tc.Sequence)
+                assert isinstance(item._file_sources, t.Sequence)
                 assert len(item._file_sources) == 1
                 path = Path(item._file_sources[0])
                 assert not path.is_symlink()
@@ -86,7 +85,7 @@ class TestSamplesSequenceWriters:
 
         for sample in dest:
             for item in sample.values():
-                assert isinstance(item._file_sources, tc.Sequence)
+                assert isinstance(item._file_sources, t.Sequence)
                 assert len(item._file_sources) == 1
                 path = Path(item._file_sources[0])
                 assert not path.is_symlink()
@@ -103,7 +102,7 @@ class TestSamplesSequenceWriters:
         on_windows = platform.system() == "Windows"
         for sample in dest:
             for item in sample.values():
-                assert isinstance(item._file_sources, tc.Sequence)
+                assert isinstance(item._file_sources, t.Sequence)
                 assert len(item._file_sources) == 1
                 path = Path(item._file_sources[0])
                 assert on_windows or path.is_symlink()
@@ -124,7 +123,7 @@ class TestSamplesSequenceWriters:
 
         for sample in dest:
             for item in sample.values():
-                assert isinstance(item._file_sources, tc.Sequence)
+                assert isinstance(item._file_sources, t.Sequence)
                 assert len(item._file_sources) == 1
                 path = Path(item._file_sources[0])
                 assert not path.is_symlink()
