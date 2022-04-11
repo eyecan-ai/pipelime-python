@@ -90,7 +90,8 @@ def paths_from_url(
     :rtype: Union[Tuple[str, str], Tuple[None, None]]
     """
     if len(url.path) > 1:
-        file_full_path = Path(unquote_plus(url.path)[1:])
+        unquoted = unquote_plus(url.path)
+        file_full_path = Path(unquoted[1:] if unquoted.startswith("/") else unquoted)
         if not file_full_path.suffix:
             return str(file_full_path.as_posix()), ""
         return str(file_full_path.parent.as_posix()), str(file_full_path.name)
