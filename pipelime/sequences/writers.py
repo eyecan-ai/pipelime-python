@@ -24,7 +24,24 @@ class _serialization_mode_override:
 
 @pls.as_samples_sequence_functional("to_underfolder")
 class UnderfolderWriter(ProxySequenceBase):
-    """Writes samples to an underfolder dataset."""
+    """Writes samples to an underfolder dataset. Usage::
+
+        s1 = SamplesSequence(...)
+        sseq = UnderfolderWriter(s1, "out_path")
+        # or, equivalently,
+        sseq = s1.to_underfolder("out_path")
+
+    :param folder: the output folder.
+    :type folder: t.Union[str, Path]
+    :param zfill: custom zero-filling, defaults to None
+    :type zfill: t.Optional[int], optional
+    :param key_serialization_mode: forced serialization mode for each key,
+        defaults to None
+    :type key_serialization_mode: t.Optional[t.Mapping[str, SerializationMode]], optional
+    :param exists_ok: if False raises an error when `folder` exists, defaults to False
+    :type exists_ok: bool, optional
+    :raises FileExistsError: if `exists_ok` is False and `folder` exists.
+    """
 
     def __init__(
         self,
@@ -59,7 +76,7 @@ class UnderfolderWriter(ProxySequenceBase):
                 if v.is_shared:
                     filepath = self._root_folder / k
                     if not any(f.exists() for f in v.get_all_names(filepath)):
-                        lock = FileLock(str(filepath.with_suffix("lock")))
+                        lock = FileLock(str(filepath.with_suffix(".lock")))
                         try:
                             with lock.acquire(timeout=1):
                                 v.serialize(filepath)

@@ -38,7 +38,7 @@ class ItemFactory(ABCMeta):
             if ext != cls.REMOTE_FILE_EXT:
                 cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = True  # type: ignore
-        cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.DEEP_COPY  # type: ignore
+        cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -197,11 +197,14 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return self._shared
 
     def effective_serialization_mode(self) -> SerializationMode:
-        return (
+        smode = (
             self.serialization_mode
             if self.serialization_mode is not None
             else ItemFactory.get_serialization_mode(self.__class__)
         )
+        if smode is SerializationMode.REMOTE_FILE and not self._remote_sources:
+            smode = SerializationMode.HARD_LINK
+        return smode
 
     @classmethod
     def make_new(cls, *sources: _item_init_types, shared: bool = False) -> "Item":
@@ -247,16 +250,17 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                     copy_fn(str(f), p)
                     return True
                 except Exception:
-                    logger.exception(f"{self.__class__}: data serialization error.")
+                    # logger.exception(f"{self.__class__}: data serialization error.")
+                    pass
             return False
 
-        path = path.resolve()
+        target_path = path.resolve()
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
         if smode is SerializationMode.REMOTE_FILE:
-            path = self.as_default_remote_file(path)
-        elif path.suffix not in self.file_extensions():
-            path = self.as_default_name(path)
+            path = self.as_default_remote_file(target_path)
+        elif target_path.suffix not in self.file_extensions():
+            path = self.as_default_name(target_path)
 
         # first delete the existing file, if any
         path.unlink(missing_ok=True)
@@ -270,6 +274,13 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 return None  # do not save remote file among file sources!
             except Exception:
                 logger.exception(f"{self.__class__}: remote file serialization error.")
+                path.unlink(missing_ok=True)
+                path = (
+                    self.as_default_name(target_path)
+                    if target_path.suffix not in self.file_extensions()
+                    else target_path
+                )
+                smode = SerializationMode.HARD_LINK
 
         if smode is SerializationMode.HARD_LINK:
             smode = (
@@ -298,7 +309,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                         self.encode(data, fp)
                     smode = None
                 except Exception:
-                    logger.exception(f"{self.__class__}: data serialization error.")
+                    # logger.exception(f"{self.__class__}: data serialization error.")
+                    pass
 
         if smode is None:
             return path
