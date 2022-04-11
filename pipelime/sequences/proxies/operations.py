@@ -1,25 +1,7 @@
-import random
-import typing as t
-
+from pipelime.sequences.proxies.base import ProxySequenceBase
 import pipelime.sequences.base as pls
 
-
-class ProxySequenceBase(pls.SamplesSequence):
-    """Reasonable base implementation of `size` and `get_sample`."""
-
-    def __init__(self, source: pls.SamplesSequence):
-        super().__init__()
-        self._source = source
-
-    @property
-    def source(self) -> pls.SamplesSequence:
-        return self._source
-
-    def size(self) -> int:
-        return len(self._source)
-
-    def get_sample(self, idx: int) -> pls.Sample:
-        return self._source[idx]
+import typing as t
 
 
 @pls.as_samples_sequence_functional("map")
@@ -203,6 +185,8 @@ class ShuffledSequence(ProxySequenceBase):
     """
 
     def __init__(self, source: pls.SamplesSequence, rnd_seed: t.Optional[int] = None):
+        import random
+
         super().__init__(source)
         if rnd_seed is not None:
             random.seed(rnd_seed)
