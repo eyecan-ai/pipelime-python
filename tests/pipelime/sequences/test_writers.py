@@ -2,24 +2,30 @@ import pytest
 from pathlib import Path
 import pipelime.sequences as pls
 
+import typing as t
+import collections.abc as tc
+
 
 class TestSamplesSequenceWriters:
+    def _read_write_data(
+        self, source_dataset, out_folder, **writer_kwargs
+    ) -> t.Tuple[pls.SamplesSequence, pls.SamplesSequence]:
+        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=source_dataset["path"], merge_root_items=True
+        )
+        for s in source.to_underfolder(folder=out_folder, **writer_kwargs):
+            pass
+        dest = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=out_folder, merge_root_items=True
+        )
+        return source, dest
+
     def test_to_underfolder(self, minimnist_dataset: dict, tmp_path: Path):
         from pipelime.items.numpy_item import NumpyItem
         import numpy as np
 
-        tmp_path = tmp_path / "outfolder"
+        source, dest = self._read_write_data(minimnist_dataset, tmp_path / "outfolder")
 
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
-            folder=minimnist_dataset["path"], merge_root_items=True
-        )
-
-        for s in source.to_underfolder(folder=tmp_path):
-            pass
-
-        dest = pls.SamplesSequence.from_underfolder(  # type: ignore
-            folder=tmp_path, merge_root_items=True
-        )
         for s1, s2 in zip(source, dest):
             assert len(s1.keys() ^ s2.keys()) == 0
             for k, v1 in s1.items():
@@ -43,3 +49,84 @@ class TestSamplesSequenceWriters:
             assert not exists_ok
             return
         assert exists_ok
+
+    def test_to_underfolder_serialization_mode(
+        self, minimnist_dataset: dict, tmp_path: Path
+    ):
+        import pipelime.items as pli
+
+        # previous test runs may already have hard-linked the original files
+        # so we need to get a temporary copy first
+        pli.set_item_serialization_mode(pli.SerializationMode.DEEP_COPY)
+        src_path = tmp_path / "source"
+        self._read_write_data(minimnist_dataset, src_path)
+
+        pli.set_item_serialization_mode(pli.SerializationMode.HARD_LINK)
+        item_key = minimnist_dataset["item_keys"][0]
+        _, dest = self._read_write_data(
+            {"path": src_path},
+            tmp_path / "outfolder",
+            key_serialization_mode={item_key: pli.SerializationMode.DEEP_COPY},
+        )
+
+        for sample in dest:
+            for key, item in sample.items():
+                assert isinstance(item._file_sources, tc.Sequence)
+                assert len(item._file_sources) == 1
+                path = Path(item._file_sources[0])
+                assert not path.is_symlink()
+                assert path.is_file()
+                assert path.stat().st_nlink == (1 if key == item_key else 2)
+
+    def test_deep_copy(self, minimnist_dataset: dict, tmp_path: Path):
+        import pipelime.items as pli
+
+        pli.set_item_serialization_mode(pli.SerializationMode.DEEP_COPY)
+        _, dest = self._read_write_data(minimnist_dataset, tmp_path / "outfolder")
+
+        for sample in dest:
+            for item in sample.values():
+                assert isinstance(item._file_sources, tc.Sequence)
+                assert len(item._file_sources) == 1
+                path = Path(item._file_sources[0])
+                assert not path.is_symlink()
+                assert path.is_file()
+                assert path.stat().st_nlink == 1
+
+    def test_symlink(self, minimnist_dataset: dict, tmp_path: Path):
+        import pipelime.items as pli
+        import platform
+
+        pli.set_item_serialization_mode(pli.SerializationMode.SYM_LINK)
+        _, dest = self._read_write_data(minimnist_dataset, tmp_path / "outfolder")
+
+        on_windows = platform.system() == "Windows"
+        for sample in dest:
+            for item in sample.values():
+                assert isinstance(item._file_sources, tc.Sequence)
+                assert len(item._file_sources) == 1
+                path = Path(item._file_sources[0])
+                assert on_windows or path.is_symlink()
+                assert path.is_file()
+                assert path.stat().st_nlink == 1
+
+    def test_hardlink(self, minimnist_dataset: dict, tmp_path: Path):
+        import pipelime.items as pli
+
+        # previous test runs may already have hard-linked the original files
+        # so we need to get a temporary copy first
+        pli.set_item_serialization_mode(pli.SerializationMode.DEEP_COPY)
+        src_path = tmp_path / "source"
+        self._read_write_data(minimnist_dataset, src_path)
+
+        pli.set_item_serialization_mode(pli.SerializationMode.HARD_LINK)
+        _, dest = self._read_write_data({"path": src_path}, tmp_path / "outfolder")
+
+        for sample in dest:
+            for item in sample.values():
+                assert isinstance(item._file_sources, tc.Sequence)
+                assert len(item._file_sources) == 1
+                path = Path(item._file_sources[0])
+                assert not path.is_symlink()
+                assert path.is_file()
+                assert path.stat().st_nlink == 2

@@ -80,7 +80,7 @@ class UnderfolderWriter(ProxySequenceBase):
                         try:
                             with lock.acquire(timeout=1):
                                 v.serialize(filepath)
-                        except Timeout:
+                        except Timeout:  # pragma: no cover
                             pass
                 else:
                     v.serialize(self._data_folder / f"{id_str}_{k}")

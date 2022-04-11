@@ -1,4 +1,12 @@
-from pipelime.items.base import SerializationMode, Item, UnknownItem
+from pipelime.items.base import (
+    SerializationMode,
+    Item,
+    UnknownItem,
+    set_item_serialization_mode,
+    disable_item_data_cache,
+    enable_item_data_cache,
+    no_data_cache,
+)
 
 # import and register all items
 from pipelime.items.binary_item import BinaryItem
