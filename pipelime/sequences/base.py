@@ -67,14 +67,10 @@ class Sample(t.Mapping[str, Item]):
         return self.change_key(old_key, new_key, True)
 
     def remove_keys(self, *key_to_remove: str) -> "Sample":
-        return Sample(
-            {k: v for k, v in self._data.items() if k not in key_to_remove}
-        )
+        return Sample({k: v for k, v in self._data.items() if k not in key_to_remove})
 
     def extract_keys(self, *keys_to_keep: str) -> "Sample":
-        return Sample(
-            {k: v for k, v in self._data.items() if k in keys_to_keep}
-        )
+        return Sample({k: v for k, v in self._data.items() if k in keys_to_keep})
 
     def merge(self, other: "Sample") -> "Sample":
         return Sample({**self._data, **other._data})
@@ -106,6 +102,9 @@ class SamplesSequence(t.Sequence[Sample]):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`"""
 
+    operations: t.List[str] = []
+    sources: t.List[str] = []
+
     @abstractmethod
     def size(self) -> int:
         pass
@@ -123,37 +122,6 @@ class SamplesSequence(t.Sequence[Sample]):
             if isinstance(idx, slice)
             else self.get_sample(idx)
         )
-
-    @classmethod
-    def register_functional(
-        cls, fn_name: str, subcls: t.Type["SamplesSequence"], is_static: bool
-    ):
-        """Subclasses can register themself as method attribute.
-        See also `as_samples_sequence_functional`.
-
-        :param fn_name: the name of the function we are going to create.
-        :type fn_name: str
-        :param subcls: the subclass type that will be returned.
-        :type subcls: t.Type[SamplesSequence]
-        """
-        if not issubclass(subcls, SamplesSequence):  # pragma: no cover
-            raise TypeError(
-                "SamplesSequence.register_functional"
-                " should be used only with subclasses."
-            )
-
-        if is_static:
-
-            def _static_helper(*args, **kwargs):
-                return subcls(*args, **kwargs)  # type: ignore
-
-            setattr(cls, fn_name, staticmethod(_static_helper))
-        else:
-
-            def _self_helper(self, *args, **kwargs):
-                return subcls(self, *args, **kwargs)  # type: ignore
-
-            setattr(cls, fn_name, _self_helper)
 
     def is_normalized(self, max_items=-1) -> bool:
         """Checks if all samples have the same keys.
@@ -193,7 +161,57 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):
     """
 
     def _wrapper(cls):
-        SamplesSequence.register_functional(fn_name, cls, is_static=is_static)
+        import inspect
+
+        docstr = inspect.getdoc(cls)
+        if docstr:
+            docstr = docstr.replace("\n", "\n    ")
+
+        sig = inspect.signature(cls.__init__)
+        prms_list = [i[1] for i in sig.parameters.items()]
+
+        if is_static:
+            prms_list = prms_list[1:]
+        else:
+            prms_list = [prms_list[0]] + prms_list[2:]
+
+        # NB: including annotations would be great, but you'd need to import here
+        # all kind of packages used by the subclass we are wrapping.
+        prm_names = [p.name for p in prms_list]
+        prm_defaults = [
+            "" if p.default is inspect.Parameter.empty else f"={p.default}"
+            for p in prms_list
+        ]
+        prm_def_str = ", ".join(
+            f"{pname}{pdef}" for pname, pdef in zip(prm_names, prm_defaults)
+        )
+
+        fn_str = (
+            "def _{0}({1}):\n".format(fn_name, prm_def_str)
+            + ("    '''{0}\n    '''\n".format(docstr) if docstr else "")
+            + "    from {0} import {1}\n".format(cls.__module__, cls.__name__)
+            + "    return {0}({1})\n".format(
+                cls.__name__,
+                ", ".join(sig.replace(parameters=prms_list).parameters.keys()),
+            )
+        )
+
+        # print(fn_str)
+
+        local_scope = {}
+        exec(fn_str, local_scope)
+
+        fn_helper = local_scope[f"_{fn_name}"]
+        if is_static:
+            fn_helper = staticmethod(fn_helper)
+
+        setattr(SamplesSequence, fn_name, fn_helper)
+
+        if is_static:
+            SamplesSequence.sources.append(fn_name)
+        else:
+            SamplesSequence.operations.append(fn_name)
+
         return cls
 
     return _wrapper
