@@ -19,6 +19,11 @@ def items_folder(data_folder) -> Path:
 
 
 @pytest.fixture(scope="session")
+def augmentations_folder(data_folder) -> Path:
+    return data_folder / "augmentations"
+
+
+@pytest.fixture(scope="session")
 def minimnist_dataset(datasets_folder) -> dict:
     return {
         "path": datasets_folder / "underfolder_minimnist",

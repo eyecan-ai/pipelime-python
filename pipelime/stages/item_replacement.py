@@ -7,6 +7,11 @@ from pipelime.stages import SampleStage
 
 class StageReplaceItem(SampleStage):
     def __init__(self, key_item_map: t.Dict[str, t.Type[Item]]):
+        """Replace items in sample preserving internal values.
+
+        :param key_item_map: `key: item_cls` returns the new item class for the key.
+        :type key_item_map: t.Dict[str, t.Type[Item]]
+        """
         self._key_item_map = key_item_map
 
     def __call__(self, x: Sample) -> Sample:

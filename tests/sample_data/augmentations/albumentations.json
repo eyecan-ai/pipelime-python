@@ -1,0 +1,25 @@
+{
+    "__version__": "1.0.3",
+    "transform": {
+        "__class_fullname__": "Compose",
+        "p": 1.0,
+        "transforms": [{
+                "__class_fullname__": "Resize",
+                "always_apply": false,
+                "p": 1,
+                "height": 50,
+                "width": 50,
+                "interpolation": 1
+            }, {
+                "__class_fullname__": "Equalize",
+                "always_apply": false,
+                "p": 1,
+                "mode": "cv",
+                "by_channels": true
+            }
+        ],
+        "bbox_params": null,
+        "keypoint_params": null,
+        "additional_targets": {}
+    }
+}

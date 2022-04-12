@@ -8,10 +8,10 @@ class StageRemap(SampleStage):
     def __init__(self, remap: t.Mapping[str, str], remove_missing: bool = True):
         """Remaps keys in sample
 
-        :param remap: old_key:new_key dictionary remap
+        :param remap: `old_key: new_key` dictionary remap
         :type remap: Mapping[str, str]
         :param remove_missing: if TRUE missing keys in remap will be removed in the
-            output sample, defaults to True
+            output sample before name remapping, defaults to True
         :type remove_missing: bool, optional
         """
         super().__init__()
@@ -19,10 +19,10 @@ class StageRemap(SampleStage):
         self._remove_missing = remove_missing
 
     def __call__(self, x: Sample) -> Sample:
-        for kold, knew in self._remap:
-            x = x.rename_key(kold, knew)
         if self._remove_missing:
             x = x.extract_keys(*self._remap.keys())
+        for kold, knew in self._remap.items():
+            x = x.rename_key(kold, knew)
         return x
 
 
