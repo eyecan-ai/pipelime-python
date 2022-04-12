@@ -3,7 +3,7 @@ from filelock import FileLock, Timeout
 import typing as t
 
 import pipelime.sequences.base as pls
-from pipelime.sequences.proxies.base import ProxySequenceBase
+from pipelime.sequences.pipes.base import ProxySequenceBase
 from pipelime.items import SerializationMode, Item
 
 

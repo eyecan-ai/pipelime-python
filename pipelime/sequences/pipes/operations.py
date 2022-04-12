@@ -1,4 +1,4 @@
-from pipelime.sequences.proxies.base import ProxySequenceBase
+from pipelime.sequences.pipes.base import ProxySequenceBase
 import pipelime.sequences.base as pls
 
 import typing as t
@@ -176,12 +176,8 @@ class ShuffledSequence(ProxySequenceBase):
         # or, equivalently,
         sseq = s1.shuffle()
 
-    :param start: the first index, defaults to None (ie, first element).
-    :type start: t.Optional[int], optional
-    :param stop: the final index, defaults to None (ie, last element).
-    :type stop: t.Optional[int], optional
-    :param step: the slice step, defaults to None (ie, 1).
-    :type step: t.Optional[int], optional
+    :param rnd_seed: the optional random seed.
+    :type rnd_seed: t.Optional[int], optional
     """
 
     def __init__(self, source: pls.SamplesSequence, rnd_seed: t.Optional[int] = None):
