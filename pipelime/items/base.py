@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse
 from enum import Enum
-from contextlib import ContextDecorator
+from contextlib import ContextDecorator, contextmanager
 from loguru import logger
 import io
 import shutil
@@ -51,7 +51,7 @@ class ItemFactory(ABCMeta):
         import pipelime.items  # noqa
 
         filepath = Path(filepath)
-        path_or_urls = filepath
+        path_or_urls = [filepath]
         ext = filepath.suffix
         if ext == cls.REMOTE_FILE_EXT:
             with filepath.open("r") as fp:
@@ -62,7 +62,7 @@ class ItemFactory(ABCMeta):
             path_or_urls = url_list
 
         item_cls = cls.ITEM_CLASSES.get(ext, UnknownItem)
-        return item_cls(path_or_urls, shared=shared_item)
+        return item_cls(*path_or_urls, shared=shared_item)
 
     @classmethod
     def set_data_cache_mode(cls, item_cls: t.Type["Item"], enable_data_cache: bool):
@@ -132,6 +132,17 @@ class no_data_cache(ContextDecorator):
     def __exit__(self, exc_type, exc_value, traceback):
         for itc, val in self._prev_state.items():
             ItemFactory.set_data_cache_mode(itc, val)
+
+
+@contextmanager
+def _unclosable_BytesIO():
+    """A BytesIO that is closed only when exiting this context."""
+    fd = io.BytesIO()
+    close = fd.close
+    fd.close = lambda: None
+    yield fd
+    fd.close = close
+    fd.close()
 
 
 T = t.TypeVar("T")
@@ -319,17 +330,17 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
     def _serialize_to_remote(self, remote_url: ParseResult) -> t.Optional[ParseResult]:
         remote, rm_paths = plr.create_remote(remote_url), plr.paths_from_url(remote_url)
-        if remote is not None and rm_paths[0] is not None and rm_paths[1] is not None:
-            data_stream = io.BytesIO()
-            self.encode(self(), data_stream)
+        if remote is not None and rm_paths[0] is not None:
+            with _unclosable_BytesIO() as data_stream:
+                self.encode(self(), data_stream)
 
-            data_stream.seek(0, io.SEEK_END)
-            data_size = data_stream.tell()
-            data_stream.seek(0, io.SEEK_SET)
+                data_stream.seek(0, io.SEEK_END)
+                data_size = data_stream.tell()
+                data_stream.seek(0, io.SEEK_SET)
 
-            return remote.upload_stream(
-                data_stream, data_size, rm_paths[0], self.file_extensions()[0]
-            )
+                return remote.upload_stream(
+                    data_stream, data_size, rm_paths[0], self.file_extensions()[0]
+                )
 
     def serialize(self, *targets: _item_data_source):
         for trg in targets:
@@ -388,10 +399,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 and rm_paths[1] is not None
             ):
                 try:
-                    data_stream = io.BytesIO()
-                    if remote.download_stream(data_stream, rm_paths[0], rm_paths[1]):
-                        data_stream.seek(0)
-                        return self._decode_and_store(data_stream)
+                    with _unclosable_BytesIO() as data_stream:
+                        if remote.download_stream(
+                            data_stream, rm_paths[0], rm_paths[1]
+                        ):
+                            data_stream.seek(0)
+                            return self._decode_and_store(data_stream)
                 except Exception:
                     logger.exception(f"{self.__class__}: remote source error.")
         return None
@@ -452,13 +465,13 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         """
         return raw_data
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__}(data={repr(self._data_cache)},"
             f" sources={self._file_sources}, remotes={self._remote_sources})"
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         str_srcs = [f"    - {str(fs)}" for fs in self._file_sources]
         str_rmts = [f"    - {pr.geturl()}" for pr in self._remote_sources]
         return "\n".join(

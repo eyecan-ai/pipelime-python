@@ -1,6 +1,5 @@
 import pytest
 import pipelime.remotes as plr
-from pipelime.remotes.base import BaseRemote
 import pipelime.sequences as pls
 
 from pathlib import Path
@@ -14,9 +13,16 @@ class TestRemotes:
         self,
         temp_folder,
         source: str,
-        remote: BaseRemote,
-        remote_base_path: str,
+        remote_url: ParseResult,
     ):
+        from pipelime.remotes.base import BaseRemote
+
+        remote = plr.create_remote(remote_url)
+        assert isinstance(remote, BaseRemote)
+
+        remote_base_path, _ = plr.paths_from_url(remote_url)
+        assert remote_base_path is not None
+
         # upload
         source_to_remote: t.Mapping[Path, ParseResult] = {}
         reader: pls.SamplesSequence = pls.SamplesSequence.from_underfolder(  # type: ignore
@@ -24,9 +30,9 @@ class TestRemotes:
         )
         for sample in reader:
             for k, itm in sample.items():
-                remote_url = remote.upload_file(itm._file_sources[0], remote_base_path)
-                assert remote_url is not None
-                source_to_remote[itm._file_sources[0]] = remote_url
+                rm_url = remote.upload_file(itm._file_sources[0], remote_base_path)
+                assert rm_url is not None
+                source_to_remote[itm._file_sources[0]] = rm_url
 
         # download and compare
         local_root = temp_folder / "local"
@@ -49,43 +55,26 @@ class TestRemotes:
             assert cmp(str(local_file), original, shallow=False)
 
     def test_shared_folder_remote(self, minimnist_dataset: dict, tmp_path: Path):
-        remote = plr.create_remote(
-            ParseResult(
-                scheme="file",
-                netloc="localhost",
-                path="",
-                params="",
-                query="",
-                fragment="",
-            )
-        )
-        assert isinstance(remote, BaseRemote)
-
-        remote_root = tmp_path / "rm_bucket"
+        remote_root = tmp_path / "rmbucket"
         remote_root.mkdir(parents=True)
-        remote_root = remote_root.as_posix()
 
-        self._upload_download(tmp_path, minimnist_dataset["path"], remote, remote_root)
+        remote_url = plr.make_remote_url(
+            scheme="file", netloc="localhost", path="/" + remote_root.as_posix()
+        )
 
-    def test_s3_remote(self, minimnist_dataset: dict, tmp_path: Path, minio):
+        self._upload_download(tmp_path, minimnist_dataset["path"], remote_url)
+
+    def test_s3_remote(self, minimnist_dataset: dict, tmp_path: Path, minio: str):
         if not minio:
             pytest.skip("MinIO unavailable")
 
-        s3_init_args = {
-            "access_key": f"{minio}",
-            "secret_key": f"{minio}",
-            "secure_connection": False,
-        }
-
-        remote = plr.create_remote(
-            ParseResult(
-                scheme="s3",
-                netloc="localhost:9000",
-                path="",
-                params="",
-                query=":".join([k + "=" + str(v) for k, v in s3_init_args.items()]),
-                fragment="",
-            )
+        remote_url = plr.make_remote_url(
+            scheme="s3",
+            netloc="localhost:9000",
+            path="/rmbucket",
+            access_key=f"{minio}",
+            secret_key=f"{minio}",
+            secure_connection=False,
         )
-        assert isinstance(remote, BaseRemote)
-        self._upload_download(tmp_path, minimnist_dataset["path"], remote, "rmbucket")
+
+        self._upload_download(tmp_path, minimnist_dataset["path"], remote_url)

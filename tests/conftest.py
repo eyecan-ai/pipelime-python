@@ -29,6 +29,7 @@ def minimnist_dataset(datasets_folder) -> dict:
         "path": datasets_folder / "underfolder_minimnist",
         "root_keys": ["cfg", "numbers", "pose"],
         "item_keys": ["image", "label", "mask", "metadata", "points"],
+        "image_keys": ["image", "mask"],
         "len": 20,
     }
 

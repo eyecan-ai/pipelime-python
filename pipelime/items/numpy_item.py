@@ -34,8 +34,12 @@ class TxtNumpyItem(NumpyItem):
     def decode(cls, fp: t.BinaryIO) -> np.ndarray:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", "loadtxt")
-            return np.loadtxt(fp)
+            return np.atleast_1d(np.loadtxt(fp))
 
     @classmethod
     def encode(cls, value: np.ndarray, fp: t.BinaryIO):
         np.savetxt(fp, value)
+
+    @classmethod
+    def validate(cls, raw_data: t.Any) -> np.ndarray:
+        return np.atleast_1d(np.array(raw_data))

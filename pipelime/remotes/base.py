@@ -44,6 +44,19 @@ class RemoteRegister(ABCMeta):
         return remote_instance
 
 
+def make_remote_url(
+    scheme: str = "", netloc: str = "", path: str = "", **init_args
+) -> ParseResult:
+    return ParseResult(
+        scheme=scheme,
+        netloc=netloc,
+        path=path,
+        params="",
+        query=":".join([k + "=" + str(v) for k, v in init_args.items()]),
+        fragment="",
+    )
+
+
 def create_remote(url: ParseResult) -> t.Optional["BaseRemote"]:
     """Return a remote instance for this scheme and netloc.
 

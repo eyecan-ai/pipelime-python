@@ -41,8 +41,10 @@ class TestAugmentationStages:
             assert keyaug not in sample_gt
             assert keyaug in sample_aug
 
-            assert np.all(sample[key]() == sample_aug[key]())
-            assert np.all(sample_gt[key]() == sample_aug[keyaug]())
+            assert np.array_equal(sample[key](), sample_aug[key](), equal_nan=True)
+            assert np.array_equal(
+                sample_gt[key](), sample_aug[keyaug](), equal_nan=True
+            )
 
     def test_albumentation_object(self, augmentations_folder: Path):
         import albumentations as A

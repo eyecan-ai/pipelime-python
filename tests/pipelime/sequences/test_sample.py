@@ -3,6 +3,10 @@ import pipelime.sequences as pls
 import numpy as np
 
 
+def _np_eq(x, y) -> bool:
+    return np.array_equal(x, y, equal_nan=True)
+
+
 class TestSample:
     def _np_sample(self):
         import pipelime.items as pli
@@ -25,21 +29,19 @@ class TestSample:
 
         assert len(sample) == len(data)
         assert all(k in sample for k in data)
-        assert all(np.all(sample[k]() == v()) for k, v in data.items())
+        assert all(_np_eq(sample[k](), v()) for k, v in data.items())
         assert sample.to_dict() == {k: v() for k, v in data.items()}
 
     def test_shallow_copy(self):
         sample, _ = self._np_sample()
         other_sample = sample.shallow_copy()
-        assert all(k in other_sample for k in sample)
-        assert all(k in sample for k in other_sample)
+        assert sample.keys() == other_sample.keys()
         assert all(v is other_sample[k] for k, v in sample.items())
 
     def test_deep_copy(self):
         sample, _ = self._np_sample()
         other_sample = sample.deep_copy()
-        assert all(k in other_sample for k in sample)
-        assert all(k in sample for k in other_sample)
+        assert sample.keys() == other_sample.keys()
         assert all(v is not other_sample[k] for k, v in sample.items())
 
     def test_set_item(self):
@@ -49,8 +51,7 @@ class TestSample:
         changed_key = next(iter(data))
         changed_item = pli.JsonMetadataItem({"a": 1})
         other_sample = sample.set_item(changed_key, changed_item)
-        assert all(k in other_sample for k in sample)
-        assert all(k in sample for k in other_sample)
+        assert sample.keys() == other_sample.keys()
         assert all(
             (v is other_sample[k]) if k != changed_key else (v is not other_sample[k])
             for k, v in sample.items()
@@ -75,7 +76,7 @@ class TestSample:
             else isinstance(v, sample[ref_key].__class__)
             for k, v in other_sample.items()
         )
-        assert np.all(other_sample[target_key]() == new_value)
+        assert _np_eq(other_sample[target_key](), new_value)
 
     def test_set_value(self):
         from pipelime.items.numpy_item import NumpyItem
@@ -86,15 +87,14 @@ class TestSample:
 
         other_sample = sample.set_value(target_key, new_value)
 
-        assert all(k in other_sample for k in sample)
-        assert all(k in sample for k in other_sample)
+        assert sample.keys() == other_sample.keys()
         assert all(
             (v is sample[k])
             if k != target_key
             else isinstance(v, sample[target_key].__class__)
             for k, v in other_sample.items()
         )
-        assert np.all(other_sample[target_key]() == new_value)
+        assert _np_eq(other_sample[target_key](), new_value)
 
     def test_change_key_invalid(self):
         sample, _ = self._np_sample()
