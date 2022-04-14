@@ -14,6 +14,8 @@ import pipelime.remotes as plr
 
 
 class SerializationMode(Enum):
+    """Standard resolution is REMOTE -> HARD LINK -> SYM LINK -> FILE COPY -> NEW FILE"""
+
     CREATE_NEW_FILE = "newfile"
     DEEP_COPY = "deepcopy"
     SYM_LINK = "symlink"
@@ -81,9 +83,9 @@ class ItemFactory(ABCMeta):
         return cls.ITEM_SERIALIZATION_MODE[item_cls]
 
 
-def set_item_serialization_mode(mode: SerializationMode):
-    """Sets serialization mode for all items."""
-    for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys():
+def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item"]):
+    """Sets serialization mode for some or all items."""
+    for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_serialization_mode(itc, mode)
 
 
@@ -97,6 +99,44 @@ def enable_item_data_cache(*item_cls: t.Type["Item"]):
     """Enables data cache on selected item classes."""
     for itc in item_cls:
         ItemFactory.set_data_cache_mode(itc, True)
+
+
+class item_serialization_mode(ContextDecorator):
+    """Use this class as context manager or function decorator to temporarily change
+    the item serialization mode.
+
+    .. code-block::
+    :caption: Example
+
+        # set the serialization mode for all items
+        with item_serialization_mode(SerializationMode.HARD_LINK):
+            ...
+
+        # set the serialization mode only for ImageItem and NumpyItem
+        with item_serialization_mode(SerializationMode.HARD_LINK, ImageItem, NumpyItem):
+            ...
+
+        # apply at function invocation
+        @item_serialization_mode(SerializationMode.HARD_LINK, ImageItem)
+        def my_fn():
+            ...
+    """
+
+    def __init__(self, smode: SerializationMode, *item_cls: t.Type["Item"]):
+        self._target_mode = smode
+        self._items = (
+            item_cls if item_cls else ItemFactory.ITEM_SERIALIZATION_MODE.keys()
+        )
+
+    def __enter__(self):
+        self._prev_mode = {
+            itc: ItemFactory.get_serialization_mode(itc) for itc in self._items
+        }
+        set_item_serialization_mode(self._target_mode, *self._items)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for itc, val in self._prev_mode.items():
+            ItemFactory.set_serialization_mode(itc, val)
 
 
 class no_data_cache(ContextDecorator):
@@ -114,7 +154,7 @@ class no_data_cache(ContextDecorator):
         with no_data_cache(ImageItem, NumpyItem):
             ...
 
-        # apply to function invocation
+        # apply at function invocation
         @no_data_cache(ImageItem)
         def my_fn():
             ...
@@ -331,16 +371,21 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     def _serialize_to_remote(self, remote_url: ParseResult) -> t.Optional[ParseResult]:
         remote, rm_paths = plr.create_remote(remote_url), plr.paths_from_url(remote_url)
         if remote is not None and rm_paths[0] is not None:
-            with _unclosable_BytesIO() as data_stream:
-                self.encode(self(), data_stream)
+            data = self()
+            if data is None:
+                logger.warning(f"{self.__class__}: no data to upload to remote.")
+            else:
+                with _unclosable_BytesIO() as data_stream:
+                    self.encode(data, data_stream)
 
-                data_stream.seek(0, io.SEEK_END)
-                data_size = data_stream.tell()
-                data_stream.seek(0, io.SEEK_SET)
+                    data_stream.seek(0, io.SEEK_END)
+                    data_size = data_stream.tell()
+                    data_stream.seek(0, io.SEEK_SET)
 
-                return remote.upload_stream(
-                    data_stream, data_size, rm_paths[0], self.file_extensions()[0]
-                )
+                    return remote.upload_stream(
+                        data_stream, data_size, rm_paths[0], self.file_extensions()[0]
+                    )
+        return None
 
     def serialize(self, *targets: _item_data_source):
         for trg in targets:

@@ -7,12 +7,14 @@ from pipelime.items import Item
 
 
 class StageUploadToRemote(SampleStage):
-    def __init__(self, *remotes: ParseResult):
+    def __init__(self, *remotes: ParseResult, keys_to_upload: t.Optional[t.Collection[str]] = None):
         self._remotes = remotes
+        self._keys_to_upload = keys_to_upload
 
     def __call__(self, x: Sample) -> Sample:
-        for v in x.values():
-            v.serialize(*self._remotes)
+        for k, v in x.items():
+            if not self._keys_to_upload or k in self._keys_to_upload:
+                v.serialize(*self._remotes)
         return x
 
 

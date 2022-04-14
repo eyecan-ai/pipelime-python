@@ -34,8 +34,8 @@ def minimnist_dataset(datasets_folder) -> dict:
     }
 
 
-@pytest.fixture(scope="session")
-def minio(tmp_path_factory):
+@pytest.fixture(scope="function")
+def minio(tmp_path: Path):
     minio_path = os.environ.get("MINIO_APP")
     if not minio_path or not Path(minio_path).is_file():
         yield ""
@@ -50,7 +50,8 @@ def minio(tmp_path_factory):
     from subprocess import Popen
     from time import sleep
 
-    minio_root = tmp_path_factory.mktemp(".minio")
+    minio_root = tmp_path / ".minio"
+    minio_root.mkdir()
     minio_proc = Popen([minio_path, "server", str(minio_root)])
     sleep(5)
     yield "minioadmin"

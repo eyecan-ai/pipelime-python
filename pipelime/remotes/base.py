@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 import hashlib
-from urllib.parse import ParseResult, unquote_plus
+from urllib.parse import ParseResult, unquote_plus, urlparse
 from loguru import logger
 
 import typing as t
@@ -45,15 +45,18 @@ class RemoteRegister(ABCMeta):
 
 
 def make_remote_url(
-    scheme: str = "", netloc: str = "", path: str = "", **init_args
+    scheme: str = "", netloc: str = "", path: t.Union[str, Path] = "", **init_args
 ) -> ParseResult:
-    return ParseResult(
-        scheme=scheme,
-        netloc=netloc,
-        path=path,
-        params="",
-        query=":".join([k + "=" + str(v) for k, v in init_args.items()]),
-        fragment="",
+    # we want to normalize the path as "/path/to/loc" or "/c:/path/to/loc"
+    return urlparse(
+        ParseResult(
+            scheme=scheme,
+            netloc=netloc,
+            path=Path(path).as_posix(),
+            params="",
+            query=":".join([k + "=" + str(v) for k, v in init_args.items()]),
+            fragment="",
+        ).geturl()
     )
 
 

@@ -8,6 +8,7 @@ from pipelime.items import SerializationMode, Item
 
 
 class _serialization_mode_override:
+    """Changes the serialization mode of a specific item."""
     def __init__(self, item: Item, mode: t.Optional[SerializationMode]):
         self._item = item
         self._mode = mode

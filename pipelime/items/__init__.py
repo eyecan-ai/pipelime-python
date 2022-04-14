@@ -3,6 +3,7 @@ from pipelime.items.base import (
     Item,
     UnknownItem,
     set_item_serialization_mode,
+    item_serialization_mode,
     disable_item_data_cache,
     enable_item_data_cache,
     no_data_cache,

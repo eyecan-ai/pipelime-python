@@ -55,11 +55,8 @@ class TestRemotes:
             assert cmp(str(local_file), original, shallow=False)
 
     def test_shared_folder_remote(self, minimnist_dataset: dict, tmp_path: Path):
-        remote_root = tmp_path / "rmbucket"
-        remote_root.mkdir(parents=True)
-
         remote_url = plr.make_remote_url(
-            scheme="file", netloc="localhost", path="/" + remote_root.as_posix()
+            scheme="file", netloc="localhost", path=(tmp_path / "rmbucket")
         )
 
         self._upload_download(tmp_path, minimnist_dataset["path"], remote_url)
@@ -71,7 +68,7 @@ class TestRemotes:
         remote_url = plr.make_remote_url(
             scheme="s3",
             netloc="localhost:9000",
-            path="/rmbucket",
+            path="rmbucket",
             access_key=f"{minio}",
             secret_key=f"{minio}",
             secure_connection=False,
