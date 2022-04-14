@@ -40,7 +40,7 @@ class RemoteRegister(ABCMeta):
                 remote_instance = remote_class(netloc, **kwargs)
                 cls.REMOTE_INSTANCES[(scheme, netloc)] = remote_instance
             else:
-                logger.warning(f"Unknown remote scheme '{scheme}'.")
+                logger.warning(f"Unknown remote scheme '{scheme}'.")  # pragma: no cover
         return remote_instance
 
 
@@ -72,15 +72,15 @@ def create_remote(url: ParseResult) -> t.Optional["BaseRemote"]:
 
     def _convert_val(val: str):
         if val == "True":
-            return True
+            return True  # pragma: no cover
         if val == "False":
-            return False
-        try:
+            return False  # pragma: no cover
+        try:  # pragma: no cover
             num = int(val)
             return num
         except ValueError:
             pass
-        try:
+        try:  # pragma: no cover
             num = float(val)
             return num
         except ValueError:
@@ -112,7 +112,7 @@ def paths_from_url(
             return str(file_full_path.as_posix()), ""
         return str(file_full_path.parent.as_posix()), str(file_full_path.name)
     else:
-        return None, None
+        return None, None  # pragma: no cover
 
 
 class BaseRemote(metaclass=RemoteRegister):  # type: ignore
@@ -173,6 +173,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
             local_stream, local_stream_size, target_base_path, target_name
         ):
             return self._make_url(f"{target_base_path}/{target_name}")
+        # upload has failed
         return None
 
     def download_file(
@@ -263,7 +264,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
         :return: True if <target_base_path>/<target_name> exists on this remote.
         :rtype: bool
         """
-        ...
+        pass
 
     def _compute_hash(self, stream: t.BinaryIO, hash_fn: t.Any = None) -> str:
         """Compute a hash value based on the content of a readable stream.
@@ -277,7 +278,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
         :rtype: str
         """
         if hash_fn is None:
-            hash_fn = hashlib.sha256()
+            hash_fn = hashlib.sha256()  # pragma: no cover
         b = bytearray(1024 * 1024)
         mv = memoryview(b)
         fpos = stream.tell()
@@ -312,7 +313,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
         :return: the hash function, eg, `hashlib.sha256()`.
         :rtype: Any
         """
-        ...
+        pass
 
     @abstractmethod
     def _upload(
@@ -335,7 +336,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
         :return: True if no error occurred.
         :rtype: bool
         """
-        ...
+        pass
 
     @abstractmethod
     def _download(
@@ -358,7 +359,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
         :return: True if no error occurred.
         :rtype: bool
         """
-        ...
+        pass
 
     @classmethod
     @abstractmethod

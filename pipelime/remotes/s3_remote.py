@@ -79,10 +79,6 @@ class S3Remote(BaseRemote):
             logger.error("S3 remote needs `minio` python package.")
             self._client = None
 
-    @property
-    def client(self):
-        return self._client
-
     def _maybe_create_bucket(self, target_base_path: str):
         if not self._client.bucket_exists(target_base_path):  # type: ignore
             logger.info(
