@@ -22,42 +22,75 @@ class TestRemotes:
         self,
         inpath: Path,
         outpath: Path,
-        remote_url: ParseResult,
+        remote_urls: t.Union[ParseResult, t.Sequence[ParseResult]],
         filter_fn: t.Optional[t.Callable[[Sample], bool]],
         keys_to_upload: t.Optional[t.Collection[str]],
         check_data: bool,
     ):
+        def _normalized_url(url: ParseResult) -> str:
+            src_path = Path(url.path)
+            if src_path.suffix:
+                src_path = src_path.parent
+            return ParseResult(
+                scheme=url.scheme,
+                netloc=url.netloc if url.netloc else "localhost",
+                path=src_path.as_posix(),
+                params="",
+                query="",
+                fragment="",
+            ).geturl()
+
         from pipelime.stages import StageUploadToRemote
         from pipelime.items.numpy_item import NumpyItem
         import numpy as np
+
+        if isinstance(remote_urls, ParseResult):
+            remote_urls = [remote_urls]
 
         filtered_seq = SamplesSequence.from_underfolder(  # type: ignore
             inpath, merge_root_items=False
         )
         if filter_fn:
             filtered_seq = filtered_seq.filter(filter_fn)
+
         out_seq = filtered_seq.map(
-            StageUploadToRemote(remote_url, keys_to_upload=keys_to_upload)
+            StageUploadToRemote(*remote_urls, keys_to_upload=keys_to_upload)  # type: ignore
         ).to_underfolder(folder=outpath)
         for _ in out_seq:
             pass
 
         # high-level check
         if check_data:
+            org_seq = SamplesSequence.from_underfolder(  # type: ignore
+                inpath, merge_root_items=False
+            )
+            if filter_fn:
+                org_seq = org_seq.filter(filter_fn)
             reader_out = SamplesSequence.from_underfolder(  # type: ignore
                 outpath, merge_root_items=False
             )
-            for org_sample, out_sample in zip(filtered_seq, reader_out):
+            for org_sample, out_sample in zip(org_seq, reader_out):
+                assert org_sample.keys() == out_sample.keys()
+
                 for key, out_item in out_sample.items():
                     assert out_item._data_cache is None
                     if not keys_to_upload or key in keys_to_upload:
+                        actual_remotes = set(
+                            org_sample[key]._remote_sources + remote_urls
+                        )
+
                         assert len(out_item._file_sources) == 0
-                        assert len(out_item._remote_sources) == 1
+                        assert len(out_item._remote_sources) == len(actual_remotes)
+                        for rm_src in out_item._remote_sources:
+                            for rm_trg in actual_remotes:
+                                if _normalized_url(rm_src) == _normalized_url(rm_trg):
+                                    break
+                            else:
+                                assert False
                     else:
                         assert len(out_item._file_sources) == 1
                         assert len(out_item._remote_sources) == 0
 
-                assert org_sample.keys() == out_sample.keys()
                 for k, v in org_sample.items():
                     if isinstance(v, NumpyItem):
                         assert np.array_equal(v(), out_sample[k](), equal_nan=True)  # type: ignore
@@ -97,7 +130,6 @@ class TestRemotes:
         )
 
     def test_incremental_file_upload(self, minimnist_dataset: dict, tmp_path: Path):
-        import pipelime.items as pli
         from pipelime.items.numpy_item import NumpyItem
         from shutil import rmtree
         import numpy as np
@@ -196,3 +228,64 @@ class TestRemotes:
                         assert np.array_equal(v1(), v1(), equal_nan=True)  # type: ignore
                     else:
                         assert v1() == v2()
+
+    def test_multiple_remote_upload(self, minimnist_dataset: dict, tmp_path: Path):
+        from shutil import rmtree
+        import numpy as np
+        from pipelime.items.numpy_item import NumpyItem
+
+        # create two remotes
+        remote_a_root = tmp_path / "remote_a"
+        remote_a_root.mkdir()
+        remote_a_url = make_remote_url(
+            scheme="file", netloc="localhost", path=remote_a_root / "rmbucketa"
+        )
+
+        remote_b_root = tmp_path / "remote_b"
+        remote_b_root.mkdir()
+        remote_b_url = make_remote_url(
+            scheme="file", netloc="localhost", path=remote_b_root / "rmbucketb"
+        )
+
+        self._get_local_copy(minimnist_dataset, tmp_path / "input")
+
+        # upload to both remotes
+        output_a_and_b = tmp_path / "output_a_and_b"
+        self._upload_to_remote(
+            tmp_path / "input",
+            output_a_and_b,
+            [remote_a_url, remote_b_url],
+            None,
+            None,
+            True,
+        )
+
+        # now remove remote_a and check again the data
+        rmtree(remote_a_root, ignore_errors=True)
+
+        input_seq = SamplesSequence.from_underfolder(tmp_path / "input")  # type: ignore
+        output_seq = SamplesSequence.from_underfolder(output_a_and_b)  # type: ignore
+        for ins, outs in zip(input_seq, output_seq):
+            assert ins.keys() == outs.keys()
+            for k, v in ins.items():
+                if isinstance(v, NumpyItem):
+                    assert np.array_equal(v(), outs[k](), equal_nan=True)  # type: ignore
+                else:
+                    assert v() == outs[k]()
+
+        # now upload to remote_c taking data from remote_b
+        remote_c_root = tmp_path / "remote_c"
+        remote_c_root.mkdir()
+        remote_c_url = make_remote_url(
+            scheme="file", netloc="localhost", path=remote_c_root / "rmbucketc"
+        )
+
+        output_c_from_b = tmp_path / "output_c_from_b"
+        self._upload_to_remote(
+            output_a_and_b,
+            output_c_from_b,
+            remote_c_url,
+            None,
+            None,
+            True,
+        )
