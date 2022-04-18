@@ -18,6 +18,19 @@ class TestRemotes:
             for _ in seq:
                 pass
 
+    def _normalized_url(self, url: ParseResult) -> str:
+        src_path = Path(url.path)
+        if src_path.suffix:
+            src_path = src_path.parent
+        return ParseResult(
+            scheme=url.scheme,
+            netloc=url.netloc if url.netloc else "localhost",
+            path=src_path.as_posix(),
+            params="",
+            query="",
+            fragment="",
+        ).geturl()
+
     def _upload_to_remote(
         self,
         inpath: Path,
@@ -27,19 +40,6 @@ class TestRemotes:
         keys_to_upload: t.Optional[t.Collection[str]],
         check_data: bool,
     ):
-        def _normalized_url(url: ParseResult) -> str:
-            src_path = Path(url.path)
-            if src_path.suffix:
-                src_path = src_path.parent
-            return ParseResult(
-                scheme=url.scheme,
-                netloc=url.netloc if url.netloc else "localhost",
-                path=src_path.as_posix(),
-                params="",
-                query="",
-                fragment="",
-            ).geturl()
-
         from pipelime.stages import StageUploadToRemote
         from pipelime.items.numpy_item import NumpyItem
         import numpy as np
@@ -83,7 +83,7 @@ class TestRemotes:
                         assert len(out_item._remote_sources) == len(actual_remotes)
                         for rm_src in out_item._remote_sources:
                             for rm_trg in actual_remotes:
-                                if _normalized_url(rm_src) == _normalized_url(rm_trg):
+                                if self._normalized_url(rm_src) == self._normalized_url(rm_trg):
                                     break
                             else:
                                 assert False
@@ -289,3 +289,69 @@ class TestRemotes:
             None,
             True,
         )
+
+    def test_remove_remote(self, minimnist_dataset: dict, tmp_path: Path):
+        from pipelime.stages import StageRemoveRemote
+        from pipelime.items.numpy_item import NumpyItem
+        import numpy as np
+
+        # create two remotes
+        remote_a_root = tmp_path / "remote_a"
+        remote_a_root.mkdir()
+        remote_a_url = make_remote_url(
+            scheme="file", netloc="localhost", path=remote_a_root / "rmbucketa"
+        )
+
+        remote_b_root = tmp_path / "remote_b"
+        remote_b_root.mkdir()
+        remote_b_url = make_remote_url(
+            scheme="file", netloc="localhost", path=remote_b_root / "rmbucketb"
+        )
+
+        self._get_local_copy(minimnist_dataset, tmp_path / "input")
+
+        # upload to both remotes
+        output_a_and_b = tmp_path / "output_a_and_b"
+        self._upload_to_remote(
+            tmp_path / "input",
+            output_a_and_b,
+            [remote_a_url, remote_b_url],
+            None,
+            None,
+            True,
+        )
+
+        # remove remote_a from all samples and remote_b from only one item key
+        output_remove = tmp_path / "output_remove"
+        item_key = minimnist_dataset["image_keys"][0]
+        seq = SamplesSequence.from_underfolder(  # type: ignore
+            output_a_and_b
+        ).map(StageRemoveRemote(remote_a_url, **{item_key: remote_b_url})).to_underfolder(
+            output_remove
+        )
+        for _ in seq:
+            pass
+
+        # check final output
+        normalized_a = self._normalized_url(remote_a_url)
+        normalized_b = self._normalized_url(remote_b_url)
+        org_seq = SamplesSequence.from_underfolder(  # type: ignore
+            output_a_and_b
+        )
+        out_seq = SamplesSequence.from_underfolder(output_remove)  # type: ignore
+        for org_sample, out_sample in zip(org_seq, out_seq):
+            assert org_sample.keys() == out_sample.keys()
+            for k, vout in out_sample.items():
+                for rm in vout._remote_sources:
+                    assert normalized_a != rm
+                    assert k != item_key or normalized_b != rm
+                if k != item_key:
+                    assert len(vout._file_sources) == 0
+                else:
+                    assert len(vout._remote_sources) == 0
+                    assert len(vout._file_sources) == 1
+
+                if isinstance(vout, NumpyItem):
+                    assert np.array_equal(vout(), org_sample[k](), equal_nan=True)  # type: ignore
+                else:
+                    assert vout() == org_sample[k]()

@@ -26,7 +26,7 @@ class StageRemoveRemote(SampleStage):
     ):
         self._always_remove = list(always_remove)
         self._remove_by_key = {
-            k: (list(v) if isinstance(v, t.Sequence) else [v])
+            k: [v] if isinstance(v, ParseResult) else list(v)
             for k, v in remove_by_key.items()
         }
 
@@ -34,5 +34,5 @@ class StageRemoveRemote(SampleStage):
         new_data: t.Dict[str, Item] = {}
         for k, v in x.items():
             rm = self._always_remove + self._remove_by_key.get(k, [])  # type: ignore
-            new_data[k] = v.remove_data_source(rm)
+            new_data[k] = v.remove_data_source(*rm)
         return Sample(new_data)

@@ -406,8 +406,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 src_path = src_path.parent
             return ParseResult(
                 scheme=src.scheme,
-                netloc=src.netloc,
-                path=str(src_path),
+                netloc=src.netloc if src.netloc else "localhost",
+                path=src_path.as_posix(),
                 params="",
                 query="",
                 fragment="",
@@ -415,17 +415,21 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
         to_be_removed = [_normalize_source(src) for src in sources]
 
-        new_sources: t.List[_item_init_types] = (
-            [] if self._data_cache is None else [self._data_cache]
-        )
-        new_sources += [src for src in self._file_sources if src not in to_be_removed]
+        new_sources: t.List[t.Any] = [
+            src for src in self._file_sources if src not in to_be_removed
+        ]
         new_sources += [
             src
             for src in self._remote_sources
             if _normalize_source(src) not in to_be_removed
         ]
+        new_sources += (
+            [self._data_cache]
+            if self._data_cache is not None
+            else ([self()] if not new_sources else [])
+        )
 
-        return self.make_new(new_sources, shared=self.is_shared)
+        return self.make_new(*new_sources, shared=self.is_shared)
 
     def __call__(self) -> t.Optional[T]:
         if self._data_cache is not None:
