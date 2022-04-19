@@ -1,4 +1,5 @@
 from urllib.parse import ParseResult
+from pathlib import Path
 import typing as t
 
 from pipelime.sequences import Sample
@@ -7,7 +8,11 @@ from pipelime.items import Item
 
 
 class StageUploadToRemote(SampleStage):
-    def __init__(self, *remotes: ParseResult, keys_to_upload: t.Optional[t.Collection[str]] = None):
+    def __init__(
+        self,
+        *remotes: ParseResult,
+        keys_to_upload: t.Optional[t.Collection[str]] = None
+    ):
         self._remotes = remotes
         self._keys_to_upload = keys_to_upload
 
@@ -18,15 +23,17 @@ class StageUploadToRemote(SampleStage):
         return x
 
 
-class StageRemoveRemote(SampleStage):
+class StageForgetSource(SampleStage):
     def __init__(
         self,
-        *always_remove: ParseResult,
-        **remove_by_key: t.Union[ParseResult, t.Sequence[ParseResult]]
+        *always_remove: t.Union[Path, ParseResult],
+        **remove_by_key: t.Union[
+            t.Union[Path, ParseResult], t.Sequence[t.Union[Path, ParseResult]]
+        ]
     ):
         self._always_remove = list(always_remove)
         self._remove_by_key = {
-            k: [v] if isinstance(v, ParseResult) else list(v)
+            k: [v] if isinstance(v, (Path, ParseResult)) else list(v)
             for k, v in remove_by_key.items()
         }
 

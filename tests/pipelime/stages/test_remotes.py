@@ -83,7 +83,9 @@ class TestRemotes:
                         assert len(out_item._remote_sources) == len(actual_remotes)
                         for rm_src in out_item._remote_sources:
                             for rm_trg in actual_remotes:
-                                if self._normalized_url(rm_src) == self._normalized_url(rm_trg):
+                                if self._normalized_url(rm_src) == self._normalized_url(
+                                    rm_trg
+                                ):
                                     break
                             else:
                                 assert False
@@ -290,8 +292,8 @@ class TestRemotes:
             True,
         )
 
-    def test_remove_remote(self, minimnist_dataset: dict, tmp_path: Path):
-        from pipelime.stages import StageRemoveRemote
+    def test_forget_source(self, minimnist_dataset: dict, tmp_path: Path):
+        from pipelime.stages import StageForgetSource
         from pipelime.items.numpy_item import NumpyItem
         import numpy as np
 
@@ -311,23 +313,35 @@ class TestRemotes:
         self._get_local_copy(minimnist_dataset, tmp_path / "input")
 
         # upload to both remotes
+        key_noup_rm, key_noup_norm, key_up_rm = minimnist_dataset["item_keys"][0:3]
         output_a_and_b = tmp_path / "output_a_and_b"
         self._upload_to_remote(
             tmp_path / "input",
             output_a_and_b,
             [remote_a_url, remote_b_url],
             None,
-            None,
+            [
+                k
+                for k in minimnist_dataset["item_keys"]
+                if k != key_noup_rm and k != key_noup_norm
+            ],
             True,
         )
 
         # remove remote_a from all samples and remote_b from only one item key
         output_remove = tmp_path / "output_remove"
-        item_key = minimnist_dataset["image_keys"][0]
-        seq = SamplesSequence.from_underfolder(  # type: ignore
-            output_a_and_b
-        ).map(StageRemoveRemote(remote_a_url, **{item_key: remote_b_url})).to_underfolder(
-            output_remove
+        seq = (
+            SamplesSequence.from_underfolder(output_a_and_b)  # type: ignore
+            .map(
+                StageForgetSource(
+                    remote_a_url,
+                    **{
+                        key_noup_rm: [output_a_and_b, remote_b_url],
+                        key_up_rm: remote_b_url,
+                    },
+                )
+            )
+            .to_underfolder(output_remove)
         )
         for _ in seq:
             pass
@@ -335,21 +349,30 @@ class TestRemotes:
         # check final output
         normalized_a = self._normalized_url(remote_a_url)
         normalized_b = self._normalized_url(remote_b_url)
-        org_seq = SamplesSequence.from_underfolder(  # type: ignore
-            output_a_and_b
-        )
+        org_seq = SamplesSequence.from_underfolder(output_a_and_b)  # type: ignore
         out_seq = SamplesSequence.from_underfolder(output_remove)  # type: ignore
         for org_sample, out_sample in zip(org_seq, out_seq):
             assert org_sample.keys() == out_sample.keys()
             for k, vout in out_sample.items():
-                for rm in vout._remote_sources:
-                    assert normalized_a != rm
-                    assert k != item_key or normalized_b != rm
-                if k != item_key:
-                    assert len(vout._file_sources) == 0
-                else:
+                if k in (key_noup_rm, key_up_rm):
+                    # this item should be a deep copy
                     assert len(vout._remote_sources) == 0
-                    assert len(vout._file_sources) == 1
+                    path = Path(vout._file_sources[0])
+                    assert not path.is_symlink()
+                    assert path.is_file()
+                    assert path.stat().st_nlink == 1
+                elif k == key_noup_norm:
+                    # this item should be a hard link
+                    assert len(vout._remote_sources) == 0
+                    path = Path(vout._file_sources[0])
+                    assert not path.is_symlink()
+                    assert path.is_file()
+                    assert path.stat().st_nlink == 3
+                else:
+                    norm_rm = [self._normalized_url(u) for u in vout._remote_sources]
+                    assert normalized_a not in norm_rm
+                    assert normalized_b in  norm_rm
+                    assert len(vout._file_sources) == 0
 
                 if isinstance(vout, NumpyItem):
                     assert np.array_equal(vout(), org_sample[k](), equal_nan=True)  # type: ignore

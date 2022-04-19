@@ -7,6 +7,7 @@ from loguru import logger
 import io
 import shutil
 import os
+import json
 
 import typing as t
 
@@ -37,8 +38,9 @@ class ItemFactory(ABCMeta):
     def __init__(cls, name, bases, dct):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
-            if ext != cls.REMOTE_FILE_EXT:
-                cls.ITEM_CLASSES[ext] = cls  # type: ignore
+            if ext == cls.REMOTE_FILE_EXT:
+                raise ValueError(f"{cls.REMOTE_FILE_EXT} file extension is reserved")
+            cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = True  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
         super().__init__(name, bases, dct)
@@ -48,16 +50,13 @@ class ItemFactory(ABCMeta):
         cls, filepath: t.Union[Path, str], shared_item: bool = False
     ) -> "Item":
         """Returns the item that can handle the given file."""
-
-        # make sure all Items have been properly registered
-        import pipelime.items  # noqa
-
         filepath = Path(filepath)
         path_or_urls = [filepath]
         ext = filepath.suffix
         if ext == cls.REMOTE_FILE_EXT:
             with filepath.open("r") as fp:
-                url_list = [urlparse(line) for line in fp if line]
+                url_list = json.load(fp)
+                url_list = [urlparse(u) for u in url_list if u]
             if not url_list:
                 raise ValueError(f"The file {filepath} does not contain any remote.")
             ext = Path(url_list[0].path).suffix
@@ -319,9 +318,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         if smode is SerializationMode.REMOTE_FILE:
             try:
                 with path.open("w") as fp:
-                    fp.write(
-                        "\n".join([rm.geturl() for rm in self._remote_sources]) + "\n"
-                    )
+                    json.dump([rm.geturl() for rm in self._remote_sources], fp)
                 return None  # do not save remote file among file sources!
             except Exception:
                 logger.exception(f"{self.__class__}: remote file serialization error.")
@@ -398,30 +395,42 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 self._add_data_source(data_source)
 
     def remove_data_source(self, *sources: _item_data_source) -> "Item":
-        def _normalize_source(src: _item_data_source) -> _item_data_source:
+        def _normalize_source(src: _item_data_source) -> t.List[_item_data_source]:
             if isinstance(src, Path):
-                return src.resolve()
+                src = src.resolve()
+                # Path.parents supports slicing only from 3.10 onwards
+                pp = [src] + [p for p in src.parents]
+                pp.pop()  # remove last element, which is `.`, `/`, `c:\` etc.
+                return pp  # type: ignore
             src_path = Path(src.path)
             if src_path.suffix:
                 src_path = src_path.parent
-            return ParseResult(
-                scheme=src.scheme,
-                netloc=src.netloc if src.netloc else "localhost",
-                path=src_path.as_posix(),
-                params="",
-                query="",
-                fragment="",
-            )
+            return [
+                ParseResult(
+                    scheme=src.scheme,
+                    netloc=src.netloc if src.netloc else "localhost",
+                    path=src_path.as_posix(),
+                    params="",
+                    query="",
+                    fragment="",
+                )
+            ]
 
-        to_be_removed = [_normalize_source(src) for src in sources]
+        to_be_removed = [pp for src in sources for pp in _normalize_source(src)]
 
-        new_sources: t.List[t.Any] = [
-            src for src in self._file_sources if src not in to_be_removed
-        ]
+        new_sources: t.List[t.Any] = []
+        for src in self._file_sources:
+            src_ps = src.parents
+            for tbr in to_be_removed:
+                if tbr in src_ps:
+                    break
+            else:
+                new_sources.append(src)
+
         new_sources += [
             src
             for src in self._remote_sources
-            if _normalize_source(src) not in to_be_removed
+            if _normalize_source(src)[0] not in to_be_removed
         ]
         new_sources += (
             [self._data_cache]

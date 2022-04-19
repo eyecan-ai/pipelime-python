@@ -196,8 +196,6 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):
             )
         )
 
-        # print(fn_str)
-
         local_scope = {}
         exec(fn_str, local_scope)
 
