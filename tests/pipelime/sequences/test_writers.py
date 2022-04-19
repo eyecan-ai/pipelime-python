@@ -20,7 +20,7 @@ class TestSamplesSequenceWriters:
         return source, dest
 
     def _check_data(self, source: pls.SamplesSequence, dest: pls.SamplesSequence):
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
         import numpy as np
 
         assert len(source) == len(dest)
@@ -29,7 +29,7 @@ class TestSamplesSequenceWriters:
             for k, v1 in s1.items():
                 v2 = s2[k]
                 assert v1.__class__ == v2.__class__
-                if isinstance(v1, NumpyItem):
+                if isinstance(v1, pli.NumpyItem):
                     assert np.array_equal(v1(), v2(), equal_nan=True)  # type: ignore
                 else:
                     assert v1() == v2()

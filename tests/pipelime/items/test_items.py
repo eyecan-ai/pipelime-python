@@ -98,3 +98,92 @@ class TestItems:
         decoded = np.array(imageio.imread(encoded, format=jpeg_suffix))
 
         assert _np_eq(r_item(), decoded)
+
+    def test_data_cache(self, items_folder: Path):
+        from pipelime.items.base import ItemFactory
+
+        for v in ItemFactory.ITEM_DATA_CACHE_MODE.values():
+            assert v is True
+
+        def _reload() -> t.Tuple[pli.Item, pli.Item]:
+            bmp_item = ItemFactory.get_instance(items_folder / "0.bmp")
+            json_item = ItemFactory.get_instance(items_folder / "3.json")
+            return bmp_item, json_item
+
+        def _check_single(item, should_cache, is_cached):
+            item.cache_data = should_cache
+            assert item.cache_data is should_cache
+            _ = item()
+            if is_cached:
+                assert item._data_cache is not None
+            else:
+                assert item._data_cache is None
+
+        def _check(should_cache, is_cached):
+            for id, it in enumerate(_reload()):
+                _check_single(it, should_cache[id], is_cached[id])
+
+        _check((True, True), (True, True))
+        _check((False, False), (False, False))
+
+        with pli.no_data_cache(pli.NumpyItem):
+            _check((True, True), (False, True))
+
+        with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
+            pli.enable_item_data_cache(pli.NumpyItem)
+            _check((True, True), (True, False))
+            _check((False, True), (False, False))
+
+    def test_set_data_twice(self):
+        with pytest.raises(ValueError):
+            _ = pli.NpyNumpyItem(np.random.rand(3, 4), np.random.rand(3, 4))
+
+    def test_set_from_binary(self, items_folder: Path):
+        with (items_folder / "2.txt").open("rb") as fp:
+            ref = pli.TxtNumpyItem(fp)()
+            gt = np.array(
+                [
+                    [
+                        6.390370900299208179e-01,
+                        4.262250008515110489e-01,
+                        9.315973628491435177e-01,
+                        1.002942906369641562e-01,
+                    ],
+                    [
+                        7.517292051086260640e-01,
+                        1.087911338619208523e-01,
+                        9.393092045579851668e-01,
+                        2.912748772468053415e-01,
+                    ],
+                    [
+                        3.411277654275945981e-01,
+                        8.135318888374636348e-01,
+                        7.341307526247440318e-01,
+                        1.800992012876649895e-01,
+                    ],
+                ]
+            )
+
+            assert isinstance(ref, np.ndarray)
+            assert gt.shape == ref.shape
+            assert np.all(gt - ref < 1e-6)  # type: ignore
+
+    def test_invalid_ext(self):
+        with pytest.raises(ValueError):
+            _ = pli.NpyNumpyItem(Path("foo.bar"))
+
+    def test_invalid_source(self):
+        from urllib.parse import ParseResult
+
+        item = pli.NpyNumpyItem(
+            Path("foo.npy"),
+            ParseResult(
+                scheme="foo",
+                netloc="bar",
+                path="baz.npy",
+                params="",
+                query="",
+                fragment="",
+            ),
+        )
+        assert item() is None

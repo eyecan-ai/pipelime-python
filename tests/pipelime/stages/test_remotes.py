@@ -41,7 +41,7 @@ class TestRemotes:
         check_data: bool,
     ):
         from pipelime.stages import StageUploadToRemote
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
         import numpy as np
 
         if isinstance(remote_urls, ParseResult):
@@ -94,7 +94,7 @@ class TestRemotes:
                         assert len(out_item._remote_sources) == 0
 
                 for k, v in org_sample.items():
-                    if isinstance(v, NumpyItem):
+                    if isinstance(v, pli.NumpyItem):
                         assert np.array_equal(v(), out_sample[k](), equal_nan=True)  # type: ignore
                     else:
                         assert v() == out_sample[k]()
@@ -132,7 +132,7 @@ class TestRemotes:
         )
 
     def test_incremental_file_upload(self, minimnist_dataset: dict, tmp_path: Path):
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
         from shutil import rmtree
         import numpy as np
 
@@ -226,7 +226,7 @@ class TestRemotes:
                     # added (see above)
                     assert len(v2._file_sources) == 2
                     assert len(v2._remote_sources) == 0
-                    if isinstance(v1, NumpyItem):
+                    if isinstance(v1, pli.NumpyItem):
                         assert np.array_equal(v1(), v1(), equal_nan=True)  # type: ignore
                     else:
                         assert v1() == v2()
@@ -234,7 +234,7 @@ class TestRemotes:
     def test_multiple_remote_upload(self, minimnist_dataset: dict, tmp_path: Path):
         from shutil import rmtree
         import numpy as np
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
 
         # create two remotes
         remote_a_root = tmp_path / "remote_a"
@@ -270,7 +270,7 @@ class TestRemotes:
         for ins, outs in zip(input_seq, output_seq):
             assert ins.keys() == outs.keys()
             for k, v in ins.items():
-                if isinstance(v, NumpyItem):
+                if isinstance(v, pli.NumpyItem):
                     assert np.array_equal(v(), outs[k](), equal_nan=True)  # type: ignore
                 else:
                     assert v() == outs[k]()
@@ -294,7 +294,7 @@ class TestRemotes:
 
     def test_forget_source(self, minimnist_dataset: dict, tmp_path: Path):
         from pipelime.stages import StageForgetSource
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
         import numpy as np
 
         # create two remotes
@@ -374,7 +374,7 @@ class TestRemotes:
                     assert normalized_b in  norm_rm
                     assert len(vout._file_sources) == 0
 
-                if isinstance(vout, NumpyItem):
+                if isinstance(vout, pli.NumpyItem):
                     assert np.array_equal(vout(), org_sample[k](), equal_nan=True)  # type: ignore
                 else:
                     assert vout() == org_sample[k]()

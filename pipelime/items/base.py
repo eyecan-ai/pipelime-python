@@ -39,7 +39,9 @@ class ItemFactory(ABCMeta):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
             if ext == cls.REMOTE_FILE_EXT:
-                raise ValueError(f"{cls.REMOTE_FILE_EXT} file extension is reserved")
+                raise ValueError(  # pragma: no cover
+                    f"{cls.REMOTE_FILE_EXT} file extension is reserved"
+                )
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = True  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
@@ -58,7 +60,9 @@ class ItemFactory(ABCMeta):
                 url_list = json.load(fp)
                 url_list = [urlparse(u) for u in url_list if u]
             if not url_list:
-                raise ValueError(f"The file {filepath} does not contain any remote.")
+                raise ValueError(  # pragma: no cover
+                    f"The file {filepath} does not contain any remote."
+                )
             ext = Path(url_list[0].path).suffix
             path_or_urls = url_list
 
@@ -71,7 +75,10 @@ class ItemFactory(ABCMeta):
 
     @classmethod
     def is_cache_enabled(cls, item_cls: t.Type["Item"]) -> bool:
-        return cls.ITEM_DATA_CACHE_MODE[item_cls]
+        for base_cls in item_cls.mro():
+            if issubclass(base_cls, Item) and not cls.ITEM_DATA_CACHE_MODE[base_cls]:
+                return False
+        return True
 
     @classmethod
     def set_serialization_mode(cls, item_cls: t.Type["Item"], mode: SerializationMode):
@@ -164,7 +171,7 @@ class no_data_cache(ContextDecorator):
 
     def __enter__(self):
         self._prev_state = {
-            itc: ItemFactory.is_cache_enabled(itc) for itc in self._items
+            itc: ItemFactory.ITEM_DATA_CACHE_MODE[itc] for itc in self._items
         }
         disable_item_data_cache(*self._items)
 
@@ -221,7 +228,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 self._add_data_source(src)
             elif self._data_cache is not None:
                 raise ValueError("Cannot set data twice.")
-            elif isinstance(src, t.BinaryIO):
+            elif isinstance(src, (t.BinaryIO, io.IOBase)):
                 self._data_cache = self.decode(src)
             else:
                 self._data_cache = self.validate(src)
@@ -551,8 +558,8 @@ class UnknownItem(Item[t.Any]):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
-        raise NotImplemented("Unknown item type.")
+        raise NotImplemented("Unknown item type.")  # pragma: no cover
 
     @classmethod
     def encode(cls, value: t.Any, fp: t.BinaryIO):
-        raise NotImplemented("Unknown item type.")
+        raise NotImplemented("Unknown item type.")  # pragma: no cover

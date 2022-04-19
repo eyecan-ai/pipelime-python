@@ -59,10 +59,10 @@ class TestSample:
         assert other_sample[changed_key] is changed_item
 
     def test_set_value_as(self):
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
 
         sample, data = self._mixed_sample()
-        ref_key = next(k for k, v in data.items() if isinstance(v, NumpyItem))
+        ref_key = next(k for k, v in data.items() if isinstance(v, pli.NumpyItem))
         target_key = "new_key"
         new_value = np.random.rand(4, 4)
 
@@ -79,10 +79,10 @@ class TestSample:
         assert _np_eq(other_sample[target_key](), new_value)
 
     def test_set_value(self):
-        from pipelime.items.numpy_item import NumpyItem
+        import pipelime.items as pli
 
         sample, data = self._mixed_sample()
-        target_key = next(k for k, v in data.items() if isinstance(v, NumpyItem))
+        target_key = next(k for k, v in data.items() if isinstance(v, pli.NumpyItem))
         new_value = np.random.rand(4, 4)
 
         other_sample = sample.set_value(target_key, new_value)
