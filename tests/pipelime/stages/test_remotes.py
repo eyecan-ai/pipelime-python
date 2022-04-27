@@ -8,16 +8,6 @@ from pipelime.remotes import make_remote_url
 
 
 class TestRemotes:
-    def _get_local_copy(self, dataset: dict, outpath: Path):
-        from pipelime.items import item_serialization_mode, SerializationMode
-
-        with item_serialization_mode(SerializationMode.DEEP_COPY):
-            seq = SamplesSequence.from_underfolder(  # type: ignore
-                dataset["path"], merge_root_items=False
-            ).to_underfolder(folder=outpath)
-            for _ in seq:
-                pass
-
     def _normalized_url(self, url: ParseResult) -> str:
         src_path = Path(url.path)
         if src_path.suffix:
@@ -31,7 +21,7 @@ class TestRemotes:
             fragment="",
         ).geturl()
 
-    def _upload_to_remote(
+    def _upload_to_remote(  # noqa
         self,
         inpath: Path,
         outpath: Path,
@@ -54,7 +44,9 @@ class TestRemotes:
             filtered_seq = filtered_seq.filter(filter_fn)
 
         out_seq = filtered_seq.map(
-            StageUploadToRemote(*remote_urls, keys_to_upload=keys_to_upload)  # type: ignore
+            StageUploadToRemote(  # type: ignore
+                *remote_urls, keys_to_upload=keys_to_upload
+            )
         ).to_underfolder(folder=outpath)
         for _ in out_seq:
             pass
@@ -95,11 +87,15 @@ class TestRemotes:
 
                 for k, v in org_sample.items():
                     if isinstance(v, pli.NumpyItem):
-                        assert np.array_equal(v(), out_sample[k](), equal_nan=True)  # type: ignore
+                        assert np.array_equal(
+                            v(), out_sample[k](), equal_nan=True  # type: ignore
+                        )
                     else:
                         assert v() == out_sample[k]()
 
-    def test_shared_folder_upload(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_shared_folder_upload(
+        self, minimnist_private_dataset: dict, tmp_path: Path
+    ):
         # data lake
         remote_url = make_remote_url(
             scheme="file",
@@ -107,12 +103,18 @@ class TestRemotes:
             path=(tmp_path / "rmbucket"),
         )
 
-        self._get_local_copy(minimnist_dataset, tmp_path / "input")
         self._upload_to_remote(
-            tmp_path / "input", tmp_path / "output", remote_url, None, None, True
+            minimnist_private_dataset["path"],
+            tmp_path / "output",
+            remote_url,
+            None,
+            None,
+            True,
         )
 
-    def test_s3_upload(self, minimnist_dataset: dict, tmp_path: Path, minio: str):
+    def test_s3_upload(
+        self, minimnist_private_dataset: dict, tmp_path: Path, minio: str
+    ):
         # data lake
         if not minio:
             pytest.skip("MinIO unavailable")
@@ -126,12 +128,18 @@ class TestRemotes:
             secure_connection=False,
         )
 
-        self._get_local_copy(minimnist_dataset, tmp_path / "input")
         self._upload_to_remote(
-            tmp_path / "input", tmp_path / "output", remote_url, None, None, True
+            minimnist_private_dataset["path"],
+            tmp_path / "output",
+            remote_url,
+            None,
+            None,
+            True,
         )
 
-    def test_incremental_file_upload(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_incremental_file_upload(
+        self, minimnist_private_dataset: dict, tmp_path: Path
+    ):
         import pipelime.items as pli
         from shutil import rmtree
         import numpy as np
@@ -143,16 +151,14 @@ class TestRemotes:
             scheme="file", netloc="localhost", path=remote_root / "rmbucket"
         )
 
-        self._get_local_copy(minimnist_dataset, tmp_path / "input")
-
         # upload even samples
         even_output = tmp_path / "even_uploaded"
         self._upload_to_remote(
-            tmp_path / "input",
+            minimnist_private_dataset["path"],
             even_output,
             remote_url,
             lambda x: int(x["label"]()) % 2 == 0,
-            minimnist_dataset["image_keys"],
+            minimnist_private_dataset["image_keys"],
             True,
         )
 
@@ -163,11 +169,11 @@ class TestRemotes:
             even_output, merge_root_items=False
         )
         even_count = len(even_seq)
-        assert even_count == minimnist_dataset["len"] // 2
+        assert even_count == minimnist_private_dataset["len"] // 2
 
         even_odd_partial_seq = even_seq.cat(
             SamplesSequence.from_underfolder(  # type: ignore
-                tmp_path / "input", merge_root_items=False
+                minimnist_private_dataset["path"], merge_root_items=False
             ).filter(lambda x: int(x["label"]()) % 2 == 1)
         )
 
@@ -189,7 +195,7 @@ class TestRemotes:
             even_odd_output,
             remote_url,
             None,
-            minimnist_dataset["image_keys"],
+            minimnist_private_dataset["image_keys"],
             False,
         )
 
@@ -197,7 +203,7 @@ class TestRemotes:
         even_odd_reader = SamplesSequence.from_underfolder(  # type: ignore
             even_odd_output, merge_root_items=False
         )
-        assert len(even_odd_reader) == minimnist_dataset["len"]
+        assert len(even_odd_reader) == minimnist_private_dataset["len"]
 
         for s1, s2 in zip(even_odd_reader, even_odd_partial_seq):
             is_even = int(s1["label"]()) % 2 == 0
@@ -207,7 +213,7 @@ class TestRemotes:
                 v2 = s2[k]
                 assert v1.__class__ == v2.__class__
 
-                if (k in minimnist_dataset["image_keys"]) and is_even:
+                if (k in minimnist_private_dataset["image_keys"]) and is_even:
                     assert v1() is None
                     assert v2() is None
                     assert len(v1._file_sources) == 0
@@ -216,7 +222,7 @@ class TestRemotes:
                     assert len(v1._remote_sources) == len(v2._remote_sources)
                 else:
                     assert v2() is not None
-                    if k in minimnist_dataset["image_keys"]:
+                    if k in minimnist_private_dataset["image_keys"]:
                         assert len(v1._file_sources) == 0
                         assert len(v1._remote_sources) == 1
                     else:
@@ -227,11 +233,15 @@ class TestRemotes:
                     assert len(v2._file_sources) == 2
                     assert len(v2._remote_sources) == 0
                     if isinstance(v1, pli.NumpyItem):
-                        assert np.array_equal(v1(), v1(), equal_nan=True)  # type: ignore
+                        assert np.array_equal(
+                            v1(), v1(), equal_nan=True  # type: ignore
+                        )
                     else:
                         assert v1() == v2()
 
-    def test_multiple_remote_upload(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_multiple_remote_upload(
+        self, minimnist_private_dataset: dict, tmp_path: Path
+    ):
         from shutil import rmtree
         import numpy as np
         import pipelime.items as pli
@@ -249,12 +259,10 @@ class TestRemotes:
             scheme="file", netloc="localhost", path=remote_b_root / "rmbucketb"
         )
 
-        self._get_local_copy(minimnist_dataset, tmp_path / "input")
-
         # upload to both remotes
         output_a_and_b = tmp_path / "output_a_and_b"
         self._upload_to_remote(
-            tmp_path / "input",
+            minimnist_private_dataset["path"],
             output_a_and_b,
             [remote_a_url, remote_b_url],
             None,
@@ -265,13 +273,17 @@ class TestRemotes:
         # now remove remote_a and check again the data
         rmtree(remote_a_root, ignore_errors=True)
 
-        input_seq = SamplesSequence.from_underfolder(tmp_path / "input")  # type: ignore
+        input_seq = SamplesSequence.from_underfolder(  # type: ignore
+            minimnist_private_dataset["path"], merge_root_items=False
+        )
         output_seq = SamplesSequence.from_underfolder(output_a_and_b)  # type: ignore
         for ins, outs in zip(input_seq, output_seq):
             assert ins.keys() == outs.keys()
             for k, v in ins.items():
                 if isinstance(v, pli.NumpyItem):
-                    assert np.array_equal(v(), outs[k](), equal_nan=True)  # type: ignore
+                    assert np.array_equal(
+                        v(), outs[k](), equal_nan=True  # type: ignore
+                    )
                 else:
                     assert v() == outs[k]()
 
@@ -292,7 +304,7 @@ class TestRemotes:
             True,
         )
 
-    def test_forget_source(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_forget_source(self, minimnist_private_dataset: dict, tmp_path: Path):
         from pipelime.stages import StageForgetSource
         import pipelime.items as pli
         import numpy as np
@@ -310,19 +322,19 @@ class TestRemotes:
             scheme="file", netloc="localhost", path=remote_b_root / "rmbucketb"
         )
 
-        self._get_local_copy(minimnist_dataset, tmp_path / "input")
-
         # upload to both remotes
-        key_noup_rm, key_noup_norm, key_up_rm = minimnist_dataset["item_keys"][0:3]
+        key_noup_rm, key_noup_norm, key_up_rm = minimnist_private_dataset["item_keys"][
+            0:3
+        ]
         output_a_and_b = tmp_path / "output_a_and_b"
         self._upload_to_remote(
-            tmp_path / "input",
+            minimnist_private_dataset["path"],
             output_a_and_b,
             [remote_a_url, remote_b_url],
             None,
             [
                 k
-                for k in minimnist_dataset["item_keys"]
+                for k in minimnist_private_dataset["item_keys"]
                 if k != key_noup_rm and k != key_noup_norm
             ],
             True,
@@ -371,10 +383,12 @@ class TestRemotes:
                 else:
                     norm_rm = [self._normalized_url(u) for u in vout._remote_sources]
                     assert normalized_a not in norm_rm
-                    assert normalized_b in  norm_rm
+                    assert normalized_b in norm_rm
                     assert len(vout._file_sources) == 0
 
                 if isinstance(vout, pli.NumpyItem):
-                    assert np.array_equal(vout(), org_sample[k](), equal_nan=True)  # type: ignore
+                    assert np.array_equal(
+                        vout(), org_sample[k](), equal_nan=True  # type: ignore
+                    )
                 else:
                     assert vout() == org_sample[k]()

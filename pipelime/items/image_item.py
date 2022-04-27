@@ -1,4 +1,4 @@
-import imageio
+import imageio.v3 as iio
 import tifffile
 import numpy as np
 import typing as t
@@ -22,12 +22,12 @@ class ImageItem(NumpyItem):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> np.ndarray:
-        return np.array(imageio.imread(fp, format=cls.file_extensions()[0]))
+        return np.array(iio.imread(fp, format_hint=cls.file_extensions()[0]))
 
     @classmethod
     def encode(cls, value: np.ndarray, fp: t.BinaryIO):
-        imageio.imwrite(
-            fp, value, format=cls.file_extensions()[0], **cls.save_options()
+        iio.imwrite(
+            fp, value, format_hint=cls.file_extensions()[0], **cls.save_options()
         )
 
 

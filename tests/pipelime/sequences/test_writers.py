@@ -53,20 +53,14 @@ class TestSamplesSequenceWriters:
         assert exists_ok
 
     def test_to_underfolder_serialization_mode(
-        self, minimnist_dataset: dict, tmp_path: Path
+        self, minimnist_private_dataset: dict, tmp_path: Path
     ):
         import pipelime.items as pli
 
-        # previous test runs may already have hard-linked the original files
-        # so we need to get a temporary copy first
-        src_path = tmp_path / "source"
-        with pli.item_serialization_mode(pli.SerializationMode.DEEP_COPY):
-            self._read_write_data(minimnist_dataset, src_path)
-
-        item_key = minimnist_dataset["item_keys"][0]
+        item_key = minimnist_private_dataset["item_keys"][0]
         with pli.item_serialization_mode(pli.SerializationMode.HARD_LINK):
             source, dest = self._read_write_data(
-                {"path": src_path},
+                minimnist_private_dataset,
                 tmp_path / "outfolder",
                 key_serialization_mode={item_key: pli.SerializationMode.DEEP_COPY},
             )
@@ -119,18 +113,12 @@ class TestSamplesSequenceWriters:
                 assert path.is_file()
                 assert path.stat().st_nlink == 1
 
-    def test_hardlink(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_hardlink(self, minimnist_private_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
-
-        # previous test runs may already have hard-linked the original files
-        # so we need to get a temporary copy first
-        src_path = tmp_path / "source"
-        with pli.item_serialization_mode(pli.SerializationMode.DEEP_COPY):
-            self._read_write_data(minimnist_dataset, src_path)
 
         with pli.item_serialization_mode(pli.SerializationMode.HARD_LINK):
             source, dest = self._read_write_data(
-                {"path": src_path}, tmp_path / "outfolder"
+                minimnist_private_dataset, tmp_path / "outfolder"
             )
         self._check_data(source, dest)
 

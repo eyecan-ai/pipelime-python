@@ -9,22 +9,27 @@ def data_folder() -> Path:
 
 
 @pytest.fixture(scope="session")
-def datasets_folder(data_folder) -> Path:
+def datasets_folder(data_folder: Path) -> Path:
     return data_folder / "datasets"
 
 
 @pytest.fixture(scope="session")
-def items_folder(data_folder) -> Path:
+def items_folder(data_folder: Path) -> Path:
     return data_folder / "items"
 
 
 @pytest.fixture(scope="session")
-def augmentations_folder(data_folder) -> Path:
+def augmentations_folder(data_folder: Path) -> Path:
     return data_folder / "augmentations"
 
 
 @pytest.fixture(scope="session")
-def minimnist_dataset(datasets_folder) -> dict:
+def choixe_folder(data_folder: Path) -> Path:
+    return data_folder / "choixe"
+
+
+@pytest.fixture(scope="session")
+def minimnist_dataset(datasets_folder: Path) -> dict:
     return {
         "path": datasets_folder / "underfolder_minimnist",
         "root_keys": ["cfg", "numbers", "pose"],
@@ -32,6 +37,17 @@ def minimnist_dataset(datasets_folder) -> dict:
         "image_keys": ["image", "mask"],
         "len": 20,
     }
+
+
+@pytest.fixture(scope="function")
+def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
+    from shutil import copytree
+
+    dest = Path(
+        copytree(str(minimnist_dataset["path"]), str(tmp_path / "minimnist_private"))
+    )
+    minimnist_dataset["path"] = dest
+    return minimnist_dataset
 
 
 @pytest.fixture(scope="function")

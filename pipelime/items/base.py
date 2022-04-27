@@ -15,13 +15,15 @@ import pipelime.remotes as plr
 
 
 class SerializationMode(Enum):
-    """Standard resolution is REMOTE -> HARD LINK -> SYM LINK -> FILE COPY -> NEW FILE"""
+    """Standard resolution is REMOTE FILE -> HARD LINK -> FILE COPY -> NEW FILE
+    or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour by setting
+    default and disabled serialization modes."""
 
-    CREATE_NEW_FILE = "newfile"
-    DEEP_COPY = "deepcopy"
-    SYM_LINK = "symlink"
-    HARD_LINK = "hardlink"
-    REMOTE_FILE = "remote"
+    CREATE_NEW_FILE = 0
+    DEEP_COPY = 1
+    SYM_LINK = 2
+    HARD_LINK = 3
+    REMOTE_FILE = 4
 
 
 class ItemFactory(ABCMeta):
@@ -34,6 +36,9 @@ class ItemFactory(ABCMeta):
     REMOTE_FILE_EXT = ".remote"
     ITEM_DATA_CACHE_MODE: t.Dict[t.Type["Item"], bool] = {}
     ITEM_SERIALIZATION_MODE: t.Dict[t.Type["Item"], SerializationMode] = {}
+    ITEM_DISABLED_SERIALIZATION_MODES: t.Dict[
+        t.Type["Item"], t.Set[SerializationMode]
+    ] = {}
 
     def __init__(cls, name, bases, dct):
         """Registers item class extensions."""
@@ -45,6 +50,7 @@ class ItemFactory(ABCMeta):
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = True  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
+        cls.ITEM_DISABLED_SERIALIZATION_MODES[cls] = set()  # type: ignore
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -86,13 +92,45 @@ class ItemFactory(ABCMeta):
 
     @classmethod
     def get_serialization_mode(cls, item_cls: t.Type["Item"]) -> SerializationMode:
-        return cls.ITEM_SERIALIZATION_MODE[item_cls]
+        smode = cls.ITEM_SERIALIZATION_MODE[item_cls]
+        for base_cls in item_cls.mro():
+            if issubclass(base_cls, Item):
+                other_smode = cls.ITEM_SERIALIZATION_MODE[base_cls]
+                if other_smode.value < smode.value:
+                    smode = other_smode
+        return smode
+
+    @classmethod
+    def set_disabled_serialization_modes(
+        cls,
+        item_cls: t.Type["Item"],
+        modes: t.Union[t.Set[SerializationMode], t.List[SerializationMode]],
+    ):
+        cls.ITEM_DISABLED_SERIALIZATION_MODES[item_cls] = set(modes)
+
+    @classmethod
+    def get_disabled_serialization_modes(
+        cls, item_cls: t.Type["Item"]
+    ) -> t.List[SerializationMode]:
+        smodes = set()
+        for base_cls in item_cls.mro():
+            if issubclass(base_cls, Item):
+                smodes |= cls.ITEM_DISABLED_SERIALIZATION_MODES[base_cls]
+        return list(smodes)
 
 
 def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item"]):
     """Sets serialization mode for some or all items."""
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_serialization_mode(itc, mode)
+
+
+def set_item_disabled_serialization_modes(
+    modes: t.List[SerializationMode], *item_cls: t.Type["Item"]
+):
+    """Disables serialization modes on selected item classes."""
+    for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
+        ItemFactory.set_disabled_serialization_modes(itc, modes)
 
 
 def disable_item_data_cache(*item_cls: t.Type["Item"]):
@@ -109,13 +147,13 @@ def enable_item_data_cache(*item_cls: t.Type["Item"]):
 
 class item_serialization_mode(ContextDecorator):
     """Use this class as context manager or function decorator to temporarily change
-    the item serialization mode.
+    the items' serialization mode.
 
     .. code-block::
     :caption: Example
 
         # set the serialization mode for all items
-        with item_serialization_mode(SerializationMode.HARD_LINK):
+        with item_serialization_mode("HARD_LINK"):
             ...
 
         # set the serialization mode only for ImageItem and NumpyItem
@@ -128,21 +166,81 @@ class item_serialization_mode(ContextDecorator):
             ...
     """
 
-    def __init__(self, smode: SerializationMode, *item_cls: t.Type["Item"]):
-        self._target_mode = smode
-        self._items = (
+    def __init__(
+        self, smode: t.Union[str, SerializationMode], *item_cls: t.Type["Item"]
+    ):
+        self._target_mode = (
+            smode if isinstance(smode, SerializationMode) else SerializationMode[smode]
+        )
+        self._items = set(
             item_cls if item_cls else ItemFactory.ITEM_SERIALIZATION_MODE.keys()
         )
 
     def __enter__(self):
         self._prev_mode = {
-            itc: ItemFactory.get_serialization_mode(itc) for itc in self._items
+            itc: ItemFactory.ITEM_SERIALIZATION_MODE[itc] for itc in self._items
         }
         set_item_serialization_mode(self._target_mode, *self._items)
 
     def __exit__(self, exc_type, exc_value, traceback):
         for itc, val in self._prev_mode.items():
             ItemFactory.set_serialization_mode(itc, val)
+
+
+class item_disabled_serialization_modes(ContextDecorator):
+    """Use this class as context manager or function decorator to temporarily change
+    the items' disabled serialization modes.
+
+    .. code-block::
+    :caption: Example
+
+        # disabled serialization modes for all items
+        with item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
+            ...
+
+        # disabled serialization modes only for ImageItem and NumpyItem
+        with item_disabled_serialization_modes(
+            SerializationMode.HARD_LINK, ImageItem, NumpyItem
+        ):
+            ...
+
+        # apply at function invocation
+        @item_disabled_serialization_modes(
+            ["REMOTE_FILE", SerializationMode.SYM_LINK], ImageItem
+        )
+        def my_fn():
+            ...
+    """
+
+    def __init__(
+        self,
+        smodes: t.Union[
+            str, SerializationMode, t.Sequence[t.Union[str, SerializationMode]]
+        ],
+        *item_cls: t.Type["Item"],
+    ):
+        if isinstance(smodes, str) or isinstance(smodes, SerializationMode):
+            smodes = [smodes]
+        self._target_modes = [
+            m if isinstance(m, SerializationMode) else SerializationMode[m]
+            for m in smodes
+        ]
+        self._items = set(
+            item_cls
+            if item_cls
+            else ItemFactory.ITEM_DISABLED_SERIALIZATION_MODES.keys()
+        )
+
+    def __enter__(self):
+        self._prev_modes = {
+            itc: ItemFactory.ITEM_DISABLED_SERIALIZATION_MODES[itc]
+            for itc in self._items
+        }
+        set_item_disabled_serialization_modes(self._target_modes, *self._items)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for itc, val in self._prev_modes.items():
+            ItemFactory.set_disabled_serialization_modes(itc, val)
 
 
 class no_data_cache(ContextDecorator):
@@ -259,9 +357,15 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             if self.serialization_mode is not None
             else ItemFactory.get_serialization_mode(self.__class__)
         )
-        if smode is SerializationMode.REMOTE_FILE and not self._remote_sources:
+        if smode is SerializationMode.REMOTE_FILE and (
+            not self._remote_sources
+            or not self.is_mode_enabled(SerializationMode.REMOTE_FILE)
+        ):
             smode = SerializationMode.HARD_LINK
         return smode
+
+    def is_mode_enabled(self, mode: SerializationMode) -> bool:
+        return mode not in ItemFactory.get_disabled_serialization_modes(self.__class__)
 
     @classmethod
     def make_new(cls, *sources: _item_init_types, shared: bool = False) -> "Item":
@@ -314,6 +418,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         target_path = path.resolve()
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
+        # At this point if smode is REMOTE_FILE, then REMOTE_FILE is not disabled.
         if smode is SerializationMode.REMOTE_FILE:
             path = self.as_default_remote_file(target_path)
         elif target_path.suffix not in self.file_extensions():
@@ -339,24 +444,33 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
         if smode is SerializationMode.HARD_LINK:
             smode = (
-                None if _try_copy(os.link, str(path)) else SerializationMode.DEEP_COPY
+                None
+                if (
+                    self.is_mode_enabled(SerializationMode.HARD_LINK)
+                    and _try_copy(os.link, str(path))
+                )
+                else SerializationMode.DEEP_COPY
             )
 
         if smode is SerializationMode.SYM_LINK:
             smode = (
                 None
-                if _try_copy(os.symlink, str(path))
+                if self.is_mode_enabled(SerializationMode.SYM_LINK)
+                and _try_copy(os.symlink, str(path))
                 else SerializationMode.DEEP_COPY
             )
 
         if smode is SerializationMode.DEEP_COPY:
             smode = (
                 None
-                if _try_copy(shutil.copy, str(path))
+                if self.is_mode_enabled(SerializationMode.DEEP_COPY)
+                and _try_copy(shutil.copy, str(path))
                 else SerializationMode.CREATE_NEW_FILE
             )
 
-        if smode is SerializationMode.CREATE_NEW_FILE:
+        if smode is SerializationMode.CREATE_NEW_FILE and self.is_mode_enabled(
+            SerializationMode.CREATE_NEW_FILE
+        ):
             data = self()
             if data is not None:
                 try:

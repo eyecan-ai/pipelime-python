@@ -77,7 +77,7 @@ class TestItems:
         assert eq_fn(w_item(), r_item())
 
     def test_read_write_jpeg(self, tmp_path: Path):
-        import imageio
+        import imageio.v3 as iio
         from io import BytesIO
 
         data_path = tmp_path / "data"
@@ -91,11 +91,11 @@ class TestItems:
         r_item = pli.JpegImageItem(data_path.with_suffix(jpeg_suffix))
 
         encoded = BytesIO()
-        imageio.imwrite(
-            encoded, data, format=jpeg_suffix, **pli.JpegImageItem.save_options()
+        iio.imwrite(
+            encoded, data, format_hint=jpeg_suffix, **pli.JpegImageItem.save_options()
         )
         encoded.seek(0)
-        decoded = np.array(imageio.imread(encoded, format=jpeg_suffix))
+        decoded = np.array(iio.imread(encoded, format_hint=jpeg_suffix))
 
         assert _np_eq(r_item(), decoded)
 
@@ -187,3 +187,65 @@ class TestItems:
             ),
         )
         assert item() is None
+
+    def test_disabled_serialization_modes(  # noqa
+        self, minimnist_private_dataset: dict, tmp_path: Path
+    ):
+        import pipelime.items as pli
+        from pipelime.sequences import SamplesSequence
+        from pipelime.stages import StageUploadToRemote
+        from pipelime.remotes import make_remote_url
+
+        # data lake
+        remote_url = make_remote_url(
+            scheme="file",
+            netloc="localhost",
+            path=(tmp_path / "rmbucket"),
+        )
+
+        input_seq = SamplesSequence.from_underfolder(  # type: ignore
+            minimnist_private_dataset["path"], merge_root_items=False
+        )
+
+        # upload to remote (remote source is added to the items)
+        for _ in input_seq.map(StageUploadToRemote(remote_url)):
+            pass
+
+        # default mode: writing remote files
+        for _ in input_seq.to_underfolder(folder=(tmp_path / "output_rm")):
+            pass
+        for p in (tmp_path / "output_rm").rglob("*"):
+            if p.is_file():
+                assert p.suffix == pli.Item.REMOTE_FILE_EXT
+
+        # disable writing remote files
+        with pli.item_disabled_serialization_modes("REMOTE_FILE"):
+            for _ in input_seq.to_underfolder(folder=(tmp_path / "output_hl")):
+                pass
+            for p in (tmp_path / "output_hl").rglob("*"):
+                if p.is_file():
+                    assert p.suffix != pli.Item.REMOTE_FILE_EXT
+                    assert not p.is_symlink()
+                    assert p.stat().st_nlink > 1
+
+        with pli.item_disabled_serialization_modes(
+            pli.SerializationMode.REMOTE_FILE, pli.NumpyItem
+        ):
+            with pli.item_disabled_serialization_modes(
+                [pli.SerializationMode.DEEP_COPY, "HARD_LINK"], pli.ImageItem
+            ):
+                for _ in input_seq.to_underfolder(folder=(tmp_path / "output_mx")):
+                    pass
+                for p in (tmp_path / "output_mx").rglob("*"):
+                    if p.is_file():
+                        assert not p.is_symlink()
+                        if p.suffix == pli.TxtNumpyItem.file_extensions()[0]:
+                            assert p.stat().st_nlink > 1
+                        elif p.suffix == pli.PngImageItem.file_extensions()[0]:
+                            assert p.stat().st_nlink == 1
+                        else:
+                            assert (
+                                "".join(p.suffixes)
+                                == pli.JsonMetadataItem.file_extensions()[0]
+                                + pli.Item.REMOTE_FILE_EXT
+                            )
