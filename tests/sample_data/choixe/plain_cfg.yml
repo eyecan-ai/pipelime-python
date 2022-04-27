@@ -1,0 +1,7 @@
+alice: 10
+bob: 20
+charlie: 
+    - foo
+    - bar
+    - alpha: 10.0
+      beta: 20.0

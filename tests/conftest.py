@@ -50,6 +50,11 @@ def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
     return minimnist_dataset
 
 
+@pytest.fixture(scope="session")
+def choixe_plain_cfg(choixe_folder: Path) -> Path:
+    return choixe_folder / "plain_cfg.yml"
+
+
 @pytest.fixture(scope="function")
 def minio(tmp_path: Path):
     minio_path = os.environ.get("MINIO_APP")

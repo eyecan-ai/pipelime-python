@@ -1,8 +1,16 @@
 click>=8.0.3
 rich>=9.9.0
+pyyaml
+toml
 loguru
 filelock
 numpy
 imageio
 tifffile
 albumentations>=1.0.0
+astunparse
+python-box
+deepdiff
+pydash
+pydantic
+schema
