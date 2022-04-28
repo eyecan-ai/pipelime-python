@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import abstractmethod
 import itertools
 import typing as t
@@ -60,7 +61,7 @@ class SamplesSequence(t.Sequence[Sample]):
         """
         return len(str(len(self)))
 
-    def __add__(self, other: "SamplesSequence") -> "SamplesSequence":
+    def __add__(self, other: "SamplesSequence") -> SamplesSequence:
         return self.cat(other)  # type: ignore
 
 

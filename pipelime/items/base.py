@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse
@@ -54,7 +55,7 @@ class ItemFactory(ABCMeta):
     @classmethod
     def get_instance(
         cls, filepath: t.Union[Path, str], shared_item: bool = False
-    ) -> "Item":
+    ) -> Item:
         """Returns the item that can handle the given file."""
         filepath = Path(filepath)
         path_or_urls = [filepath]
@@ -368,7 +369,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return mode not in ItemFactory.get_disabled_serialization_modes(self.__class__)
 
     @classmethod
-    def make_new(cls, *sources: _item_init_types, shared: bool = False) -> "Item":
+    def make_new(cls, *sources: _item_init_types, shared: bool = False) -> Item:
         return cls(*sources, shared=shared)
 
     @classmethod
@@ -517,7 +518,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             if data_source is not None:
                 self._add_data_source(data_source)
 
-    def remove_data_source(self, *sources: _item_data_source) -> "Item":
+    def remove_data_source(self, *sources: _item_data_source) -> Item:
         def _normalize_source(src: _item_data_source) -> t.List[_item_data_source]:
             if isinstance(src, Path):
                 src = src.resolve()

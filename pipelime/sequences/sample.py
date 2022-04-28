@@ -1,3 +1,4 @@
+from __future__ import annotations
 import copy
 import re
 import typing as t
@@ -31,13 +32,13 @@ class Sample(t.Mapping[str, Item]):
     def to_dict(self) -> t.Dict[str, t.Any]:
         return {k: v() for k, v in self.items()}
 
-    def shallow_copy(self) -> "Sample":
+    def shallow_copy(self) -> Sample:
         return Sample(copy.copy(self._data))
 
-    def deep_copy(self) -> "Sample":
+    def deep_copy(self) -> Sample:
         return Sample(copy.deepcopy(self._data))
 
-    def set_item(self, key: str, value: Item) -> "Sample":
+    def set_item(self, key: str, value: Item) -> Sample:
         new_data = dict(self._data)
         new_data[key] = value
         return Sample(new_data)
@@ -48,7 +49,7 @@ class Sample(t.Mapping[str, Item]):
         reference_key: str,
         value: t.Any,
         shared_item: t.Optional[bool] = None,
-    ) -> "Sample":
+    ) -> Sample:
         ref_item = self._data[reference_key]
         new_data = dict(self._data)
         new_data[target_key] = ref_item.make_new(
@@ -56,10 +57,10 @@ class Sample(t.Mapping[str, Item]):
         )
         return Sample(new_data)
 
-    def set_value(self, key: str, value: t.Any) -> "Sample":
+    def set_value(self, key: str, value: t.Any) -> Sample:
         return self.set_value_as(key, key, value)
 
-    def deep_set(self, key_path: str, value: t.Any) -> "Sample":
+    def deep_set(self, key_path: str, value: t.Any) -> Sample:
         r"""Sets a value of an Item of this Sample through a path similar to
         `pydash.set_`. The path is built by splitting the mapping keys by `.`
         and enclosing list indexes within `[]`. Use `\` to escape the `.` character.
@@ -100,7 +101,7 @@ class Sample(t.Mapping[str, Item]):
             value = py_.get(value, path, default)
         return value
 
-    def change_key(self, old_key: str, new_key: str, delete_old_key: bool) -> "Sample":
+    def change_key(self, old_key: str, new_key: str, delete_old_key: bool) -> Sample:
         if new_key not in self._data and old_key in self._data:
             new_data = dict(self._data)
             new_data[new_key] = new_data[old_key]
@@ -109,22 +110,22 @@ class Sample(t.Mapping[str, Item]):
             return Sample(new_data)
         return self
 
-    def duplicate_key(self, reference_key: str, new_key: str) -> "Sample":
+    def duplicate_key(self, reference_key: str, new_key: str) -> Sample:
         return self.change_key(reference_key, new_key, False)
 
-    def rename_key(self, old_key: str, new_key: str) -> "Sample":
+    def rename_key(self, old_key: str, new_key: str) -> Sample:
         return self.change_key(old_key, new_key, True)
 
-    def remove_keys(self, *key_to_remove: str) -> "Sample":
+    def remove_keys(self, *key_to_remove: str) -> Sample:
         return Sample({k: v for k, v in self._data.items() if k not in key_to_remove})
 
-    def extract_keys(self, *keys_to_keep: str) -> "Sample":
+    def extract_keys(self, *keys_to_keep: str) -> Sample:
         return Sample({k: v for k, v in self._data.items() if k in keys_to_keep})
 
-    def merge(self, other: "Sample") -> "Sample":
+    def merge(self, other: "Sample") -> Sample:
         return Sample({**self._data, **other._data})
 
-    def update(self, other: "Sample") -> "Sample":
+    def update(self, other: "Sample") -> Sample:
         return self.merge(other)
 
     def __getitem__(self, key: str) -> Item:
