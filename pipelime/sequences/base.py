@@ -1,9 +1,21 @@
 from abc import abstractmethod
 import copy
 import itertools
+import re
 import typing as t
 
-from pipelime.items import Item, UnknownItem
+from pipelime.items import Item
+
+
+class SamplePathRegex:
+    KEY_PATH_REGEX = re.compile(r"(?<!\\)(?:\\\\)*\.|(\[\d+\])")
+
+    @classmethod
+    def split(cls, key_path: str) -> t.Tuple[str, str]:
+        key = cls.KEY_PATH_REGEX.split(key_path)[0]
+        path = key_path[len(key) :]  # noqa
+        key = key.replace(r"\\", "\\").replace(r"\.", r".")
+        return key, path
 
 
 class Sample(t.Mapping[str, Item]):
@@ -12,9 +24,11 @@ class Sample(t.Mapping[str, Item]):
     the internal data mapping is not.
     """
 
+    _data: t.Mapping[str, Item]
+
     def __init__(self, data: t.Optional[t.Mapping[str, Item]]):
         super().__init__()
-        self._data: t.Mapping[str, Item] = data if data is not None else {}
+        self._data = data if data is not None else {}
 
     def to_dict(self) -> t.Dict[str, t.Any]:
         return {k: v() for k, v in self.items()}
@@ -39,17 +53,54 @@ class Sample(t.Mapping[str, Item]):
     ) -> "Sample":
         ref_item = self._data[reference_key]
         new_data = dict(self._data)
-        new_data[target_key] = (
-            ref_item.make_new(
-                value, shared=ref_item.is_shared if shared_item is None else shared_item
-            )
-            if reference_key in self._data
-            else UnknownItem(value)
+        new_data[target_key] = ref_item.make_new(
+            value, shared=ref_item.is_shared if shared_item is None else shared_item
         )
         return Sample(new_data)
 
     def set_value(self, key: str, value: t.Any) -> "Sample":
         return self.set_value_as(key, key, value)
+
+    def deep_set(self, key_path: str, value: t.Any) -> "Sample":
+        r"""Sets a value of an Item of this Sample through a path similar to
+        `pydash.set_`. The path is built by splitting the mapping keys by `.`
+        and enclosing list indexes within `[]`. Use `\` to escape the `.` character.
+
+        Example::
+
+            sample = Sample({"first": JsonMetadataItem({r"j.names\": ["Jo", "Jane"]})})
+            sample.deep_set(r"first.j\.names\\[1]", "Jane Doe")
+        """
+        import pydash as py_
+
+        key, path = SamplePathRegex.split(key_path)
+        if not path:
+            return self.set_value(key, value)
+
+        new_value = copy.deepcopy(self._data[key]())
+        py_.set_(new_value, path, value)
+        return self.set_value(key, new_value)
+
+    def deep_get(self, key_path: str, default: t.Any = None) -> t.Any:
+        r"""Gets a value from the Sample through a key path similar to `pydash.get`.
+        The path is built by splitting the mapping keys by `.` and enclosing list
+        indexes within `[]`. Use `\` to escape the `.` character.
+
+        Example::
+
+            sample = Sample({"first": JsonMetadataItem({r"j.names\": ["Jo", "Jane"]})})
+            jane = sample.deep_get(r"first.j\.names\\[1]")
+        """
+        import pydash as py_
+
+        key, path = SamplePathRegex.split(key_path)
+        if key not in self._data:
+            return default
+
+        value = self._data[key]()
+        if path:
+            value = py_.get(value, path, default)
+        return value
 
     def change_key(self, old_key: str, new_key: str, delete_old_key: bool) -> "Sample":
         if new_key not in self._data and old_key in self._data:
@@ -78,16 +129,16 @@ class Sample(t.Mapping[str, Item]):
     def update(self, other: "Sample") -> "Sample":
         return self.merge(other)
 
-    def __getitem__(self, key) -> Item:
+    def __getitem__(self, key: str) -> Item:
         return self._data[key]
 
     def __iter__(self) -> t.Iterator[str]:
-        return iter(self._data.keys())
+        return iter(self._data)
 
     def __len__(self) -> int:
         return len(self._data)
 
-    def __contains__(self, key) -> bool:
+    def __contains__(self, key: str) -> bool:
         return key in self._data
 
     def __repr__(self) -> str:

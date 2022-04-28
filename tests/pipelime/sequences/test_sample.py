@@ -96,6 +96,56 @@ class TestSample:
         )
         assert _np_eq(other_sample[target_key](), new_value)
 
+    def test_deep_set(self):
+        import pipelime.items as pli
+
+        data = {
+            "fir.st": pli.JsonMetadataItem(
+                {"data": ["a", "b", {"c": 42}], "meta": 3.14}
+            ),
+            r"sec\ond": pli.JsonMetadataItem(["a", "b", {"c": 36}]),
+        }
+        sample = pls.Sample(data)
+
+        other_sample = sample.deep_set(r"fir\.st.data[2].c", 17)
+        assert sample["fir.st"]()["data"][2]["c"] == 42  # type: ignore
+        assert other_sample["fir.st"]()["data"][2]["c"] == 17  # type: ignore
+
+        other_sample = sample.deep_set(r"sec\ond[2].c", 23)
+        assert sample[r"sec\ond"]()[2]["c"] == 36  # type: ignore
+        assert other_sample[r"sec\ond"]()[2]["c"] == 23  # type: ignore
+
+        other_sample = sample.deep_set(r"fir\.st.data[2].new[1].p", [1, 2, 3])
+        assert "new" not in sample["fir.st"]()["data"][2]  # type: ignore
+        assert "new" in other_sample["fir.st"]()["data"][2]  # type: ignore
+        assert len(other_sample["fir.st"]()["data"][2]["new"]) == 2  # type: ignore
+        assert other_sample["fir.st"]()["data"][2]["new"][1]["p"] == [  # type: ignore
+            1,
+            2,
+            3,
+        ]
+        assert other_sample["fir.st"]()["data"][2]["new"][0] is None  # type: ignore
+
+        other_sample = sample.deep_set(r"fir\.st", [1, 2, 3])
+        assert not isinstance(sample["fir.st"](), list)
+        assert other_sample["fir.st"]() == [1, 2, 3]
+
+    def test_deep_get(self):
+        import pipelime.items as pli
+
+        json_data = {"data": ["a", "b", {"c": 42}], "meta": 3.14}
+        data = {
+            "fir.st": pli.JsonMetadataItem(json_data),
+            r"sec\ond": pli.JsonMetadataItem(["a", "b", {"c": 36}]),
+        }
+        sample = pls.Sample(data)
+
+        assert sample.deep_get(r"fir\.st.data.2.c") == 42
+        assert sample.deep_get(r"fir\.st") == json_data
+        assert sample.deep_get(r"sec\ond[2].c") == 36
+        assert sample.deep_get("not.there", "default") == "default"
+        assert sample.deep_get("notthere", "default") == "default"
+
     def test_change_key_invalid(self):
         sample, _ = self._np_sample()
         other_sample = sample.change_key("__", "--", False)

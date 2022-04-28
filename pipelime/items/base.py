@@ -44,9 +44,7 @@ class ItemFactory(ABCMeta):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
             if ext == cls.REMOTE_FILE_EXT:
-                raise ValueError(  # pragma: no cover
-                    f"{cls.REMOTE_FILE_EXT} file extension is reserved"
-                )
+                raise ValueError(f"{cls.REMOTE_FILE_EXT} file extension is reserved")
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = True  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
@@ -66,9 +64,7 @@ class ItemFactory(ABCMeta):
                 url_list = json.load(fp)
                 url_list = [urlparse(u) for u in url_list if u]
             if not url_list:
-                raise ValueError(  # pragma: no cover
-                    f"The file {filepath} does not contain any remote."
-                )
+                raise ValueError(f"The file {filepath} does not contain any remote.")
             ext = Path(url_list[0].path).suffix
             path_or_urls = url_list
 
@@ -325,7 +321,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             if isinstance(src, (Path, ParseResult)):
                 self._add_data_source(src)
             elif self._data_cache is not None:
-                raise ValueError("Cannot set data twice.")
+                raise ValueError(f"{self.__class__.__name__}: Cannot set data twice.")
             elif isinstance(src, (t.BinaryIO, io.IOBase)):
                 self._data_cache = self.decode(src)
             else:
@@ -390,7 +386,9 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         src_path = Path(source.path) if isinstance(source, ParseResult) else source
         if src_path.suffix not in self.file_extensions():
             srcstr = source.geturl() if isinstance(source, ParseResult) else str(source)
-            raise ValueError(f"{self.__class__}: invalid extension for `{srcstr}`")
+            raise ValueError(
+                f"{self.__class__.__name__}: invalid extension for `{srcstr}`"
+            )
 
     def _add_data_source(self, source: _item_data_source) -> bool:
         self._check_source(source)
@@ -672,8 +670,8 @@ class UnknownItem(Item[t.Any]):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
-        raise NotImplemented("Unknown item type.")  # pragma: no cover
+        raise NotImplemented(f"{cls.__name__}: cannot decode.")  # pragma: no cover
 
     @classmethod
     def encode(cls, value: t.Any, fp: t.BinaryIO):
-        raise NotImplemented("Unknown item type.")  # pragma: no cover
+        raise NotImplemented(f"{cls.__name__}: cannot encode.")  # pragma: no cover

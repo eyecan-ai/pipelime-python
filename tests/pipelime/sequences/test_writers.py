@@ -134,7 +134,9 @@ class TestSamplesSequenceWriters:
     def test_create_new_file(self, minimnist_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
 
-        with pli.item_serialization_mode(pli.SerializationMode.CREATE_NEW_FILE):
+        with pli.item_serialization_mode(
+            pli.SerializationMode.CREATE_NEW_FILE, pli.MetadataItem, pli.NumpyItem
+        ):
             source, dest = self._read_write_data(
                 minimnist_dataset, tmp_path / "outfolder"
             )
