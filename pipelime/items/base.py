@@ -340,8 +340,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return self._serialization_mode
 
     @serialization_mode.setter
-    def serialization_mode(self, mode: t.Optional[SerializationMode]):
-        self._serialization_mode = mode
+    def serialization_mode(self, mode: t.Optional[t.Union[SerializationMode, str]]):
+        self._serialization_mode = (
+            mode
+            if mode is None or isinstance(mode, SerializationMode)
+            else SerializationMode[mode]
+        )
 
     @property
     def is_shared(self) -> bool:

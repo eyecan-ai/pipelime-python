@@ -1,19 +1,18 @@
 import typing as t
 
-import pipelime.sequences.base as pls
+import pipelime.sequences.samples_sequence as pls
 
 
 @pls.as_samples_sequence_functional("from_list", is_static=True)
 class SamplesList(pls.SamplesSequence):
     """A SamplesSequence from a list of Samples. Usage::
 
-        sseq = SamplesList([...])
-        # or, equivalently,
         sseq = SamplesSequence.from_list([...])
 
     :param samples: the source sequence of samples.
     :type samples: t.Sequence[pls.Sample]
     """
+
     def __init__(self, samples: t.Sequence[pls.Sample]):
         super().__init__()
         self._samples = samples

@@ -2,16 +2,14 @@ from pathlib import Path
 import os
 import typing as t
 
-import pipelime.sequences.base as pls
+import pipelime.sequences.samples_sequence as pls
 from pipelime.items.base import ItemFactory, Item
 
 
 @pls.as_samples_sequence_functional("from_underfolder", is_static=True)
 class UnderfolderReader(pls.SamplesSequence):
-    """A SamplesSequence from an Underfolder dataset. Usage::
+    """A SamplesSequence loading data from an Underfolder dataset. Usage::
 
-        sseq = UnderfolderReader(folder)
-        # or, equivalently,
         sseq = SamplesSequence.from_underfolder(folder)
 
     :param folder: the root folder of the Underfolder dataset.

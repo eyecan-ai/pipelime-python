@@ -1,4 +1,4 @@
-from pipelime.sequences.base import Sample
+from pipelime.sequences import Sample
 from pipelime.items import UnknownItem
 
 

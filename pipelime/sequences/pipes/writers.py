@@ -2,14 +2,15 @@ from pathlib import Path
 from filelock import FileLock, Timeout
 import typing as t
 
-import pipelime.sequences.base as pls
+import pipelime.sequences.samples_sequence as pls
 from pipelime.sequences.pipes.base import ProxySequenceBase
 from pipelime.items import SerializationMode, Item
 
 
 class _serialization_mode_override:
     """Changes the serialization mode of a specific item."""
-    def __init__(self, item: Item, mode: t.Optional[SerializationMode]):
+
+    def __init__(self, item: Item, mode: t.Optional[t.Union[SerializationMode, str]]):
         self._item = item
         self._mode = mode
 
@@ -25,11 +26,9 @@ class _serialization_mode_override:
 
 @pls.as_samples_sequence_functional("to_underfolder")
 class UnderfolderWriter(ProxySequenceBase):
-    """Writes samples to an underfolder dataset. Usage::
+    """Writes samples to an underfolder dataset while iterating over them. Usage::
 
         s1 = SamplesSequence(...)
-        sseq = UnderfolderWriter(s1, "out_path")
-        # or, equivalently,
         sseq = s1.to_underfolder("out_path")
 
     :param folder: the output folder.
@@ -38,7 +37,8 @@ class UnderfolderWriter(ProxySequenceBase):
     :type zfill: t.Optional[int], optional
     :param key_serialization_mode: forced serialization mode for each key,
         defaults to None
-    :type key_serialization_mode: t.Optional[t.Mapping[str, SerializationMode]], optional
+    :type key_serialization_mode: t.Optional[t.Mapping[str, t.Union[SerializationMode,
+        str]]], optional
     :param exists_ok: if False raises an error when `folder` exists, defaults to False
     :type exists_ok: bool, optional
     :raises FileExistsError: if `exists_ok` is False and `folder` exists.
@@ -49,7 +49,9 @@ class UnderfolderWriter(ProxySequenceBase):
         source: pls.SamplesSequence,
         folder: t.Union[str, Path],
         zfill: t.Optional[int] = None,
-        key_serialization_mode: t.Optional[t.Mapping[str, SerializationMode]] = None,
+        key_serialization_mode: t.Optional[
+            t.Mapping[str, t.Union[SerializationMode, str]]
+        ] = None,
         exists_ok: bool = False,
     ):
         super().__init__(source)

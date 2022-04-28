@@ -1,5 +1,5 @@
 from pipelime.sequences.pipes.base import ProxySequenceBase
-import pipelime.sequences.base as pls
+import pipelime.sequences.samples_sequence as pls
 
 import typing as t
 
@@ -10,8 +10,6 @@ class MappedSequence(ProxySequenceBase):
 
         s1 = SamplesSequence(...)
         fn1, fn2 = lambda x: x, lambda x: x
-        sseq = MappedSequence(MappedSequence(s1, fn1), fn2)
-        # or, equivalently,
         sseq = s1.map(fn1).map(fn2)
 
     :param stage: the callable we are going to map.
@@ -35,8 +33,6 @@ class MergedSequences(ProxySequenceBase):
     """Merges samples from two SamplesSequences. Usage::
 
     s1, s2, s3 = SamplesSequence(...), SamplesSequence(...), SamplesSequence(...)
-    sseq = MergedSequences(MergedSequences(s1, s2), s3)
-    # or, equivalently,
     sseq = s1.merge(s2).merge(s3)
     """
 
@@ -56,8 +52,6 @@ class ConcatSequences(ProxySequenceBase):
     """Concatenates two SamplesSequences. Usage::
 
     s1, s2, s3 = SamplesSequence(...), SamplesSequence(...), SamplesSequence(...)
-    sseq = ConcatSamplesSequence(ConcatSamplesSequence(s1, s2), s3)
-    # or, equivalently,
     sseq = s1.cat(s2).cat(s3)
     """
 
@@ -80,8 +74,6 @@ class FilteredSequence(ProxySequenceBase):
 
         s1 = SamplesSequence(...)
         filter_fn = lambda x: True if x['label'] == 1 else False
-        sseq = FilteredSequence(s1, filter_fn)
-        # or, equivalently,
         sseq = s1.filter(filter_fn)
 
     :param filter_fn:  a callable returning True for any valid sample.
@@ -109,8 +101,6 @@ class SortedSequence(ProxySequenceBase):
 
         s1 = SamplesSequence(...)
         key_fn = lambda x: x['weight']
-        sseq = SortedSequence(s1, key_fn)
-        # or, equivalently,
         sseq = s1.sort(key_fn)
 
     :param key_fn: the key function to compare Samples. Use `functools.cmp_to_key` to
@@ -133,10 +123,8 @@ class SlicedSequence(ProxySequenceBase):
     """Extracts a slice [start_idx:end_idx:step] from the input SamplesSequence. Usage::
 
         s1 = SamplesSequence(...)
-        sseq = SlicedSequence(s1, 12, 200, 3)
-        # or, equivalently,
         sseq = s1.slice(12, 200, 3)
-        # or, even
+        # also
         sseq = s1[12:200:3]
 
     :param start: the first index, defaults to None (ie, first element).
@@ -172,8 +160,6 @@ class ShuffledSequence(ProxySequenceBase):
     """Shuffles samples in the input SamplesSequence. Usage::
 
         s1 = SamplesSequence(...)
-        sseq = ShuffledSequence(s1)
-        # or, equivalently,
         sseq = s1.shuffle()
 
     :param rnd_seed: the optional random seed.
