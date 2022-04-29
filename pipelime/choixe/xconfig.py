@@ -130,7 +130,7 @@ class XConfig(Box):
     def deep_get(
         self, full_key: Union[str, list], default: Optional[Any] = None
     ) -> Any:
-        """Gets value based on full path key (dot notation like 'a.b.0.d' or list ['a','b','0','d'])
+        """Gets value based on full path key, ie, 'a.b.0.d' or ['a','b','0','d']
 
         Args:
             full_key (Union[str, list]): full path key in pydash notation.
@@ -145,8 +145,7 @@ class XConfig(Box):
     def deep_set(
         self, full_key: Union[str, list], value: Any, only_valid_keys: bool = True
     ) -> None:
-        """Sets value based on full path key (dot notation like 'a.b.0.d' or list
-        ['a','b','0','d'])
+        """Sets value based on full path key, ie, 'a.b.0.d' or ['a','b','0','d'])
 
         Args:
             full_key (Union[str, list]): Full path key in pydash notation.

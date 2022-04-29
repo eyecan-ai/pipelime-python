@@ -208,7 +208,9 @@ class TestItems:
         )
 
         # upload to remote (remote source is added to the items)
-        for _ in input_seq.map(StageUploadToRemote(remote_url)):
+        for _ in input_seq.map(
+            StageUploadToRemote(remotes=[remote_url])  # type: ignore
+        ):
             pass
 
         # default mode: writing remote files

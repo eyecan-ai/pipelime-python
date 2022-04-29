@@ -44,9 +44,7 @@ class TestRemotes:
             filtered_seq = filtered_seq.filter(filter_fn)
 
         out_seq = filtered_seq.map(
-            StageUploadToRemote(  # type: ignore
-                *remote_urls, keys_to_upload=keys_to_upload
-            )
+            StageUploadToRemote(remotes=remote_urls, keys_to_upload=keys_to_upload)
         ).to_underfolder(folder=outpath)
         for _ in out_seq:
             pass

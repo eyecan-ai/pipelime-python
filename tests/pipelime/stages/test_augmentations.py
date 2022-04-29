@@ -22,18 +22,18 @@ class TestAugmentationStages:
             keys2trg[item_key] = "mask"
         return Sample(items), Sample(items_aug), keys2trg
 
-    def _stage_albumentations_test(self, folder, transform):
+    def _stage_albumentations_test_helper(self, folder, transform, outkey, outkey_fm):
         from pipelime.stages import StageAlbumentations
         import numpy as np
 
         sample, sample_gt, keys2trg = self._load_sample(0, folder)
         stage = StageAlbumentations(
-            transform, keys_to_targets=keys2trg, output_key_format="*_aug"
+            transform=transform, keys_to_targets=keys2trg, output_key_format=outkey
         )
 
         sample_aug = stage(sample)
         for key in keys2trg:
-            keyaug = key + "_aug"
+            keyaug = outkey_fm.replace("*", key)
             assert key in sample
             assert key in sample_gt
             assert key in sample_aug
@@ -45,6 +45,11 @@ class TestAugmentationStages:
             assert np.array_equal(
                 sample_gt[key](), sample_aug[keyaug](), equal_nan=True
             )
+
+    def _stage_albumentations_test(self, folder, transform):
+        self._stage_albumentations_test_helper(folder, transform, "img-*_", "img-*_")
+        self._stage_albumentations_test_helper(folder, transform, "Aug", "*Aug")
+
 
     def test_albumentation_object(self, augmentations_folder: Path):
         import albumentations as A

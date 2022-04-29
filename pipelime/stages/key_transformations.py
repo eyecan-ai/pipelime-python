@@ -1,45 +1,44 @@
 import typing as t
+import pydantic as pyd
 
 from pipelime.sequences import Sample
 from pipelime.stages import SampleStage
 
 
 class StageRemap(SampleStage):
-    def __init__(self, remap: t.Mapping[str, str], remove_missing: bool = True):
-        """Remaps keys in sample
+    """Remaps keys in sample preserving internal values."""
 
-        :param remap: `old_key: new_key` dictionary remap
-        :type remap: Mapping[str, str]
-        :param remove_missing: if TRUE missing keys in remap will be removed in the
-            output sample before name remapping, defaults to True
-        :type remove_missing: bool, optional
-        """
-        super().__init__()
-        self._remap = remap
-        self._remove_missing = remove_missing
+    remap: t.Mapping[str, str] = pyd.Field(
+        ..., description="`old_key: new_key` dictionary remapping."
+    )
+    remove_missing: bool = pyd.Field(
+        True,
+        description="If TRUE missing keys in remap will be removed "
+        "in the output sample before name remapping",
+    )
 
     def __call__(self, x: Sample) -> Sample:
-        if self._remove_missing:
-            x = x.extract_keys(*self._remap.keys())
-        for kold, knew in self._remap.items():
+        if self.remove_missing:
+            x = x.extract_keys(*self.remap.keys())
+        for kold, knew in self.remap.items():
             x = x.rename_key(kold, knew)
         return x
 
 
 class StageKeysFilter(SampleStage):
-    def __init__(self, key_list: t.Sequence[str], negate: bool = False):
-        """Filter sample keys
+    """Filter sample keys."""
 
-        :param key_list: list of keys to preserve
-        :type key_list: List[str]
-        :param negate: TRUE to delete input keys, FALSE delete all but keys
-        :type negate: bool
-        """
-        super().__init__()
-        self._keys = key_list
-        self._negate = negate
+    key_list: t.Sequence[str] = pyd.Field(..., description="List of keys to preserve.")
+    negate: bool = pyd.Field(
+        False,
+        description=(
+            "TRUE to delete `key_list`, FALSE delete all but keys in `key_list`."
+        ),
+    )
 
     def __call__(self, x: Sample) -> Sample:
         return (
-            x.remove_keys(*self._keys) if self._negate else x.extract_keys(*self._keys)
+            x.remove_keys(*self.key_list)
+            if self.negate
+            else x.extract_keys(*self.key_list)
         )

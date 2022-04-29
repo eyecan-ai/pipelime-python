@@ -24,7 +24,7 @@ class TestBaseStages:
         from pipelime.stages import StageLambda
 
         stage = StageLambda(
-            lambda x: x.set_item("a", UnknownItem(x["a"]() * 2))  # type: ignore
+            func=(lambda x: x.set_item("a", UnknownItem(x["a"]() * 2)))  # type: ignore
         )
         self._check_target_pred(
             Sample({"a": UnknownItem(20)}), stage(Sample({"a": UnknownItem(10)}))
@@ -35,10 +35,14 @@ class TestBaseStages:
 
         stage = StageCompose(
             StageLambda(
-                lambda x: x.set_item("a", UnknownItem(x["a"]() * 2))  # type: ignore
+                func=(
+                    lambda x: x.set_item("a", UnknownItem(x["a"]() * 2))  # type: ignore
+                )
             ),
             StageLambda(
-                lambda x: x.set_item("a", UnknownItem(x["a"]() + 5))  # type: ignore
+                func=(
+                    lambda x: x.set_item("a", UnknownItem(x["a"]() + 5))  # type: ignore
+                )
             ),
         )
         self._check_target_pred(
