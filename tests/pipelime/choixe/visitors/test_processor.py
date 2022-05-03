@@ -352,9 +352,9 @@ class TestProcessor:
 
     def test_for_multiple(self):
         data = {
-            "$for(collection3)": {"a$index": "$item"},
-            "$for(collection2)": {"b$index": "$item"},
-            "$for(collection3, x)": {"c$index": "$item"},
+            "$for(collection3, x)": {"a$index": "$item"},
+            "$for(collection2, y)": {"b$index": "$item"},
+            "$for(collection3, z)": {"c$index": "$item"},
             "a": 10,
             "b": [0, 2, 3],
         }
