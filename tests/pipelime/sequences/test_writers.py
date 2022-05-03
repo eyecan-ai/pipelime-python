@@ -103,15 +103,17 @@ class TestSamplesSequenceWriters:
             )
         self._check_data(source, dest)
 
-        on_windows = platform.system() == "Windows"
         for sample in dest:
             for item in sample.values():
                 assert isinstance(item._file_sources, t.Sequence)
                 assert len(item._file_sources) == 1
                 path = Path(item._file_sources[0])
-                assert on_windows or path.is_symlink()
                 assert path.is_file()
-                assert path.stat().st_nlink == 1
+                assert not path.is_symlink()
+
+        if not platform.system() == "Windows":
+            for path in (tmp_path / "outfolder").rglob("*"):
+                assert not path.is_file() or path.is_symlink()
 
     def test_hardlink(self, minimnist_private_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
