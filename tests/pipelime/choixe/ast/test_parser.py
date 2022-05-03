@@ -1,8 +1,10 @@
 from typing import Any
 
 import pytest
+
 from pipelime.choixe.ast.nodes import (
     DateNode,
+    DictBundleNode,
     DictNode,
     ForNode,
     ImportNode,
@@ -135,6 +137,88 @@ class TestParse:
                     StrBundleNode(LiteralNode("node_"), IndexNode()): StrBundleNode(
                         LiteralNode("Hello_"), ItemNode()
                     )
+                }
+            ),
+        )
+        assert parse(expr) == expected
+
+    def test_parse_for_multiple(self):
+        expr = {
+            "$for(alpha)": {"node_$index": "Hello_$item"},
+            "$for(beta)": {"node_$index": "Ciao_$item"},
+            "$for(gamma)": {"node_$index": "Hola_$item"},
+        }
+        expected = DictBundleNode(
+            ForNode(
+                LiteralNode("alpha"),
+                DictNode(
+                    {
+                        StrBundleNode(LiteralNode("node_"), IndexNode()): StrBundleNode(
+                            LiteralNode("Hello_"), ItemNode()
+                        )
+                    }
+                ),
+            ),
+            ForNode(
+                LiteralNode("beta"),
+                DictNode(
+                    {
+                        StrBundleNode(LiteralNode("node_"), IndexNode()): StrBundleNode(
+                            LiteralNode("Ciao_"), ItemNode()
+                        )
+                    }
+                ),
+            ),
+            ForNode(
+                LiteralNode("gamma"),
+                DictNode(
+                    {
+                        StrBundleNode(LiteralNode("node_"), IndexNode()): StrBundleNode(
+                            LiteralNode("Hola_"), ItemNode()
+                        )
+                    }
+                ),
+            ),
+        )
+        assert parse(expr) == expected
+
+    def test_parse_for_multiple_mixed(self):
+        expr = {
+            "$for(alpha)": {"node_$index": "Hello_$item"},
+            "$for(beta)": {"node_$index": "Ciao_$item"},
+            "a": 10,
+            "b": {"c": 10.0, "d": "hello"},
+        }
+        expected = DictBundleNode(
+            ForNode(
+                LiteralNode("alpha"),
+                DictNode(
+                    {
+                        StrBundleNode(LiteralNode("node_"), IndexNode()): StrBundleNode(
+                            LiteralNode("Hello_"), ItemNode()
+                        )
+                    }
+                ),
+            ),
+            ForNode(
+                LiteralNode("beta"),
+                DictNode(
+                    {
+                        StrBundleNode(LiteralNode("node_"), IndexNode()): StrBundleNode(
+                            LiteralNode("Ciao_"), ItemNode()
+                        )
+                    }
+                ),
+            ),
+            DictNode(
+                {
+                    LiteralNode("a"): LiteralNode(10),
+                    LiteralNode("b"): DictNode(
+                        {
+                            LiteralNode("c"): LiteralNode(10.0),
+                            LiteralNode("d"): LiteralNode("hello"),
+                        }
+                    ),
                 }
             ),
         )

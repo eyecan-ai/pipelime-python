@@ -350,6 +350,31 @@ class TestProcessor:
         ]
         self._expectation_test(data, expected)
 
+    def test_for_multiple(self):
+        data = {
+            "$for(collection3)": {"a$index": "$item"},
+            "$for(collection2)": {"b$index": "$item"},
+            "$for(collection3, x)": {"c$index": "$item"},
+            "a": 10,
+            "b": [0, 2, 3],
+        }
+        expected = [
+            {
+                "a0": 50,
+                "a1": 51,
+                "b0": "100",
+                "b1": "101",
+                "b2": "102",
+                "b3": "103",
+                "b4": "104",
+                "c0": 50,
+                "c1": 51,
+                "a": 10,
+                "b": [0, 2, 3],
+            }
+        ]
+        self._expectation_test(data, expected)
+
     def test_uuid(self):
         data = "$uuid"
         processed = process(parse(data))

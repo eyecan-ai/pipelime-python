@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Union
 from pipelime.choixe.ast.nodes import (
     CmdNode,
     DateNode,
+    DictBundleNode,
     DictNode,
     ForNode,
     ImportNode,
@@ -40,6 +41,12 @@ class Unparser(NodeVisitor):
 
     def visit_object(self, node: LiteralNode) -> Any:
         return node.data
+
+    def visit_dict_bundle(self, node: DictBundleNode) -> Any:
+        data = {}
+        for x in node.nodes:
+            data.update(x.accept(self))
+        return data
 
     def visit_str_bundle(self, node: StrBundleNode) -> str:
         return "".join(x.accept(self) for x in node.nodes)
