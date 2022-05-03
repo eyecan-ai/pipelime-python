@@ -50,7 +50,6 @@ class TestAugmentationStages:
         self._stage_albumentations_test_helper(folder, transform, "img-*_", "img-*_")
         self._stage_albumentations_test_helper(folder, transform, "Aug", "*Aug")
 
-
     def test_albumentation_object(self, augmentations_folder: Path):
         import albumentations as A
 

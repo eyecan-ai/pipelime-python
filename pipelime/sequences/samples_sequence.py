@@ -8,13 +8,14 @@ from pipelime.sequences.sample import Sample
 
 class SamplesSequence(t.Sequence[Sample]):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
-    and `get_sample(self, idx: int) -> Sample`. The list of all operations and sources
-    can be retrieved through `SamplesSequence.operations` and `SamplesSequence.sources`.
-    Descriptive help messages are provided for each operation, eg, try
-    `help(SamplesSequence.map)`.
+    and `get_sample(self, idx: int) -> Sample`.
+
+    The list of all available pipes and sources can be retrieved through
+    `SamplesSequence.pipes` and `SamplesSequence.sources`. Descriptive help
+    messages are provided for each method, eg, try `help(SamplesSequence.map)`.
     """
 
-    operations: t.List[str] = []
+    pipes: t.List[str] = []
     sources: t.List[str] = []
 
     @abstractmethod
@@ -120,7 +121,7 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):
         if is_static:
             SamplesSequence.sources.append(fn_name)
         else:
-            SamplesSequence.operations.append(fn_name)
+            SamplesSequence.pipes.append(fn_name)
 
         return cls
 

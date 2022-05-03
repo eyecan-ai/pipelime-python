@@ -27,7 +27,7 @@ class TestRemotes:
         outpath: Path,
         remote_urls: t.Union[ParseResult, t.Sequence[ParseResult]],
         filter_fn: t.Optional[t.Callable[[Sample], bool]],
-        keys_to_upload: t.Optional[t.Collection[str]],
+        keys_to_upload: t.Optional[t.Sequence[str]],
         check_data: bool,
     ):
         from pipelime.stages import StageUploadToRemote
