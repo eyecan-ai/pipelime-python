@@ -58,7 +58,4 @@ class TestSamplesSequences:
         sseq = pls.SamplesSequence.from_list(source.samples)  # type: ignore
 
         assert len(source) == len(sseq)
-        assert source.samples is sseq.samples
-
-        for src_smpl, sample in zip(source, sseq):
-            assert src_smpl is sample
+        assert source.samples == sseq.samples

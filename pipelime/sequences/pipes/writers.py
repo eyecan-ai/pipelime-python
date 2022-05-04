@@ -1,9 +1,10 @@
 from pathlib import Path
 from filelock import FileLock, Timeout
 import typing as t
+import pydantic as pyd
 
 import pipelime.sequences.samples_sequence as pls
-from pipelime.sequences.pipes.base import ProxySequenceBase
+from pipelime.sequences.pipes.base import PipedSequenceBase
 from pipelime.items import SerializationMode, Item
 
 
@@ -25,59 +26,55 @@ class _serialization_mode_override:
 
 
 @pls.as_samples_sequence_functional("to_underfolder")
-class UnderfolderWriter(ProxySequenceBase):
+class UnderfolderWriter(PipedSequenceBase):
     """Writes samples to an underfolder dataset while iterating over them. Usage::
 
-        s1 = SamplesSequence(...)
-        sseq = s1.to_underfolder("out_path")
+        sseq = sseq.to_underfolder("out_path")
 
-    :param folder: the output folder.
-    :type folder: t.Union[str, Path]
-    :param zfill: custom zero-filling, defaults to None
-    :type zfill: t.Optional[int], optional
-    :param key_serialization_mode: forced serialization mode for each key,
-        defaults to None
-    :type key_serialization_mode: t.Optional[t.Mapping[str, t.Union[SerializationMode,
-        str]]], optional
-    :param exists_ok: if False raises an error when `folder` exists, defaults to False
-    :type exists_ok: bool, optional
     :raises FileExistsError: if `exists_ok` is False and `folder` exists.
     """
 
-    def __init__(
-        self,
-        source: pls.SamplesSequence,
-        folder: t.Union[str, Path],
-        zfill: t.Optional[int] = None,
-        key_serialization_mode: t.Optional[
-            t.Mapping[str, t.Union[SerializationMode, str]]
-        ] = None,
-        exists_ok: bool = False,
-    ):
-        super().__init__(source)
-        self._root_folder = Path(folder)
-        self._data_folder = self._root_folder / "data"
-        self._zfill = source.best_zfill() if zfill is None else zfill
-        self._key_serialization_mode = (
-            {} if key_serialization_mode is None else key_serialization_mode
-        )
+    folder: Path = pyd.Field(..., description="The output folder.")
+    zfill: t.Optional[int] = pyd.Field(None, description="Custom zero-filling.")
+    key_serialization_mode: t.Optional[
+        t.Mapping[str, t.Union[SerializationMode, str]]
+    ] = pyd.Field(None, description="Forced serialization mode for each key.")
+    exists_ok: bool = pyd.Field(
+        False, description="If False raises an error when `folder` exists."
+    )
 
-        if not exists_ok and (self._root_folder.exists() or self._data_folder.exists()):
+    _data_folder: Path
+
+    class Config:
+        underscore_attrs_are_private = True
+
+    def __init__(self, folder: Path, **data):
+        super().__init__(folder=folder, **data)  # type: ignore
+
+        self._data_folder = self.folder / "data"
+        if self.zfill is None:
+            self.zfill = self.source.best_zfill()
+        if self.key_serialization_mode is None:
+            self.key_serialization_mode = {}
+
+        if not self.exists_ok and (self.folder.exists() or self._data_folder.exists()):
             raise FileExistsError("Trying to overwrite an existing dataset.")
 
         self._data_folder.mkdir(parents=True, exist_ok=True)
 
     def get_sample(self, idx: int) -> pls.Sample:
-        sample = self._source[idx]
+        sample = self.source[idx]
 
         id_str = str(idx)
-        if self._zfill is not None:
-            id_str = id_str.zfill(self._zfill)
+        if self.zfill is not None:
+            id_str = id_str.zfill(self.zfill)
 
         for k, v in sample.items():
-            with _serialization_mode_override(v, self._key_serialization_mode.get(k)):
+            with _serialization_mode_override(
+                v, self.key_serialization_mode.get(k)  # type: ignore
+            ):
                 if v.is_shared:
-                    filepath = self._root_folder / k
+                    filepath = self.folder / k
                     if not any(f.exists() for f in v.get_all_names(filepath)):
                         lock_filepath = filepath.with_suffix(".~lock")
                         lock = FileLock(str(lock_filepath))

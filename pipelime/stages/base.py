@@ -27,6 +27,9 @@ class StageLambda(SampleStage):
         ..., description="The callable to apply."
     )
 
+    def __init__(self, func, **data):
+        super().__init__(func=func, **data)  # type: ignore
+
     def __call__(self, x: Sample) -> Sample:
         return self.func(x)
 
@@ -36,8 +39,8 @@ class StageCompose(SampleStage):
 
     stages: t.Sequence[SampleStage] = pyd.Field(..., description="The stages to apply.")
 
-    def __init__(self, *stages: SampleStage):
-        super().__init__(stages=stages)  # type: ignore
+    def __init__(self, *stages: SampleStage, **data):
+        super().__init__(stages=stages, **data)  # type: ignore
 
     def __call__(self, x: Sample) -> Sample:
         for s in self.stages:

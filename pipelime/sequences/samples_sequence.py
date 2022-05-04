@@ -2,21 +2,14 @@ from __future__ import annotations
 from abc import abstractmethod
 import itertools
 import typing as t
+import pydantic as pyd
 
 from pipelime.sequences.sample import Sample
 
 
-class SamplesSequence(t.Sequence[Sample]):
-    """A generic sequence of samples. Subclasses should implement `size(self) -> int`
-    and `get_sample(self, idx: int) -> Sample`.
-
-    The list of all available pipes and sources can be retrieved through
-    `SamplesSequence.pipes` and `SamplesSequence.sources`. Descriptive help
-    messages are provided for each method, eg, try `help(SamplesSequence.map)`.
-    """
-
-    pipes: t.List[str] = []
-    sources: t.List[str] = []
+class SamplesSequenceBase(t.Sequence[Sample]):
+    pipes: t.Dict[str, t.Dict[str, t.Any]] = {}
+    sources: t.Dict[str, t.Dict[str, t.Any]] = {}
 
     @abstractmethod
     def size(self) -> int:
@@ -31,7 +24,7 @@ class SamplesSequence(t.Sequence[Sample]):
 
     def __getitem__(self, idx: t.Union[int, slice]) -> Sample:
         return (
-            self.slice(idx.start, idx.stop, idx.step)  # type: ignore
+            self.slice(start=idx.start, stop=idx.stop, step=idx.step)  # type: ignore
             if isinstance(idx, slice)
             else self.get_sample(idx)
         )
@@ -62,16 +55,32 @@ class SamplesSequence(t.Sequence[Sample]):
         """
         return len(str(len(self)))
 
-    def __add__(self, other: "SamplesSequence") -> SamplesSequence:
+    def __add__(self, other: SamplesSequence) -> SamplesSequence:
         return self.cat(other)  # type: ignore
 
 
-def as_samples_sequence_functional(fn_name: str, is_static: bool = False):
+class SamplesSequence(SamplesSequenceBase, pyd.BaseModel):
+    """A generic sequence of samples. Subclasses should implement `size(self) -> int`
+    and `get_sample(self, idx: int) -> Sample`.
+
+    The list of all available pipes and sources, along with respective schemas, can be
+    retrieved through `SamplesSequence.pipes` and `SamplesSequence.sources`. Also,
+    descriptive help messages are provided for each method, eg, try
+    `help(SamplesSequence.map)`.
+    """
+
+    pass
+
+
+def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # noqa
     """A decorator registering a SamplesSequence subclass as functional attribute.
 
     :param fn_name: the name of the function that we are going to add.
     :type fn_name: str
     """
+
+    if fn_name in SamplesSequence.sources or fn_name in SamplesSequence.pipes:
+        raise ValueError(f"Function {fn_name} has been already registered.")
 
     def _wrapper(cls):
         import inspect
@@ -80,32 +89,57 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):
         if docstr:
             docstr = docstr.replace("\n", "\n    ")
 
-        sig = inspect.signature(cls.__init__)
-        prms_list = [i[1] for i in sig.parameters.items()]
+        # NB: cls is a pydantic model!
+        # The signature of the model class does not include the `self` argument
+        sig = inspect.signature(cls)
+        prms_list = [p for p in sig.parameters.values()]
 
         if is_static:
-            prms_list = prms_list[1:]
+            fn_def_self, fn_call_self = "", ""
         else:
-            prms_list = [prms_list[0]] + prms_list[2:]
+            # remove the `source` parameter (which will be set as `self`)
+            for i, p in enumerate(prms_list):
+                if cls.__fields__[p.name].field_info.extra.get("pipe_source", False):
+                    prms_source_name = prms_list.pop(i).name
+                    break
+            else:
+                prms_source_name = prms_list.pop(0).name
+            fn_def_self = "self, "
+            fn_call_self = prms_source_name + "=self, "
 
         # NB: including annotations would be great, but you'd need to import here
         # all kind of packages used by the subclass we are wrapping.
-        prm_names = [p.name for p in prms_list]
-        prm_defaults = [
-            "" if p.default is inspect.Parameter.empty else f"={p.default}"
-            for p in prms_list
-        ]
-        prm_def_str = ", ".join(
-            f"{pname}{pdef}" for pname, pdef in zip(prm_names, prm_defaults)
+        prm_def_str = []
+        slash_added = True
+        star_added = False
+        for prm in prms_list:
+            if prm.kind == inspect.Parameter.POSITIONAL_ONLY:
+                slash_added = False
+            if not slash_added and prm.kind != inspect.Parameter.POSITIONAL_ONLY:
+                prm_def_str.append("/")
+                slash_added = True
+            if not star_added and prm.kind == inspect.Parameter.KEYWORD_ONLY:
+                prm_def_str.append("*")
+                star_added = True
+            pdef = "" if prm.default is inspect.Parameter.empty else f"={prm.default}"
+            prm_def_str.append(f"{prm.name}{pdef}")
+        prm_def_str = ", ".join(prm_def_str)
+
+        # call by name
+        call_by_name_str = ", ".join(
+            [f"{k}={k}" for k in sig.replace(parameters=prms_list).parameters.keys()]
         )
 
+        # def _<name>([self, ]prm0, prm1=val1):
+        #     '''<docstring>'''
+        #     from <module> import <subclass>
+        #     return <subclass>([self, ]prm0=prm0, prm1=prm1)
         fn_str = (
-            "def _{0}({1}):\n".format(fn_name, prm_def_str)
+            "def _{0}({1}{2}):\n".format(fn_name, fn_def_self, prm_def_str)
             + ("    '''{0}\n    '''\n".format(docstr) if docstr else "")
             + "    from {0} import {1}\n".format(cls.__module__, cls.__name__)
-            + "    return {0}({1})\n".format(
-                cls.__name__,
-                ", ".join(sig.replace(parameters=prms_list).parameters.keys()),
+            + "    return {0}({1}{2})\n".format(
+                cls.__name__, fn_call_self, call_by_name_str
             )
         )
 
@@ -119,9 +153,9 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):
         setattr(SamplesSequence, fn_name, fn_helper)
 
         if is_static:
-            SamplesSequence.sources.append(fn_name)
+            SamplesSequence.sources[fn_name] = cls.schema()
         else:
-            SamplesSequence.pipes.append(fn_name)
+            SamplesSequence.pipes[fn_name] = cls.schema()
 
         return cls
 

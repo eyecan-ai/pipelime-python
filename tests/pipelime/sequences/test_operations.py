@@ -1,17 +1,19 @@
 import pipelime.sequences as pls
-from pathlib import Path
 import typing as t
 
 
 class TestSamplesSequenceOperations:
     def test_map(self, minimnist_dataset: dict):
         import pipelime.items as pli
+        import pipelime.stages as plst
 
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder=minimnist_dataset["path"], merge_root_items=False
         ).map(
-            lambda x: pls.Sample(
-                {k: pli.JsonMetadataItem({"the_answer": 42}) for k in x}
+            plst.StageLambda(
+                lambda x: pls.Sample(
+                    {k: pli.JsonMetadataItem({"the_answer": 42}) for k in x}
+                )
             )
         )
         for sample in source:
@@ -32,7 +34,7 @@ class TestSamplesSequenceOperations:
 
         source_nkeys = len(minimnist_dataset["item_keys"])
         keys1 = minimnist_dataset["item_keys"][: source_nkeys // 2]
-        keys2 = minimnist_dataset["item_keys"][source_nkeys // 2 :]
+        keys2 = minimnist_dataset["item_keys"][source_nkeys // 2 :]  # noqa
         seq1 = pls.SamplesSequence.from_list(  # type: ignore
             [sample.extract_keys(*keys1) for sample in source]
         )
@@ -63,7 +65,7 @@ class TestSamplesSequenceOperations:
         double_source = fn(source)
 
         length = len(source)
-        assert 2*length == len(double_source)
+        assert 2 * length == len(double_source)
         for src_idx in range(length):
             assert source[src_idx] is double_source[src_idx]
             assert source[src_idx] is double_source[src_idx + length]
@@ -101,7 +103,7 @@ class TestSamplesSequenceOperations:
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         start, stop, step = 4, 13, 3
-        sliced = source.slice(start, stop, step)
+        sliced = source.slice(start=start, stop=stop, step=step)
         raw_sliced = [source[idx] for idx in range(start, stop, step)]
 
         assert len(sliced) == len(raw_sliced)
@@ -125,9 +127,9 @@ class TestSamplesSequenceOperations:
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        shuffled_1 = source.shuffle(seed)
-        shuffled_2 = source.shuffle(seed)
-        shuffled_3 = source.shuffle(seed + 1)
+        shuffled_1 = source.shuffle(rnd_seed=seed)
+        shuffled_2 = source.shuffle(rnd_seed=seed)
+        shuffled_3 = source.shuffle(rnd_seed=seed + 1)
 
         length = len(source)
         assert length == len(shuffled_1)

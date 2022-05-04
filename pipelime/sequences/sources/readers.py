@@ -1,6 +1,6 @@
-from pathlib import Path
 import os
 import typing as t
+import pydantic as pyd
 
 import pipelime.sequences.samples_sequence as pls
 from pipelime.items.base import ItemFactory, Item
@@ -10,26 +10,33 @@ from pipelime.items.base import ItemFactory, Item
 class UnderfolderReader(pls.SamplesSequence):
     """A SamplesSequence loading data from an Underfolder dataset. Usage::
 
-        sseq = SamplesSequence.from_underfolder(folder)
-
-    :param folder: the root folder of the Underfolder dataset.
-    :type folder: t.Union[str, Path]
-    :param merge_root_items: adds root items as shared items to each sample (sample
-        values take precedence), defaults to True.
-    :type merge_root_items: bool, optional
+    sseq = SamplesSequence.from_underfolder(folder)
     """
 
-    def __init__(self, folder: t.Union[str, Path], merge_root_items: bool = True):
-        super().__init__()
-        folder = Path(folder)
-        self._merge_root_items = merge_root_items
-        self._samples: t.Sequence[pls.Sample] = []
-        self._root_sample = pls.Sample(None)
+    folder: pyd.DirectoryPath = pyd.Field(
+        ..., description="The root folder of the Underfolder dataset."
+    )
+    merge_root_items: bool = pyd.Field(
+        True,
+        description=(
+            "Adds root items as shared items "
+            "to each sample (sample values take precedence)."
+        ),
+    )
 
-        if folder.exists():
+    _samples: t.Sequence[pls.Sample] = []
+    _root_sample: pls.Sample = pls.Sample(None)
+
+    class Config:
+        underscore_attrs_are_private = True
+
+    def __init__(self, folder, **data):
+        super().__init__(folder=folder, **data)  # type: ignore
+
+        if self.folder.exists():
             # root files
             root_items: t.Dict[str, Item] = {}
-            with os.scandir(str(folder)) as it:
+            with os.scandir(str(self.folder)) as it:
                 for entry in it:
                     if entry.is_file():
                         key = self._extract_key(entry.name)
@@ -40,10 +47,10 @@ class UnderfolderReader(pls.SamplesSequence):
             self._root_sample = pls.Sample(root_items)
 
             # samples
-            folder = folder / "data"
-            if folder.exists():
+            data_folder = self.folder / "data"
+            if data_folder.exists():
                 sample_items: t.Dict[str, t.Dict[str, Item]] = {}
-                with os.scandir(str(folder)) as it:
+                with os.scandir(str(data_folder)) as it:
                     for entry in it:
                         if entry.is_file():
                             id_key = self._extract_id_key(entry.name)
@@ -54,8 +61,7 @@ class UnderfolderReader(pls.SamplesSequence):
                                 )
 
                 self._samples = [
-                    pls.Sample(item_map)
-                    for _, item_map in sorted(sample_items.items())
+                    pls.Sample(item_map) for _, item_map in sorted(sample_items.items())
                 ]
 
     @property
@@ -83,4 +89,4 @@ class UnderfolderReader(pls.SamplesSequence):
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self._samples[idx]
-        return self._root_sample.merge(sample) if self._merge_root_items else sample
+        return self._root_sample.merge(sample) if self.merge_root_items else sample

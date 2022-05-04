@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse
-from enum import Enum
+from enum import IntEnum
 from contextlib import ContextDecorator, contextmanager
 from loguru import logger
 import io
@@ -15,7 +15,7 @@ import typing as t
 import pipelime.remotes as plr
 
 
-class SerializationMode(Enum):
+class SerializationMode(IntEnum):
     """Standard resolution is REMOTE FILE -> HARD LINK -> FILE COPY -> NEW FILE
     or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour by setting
     default and disabled serialization modes."""
@@ -93,7 +93,7 @@ class ItemFactory(ABCMeta):
         for base_cls in item_cls.mro():
             if issubclass(base_cls, Item):
                 other_smode = cls.ITEM_SERIALIZATION_MODE[base_cls]
-                if other_smode.value < smode.value:
+                if other_smode < smode:
                     smode = other_smode
         return smode
 
