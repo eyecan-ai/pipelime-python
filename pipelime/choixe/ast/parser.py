@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
 from pipelime.choixe.ast.nodes import (
     CmdNode,
     DateNode,
+    DictBundleNode,
     DictNode,
     ForNode,
     ImportNode,
@@ -168,7 +169,10 @@ class Parser:
             Schema(
                 {self._token_schema("model"): str, self._token_schema("args"): dict}
             ): self._parse_model,
-            Schema({self._token_schema("for"): object}): self._parse_for,
+        }
+
+        self._key_value_forms = {
+            Schema({self._token_schema("for"): object}): self._parse_for
         }
 
     def _token_schema(
@@ -220,9 +224,8 @@ class Parser:
         args = self.parse(pairs["args"][1])
         return ModelNode(symbol, args)
 
-    def _parse_for(self, data: dict) -> ForNode:
-        pairs = self._key_value_pairs_by_token_name(data)
-        loop, body = pairs["for"]
+    def _parse_for(self, loop: str, body: Any) -> ForNode:
+        loop = self._scanner.scan(loop)[0]
         iterable = LiteralNode(loop.args[0])
         identifier = (
             loop.args[1] if len(loop.args) > 1 else loop.kwargs.get("identifier")
@@ -231,6 +234,8 @@ class Parser:
         return ForNode(iterable, self.parse(body), identifier=identifier)
 
     def _parse_dict(self, data: dict) -> DictNode:
+        # Check if the dict is an extended or special form, in that case parse it and
+        # return the result, no further checks are needed.
         for schema, fn in self._extended_and_special_forms.items():
             if schema.is_valid(data):
                 try:
@@ -238,7 +243,29 @@ class Parser:
                 except:
                     raise ChoixeStructValidationError(data)
 
-        return DictNode({self._parse_str(k): self.parse(v) for k, v in data.items()})
+        # Check for each entry if it is a key_value form, in that case parse it and add
+        # it to the bundle. Keep track of what is left to parse.
+        parsed_keyvalues = []
+        parsed_other = {}
+        for schema, fn in self._key_value_forms.items():
+            for k, v in data.items():
+                if schema.is_valid({k: v}):
+                    parsed_keyvalues.append(fn(k, v))
+                else:
+                    parsed_other[self._parse_str(k)] = self.parse(v)
+
+        # Parse the remaining entries as a DictNode.
+        parsed_other = DictNode(parsed_other)
+
+        # If no key_value form was found, return the DictNode.
+        if len(parsed_keyvalues) == 0:
+            return parsed_other
+        # If there is only one key_value form and no remaining data, return it.
+        elif len(parsed_other.nodes) == 0 and len(parsed_keyvalues) == 1:
+            return parsed_keyvalues[0]
+        # If there is more than one key_value form, return a DictBundleNode.
+        else:
+            return DictBundleNode(*parsed_keyvalues, parsed_other)
 
     def _parse_list(self, data: list) -> ListNode:
         return ListNode(*[self.parse(x) for x in data])

@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pydash as py_
+
 from pipelime.choixe.ast.nodes import (
     CmdNode,
     DateNode,
+    DictBundleNode,
     DictNode,
     ForNode,
     ImportNode,
@@ -97,6 +99,16 @@ class Processor(NodeVisitor):
     def visit_object(self, node: LiteralNode) -> List[Any]:
         return [node.data]
 
+    def visit_dict_bundle(self, node: DictBundleNode) -> List[Dict]:
+        data = [{}]
+        for x in node.nodes:
+            branches = x.accept(self)
+            N = len(data)
+            data *= len(branches)
+            for i in range(len(data)):
+                data[i].update(branches[i // N])
+        return data
+
     def visit_str_bundle(self, node: StrBundleNode) -> List[str]:
         data = [""]
         for x in node.nodes:
@@ -179,11 +191,15 @@ class Processor(NodeVisitor):
         return branches
 
     def visit_index(self, node: IndexNode) -> List[Any]:
-        id_ = self._current_loop if node.identifier is None else str(node.identifier.data)
+        id_ = (
+            self._current_loop if node.identifier is None else str(node.identifier.data)
+        )
         return [self._loop_data[id_].index]  # type: ignore
 
     def visit_item(self, node: ItemNode) -> List[Any]:
-        key = self._current_loop if node.identifier is None else str(node.identifier.data)
+        key = (
+            self._current_loop if node.identifier is None else str(node.identifier.data)
+        )
         sep = "."
         loop_id, _, key = key.partition(sep)  # type: ignore
         return [py_.get(self._loop_data[loop_id].item, f"{sep}{key}")]

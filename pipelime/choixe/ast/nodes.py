@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional, Tuple
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
-from typing import Any, Dict, Tuple, Optional
 
 
 class NodeVisitor:  # pragma: no cover
@@ -30,6 +30,9 @@ class NodeVisitor:  # pragma: no cover
         return node
 
     def visit_object(self, node: LiteralNode) -> Any:
+        return node
+
+    def visit_dict_bundle(self, node: DictBundleNode) -> Any:
         return node
 
     def visit_str_bundle(self, node: StrBundleNode) -> Any:
@@ -135,6 +138,19 @@ class LiteralNode(HashNode):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_object(self)
+
+
+@dataclass(init=False, eq=False)
+class DictBundleNode(Node):
+    """An `DictBundleNode` represents a dictionary union of a nodes collection."""
+
+    nodes: Tuple[Node]
+
+    def __init__(self, *nodes: Node) -> None:
+        self.nodes = nodes
+
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit_dict_bundle(self)
 
 
 @dataclass(init=False, eq=False)

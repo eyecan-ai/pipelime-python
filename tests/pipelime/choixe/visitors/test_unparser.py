@@ -1,9 +1,12 @@
 from typing import Any
 
 import pytest
+from deepdiff import DeepDiff
+
 from pipelime.choixe.ast.nodes import (
     CmdNode,
     DateNode,
+    DictBundleNode,
     DictNode,
     ForNode,
     ImportNode,
@@ -11,9 +14,9 @@ from pipelime.choixe.ast.nodes import (
     InstanceNode,
     ItemNode,
     ListNode,
+    LiteralNode,
     ModelNode,
     Node,
-    LiteralNode,
     StrBundleNode,
     SweepNode,
     TmpDirNode,
@@ -21,7 +24,6 @@ from pipelime.choixe.ast.nodes import (
     VarNode,
 )
 from pipelime.choixe.visitors import unparse
-from deepdiff import DeepDiff
 
 
 @pytest.mark.parametrize(
@@ -176,6 +178,47 @@ from deepdiff import DeepDiff
         [CmdNode(LiteralNode("ls -lha")), '$cmd("ls -lha")'],
         [TmpDirNode(), "$tmp"],
         [TmpDirNode(LiteralNode("my_tmp")), "$tmp(my_tmp)"],
+        [
+            DictBundleNode(
+                ForNode(
+                    LiteralNode("alpha"),
+                    DictNode(
+                        {
+                            StrBundleNode(
+                                LiteralNode("node_"), IndexNode()
+                            ): StrBundleNode(LiteralNode("Hello_"), ItemNode())
+                        }
+                    ),
+                ),
+                ForNode(
+                    LiteralNode("beta"),
+                    DictNode(
+                        {
+                            StrBundleNode(
+                                LiteralNode("node_"), IndexNode()
+                            ): StrBundleNode(LiteralNode("Ciao_"), ItemNode())
+                        }
+                    ),
+                ),
+                DictNode(
+                    {
+                        LiteralNode("a"): LiteralNode(10),
+                        LiteralNode("b"): DictNode(
+                            {
+                                LiteralNode("c"): LiteralNode(10.0),
+                                LiteralNode("d"): LiteralNode("hello"),
+                            }
+                        ),
+                    }
+                ),
+            ),
+            {
+                "$for(alpha)": {"node_$index": "Hello_$item"},
+                "$for(beta)": {"node_$index": "Ciao_$item"},
+                "a": 10,
+                "b": {"c": 10.0, "d": "hello"},
+            },
+        ],
     ],
 )
 def test_unparse(node: Node, expected: Any):
