@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
 import pydash as py_
+
 from pipelime.choixe.ast.nodes import (
+    DictBundleNode,
     DictNode,
     ForNode,
     ImportNode,
@@ -15,10 +17,10 @@ from pipelime.choixe.ast.nodes import (
     InstanceNode,
     ItemNode,
     ListNode,
+    LiteralNode,
     ModelNode,
     Node,
     NodeVisitor,
-    LiteralNode,
     StrBundleNode,
     SweepNode,
     VarNode,
@@ -63,6 +65,10 @@ class Inspector(NodeVisitor):
 
     def visit_object(self, node: LiteralNode) -> Inspection:
         return Inspection(processed=True)
+
+    def visit_dict_bundle(self, node: DictBundleNode) -> Any:
+        start = Inspection(processed=True)
+        return sum([x.accept(self) for x in node.nodes], start=start)
 
     def visit_str_bundle(self, node: StrBundleNode) -> Inspection:
         start = Inspection(processed=True)

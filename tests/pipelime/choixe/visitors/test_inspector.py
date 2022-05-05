@@ -59,6 +59,23 @@ class TestInspector:
                 {"$for(var.x.y, x)": {"$index(x)": "$item(x)"}},
                 Inspection(variables={"var": {"x": {"y": None}}}),
             ],
+            [
+                {
+                    "$for(var.my_var, x)": {"$index(x)": "$item(x)"},
+                    "$var(var.another_var)": 10,
+                    "$for(var.my_var2, y)": {"$index(y)": "$var(var.another_var2)"},
+                },
+                Inspection(
+                    variables={
+                        "var": {
+                            "my_var": None,
+                            "my_var2": None,
+                            "another_var": None,
+                            "another_var2": None,
+                        }
+                    }
+                ),
+            ],
         ],
     )
     def test_inspector(self, expr, expected):
