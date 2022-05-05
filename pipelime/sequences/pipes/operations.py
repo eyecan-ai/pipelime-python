@@ -160,16 +160,16 @@ class SlicedSequence(PipedSequenceBase):
     def __init__(self, **data):
         super().__init__(**data)
 
-        self.start = (
+        effective_start = (
             0 if self.start is None else max(0, min(len(self.source), self.start))
         )
-        self.stop = (
+        effective_stop = (
             len(self.source)
             if self.stop is None
             else max(0, min(len(self.source), self.stop))
         )
-        self.step = 1 if self.step is None else self.step
-        self._sliced_idxs = range(self.start, self.stop, self.step)
+        effective_step = 1 if self.step is None else self.step
+        self._sliced_idxs = range(effective_start, effective_stop, effective_step)
 
     def size(self) -> int:
         return len(self._sliced_idxs)

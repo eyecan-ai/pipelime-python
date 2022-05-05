@@ -67,13 +67,40 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel):
     retrieved through `SamplesSequence.pipes` and `SamplesSequence.sources`. Also,
     descriptive help messages are provided for each method, eg, try
     `help(SamplesSequence.map)`.
+
+    NB: when defining a pipe, the `source` sample sequence must be bound to a pydantic
+    Field with `pipe_source=True`.
     """
 
-    pass
+    # the function attribute generating this instance
+    _fn_name: str = pyd.PrivateAttr("")
+
+    def pipe(self) -> t.List[t.Dict[str, t.Any]]:
+        source_list = []
+        arg_dict = {}
+        for field_name, model_field in self.__fields__.items():
+            field_value = getattr(self, field_name)
+            if model_field.field_info.extra.get("pipe_source", False):
+                if not isinstance(field_value, SamplesSequence):
+                    raise ValueError(
+                        f"{field_name} is tagged as `pipe_source`, "
+                        "so it must be a SamplesSequence instance."
+                    )
+                source_list = field_value.pipe()
+            else:
+                # NB: do not unfold sub-pydantic models, since it may not be
+                # straightforward to de-serialize them when subclasses are used
+                if isinstance(field_value, SamplesSequence):
+                    field_value = field_value.pipe()
+                arg_dict[field_name] = field_value
+        return source_list + [{self._fn_name: arg_dict}]
 
 
 def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # noqa
     """A decorator registering a SamplesSequence subclass as functional attribute.
+
+    NB: when defining a pipe, the `source` sample sequence must be bound to a pydantic
+    Field with `pipe_source=True`.
 
     :param fn_name: the name of the function that we are going to add.
     :type fn_name: str
@@ -130,17 +157,24 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
             [f"{k}={k}" for k in sig.replace(parameters=prms_list).parameters.keys()]
         )
 
+        # The following function is generated and evaluated at runtime:
+        # """
         # def _<name>([self, ]prm0, prm1=val1):
         #     '''<docstring>'''
         #     from <module> import <subclass>
-        #     return <subclass>([self, ]prm0=prm0, prm1=prm1)
+        #     seq = <subclass>([self, ]prm0=prm0, prm1=prm1)
+        #     seq._fn_name = '<fn_name>'
+        #     return seq
+        # """
         fn_str = (
             "def _{0}({1}{2}):\n".format(fn_name, fn_def_self, prm_def_str)
             + ("    '''{0}\n    '''\n".format(docstr) if docstr else "")
             + "    from {0} import {1}\n".format(cls.__module__, cls.__name__)
-            + "    return {0}({1}{2})\n".format(
+            + "    seq = {0}({1}{2})\n".format(
                 cls.__name__, fn_call_self, call_by_name_str
             )
+            + "    seq._fn_name = '{0}'\n".format(fn_name)
+            + "    return seq\n"
         )
 
         local_scope = {}
