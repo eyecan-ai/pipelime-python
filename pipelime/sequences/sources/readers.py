@@ -3,11 +3,11 @@ from pathlib import Path
 import typing as t
 import pydantic as pyd
 
-import pipelime.sequences.samples_sequence as pls
+import pipelime.sequences as pls
 from pipelime.items.base import ItemFactory, Item
 
 
-@pls.as_samples_sequence_functional("from_underfolder", is_static=True)
+@pls.source_sequence("from_underfolder")
 class UnderfolderReader(pls.SamplesSequence):
     """A SamplesSequence loading data from an Underfolder dataset. Usage::
 

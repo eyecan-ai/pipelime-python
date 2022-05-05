@@ -7,6 +7,47 @@ import pydantic as pyd
 from pipelime.sequences.sample import Sample
 
 
+def _build_op(
+    src: t.Union[SamplesSequence, t.Type[SamplesSequence]],
+    ops: t.Union[str, t.Mapping[str, t.Any]],
+) -> t.Union[SamplesSequence, t.Type[SamplesSequence]]:
+    def _op_call(
+        seq: t.Union[SamplesSequence, t.Type[SamplesSequence]],
+        name: str,
+        args: t.Union[t.Mapping[str, t.Any], t.Sequence],
+    ) -> SamplesSequence:
+        fn = getattr(seq, name)
+        return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
+
+    if isinstance(ops, str):
+        return _op_call(src, ops, {})
+
+    for func_name, func_args in ops.items():
+        # safe wrapping
+        if isinstance(func_args, (str, bytes)) or not isinstance(
+            func_args, (t.Sequence, t.Mapping)
+        ):
+            func_args = [func_args]
+        src = _op_call(src, func_name, func_args)
+
+    return src
+
+
+def build_pipe(
+    pipe_list: t.Union[
+        str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
+    ]
+) -> SamplesSequence:
+    x = SamplesSequence
+    for op_item in pipe_list if isinstance(pipe_list, t.Sequence) else [pipe_list]:
+        x = _build_op(x, op_item)
+    return (
+        x
+        if isinstance(x, SamplesSequence)
+        else SamplesSequence.from_list([])  # type: ignore
+    )
+
+
 class SamplesSequenceBase(t.Sequence[Sample]):
     pipes: t.Dict[str, t.Dict[str, t.Any]] = {}
     sources: t.Dict[str, t.Dict[str, t.Any]] = {}
@@ -75,7 +116,7 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel):
     # the function attribute generating this instance
     _fn_name: str = pyd.PrivateAttr("")
 
-    def pipe(self) -> t.List[t.Dict[str, t.Any]]:
+    def pipe(self, recursive: bool) -> t.List[t.Dict[str, t.Any]]:
         source_list = []
         arg_dict = {}
         for field_name, model_field in self.__fields__.items():
@@ -86,12 +127,12 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel):
                         f"{field_name} is tagged as `pipe_source`, "
                         "so it must be a SamplesSequence instance."
                     )
-                source_list = field_value.pipe()
+                source_list = field_value.pipe(recursive)
             else:
                 # NB: do not unfold sub-pydantic models, since it may not be
                 # straightforward to de-serialize them when subclasses are used
-                if isinstance(field_value, SamplesSequence):
-                    field_value = field_value.pipe()
+                if recursive and isinstance(field_value, SamplesSequence):
+                    field_value = field_value.pipe(recursive)
                 arg_dict[field_name] = field_value
         return source_list + [{self._fn_name: arg_dict}]
 
@@ -130,7 +171,16 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
                     prms_source_name = prms_list.pop(i).name
                     break
             else:
-                prms_source_name = prms_list.pop(0).name
+                raise ValueError(
+                    f"{cls.__name__} is tagged as `piped`, but no field has `pipe_source=True`."
+                )
+
+            for i, p in enumerate(prms_list):
+                if cls.__fields__[p.name].field_info.extra.get("pipe_source", False):
+                    raise ValueError(
+                        f"More than one field has `pipe_source=True` in {cls.__name__}."
+                    )
+
             fn_def_self = "self, "
             fn_call_self = prms_source_name + "=self, "
 
@@ -194,3 +244,11 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
         return cls
 
     return _wrapper
+
+
+def source_sequence(fn_name: str):
+    return as_samples_sequence_functional(fn_name, is_static=True)
+
+
+def piped_sequence(fn_name: str):
+    return as_samples_sequence_functional(fn_name, is_static=False)

@@ -1,12 +1,12 @@
 from pipelime.sequences.pipes.base import PipedSequenceBase
-import pipelime.sequences.samples_sequence as pls
+import pipelime.sequences as pls
 import pipelime.stages as plst
 
 import typing as t
 import pydantic as pyd
 
 
-@pls.as_samples_sequence_functional("map")
+@pls.piped_sequence("map")
 class MappedSequence(PipedSequenceBase):
     """Applies a stage on all samples. Usage::
 
@@ -24,7 +24,7 @@ class MappedSequence(PipedSequenceBase):
         return self.stage(self.source[idx])
 
 
-@pls.as_samples_sequence_functional("merge")
+@pls.piped_sequence("merge")
 class MergedSequences(PipedSequenceBase):
     """Merges samples from two SamplesSequences. Usage::
 
@@ -44,7 +44,7 @@ class MergedSequences(PipedSequenceBase):
         return self.source[idx].merge(self.to_merge[idx])
 
 
-@pls.as_samples_sequence_functional("cat")
+@pls.piped_sequence("cat")
 class ConcatSequences(PipedSequenceBase):
     """Concatenates two SamplesSequences. Usage::
 
@@ -68,7 +68,7 @@ class ConcatSequences(PipedSequenceBase):
         return self.to_cat[idx - len(self.source)]
 
 
-@pls.as_samples_sequence_functional("filter")
+@pls.piped_sequence("filter")
 class FilteredSequence(PipedSequenceBase):
     """A filtered view of a SamplesSequence. Usage::
 
@@ -99,7 +99,7 @@ class FilteredSequence(PipedSequenceBase):
         return self.source[self._valid_idxs[idx]]
 
 
-@pls.as_samples_sequence_functional("sort")
+@pls.piped_sequence("sort")
 class SortedSequence(PipedSequenceBase):
     """A sorted view of an input SamplesSequence. Usage::
 
@@ -132,7 +132,7 @@ class SortedSequence(PipedSequenceBase):
         return self.source[self._sorted_idxs[idx]]
 
 
-@pls.as_samples_sequence_functional("slice")
+@pls.piped_sequence("slice")
 class SlicedSequence(PipedSequenceBase):
     """Extracts a slice [start_idx:end_idx:step] from the input SamplesSequence. Usage::
 
@@ -178,7 +178,7 @@ class SlicedSequence(PipedSequenceBase):
         return self.source[self._sliced_idxs[idx]]
 
 
-@pls.as_samples_sequence_functional("shuffle")
+@pls.piped_sequence("shuffle")
 class ShuffledSequence(PipedSequenceBase):
     """Shuffles samples in the input SamplesSequence. Usage::
 
