@@ -4,12 +4,9 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 from loguru import logger
 
-from pipelime.pipes.executors.base import NodeModelExecutionParser, NodesGraphExecutor
-from pipelime.pipes.graph import DAGNodesGraph, GraphNodeOperation
-from pipelime.pipes.model import NodeModel
-from pipelime.pipes.piper import PiperNamespace
-from pipelime.sequences.readers.filesystem import UnderfolderReader
-from pipelime.sequences.validation import OperationValidate, SampleSchema, SchemaLoader
+from pipelime.piper.executors.base import NodeModelExecutionParser, NodesGraphExecutor
+from pipelime.piper.graph import DAGNodesGraph, GraphNodeOperation
+from pipelime.piper.model import NodeModel
 
 
 class NaiveNodeModelExecutionParser(NodeModelExecutionParser):
@@ -126,31 +123,32 @@ class NaiveGraphExecutor(NodesGraphExecutor):
 
         if Path(path).is_dir():
 
-            try:
-                reader = UnderfolderReader(folder=path)
-                if schema_file is not None:
+            logger.warning("Validation is temporarily disabled for directories")
+            # try:
+            #     reader = UnderfolderReader(folder=path)
+            #     if schema_file is not None:
 
-                    if not Path(schema_file).exists():
-                        raise SampleSchema.ValidationError(
-                            f'Schema file "{schema_file}" not found'
-                        )
+            #         if not Path(schema_file).exists():
+            #             raise SampleSchema.ValidationError(
+            #                 f'Schema file "{schema_file}" not found'
+            #             )
 
-                    schema_file = SchemaLoader.load(schema_file)
-                    try:
+            #         schema_file = SchemaLoader.load(schema_file)
+            #         try:
 
-                        op = OperationValidate(sample_schema=schema_file)
-                        op(reader)
-                    except SampleSchema.ValidationError as e:
-                        logger.error(
-                            f"Validation error on node: {node_model.command}:{name}:{path} -> {e}"
-                        )
-                        raise SampleSchema.ValidationError
+            #             op = OperationValidate(sample_schema=schema_file)
+            #             op(reader)
+            #         except SampleSchema.ValidationError as e:
+            #             logger.error(
+            #                 f"Validation error on node: {node_model.command}:{name}:{path} -> {e}"
+            #             )
+            #             raise SampleSchema.ValidationError
 
-                    # Add path to validated paths to avoid validating it twice
-                    self._validated_paths.add(path)
+            #         # Add path to validated paths to avoid validating it twice
+            #         self._validated_paths.add(path)
 
-            except FileNotFoundError:
-                pass
+            # except FileNotFoundError:
+            #     pass
 
         return True
 
@@ -208,9 +206,6 @@ class NaiveGraphExecutor(NodesGraphExecutor):
 
         parser = NaiveNodeModelExecutionParser()
         self._validated_paths.clear()
-        # channel: PiperCommunicationChannel = (
-        #     PiperCommunicationChannelFactory.create_channel(token=token)
-        # )
 
         for layer in graph.build_execution_stack():
             for node in layer:
