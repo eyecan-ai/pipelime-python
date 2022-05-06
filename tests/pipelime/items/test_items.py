@@ -188,7 +188,7 @@ class TestItems:
         )
         assert item() is None
 
-    def test_disabled_serialization_modes(  # noqa
+    def test_disabled_serialization_modes(  # noqa: C901
         self, minimnist_private_dataset: dict, tmp_path: Path
     ):
         import pipelime.items as pli

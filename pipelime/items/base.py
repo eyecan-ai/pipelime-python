@@ -407,7 +407,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             return True
         return False
 
-    def _serialize_to_local_file(self, path: Path) -> t.Optional[Path]:  # noqa
+    def _serialize_to_local_file(self, path: Path) -> t.Optional[Path]:  # noqa: C901
         def _try_copy(copy_fn: t.Callable[[str, str], None], p: str) -> bool:
             for f in self._file_sources:
                 try:

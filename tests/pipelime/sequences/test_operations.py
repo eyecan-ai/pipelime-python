@@ -27,14 +27,14 @@ class TestSamplesSequenceOperations:
                 assert "the_answer" in raw
                 assert raw["the_answer"] == 42
 
-    def test_merge(self, minimnist_dataset: dict):
+    def test_zip(self, minimnist_dataset: dict):
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder=minimnist_dataset["path"], merge_root_items=False
         )
 
         source_nkeys = len(minimnist_dataset["item_keys"])
         keys1 = minimnist_dataset["item_keys"][: source_nkeys // 2]
-        keys2 = minimnist_dataset["item_keys"][source_nkeys // 2 :]  # noqa
+        keys2 = minimnist_dataset["item_keys"][source_nkeys // 2 :]  # noqa: E203
         seq1 = pls.SamplesSequence.from_list(  # type: ignore
             [sample.extract_keys(*keys1) for sample in source]
         )
@@ -42,10 +42,10 @@ class TestSamplesSequenceOperations:
             [sample.extract_keys(*keys2) for sample in source]
         )
 
-        merged = seq1.merge(seq2)
-        assert len(merged) == len(seq1)
-        assert len(merged) == len(seq2)
-        for sample_m, sample_1, sample_2, sample_s in zip(merged, seq1, seq2, source):
+        zipped = seq1.zip(seq2)
+        assert len(zipped) == len(seq1)
+        assert len(zipped) == len(seq2)
+        for sample_m, sample_1, sample_2, sample_s in zip(zipped, seq1, seq2, source):
             assert len(sample_1.keys() & sample_2.keys()) == 0
             assert len(sample_1.keys() | sample_2.keys()) == len(sample_s.keys())
             assert len(sample_s.keys()) == len(sample_m.keys())
@@ -140,3 +140,32 @@ class TestSamplesSequenceOperations:
         assert any(source[idx] is not shuffled_3[idx] for idx in range(length))
         assert all(shuffled_1[idx] is shuffled_2[idx] for idx in range(length))
         assert any(shuffled_1[idx] is not shuffled_3[idx] for idx in range(length))
+
+    def test_enumerate(self, minimnist_dataset: dict):
+        import pipelime.items as pli
+
+        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=minimnist_dataset["path"], merge_root_items=False
+        )
+        enum_seq = source.enumerate(
+            idx_key="custom_id", item_cls_path="pipelime.items.TxtNumpyItem"
+        )
+
+        for (idx, s_sample), e_sample in zip(enumerate(source), enum_seq):
+            assert "custom_id" in e_sample
+            assert isinstance(e_sample["custom_id"], pli.TxtNumpyItem)
+            assert int(e_sample["custom_id"]()) == idx
+            assert all(v == e_sample[k] for k, v in s_sample.items())
+
+    def test_repeat(self, minimnist_dataset: dict):
+        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=minimnist_dataset["path"], merge_root_items=False
+        )
+        repeat_seq = source.repeat(3)
+
+        assert len(repeat_seq) == 3 * len(source)
+
+        riter = iter(repeat_seq)
+        for i in range(3):
+            for s in source:
+                assert next(riter) is s

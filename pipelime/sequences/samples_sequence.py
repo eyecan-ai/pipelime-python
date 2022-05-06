@@ -137,7 +137,7 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel):
         return source_list + [{self._fn_name: arg_dict}]
 
 
-def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # noqa
+def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # noqa: C901
     """A decorator registering a SamplesSequence subclass as functional attribute.
 
     NB: when defining a pipe, the `source` sample sequence must be bound to a pydantic
@@ -162,24 +162,38 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
         sig = inspect.signature(cls)
         prms_list = [p for p in sig.parameters.values()]
 
+        def _get_pyd_field_info(model, field_name):
+            mfield = None
+            if field_name in model.__fields__:
+                mfield = model.__fields__[field_name]
+            else:
+                for mf in model.__fields__.values():
+                    if field_name == mf.alias:
+                        mfield = mf
+                        break
+            if mfield is None:
+                raise NameError(f"Field {field_name} not found in {model.__name__}.")
+            return mfield.field_info
+
         if is_static:
             fn_def_self, fn_call_self = "", ""
         else:
             # remove the `source` parameter (which will be set as `self`)
-            for i, p in enumerate(prms_list):
-                if cls.__fields__[p.name].field_info.extra.get("pipe_source", False):
+            prms_source_name = None
+            for i, p in enumerate(prms_list[:]):  # NB: we need a copy!
+                if _get_pyd_field_info(cls, p.name).extra.get("pipe_source", False):
+                    if prms_source_name is not None:
+                        raise ValueError(
+                            "More than one field has "
+                            f"`pipe_source=True` in {cls.__name__}."
+                        )
                     prms_source_name = prms_list.pop(i).name
-                    break
-            else:
-                raise ValueError(
-                    f"{cls.__name__} is tagged as `piped`, but no field has `pipe_source=True`."
-                )
 
-            for i, p in enumerate(prms_list):
-                if cls.__fields__[p.name].field_info.extra.get("pipe_source", False):
-                    raise ValueError(
-                        f"More than one field has `pipe_source=True` in {cls.__name__}."
-                    )
+            if prms_source_name is None:
+                raise ValueError(
+                    f"{cls.__name__} is tagged as `piped`, "
+                    "but no field has `pipe_source=True`."
+                )
 
             fn_def_self = "self, "
             fn_call_self = prms_source_name + "=self, "
@@ -189,6 +203,7 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
         prm_def_str = []
         slash_added = True
         star_added = False
+        import_code_str = ""
         for prm in prms_list:
             if prm.kind == inspect.Parameter.POSITIONAL_ONLY:
                 slash_added = False
@@ -198,7 +213,17 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
             if not star_added and prm.kind == inspect.Parameter.KEYWORD_ONLY:
                 prm_def_str.append("*")
                 star_added = True
-            pdef = "" if prm.default is inspect.Parameter.empty else f"={prm.default}"
+
+            if prm.default is inspect.Parameter.empty:
+                pdef = ""
+            elif inspect.isclass(prm.default):
+                pdef = f"={prm.default.__module__}.{prm.default.__name__}"
+                import_code_str += f"import {prm.default.__module__}\n"
+            elif isinstance(prm.default, (str, bytes)):
+                pdef = f"='{prm.default}'"
+            else:
+                pdef = f"={prm.default}"
+
             prm_def_str.append(f"{prm.name}{pdef}")
         prm_def_str = ", ".join(prm_def_str)
 
@@ -217,7 +242,8 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
         #     return seq
         # """
         fn_str = (
-            "def _{0}({1}{2}):\n".format(fn_name, fn_def_self, prm_def_str)
+            import_code_str
+            + "def _{0}({1}{2}):\n".format(fn_name, fn_def_self, prm_def_str)
             + ("    '''{0}\n    '''\n".format(docstr) if docstr else "")
             + "    from {0} import {1}\n".format(cls.__module__, cls.__name__)
             + "    seq = {0}({1}{2})\n".format(

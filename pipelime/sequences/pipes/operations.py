@@ -1,6 +1,7 @@
 from pipelime.sequences.pipes.base import PipedSequenceBase
 import pipelime.sequences as pls
 import pipelime.stages as plst
+import pipelime.items as pli
 
 import typing as t
 import pydantic as pyd
@@ -24,24 +25,24 @@ class MappedSequence(PipedSequenceBase):
         return self.stage(self.source[idx])
 
 
-@pls.piped_sequence("merge")
-class MergedSequences(PipedSequenceBase):
-    """Merges samples from two SamplesSequences. Usage::
+@pls.piped_sequence("zip")
+class ZippedSequences(PipedSequenceBase):
+    """Zips two Sequences by merging each Sample. Usage::
 
     s1, s2, s3 = SamplesSequence(...), SamplesSequence(...), SamplesSequence(...)
-    sseq = s1.merge(s2).merge(s3)
+    sseq = s1.zip(s2).zip(s3)
     """
 
-    to_merge: pls.SamplesSequence = pyd.Field(..., description="The samples to merge.")
+    to_zip: pls.SamplesSequence = pyd.Field(..., description="The sequence to merge.")
 
-    def __init__(self, to_merge: pls.SamplesSequence, **data):
-        super().__init__(to_merge=to_merge, **data)  # type: ignore
+    def __init__(self, to_zip: pls.SamplesSequence, **data):
+        super().__init__(to_zip=to_zip, **data)  # type: ignore
 
     def size(self) -> int:
-        return min(len(self.source), len(self.to_merge))
+        return min(len(self.source), len(self.to_zip))
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[idx].merge(self.to_merge[idx])
+        return self.source[idx].merge(self.to_zip[idx])
 
 
 @pls.piped_sequence("cat")
@@ -204,3 +205,58 @@ class ShuffledSequence(PipedSequenceBase):
 
     def get_sample(self, idx: int) -> pls.Sample:
         return self.source[self._shuffled_idxs[idx]]
+
+
+@pls.piped_sequence("enumerate")
+class EnumeratedSequence(PipedSequenceBase):
+    """Add a new index item to each Sample in the input SamplesSequence. Usage::
+
+    s1 = SamplesSequence(...)
+    sseq = s1.enumerate()
+    """
+
+    idx_key: str = pyd.Field(
+        "~idx", description="The new key containing the index item."
+    )
+    item_cls_path: str = pyd.Field(
+        "pipelime.items.NpyNumpyItem", description="The item class holding the index."
+    )
+
+    _item_cls: t.Type[pli.Item]
+
+    class Config:
+        underscore_attrs_are_private = True
+
+    def __init__(self, **data):
+        from pipelime.choixe.utils.imports import import_symbol
+
+        super().__init__(**data)
+        self._item_cls = import_symbol(self.item_cls_path)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        sample = self.source[idx]
+        return sample.set_item(
+            key=self.idx_key, value=self._item_cls(idx)  # type: ignore
+        )
+
+
+@pls.piped_sequence("repeat")
+class RepeatedSequence(PipedSequenceBase):
+    """Repeat this sequence so each sample is seen multiple times. Usage::
+
+    s1 = SamplesSequence(...)
+    sseq = s1.repeat(4)
+    """
+
+    count_: pyd.NonNegativeInt = pyd.Field(
+        ..., alias="count", description="The number of repetition."
+    )
+
+    def __init__(self, count: int, **data):
+        super().__init__(count=count, **data)  # type: ignore
+
+    def size(self) -> int:
+        return len(self.source) * self.count_
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        return self.source[idx % len(self.source)]
