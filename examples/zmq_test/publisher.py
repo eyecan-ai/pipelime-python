@@ -1,27 +1,27 @@
-import time
 from pathlib import Path
 
-from typer import Option, Typer
+from pydantic import Field
 
-from pipelime.piper.piper import Piper
-from pipelime.piper.progress import Tracker, ZmqTrackCallback
-
-app = Typer()
+from pipelime.cli.model import CliModel
+from pipelime.piper.model import PiperModel
 
 
-@app.command()
-@Piper.command(inputs=["input_folder"], outputs=["output_folder"])
-def fake_cli(
-    input_folder: Path = Option(...),
-    output_folder: Path = Option(...),
-    n: int = Option(...),
-) -> None:
-    print(input_folder, output_folder)
-    tracker = Tracker(ZmqTrackCallback())
-    for x in tracker.track(range(n), "Holy Pinoly"):
-        print(x)
-        time.sleep(0.1)
+class MyUselessCommand(CliModel):
+    input_folder: Path
+    output_folder: Path
+    n: int = 10
+
+    piper = Field(PiperModel(inputs=["input_folder"], outputs=["output_folder"]))
+
+    def run(self) -> None:
+        import time
+
+        print(self.input_folder, self.output_folder)
+        for x in self.track(range(self.n), message="Holy Pinoly"):
+            time.sleep(0.1)
 
 
-if __name__ == "__main__":
-    app()
+a = MyUselessCommand(input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output"))
+# a.piper.token = "TOKEN"
+a.piper.node = "NODE"
+a()

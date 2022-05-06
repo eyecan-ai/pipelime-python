@@ -1,5 +1,6 @@
-from typing import Dict, Optional
-from pydantic import BaseModel
+from typing import Dict, Optional, Sequence
+
+from pydantic import BaseModel, Field
 
 
 class NodeModel(BaseModel):
@@ -29,3 +30,14 @@ class DAGModel(BaseModel):
             exclude_unset=True,
             exclude_none=True,
         )
+
+
+class PiperModel(BaseModel):
+    token: str = ""
+    node: str = ""
+    inputs: Sequence[str] = Field(default_factory=list)
+    outputs: Sequence[str] = Field(default_factory=list)
+
+    @property
+    def active(self) -> bool:
+        return len(self.token) > 0

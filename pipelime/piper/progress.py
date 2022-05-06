@@ -5,38 +5,56 @@ import zmq
 from pydantic import BaseModel
 
 
-class ProgressUpdate(BaseModel):
-    id_: int
+class OperationInfo(BaseModel):
+    # The piper token identifying the session
+    token: str
+
+    # The node currently being executed
+    node: str
+
+    # The current chunk number
+    chunk: int
+
+    # The progress of the current chunk
     total: int
     message: str = ""
+
+
+class ProgressUpdate(BaseModel):
+    # What operation is being executed
+    op_info: OperationInfo
+
+    # The progress of the current chunk
     advance: int = 1
 
 
 class TrackCallback:
     def __init__(self):
-        self._is_setup = False
+        self._op_info = None
 
-    def start(self, id_: int, total: int, message: str = "") -> None:
-        self._id = id_
-        self._total = total
-        self._is_setup = True
-        self._message = message
+    @property
+    def ready(self) -> bool:
+        return self._op_info is not None
+
+    def start(self, op_info: OperationInfo) -> None:
+        if self.ready:
+            raise RuntimeError("Callback already setup")
+        self._op_info = op_info
         self.on_start()
 
     def _build_progress_update(self, advance: int) -> ProgressUpdate:
-        return ProgressUpdate(
-            id_=self._id, total=self._total, message=self._message, advance=advance
-        )
+        return ProgressUpdate(op_info=self._op_info, advance=advance)
 
     def advance(self, advance: int = 1) -> None:
-        if not self._is_setup:
+        if not self.ready:
             raise RuntimeError("Callback not setup")
         prog_update = self._build_progress_update(advance)
         self.on_advance(prog_update)
 
     def finish(self) -> None:
-        if not self._is_setup:
+        if not self.ready:
             raise RuntimeError("Callback not setup")
+        self._op_info = None
         self.on_finish()
 
     def on_start(self) -> None:
@@ -50,18 +68,26 @@ class TrackCallback:
 
 
 class Tracker:
-    def __init__(self, *callbacks: TrackCallback) -> None:
+    def __init__(self, token: str, node: str, *callbacks: TrackCallback) -> None:
         self._counter = count()
         self._callbacks = callbacks
+        self._token = token
+        self._node = node
 
     def track(self, seq: Iterable, message: str = "") -> Iterable:
         id_ = next(self._counter)
+        op_info = OperationInfo(
+            token=self._token,
+            node=self._node,
+            chunk=id_,
+            total=len(seq),
+            message=message,
+        )
 
         for callback in self._callbacks:
-            callback.start(id_, len(seq), message=message)
+            callback.start(op_info)
 
         for x in seq:
-
             for callback in self._callbacks:
                 callback.advance()
 
@@ -82,8 +108,22 @@ class ZmqTrackCallback(TrackCallback):
         self._socket.bind(self._addr)
 
     def on_advance(self, prog: ProgressUpdate):
-        topic = "TOKEN"
+        topic = prog.op_info.token
         self._socket.send_multipart([topic.encode(), prog.json().encode()])
 
     def on_finish(self) -> None:
         self._socket.close()
+
+
+class TrackCallbackFactory:
+    DEFAULT_CALLBACK_TYPE = "ZMQ"
+
+    CLASS_MAP = {
+        "ZMQ": ZmqTrackCallback,
+    }
+
+    @classmethod
+    def get_callback(
+        cls, type_: str = DEFAULT_CALLBACK_TYPE, **kwargs
+    ) -> TrackCallback:
+        return cls.CLASS_MAP[type_](**kwargs)
