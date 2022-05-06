@@ -1,0 +1,8 @@
+from schema import Optional
+
+deep = True
+schema = {
+    "image": object,
+    "fake_detection": {"keypoints": object},
+    Optional(str): object,
+}
