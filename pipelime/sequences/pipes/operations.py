@@ -187,7 +187,7 @@ class ShuffledSequence(PipedSequenceBase):
     sseq = s1.shuffle()
     """
 
-    rnd_seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
+    seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
 
     _shuffled_idxs: t.Sequence[int]
 
@@ -198,8 +198,8 @@ class ShuffledSequence(PipedSequenceBase):
         import random
 
         super().__init__(**data)
-        if self.rnd_seed is not None:
-            random.seed(self.rnd_seed)
+        if self.seed is not None:
+            random.seed(self.seed)
         self._shuffled_idxs = list(range(len(self.source)))
         random.shuffle(self._shuffled_idxs)
 
@@ -259,4 +259,6 @@ class RepeatedSequence(PipedSequenceBase):
         return len(self.source) * self.count_
 
     def get_sample(self, idx: int) -> pls.Sample:
+        if idx >= len(self):
+            raise IndexError(f"Sample index `{idx}` is out of range.")
         return self.source[idx % len(self.source)]

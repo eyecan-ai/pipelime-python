@@ -127,9 +127,9 @@ class TestSamplesSequenceOperations:
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        shuffled_1 = source.shuffle(rnd_seed=seed)
-        shuffled_2 = source.shuffle(rnd_seed=seed)
-        shuffled_3 = source.shuffle(rnd_seed=seed + 1)
+        shuffled_1 = source.shuffle(seed=seed)
+        shuffled_2 = source.shuffle(seed=seed)
+        shuffled_3 = source.shuffle(seed=seed + 1)
 
         length = len(source)
         assert length == len(shuffled_1)

@@ -67,7 +67,7 @@ class SamplesSequenceBase(t.Sequence[Sample]):
         return (
             self.slice(start=idx.start, stop=idx.stop, step=idx.step)  # type: ignore
             if isinstance(idx, slice)
-            else self.get_sample(idx)
+            else self.get_sample(idx if idx >= 0 else len(self) + idx)
         )
 
     def is_normalized(self, max_items=-1) -> bool:
@@ -152,6 +152,7 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
 
     def _wrapper(cls):
         import inspect
+        import warnings
 
         docstr = inspect.getdoc(cls)
         if docstr:
@@ -262,10 +263,12 @@ def as_samples_sequence_functional(fn_name: str, is_static: bool = False):  # no
 
         setattr(SamplesSequence, fn_name, fn_helper)
 
-        if is_static:
-            SamplesSequence.sources[fn_name] = cls.schema()
-        else:
-            SamplesSequence.pipes[fn_name] = cls.schema()
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", ".*was excluded from schema.*")
+            if is_static:
+                SamplesSequence.sources[fn_name] = cls.schema()
+            else:
+                SamplesSequence.pipes[fn_name] = cls.schema()
 
         return cls
 

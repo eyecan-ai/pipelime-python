@@ -111,7 +111,7 @@ class TestSamplesSequences:
                     "must_exist": False,
                 }
             },
-            {"shuffle": {"rnd_seed": None}},
+            {"shuffle": {"seed": None}},
         ]
 
         assert a.pipe(recursive=True) == expected_pipe
