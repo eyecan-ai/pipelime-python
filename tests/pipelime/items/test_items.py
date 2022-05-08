@@ -38,7 +38,7 @@ class TestItems:
                             assert ref_item == trg_item
 
     @pytest.mark.parametrize(
-        "item_cls,value,eq_fn",
+        ["item_cls", "value", "eq_fn"],
         [
             (pli.PickleItem, (42, "asdf", 3.14), lambda x, y: x == y),
             (pli.BinaryItem, b"asdfiasodifoj123124214", lambda x, y: x == y),

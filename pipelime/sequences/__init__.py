@@ -9,3 +9,5 @@ from pipelime.sequences.samples_sequence import (
 # import and register all sequence functionals
 import pipelime.sequences.sources
 import pipelime.sequences.pipes
+
+from pipelime.sequences.grabber import Grabber, grab_all
