@@ -3,7 +3,7 @@ from filelock import FileLock, Timeout
 import typing as t
 import pydantic as pyd
 
-import pipelime.sequences.samples_sequence as pls
+import pipelime.sequences as pls
 from pipelime.sequences.pipes.base import PipedSequenceBase
 from pipelime.items import SerializationMode, Item
 
@@ -25,7 +25,7 @@ class _serialization_mode_override:
             self._item.serialization_mode = self._prev_mode
 
 
-@pls.as_samples_sequence_functional("to_underfolder")
+@pls.piped_sequence("to_underfolder")
 class UnderfolderWriter(PipedSequenceBase):
     """Writes samples to an underfolder dataset while iterating over them. Usage::
 
@@ -44,6 +44,7 @@ class UnderfolderWriter(PipedSequenceBase):
     )
 
     _data_folder: Path
+    _effective_zfill: int
 
     class Config:
         underscore_attrs_are_private = True
@@ -52,8 +53,9 @@ class UnderfolderWriter(PipedSequenceBase):
         super().__init__(folder=folder, **data)  # type: ignore
 
         self._data_folder = self.folder / "data"
-        if self.zfill is None:
-            self.zfill = self.source.best_zfill()
+        self._effective_zfill = (
+            self.source.best_zfill() if self.zfill is None else self.zfill
+        )
         if self.key_serialization_mode is None:
             self.key_serialization_mode = {}
 
@@ -66,8 +68,7 @@ class UnderfolderWriter(PipedSequenceBase):
         sample = self.source[idx]
 
         id_str = str(idx)
-        if self.zfill is not None:
-            id_str = id_str.zfill(self.zfill)
+        id_str = id_str.zfill(self._effective_zfill)
 
         for k, v in sample.items():
             with _serialization_mode_override(

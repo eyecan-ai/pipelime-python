@@ -1,10 +1,10 @@
 import typing as t
 import pydantic as pyd
 
-import pipelime.sequences.samples_sequence as pls
+import pipelime.sequences as pls
 
 
-@pls.as_samples_sequence_functional("from_list", is_static=True)
+@pls.source_sequence("from_list")
 class SamplesList(pls.SamplesSequence):
     """A SamplesSequence from a list of Samples. Usage::
 

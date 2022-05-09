@@ -12,7 +12,7 @@ class SamplePathRegex:
     @classmethod
     def split(cls, key_path: str) -> t.Tuple[str, str]:
         key = cls.KEY_PATH_REGEX.split(key_path)[0]
-        path = key_path[len(key) :]  # noqa
+        path = key_path[len(key) :]  # noqa: E203
         key = key.replace(r"\\", "\\").replace(r"\.", r".")
         return key, path
 

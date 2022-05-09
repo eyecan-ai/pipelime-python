@@ -1,12 +1,13 @@
 from pipelime.sequences.pipes.base import PipedSequenceBase
-import pipelime.sequences.samples_sequence as pls
+import pipelime.sequences as pls
 import pipelime.stages as plst
+import pipelime.items as pli
 
 import typing as t
 import pydantic as pyd
 
 
-@pls.as_samples_sequence_functional("map")
+@pls.piped_sequence("map")
 class MappedSequence(PipedSequenceBase):
     """Applies a stage on all samples. Usage::
 
@@ -24,27 +25,27 @@ class MappedSequence(PipedSequenceBase):
         return self.stage(self.source[idx])
 
 
-@pls.as_samples_sequence_functional("merge")
-class MergedSequences(PipedSequenceBase):
-    """Merges samples from two SamplesSequences. Usage::
+@pls.piped_sequence("zip")
+class ZippedSequences(PipedSequenceBase):
+    """Zips two Sequences by merging each Sample. Usage::
 
     s1, s2, s3 = SamplesSequence(...), SamplesSequence(...), SamplesSequence(...)
-    sseq = s1.merge(s2).merge(s3)
+    sseq = s1.zip(s2).zip(s3)
     """
 
-    to_merge: pls.SamplesSequence = pyd.Field(..., description="The samples to merge.")
+    to_zip: pls.SamplesSequence = pyd.Field(..., description="The sequence to merge.")
 
-    def __init__(self, to_merge: pls.SamplesSequence, **data):
-        super().__init__(to_merge=to_merge, **data)  # type: ignore
+    def __init__(self, to_zip: pls.SamplesSequence, **data):
+        super().__init__(to_zip=to_zip, **data)  # type: ignore
 
     def size(self) -> int:
-        return min(len(self.source), len(self.to_merge))
+        return min(len(self.source), len(self.to_zip))
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[idx].merge(self.to_merge[idx])
+        return self.source[idx].merge(self.to_zip[idx])
 
 
-@pls.as_samples_sequence_functional("cat")
+@pls.piped_sequence("cat")
 class ConcatSequences(PipedSequenceBase):
     """Concatenates two SamplesSequences. Usage::
 
@@ -68,7 +69,7 @@ class ConcatSequences(PipedSequenceBase):
         return self.to_cat[idx - len(self.source)]
 
 
-@pls.as_samples_sequence_functional("filter")
+@pls.piped_sequence("filter")
 class FilteredSequence(PipedSequenceBase):
     """A filtered view of a SamplesSequence. Usage::
 
@@ -99,7 +100,7 @@ class FilteredSequence(PipedSequenceBase):
         return self.source[self._valid_idxs[idx]]
 
 
-@pls.as_samples_sequence_functional("sort")
+@pls.piped_sequence("sort")
 class SortedSequence(PipedSequenceBase):
     """A sorted view of an input SamplesSequence. Usage::
 
@@ -132,7 +133,7 @@ class SortedSequence(PipedSequenceBase):
         return self.source[self._sorted_idxs[idx]]
 
 
-@pls.as_samples_sequence_functional("slice")
+@pls.piped_sequence("slice")
 class SlicedSequence(PipedSequenceBase):
     """Extracts a slice [start_idx:end_idx:step] from the input SamplesSequence. Usage::
 
@@ -160,16 +161,16 @@ class SlicedSequence(PipedSequenceBase):
     def __init__(self, **data):
         super().__init__(**data)
 
-        self.start = (
+        effective_start = (
             0 if self.start is None else max(0, min(len(self.source), self.start))
         )
-        self.stop = (
+        effective_stop = (
             len(self.source)
             if self.stop is None
             else max(0, min(len(self.source), self.stop))
         )
-        self.step = 1 if self.step is None else self.step
-        self._sliced_idxs = range(self.start, self.stop, self.step)
+        effective_step = 1 if self.step is None else self.step
+        self._sliced_idxs = range(effective_start, effective_stop, effective_step)
 
     def size(self) -> int:
         return len(self._sliced_idxs)
@@ -178,7 +179,7 @@ class SlicedSequence(PipedSequenceBase):
         return self.source[self._sliced_idxs[idx]]
 
 
-@pls.as_samples_sequence_functional("shuffle")
+@pls.piped_sequence("shuffle")
 class ShuffledSequence(PipedSequenceBase):
     """Shuffles samples in the input SamplesSequence. Usage::
 
@@ -186,7 +187,7 @@ class ShuffledSequence(PipedSequenceBase):
     sseq = s1.shuffle()
     """
 
-    rnd_seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
+    seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
 
     _shuffled_idxs: t.Sequence[int]
 
@@ -197,10 +198,67 @@ class ShuffledSequence(PipedSequenceBase):
         import random
 
         super().__init__(**data)
-        if self.rnd_seed is not None:
-            random.seed(self.rnd_seed)
+        if self.seed is not None:
+            random.seed(self.seed)
         self._shuffled_idxs = list(range(len(self.source)))
         random.shuffle(self._shuffled_idxs)
 
     def get_sample(self, idx: int) -> pls.Sample:
         return self.source[self._shuffled_idxs[idx]]
+
+
+@pls.piped_sequence("enumerate")
+class EnumeratedSequence(PipedSequenceBase):
+    """Add a new index item to each Sample in the input SamplesSequence. Usage::
+
+    s1 = SamplesSequence(...)
+    sseq = s1.enumerate()
+    """
+
+    idx_key: str = pyd.Field(
+        "~idx", description="The new key containing the index item."
+    )
+    item_cls_path: str = pyd.Field(
+        "pipelime.items.NpyNumpyItem", description="The item class holding the index."
+    )
+
+    _item_cls: t.Type[pli.Item]
+
+    class Config:
+        underscore_attrs_are_private = True
+
+    def __init__(self, **data):
+        from pipelime.choixe.utils.imports import import_symbol
+
+        super().__init__(**data)
+        self._item_cls = import_symbol(self.item_cls_path)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        sample = self.source[idx]
+        return sample.set_item(
+            key=self.idx_key, value=self._item_cls(idx)  # type: ignore
+        )
+
+
+@pls.piped_sequence("repeat")
+class RepeatedSequence(PipedSequenceBase):
+    """Repeat this sequence so each sample is seen multiple times. Usage::
+
+    s1 = SamplesSequence(...)
+    sseq = s1.repeat(4)
+    """
+
+    count_: pyd.NonNegativeInt = pyd.Field(
+        ..., alias="count", description="The number of repetition."
+    )
+
+    def __init__(self, count: int, **data):
+        super().__init__(count=count, **data)  # type: ignore
+
+    def size(self) -> int:
+        return len(self.source) * self.count_
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        if idx >= len(self):
+            raise IndexError(f"Sample index `{idx}` is out of range.")
+        return self.source[idx % len(self.source)]

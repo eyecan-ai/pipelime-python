@@ -63,7 +63,7 @@ def minio(tmp_path: Path):
         return
 
     try:
-        import minio  # noqa
+        import minio  # noqa: F401
     except ModuleNotFoundError:
         yield ""
         return

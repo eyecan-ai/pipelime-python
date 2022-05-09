@@ -38,7 +38,7 @@ class TestItems:
                             assert ref_item == trg_item
 
     @pytest.mark.parametrize(
-        "item_cls,value,eq_fn",
+        ["item_cls", "value", "eq_fn"],
         [
             (pli.PickleItem, (42, "asdf", 3.14), lambda x, y: x == y),
             (pli.BinaryItem, b"asdfiasodifoj123124214", lambda x, y: x == y),
@@ -188,7 +188,7 @@ class TestItems:
         )
         assert item() is None
 
-    def test_disabled_serialization_modes(  # noqa
+    def test_disabled_serialization_modes(  # noqa: C901
         self, minimnist_private_dataset: dict, tmp_path: Path
     ):
         import pipelime.items as pli

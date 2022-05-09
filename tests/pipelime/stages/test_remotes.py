@@ -21,7 +21,7 @@ class TestRemotes:
             fragment="",
         ).geturl()
 
-    def _upload_to_remote(  # noqa
+    def _upload_to_remote(  # noqa: C901
         self,
         inpath: Path,
         outpath: Path,
