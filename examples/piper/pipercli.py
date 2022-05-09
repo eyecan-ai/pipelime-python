@@ -13,13 +13,14 @@ params_help = "The parameters configuration file"
 draw_backend_help = "The backend to use for drawing the graph"
 draw_open_help = "Open the generated image"
 draw_output_help = "The output file"
+compile_out_help = "The output file"
 
 
 @piper.command()
 def compile(
     dag_file: Path = Option(..., "-d", "--dag", help=dag_help),
-    params_file: Optional[Path] = None,
-    output_file: Optional[Path] = None,
+    params_file: Path = Option(..., "-p", "--params", help=params_help),
+    output_file: Optional[Path] = Option(None, "-o", "--output", help=compile_out_help),
 ):
     import rich
 

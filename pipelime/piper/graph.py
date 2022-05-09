@@ -1,4 +1,5 @@
 import itertools
+from pathlib import Path
 from typing import Sequence, Set
 
 import networkx as nx
@@ -219,12 +220,17 @@ class DAGNodesGraph:
         for node_name, node in dag_model.nodes.items():
             node: PipelimeCommand
 
+            print(getattr(node, "command", node.__class__.__name__))
+
             inputs = node.get_inputs()
             outputs = node.get_outputs()
 
+            print(inputs)
+            print(outputs)
+
             if inputs is not None:
                 for input_name, input_value in inputs.items():
-                    if isinstance(input_value, str):
+                    if isinstance(input_value, str) or isinstance(input_value, Path):
                         input_value = [input_value]
 
                     attrs = {}
@@ -244,7 +250,7 @@ class DAGNodesGraph:
 
             if outputs is not None:
                 for output_name, output_value in outputs.items():
-                    if isinstance(output_value, str):
+                    if isinstance(output_value, str) or isinstance(output_value, Path):
                         output_value = [output_value]
 
                     attrs = {}

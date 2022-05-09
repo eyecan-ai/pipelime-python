@@ -1,6 +1,5 @@
 params:
-  flags: ['A','B','C']
-  custom_command: python fake_detector.py
+  flags: ["A", "B", "C"]
   output_folder: output
   size: 50
   schemas:

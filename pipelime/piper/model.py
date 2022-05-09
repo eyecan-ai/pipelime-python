@@ -1,11 +1,12 @@
 import subprocess
-from typing import Dict, Iterable
+from string import Formatter
+from typing import Any, Dict, Iterable, Sequence
 
 import rich.progress
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from pipelime.piper.model import PiperInfo
-from pipelime.piper.progress import TrackCallbackFactory, Tracker
+from pipelime.choixe import XConfig
+from pipelime.piper.progress.tracker import TrackCallbackFactory, Tracker
 
 
 class PiperInfo(BaseModel):
@@ -18,18 +19,27 @@ class PiperInfo(BaseModel):
 
 
 class PipelimeCommand(BaseModel):
-    piper: PiperInfo
+    piper: PiperInfo = PiperInfo()
 
     def run(self) -> None:
         pass
 
-    def get_inputs(self) -> Iterable[str]:
-        # TODO: implement
-        pass
+    def _filter_fields_by_flag(self, flag: str) -> Iterable[str]:
+        for k, v in self.__fields__.items():
+            if v.field_info.extra.get(flag, False):
+                yield k
 
-    def get_outputs(self) -> Iterable[str]:
-        # TODO: implement
-        pass
+    def _get_fields_by_flag(self, flag: str) -> Dict[str, Any]:
+        return {k: getattr(self, k) for k in self._filter_fields_by_flag(flag)}
+
+    def get_inputs(self) -> Dict[str, Any]:
+        return self._get_fields_by_flag("piper_input")
+
+    def get_outputs(self) -> Dict[str, Any]:
+        return self._get_fields_by_flag("piper_output")
+
+    def command_name(self) -> str:
+        return self.__class__.__name__
 
     def track(self, seq: Iterable, message: str = "") -> Iterable:
         if self.piper.active:
@@ -45,21 +55,46 @@ class PipelimeCommand(BaseModel):
 
 class ShellCommand(PipelimeCommand):
     command: str
-    inputs: Iterable[str]
-    outputs: Iterable[str]
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    outputs: Dict[str, Any] = Field(default_factory=dict)
 
-    def get_inputs(self) -> Iterable[str]:
+    def get_inputs(self) -> Dict[str, Any]:
         return self.inputs
 
-    def get_outputs(self) -> Iterable[str]:
+    def get_outputs(self) -> Dict[str, Any]:
         return self.outputs
 
+    def command_name(self) -> str:
+        return self.command
+
+    def _to_command_chunk(self, key: str, value: Any) -> str:
+        if isinstance(value, Sequence):
+            cmd += f" --{key} {value[0]} {self._to_command_chunk(key, value[1:])}"
+
+        elif isinstance(value, Dict):
+            raise NotImplementedError("Dict values are not supported")
+
+        elif isinstance(value, bool):
+            cmd += f" --{key}"
+
+        else:
+            cmd += f" --{key} {value}"
+
     def run(self) -> None:
-        subprocess.run(self.command)
+        cmd = self.command
+        fields = [fname for _, fname, _, _ in Formatter().parse(cmd) if fname]
+        args = {**self.inputs, **self.outputs}
+        cmd = cmd.format(**args)
+
+        for key in set(args.keys()).difference(fields):
+            value = args[key]
+            cmd += self._to_command_chunk(key, value)
+
+        subprocess.run(cmd, shell=True)
 
 
 class DAGModel(BaseModel):
     nodes: Dict[str, PipelimeCommand]
 
     def purged_dict(self):
-        return self.dict(exclude_unset=True, exclude_none=True)
+        return XConfig(data={"nodes": self.nodes}).to_dict()
