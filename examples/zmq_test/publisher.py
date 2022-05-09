@@ -2,16 +2,15 @@ from pathlib import Path
 
 from pydantic import Field
 
-from pipelime.cli.model import CliModel
+from pipelime.cli.model import PipelimeCommand
 from pipelime.piper.model import PiperModel
 
 
-class MyUselessCommand(CliModel):
-    input_folder: Path
-    output_folder: Path
+class MyUselessCommand(PipelimeCommand):
+    input_folder: Path = Field(..., piper_input=True)
+    output_folder: Path = Field(..., piper_output=True)
     n: int = 10
-
-    piper = Field(PiperModel(inputs=["input_folder"], outputs=["output_folder"]))
+    piper: PiperModel = PiperModel()
 
     def run(self) -> None:
         import time
@@ -22,6 +21,5 @@ class MyUselessCommand(CliModel):
 
 
 a = MyUselessCommand(input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output"))
-# a.piper.token = "TOKEN"
-a.piper.node = "NODE"
+a.piper.token = "TOKEN"
 a()

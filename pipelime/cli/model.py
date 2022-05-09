@@ -7,7 +7,7 @@ from pipelime.piper.model import PiperModel
 from pipelime.piper.progress import Tracker, TrackCallbackFactory
 
 
-class CliModel(BaseModel):
+class PipelimeCommand(BaseModel):
     piper: PiperModel
 
     def __call__(self) -> None:

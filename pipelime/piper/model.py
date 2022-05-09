@@ -35,8 +35,6 @@ class DAGModel(BaseModel):
 class PiperModel(BaseModel):
     token: str = ""
     node: str = ""
-    inputs: Sequence[str] = Field(default_factory=list)
-    outputs: Sequence[str] = Field(default_factory=list)
 
     @property
     def active(self) -> bool:
