@@ -2,15 +2,14 @@ from pathlib import Path
 
 from pydantic import Field
 
-from pipelime.cli.model import PipelimeCommand
-from pipelime.piper.model import PiperModel
+from pipelime.piper.model import PipelimeCommand, PiperInfo
 
 
 class MyUselessCommand(PipelimeCommand):
     input_folder: Path = Field(..., piper_input=True)
     output_folder: Path = Field(..., piper_output=True)
     n: int = 10
-    piper: PiperModel = PiperModel()
+    piper: PiperInfo = PiperInfo()
 
     def run(self) -> None:
         import time

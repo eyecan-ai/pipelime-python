@@ -1,41 +1,65 @@
-from typing import Dict, Optional, Sequence
+import subprocess
+from typing import Dict, Iterable
 
-from pydantic import BaseModel, Field
+import rich.progress
+from pydantic import BaseModel
 
-
-class NodeModel(BaseModel):
-    command: str
-    args: Optional[dict] = None
-    inputs: Optional[dict] = None
-    outputs: Optional[dict] = None
-    outputs_schema: Optional[dict] = None
-    inputs_schema: Optional[dict] = None
-
-    def get_output_schema(self, name: str) -> Optional[str]:
-        if self.outputs_schema is not None:
-            return self.outputs_schema.get(name, None)
-        return None
-
-    def get_input_schema(self, name: str) -> Optional[str]:
-        if self.inputs_schema is not None:
-            return self.inputs_schema.get(name, None)
-        return None
+from pipelime.piper.model import PiperInfo
+from pipelime.piper.progress import TrackCallbackFactory, Tracker
 
 
-class DAGModel(BaseModel):
-    nodes: Dict[str, NodeModel]
-
-    def purged_dict(self):
-        return self.dict(
-            exclude_unset=True,
-            exclude_none=True,
-        )
-
-
-class PiperModel(BaseModel):
+class PiperInfo(BaseModel):
     token: str = ""
     node: str = ""
 
     @property
     def active(self) -> bool:
         return len(self.token) > 0
+
+
+class PipelimeCommand(BaseModel):
+    piper: PiperInfo
+
+    def run(self) -> None:
+        pass
+
+    def get_inputs(self) -> Iterable[str]:
+        # TODO: implement
+        pass
+
+    def get_outputs(self) -> Iterable[str]:
+        # TODO: implement
+        pass
+
+    def track(self, seq: Iterable, message: str = "") -> Iterable:
+        if self.piper.active:
+            cb = TrackCallbackFactory.get_callback()
+            tracker = Tracker(self.piper.token, self.piper.node, cb)
+            return tracker.track(seq, message=message)
+        else:
+            return rich.progress.track(seq, description=message)
+
+    def __call__(self) -> None:
+        self.run()
+
+
+class ShellCommand(PipelimeCommand):
+    command: str
+    inputs: Iterable[str]
+    outputs: Iterable[str]
+
+    def get_inputs(self) -> Iterable[str]:
+        return self.inputs
+
+    def get_outputs(self) -> Iterable[str]:
+        return self.outputs
+
+    def run(self) -> None:
+        subprocess.run(self.command)
+
+
+class DAGModel(BaseModel):
+    nodes: Dict[str, PipelimeCommand]
+
+    def purged_dict(self):
+        return self.dict(exclude_unset=True, exclude_none=True)

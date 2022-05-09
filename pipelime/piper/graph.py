@@ -3,7 +3,7 @@ from typing import Sequence, Set
 
 import networkx as nx
 
-from pipelime.piper.model import DAGModel, NodeModel
+from pipelime.piper.model import DAGModel, PipelimeCommand
 
 
 class GraphNode:
@@ -29,13 +29,13 @@ class GraphNode:
 
 
 class GraphNodeOperation(GraphNode):
-    def __init__(self, name: str, node_model: NodeModel):
+    def __init__(self, name: str, command: PipelimeCommand):
         super().__init__(name, GraphNode.GRAPH_NODE_TYPE_OPERATION)
-        self._node_model = node_model
+        self._command = command
 
     @property
-    def node_model(self) -> NodeModel:
-        return self._node_model
+    def command(self) -> PipelimeCommand:
+        return self._command
 
 
 class GraphNodeData(GraphNode):
@@ -217,10 +217,10 @@ class DAGNodesGraph:
         g = nx.DiGraph()
 
         for node_name, node in dag_model.nodes.items():
-            node: NodeModel
+            node: PipelimeCommand
 
-            inputs = node.inputs
-            outputs = node.outputs
+            inputs = node.get_inputs()
+            outputs = node.get_outputs()
 
             if inputs is not None:
                 for input_name, input_value in inputs.items():
