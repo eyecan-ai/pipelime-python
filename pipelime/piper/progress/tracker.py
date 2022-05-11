@@ -1,5 +1,5 @@
 from itertools import count
-from typing import Iterable
+from typing import Iterable, Union, Sequence, Optional
 
 import zmq
 from loguru import logger
@@ -166,7 +166,12 @@ class Tracker:
         self._token = token
         self._node = node
 
-    def track(self, seq: Iterable, message: str = "") -> Iterable:
+    def track(
+        self,
+        seq: Union[Iterable, Sequence],
+        size: Optional[int] = None,
+        message: str = "",
+    ) -> Iterable:
         """Track a generic iterable sequence"""
 
         id_ = next(self._counter)
@@ -174,7 +179,7 @@ class Tracker:
             token=self._token,
             node=self._node,
             chunk=id_,
-            total=len(seq),
+            total=len(seq) if size is None else size,  # type: ignore
             message=message,
         )
 
