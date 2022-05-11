@@ -42,14 +42,14 @@ class ZMQProgressReceiver(ProgressReceiver):
     def receive(self) -> Optional[ProgressUpdate]:
         _, messagedata = self._socket.recv_multipart()
         messagedata = json.loads(messagedata.decode())
-        return ProgressUpdate.from_json(messagedata)
+        return ProgressUpdate.parse_obj(messagedata)
 
 
 class ListenerCallback:
     def on_start(self) -> None:
         pass
 
-    def on_advance(self, prog: ProgressUpdate) -> None:
+    def on_update(self, prog: ProgressUpdate) -> None:
         pass
 
     def on_stop(self) -> None:
@@ -59,6 +59,7 @@ class ListenerCallback:
 class RichTableListenerCallback(ListenerCallback):
     def __init__(self) -> None:
         super().__init__()
+        self._printer_thread = None
         self.on_stop()
 
     def on_start(self) -> None:
@@ -66,10 +67,12 @@ class RichTableListenerCallback(ListenerCallback):
         self._printer_thread = Thread(target=self._print_loop)
         self._printer_thread.start()
 
-    def on_advance(self, prog: ProgressUpdate) -> None:
-        if prog not in self._progress_map:
-            self._progress_map[prog] = 0
+    def on_update(self, prog: ProgressUpdate) -> None:
+        if prog.just_started or prog.op_info not in self._progress_map:
+            self._progress_map[prog.op_info] = 0
         self._progress_map[prog.op_info] += prog.advance
+        if prog.finished:
+            self._progress_map[prog.op_info] = prog.op_info.total
 
     def _percentage_string(self, v: float):
         colors = ["red", "yellow", "green"]
@@ -106,7 +109,8 @@ class RichTableListenerCallback(ListenerCallback):
 
     def on_stop(self) -> None:
         self._stop_flag = True
-        self._printer_thread.join(5.0)
+        if self._printer_thread is not None:
+            self._printer_thread.join(5.0)
         self._printer_thread = None
         self._progress_map: Dict[OperationInfo, int] = {}
 
@@ -128,7 +132,7 @@ class Listener:
                 continue
 
             for cb in self._callbacks:
-                cb.on_advance(prog)
+                cb.on_update(prog)
 
     def start(self) -> None:
         self._listening_thread = Thread(target=self._listen)
