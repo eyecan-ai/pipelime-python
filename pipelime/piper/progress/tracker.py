@@ -1,7 +1,6 @@
 from itertools import count
 from typing import Iterable, Union, Sequence, Optional
 
-import zmq
 from loguru import logger
 
 from pipelime.piper.progress.model import OperationInfo, ProgressUpdate
@@ -82,16 +81,24 @@ class ZmqTrackCallback(TrackCallback):
         self._addr = addr
 
     def on_start(self) -> None:
-        context = zmq.Context()
-        self._socket = context.socket(zmq.PUB)
-        self._socket.bind(self._addr)
+        try:
+            import zmq
+
+            context = zmq.Context()
+            self._socket = context.socket(zmq.PUB)
+            self._socket.bind(self._addr)
+        except ModuleNotFoundError:  # pragma: no cover
+            logger.error(f"{self.__class__.__name__} needs `pyzmq` python package.")
+            self._socket = None
 
     def on_advance(self, prog: ProgressUpdate):
-        topic = prog.op_info.token
-        self._socket.send_multipart([topic.encode(), prog.json().encode()])
+        if self._socket is not None:
+            topic = prog.op_info.token
+            self._socket.send_multipart([topic.encode(), prog.json().encode()])
 
     def on_finish(self) -> None:
-        self._socket.close()
+        if self._socket is not None:
+            self._socket.close()
 
 
 class LoguruTrackCallback(TrackCallback):

@@ -1,11 +1,9 @@
-import json
 import time
 from abc import ABC, abstractmethod
 from threading import Thread
 from typing import Dict, Optional
 
 import numpy as np
-import zmq
 from loguru import logger
 from rich.live import Live
 from rich.table import Table
@@ -33,16 +31,22 @@ class ProgressReceiver(ABC):
 
 class ZMQProgressReceiver(ProgressReceiver):
     def __init__(self, token: str) -> None:
-        super().__init__(token)
-        self._context = zmq.Context()
-        self._socket = self._context.socket(zmq.SUB)
-        self._socket.connect("tcp://localhost:5556")
-        self._socket.subscribe(token.encode())
+        try:
+            import zmq
+
+            super().__init__(token)
+            self._context = zmq.Context()
+            self._socket = self._context.socket(zmq.SUB)
+            self._socket.connect("tcp://localhost:5556")
+            self._socket.subscribe(token.encode())
+        except ModuleNotFoundError:  # pragma: no cover
+            logger.error(f"{self.__class__.__name__} needs `pyzmq` python package.")
+            self._socket = None
 
     def receive(self) -> Optional[ProgressUpdate]:
-        _, messagedata = self._socket.recv_multipart()
-        messagedata = json.loads(messagedata.decode())
-        return ProgressUpdate.from_json(messagedata)
+        if self._socket is not None:
+            _, messagedata = self._socket.recv_multipart()
+            return ProgressUpdate.parse_raw(messagedata.decode())
 
 
 class ListenerCallback:

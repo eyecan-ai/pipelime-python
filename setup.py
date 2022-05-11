@@ -19,7 +19,9 @@ test_requirements = [
 ]
 
 extras_requirements = {
-    'minio': ['minio']
+    'minio': ['minio'],
+    'zmq': ['pyzmq'],
+    'all': ['minio', 'pyzmq']
 }
 
 setup(
