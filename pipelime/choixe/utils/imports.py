@@ -5,7 +5,7 @@ import sys
 from contextlib import ContextDecorator
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from uuid import uuid4
 
 
@@ -49,6 +49,29 @@ class add_to_sys_module(ContextDecorator):
         sys.modules.pop(self._id_)
 
 
+def import_module_from_file(
+    module_file_path: Union[str, Path], cwd: Optional[Path] = None
+) -> ModuleType:
+    module_path = Path(module_file_path)
+    if not module_path.is_absolute():
+        cwd = Path(os.getcwd()) if cwd is None else cwd
+        module_path = cwd / module_path
+
+    with add_to_sys_path(module_path.parent):
+        id_ = uuid4().hex
+        spec = importlib.util.spec_from_file_location(id_, str(module_path))
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load module `{module_path}`")  # pragma: no cover
+        module_ = importlib.util.module_from_spec(spec)
+        with add_to_sys_module(module_, id_):
+            spec.loader.exec_module(module_)
+        return module_
+
+
+def import_module_from_path(module_class_path: str) -> ModuleType:
+    return importlib.import_module(module_class_path)
+
+
 def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
     """Dynamically imports a given symbol. A symbol can be either:
 
@@ -73,25 +96,10 @@ def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
     try:
         if ":" in symbol_path:
             module_path, _, symbol_name = symbol_path.rpartition(":")
-
-            module_path = Path(module_path)
-            if not module_path.is_absolute():
-                cwd = Path(os.getcwd()) if cwd is None else cwd
-                module_path = cwd / module_path
-
-            with add_to_sys_path(module_path.parent):
-                id_ = uuid4().hex
-                spec = importlib.util.spec_from_file_location(id_, str(module_path))
-                if spec is None or spec.loader is None:
-                    raise ImportError(  # pragma: no cover
-                        f"Cannot load module `{module_path}`"
-                    )
-                module_ = importlib.util.module_from_spec(spec)
-                with add_to_sys_module(module_, id_):
-                    spec.loader.exec_module(module_)
+            module_ = import_module_from_file(module_path, cwd)
         else:
             module_path, _, symbol_name = symbol_path.rpartition(".")
-            module_ = importlib.import_module(module_path)
+            module_ = import_module_from_path(module_path)
         return getattr(module_, symbol_name)
     except Exception as e:
         raise ImportError(f"Cannot import {symbol_path}") from e

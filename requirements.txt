@@ -1,11 +1,11 @@
-click>=8.0.3
+typer>=0.4.1
 rich>=9.9.0
 pyyaml
 toml
 loguru
 filelock
 numpy
-imageio
+imageio>=2.17.0
 tifffile
 albumentations>=1.0.0
 astunparse
