@@ -18,7 +18,7 @@ def print_node_info(
     node_doc = inspect.getdoc(model_cls)
 
     grid = Table(
-        "",
+        "Field",
         "Description",
         "Type",
         "Piper Port",
@@ -31,6 +31,7 @@ def print_node_info(
         ),
         caption=node_doc,
         title_style="on white",
+        expand=True,
     )
 
     for field in model_cls.__fields__.values():
@@ -56,7 +57,9 @@ def _field_row(grid: Table, field, indent: int, indent_offs: int):
 
     line = [
         (" " * indent) + f"{fname}",
-        field.field_info.description if field.field_info.description else "",
+        (" " * indent_offs) + field.field_info.description
+        if field.field_info.description
+        else "",
         ("" if is_model else display_as_type(field.outer_type_).replace("[", r"\[")),
         fport,
         "\u2713" if field.required else "\u2717",

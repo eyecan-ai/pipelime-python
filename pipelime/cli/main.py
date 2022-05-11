@@ -157,6 +157,7 @@ def list_nodes():
 
     for node_cls in _NodeHelper.get_piper_nodes().values():
         print_node_info(node_cls)
+        print("")
 
 
 @app.command("info")
