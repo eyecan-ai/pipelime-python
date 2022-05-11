@@ -25,9 +25,11 @@ def print_node_info(
         "Required",
         "Default",
         box=box.SIMPLE_HEAVY,
-        title=_command_title(model_cls),
+        title=(
+            f"[bold red]{_command_title(model_cls)}[/]\n[italic black]({model_cls.__module__}.{model_cls.__name__})[/]"
+        ),
         caption=node_doc,
-        title_style="bold red on white",
+        title_style="on white",
     )
 
     for field in model_cls.__fields__.values():
