@@ -1,5 +1,6 @@
+import time
 from itertools import count
-from typing import Iterable, Union, Sequence, Optional
+from typing import Iterable, Optional, Sequence, Union
 
 from loguru import logger
 
@@ -12,6 +13,7 @@ class TrackCallback:
     def __init__(self):
         """Constructor for a generic `TrackCallback`"""
         self._op_info = None
+        self._progress = 0
 
     @property
     def _ready(self) -> bool:
@@ -29,7 +31,9 @@ class TrackCallback:
         if self._ready:
             raise RuntimeError("Callback already setup")
         self._op_info = op_info
-        self.on_start()
+        self._progress = 0
+        prog = ProgressUpdate(op_info=self._op_info, progress=self._progress)
+        self.on_start(prog)
 
     def advance(self, advance: int = 1) -> None:
         """Advance the progress of the tracked operation by a custom amount of steps
@@ -42,8 +46,9 @@ class TrackCallback:
         """
         if not self._ready:
             raise RuntimeError("Callback not setup")
-        prog_update = ProgressUpdate(op_info=self._op_info, advance=advance)
-        self.on_advance(prog_update)
+        self._progress += advance
+        prog = ProgressUpdate(op_info=self._op_info, progress=self._progress)
+        self.on_advance(prog)
 
     def finish(self) -> None:
         """Finish the trackeing of the operation and call the `on_finish` callback
@@ -53,11 +58,18 @@ class TrackCallback:
         """
         if not self._ready:
             raise RuntimeError("Callback not setup")
+        op_info = self._op_info
+        self._progress = op_info.total
+        prog = ProgressUpdate(op_info=op_info, finished=True, progress=self._progress)
+        self.on_finish(prog)
         self._op_info = None
-        self.on_finish()
 
-    def on_start(self) -> None:
-        """What to do when the operation is started"""
+    def on_start(self, prog: ProgressUpdate) -> None:
+        """What to do when the operation is started
+
+        Args:
+            prog (ProgressUpdate): The progress update object.
+        """
         pass
 
     def on_advance(self, prog: ProgressUpdate) -> None:
@@ -68,8 +80,12 @@ class TrackCallback:
         """
         pass
 
-    def on_finish(self) -> None:
-        """What to do when the operation is finished"""
+    def on_finish(self, prog: ProgressUpdate) -> None:
+        """What to do when the operation is finished
+
+        Args:
+            prog (ProgressUpdate): The progress update object.
+        """
         pass
 
 
@@ -80,23 +96,35 @@ class ZmqTrackCallback(TrackCallback):
         super().__init__()
         self._addr = addr
 
-    def on_start(self) -> None:
         try:
             import zmq
 
-            context = zmq.Context()
-            self._socket = context.socket(zmq.PUB)
+            self._socket = zmq.Context().socket(zmq.PUB)
             self._socket.bind(self._addr)
+
+            # Wait for the socket to be ready...
+            # Apparently, this is the only way to do it. I don't know why.
+            time.sleep(0.2)
+
         except ModuleNotFoundError:  # pragma: no cover
             logger.error(f"{self.__class__.__name__} needs `pyzmq` python package.")
             self._socket = None
 
-    def on_advance(self, prog: ProgressUpdate):
+    def _send(self, prog: ProgressUpdate) -> None:
+        topic = prog.op_info.token
         if self._socket is not None:
-            topic = prog.op_info.token
             self._socket.send_multipart([topic.encode(), prog.json().encode()])
 
-    def on_finish(self) -> None:
+    def on_start(self, prog: ProgressUpdate) -> None:
+        self._send(prog)
+
+    def on_advance(self, prog: ProgressUpdate) -> None:
+        self._send(prog)
+
+    def on_finish(self, prog: ProgressUpdate) -> None:
+        self._send(prog)
+
+    def __del__(self) -> None:
         if self._socket is not None:
             self._socket.close()
 
@@ -108,7 +136,7 @@ class LoguruTrackCallback(TrackCallback):
         super().__init__()
         self._level = level
 
-    def on_start(self) -> None:
+    def on_start(self, prog: ProgressUpdate) -> None:
         logger.log(
             self._level,
             "Token: {} | Node: {} | Chunk: {} | {} | Started.",
@@ -126,10 +154,10 @@ class LoguruTrackCallback(TrackCallback):
             self._op_info.node,
             self._op_info.chunk,
             self._op_info.message,
-            prog.advance,
+            prog.progress,
         )
 
-    def on_finish(self) -> None:
+    def on_finish(self, prog: ProgressUpdate) -> None:
         logger.log(
             self._level,
             "Token: {} | Node: {} | Chunk: {} | {} | Finished.",
@@ -194,10 +222,10 @@ class Tracker:
             callback.start(op_info)
 
         for x in seq:
+            yield x
+
             for callback in self._callbacks:
                 callback.advance()
-
-            yield x
 
         for callback in self._callbacks:
             callback.finish()

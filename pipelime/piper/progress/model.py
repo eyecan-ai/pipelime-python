@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 
-class OperationInfo(BaseModel):
+class OperationInfo(BaseModel, frozen=True):
     """Information on a running operation."""
 
     token: str
@@ -26,5 +26,8 @@ class ProgressUpdate(BaseModel):
     op_info: OperationInfo
     """The operation info"""
 
-    advance: int = 1
-    """The progress of the current chunk w.r.t. the previous update"""
+    progress: int = 0
+    """The progress of the current chunk"""
+
+    finished: bool = False
+    """Whether th operation has finished"""

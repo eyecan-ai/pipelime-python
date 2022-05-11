@@ -1,0 +1,10 @@
+model:
+    model:
+        class_path: deepgym.modules.reconstructing_AE.ReconstructingAE
+        init_args:
+            ae:
+                class_path: path.to.elastic_ae.ElasticAE
+                init_args:
+                    a: 10
+                    b: 20
+                    c: ...

@@ -14,8 +14,11 @@ class MyUselessCommand(PipelimeCommand):
         import time
 
         print(self.input_folder, self.output_folder)
-        for x in self.track(range(self.n), message="Holy Pinoly"):
-            time.sleep(0.1)
+        for x in self.track(range(self.n), message="Doing stuff..."):
+            time.sleep(0.5)
+
+        for x in self.track(range(self.n), message="Doing stuff 2..."):
+            time.sleep(0.5)
 
 
 if __name__ == "__main__":
@@ -23,4 +26,17 @@ if __name__ == "__main__":
         input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
     )
     a._piper.token = "TOKEN"
+    a._piper.node = "UselessCommand_A"
+    a()
+    a = MyUselessCommand(
+        input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
+    )
+    a._piper.token = "TOKEN"
+    a._piper.node = "UselessCommand_B"
+    a()
+    a = MyUselessCommand(
+        input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
+    )
+    a._piper.token = "TOKEN"
+    a._piper.node = "UselessCommand_C"
     a()
