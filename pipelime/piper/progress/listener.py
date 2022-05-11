@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 import numpy as np
 from loguru import logger
+from rich import box
 from rich.live import Live
 from rich.table import Table
 
@@ -203,8 +204,8 @@ class RichTableListenerCallback(ListenerCallback):
         return f"[{color}]{v*100:.1f}%[/{color}]"
 
     def _generate_table(self) -> Table:
-        table = Table()
-        columns = [
+        title = "Piper Watcher"
+        table = Table(
             "Node",
             "Message",
             "Progress",
@@ -212,10 +213,10 @@ class RichTableListenerCallback(ListenerCallback):
             "Elapsed",
             "Speed",
             "ETA",
-        ]
-        for col in columns:
-            table.add_column(col)
-
+            box=box.SIMPLE_HEAVY,
+            title=f"[bold red]{title}[/]",
+            title_style="on white",
+        )
         for op in self._progress_map.keys():
             prog = self._progress_map[op]
             est = self._estimators[op]
