@@ -10,13 +10,22 @@ from rich.table import Table
 from pipelime.piper import PiperPortType
 
 
+def print_node_names(*model_cls: t.Type[BaseModel]):
+    grid = Table.grid("Name", "Class Path", "Description", padding=(0, 1))
+    for m in model_cls:
+        grid.add_row(
+            _command_title(m),
+            f"[italic grey50]{m.__module__}.{m.__name__}[/]",
+            inspect.getdoc(m),
+        )
+    rprint(grid)
+
+
 def print_node_info(
     model_cls: t.Type[BaseModel],
     *,
     indent_offs: int = 2,
 ):
-    node_doc = inspect.getdoc(model_cls)
-
     grid = Table(
         "Fields",
         "Description",
@@ -29,7 +38,7 @@ def print_node_info(
             f"[bold dark_red]{_command_title(model_cls)}[/]\n"
             f"[italic grey23]({model_cls.__module__}.{model_cls.__name__})[/]"
         ),
-        caption=node_doc,
+        caption=inspect.getdoc(model_cls),
         title_style="on white",
         expand=True,
     )

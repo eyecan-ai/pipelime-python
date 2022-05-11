@@ -31,4 +31,16 @@ class PipeCommand(PipelimeCommand, title="pipe"):
     )
 
     def run(self):
-        pass
+        from pipelime.sequences import build_pipe
+
+        seq = self.input.create_reader()
+        seq = build_pipe(self.operations, seq)
+        seq = self.output.append_writer(seq)
+
+        with self.output.serialization_cm():
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_node=self,
+                track_message="Writing results...",
+            )
