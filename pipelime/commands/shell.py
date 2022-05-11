@@ -7,11 +7,19 @@ from pydantic import Field
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
-class ShellCommand(PipelimeCommand):
-    command: str
-    inputs: Dict[str, Any] = Field(default_factory=dict, piper_port=PiperPortType.INPUT)
+class ShellCommand(PipelimeCommand, title="shell"):
+    """A generic Piper node wrapping a shell command."""
+
+    command: str = Field(..., description="""The shell command to execute.""")
+    inputs: Dict[str, Any] = Field(
+        default_factory=dict,
+        piper_port=PiperPortType.INPUT,
+        description="The input options.",
+    )
     outputs: Dict[str, Any] = Field(
-        default_factory=dict, piper_port=PiperPortType.OUTPUT
+        default_factory=dict,
+        piper_port=PiperPortType.OUTPUT,
+        description="The output options.",
     )
 
     def get_inputs(self) -> Dict[str, Any]:

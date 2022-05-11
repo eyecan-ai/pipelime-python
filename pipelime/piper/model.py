@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, Iterable, Optional, Sequence, Union
 
 import rich.progress
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from pipelime.choixe import XConfig
 from pipelime.piper.progress.tracker import TrackCallbackFactory, Tracker
@@ -25,7 +25,7 @@ class PiperInfo(BaseModel):
 
 
 class PipelimeCommand(BaseModel):
-    piper: PiperInfo = Field(PiperInfo(), description="Piper details")  # type: ignore
+    _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: Optional[Tracker] = None
 
     class Config:
@@ -53,7 +53,7 @@ class PipelimeCommand(BaseModel):
     def _get_piper_tracker(self) -> Tracker:
         if self._tracker is None:
             cb = TrackCallbackFactory.get_callback()
-            self._tracker = Tracker(self.piper.token, self.piper.node, cb)
+            self._tracker = Tracker(self._piper.token, self._piper.node, cb)
 
         return self._tracker
 
@@ -80,41 +80,6 @@ class PipelimeCommand(BaseModel):
             return rich.progress.track(
                 seq, total=len(seq) if size is None else size, description=message
             )
-
-    @classmethod
-    def pretty_schema(
-        cls, *, show_name: bool = True, indent: int = 0, indent_offs: int = 2
-    ) -> str:
-        import inspect
-
-        schema_str = f"'{inspect.getdoc(cls)}' " + "{\n"
-        if show_name:
-            schema_str = ((" " * indent) + f"{cls.command_title()}: ") + schema_str
-
-        for field in cls.__fields__.values():
-            fname = field.name if not field.alias else field.alias
-
-            if isinstance(field.type_, PipelimeCommand):
-                fvalue = field.type_.pretty_schema(
-                    show_name=False,
-                    indent=indent_offs + indent,
-                    indent_offs=indent_offs,
-                )
-            else:
-                fhelp = (
-                    f"'{field.field_info.description}' "
-                    if field.field_info.description
-                    else ""
-                )
-                fvalue = (
-                    f"`{field.type_.__name__}`  "
-                    + fhelp
-                    + ("[required" if field.required else " [optional")
-                    + f", default={field.get_default()}]"
-                )
-            schema_str += (" " * (indent_offs + indent)) + f"{fname}: {fvalue}\n"
-        schema_str += (" " * indent) + "}"
-        return schema_str
 
     def __call__(self) -> None:
         self.run()
