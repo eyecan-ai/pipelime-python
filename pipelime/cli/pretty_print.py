@@ -3,11 +3,11 @@ import typing as t
 
 from pydantic import BaseModel
 from pydantic.typing import display_as_type
-from pipelime.piper import PiperPortType
-
-from rich.table import Table
 from rich import box
 from rich import print as rprint
+from rich.table import Table
+
+from pipelime.piper import PiperPortType
 
 
 def print_node_info(
@@ -26,7 +26,8 @@ def print_node_info(
         "Default",
         box=box.SIMPLE_HEAVY,
         title=(
-            f"[bold red]{_command_title(model_cls)}[/]\n[italic black]({model_cls.__module__}.{model_cls.__name__})[/]"
+            f"[bold red]{_command_title(model_cls)}[/]\n"
+            f"[italic black]({model_cls.__module__}.{model_cls.__name__})[/]"
         ),
         caption=node_doc,
         title_style="on white",

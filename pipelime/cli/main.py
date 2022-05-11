@@ -1,5 +1,6 @@
-import typer
 import typing as t
+
+import typer
 
 
 class _NodeHelper:
@@ -10,6 +11,7 @@ class _NodeHelper:
     @classmethod
     def get_piper_nodes(cls):
         import inspect
+
         import pipelime.choixe.utils.imports as pl_imports
         from pipelime.piper import PipelimeCommand
 
