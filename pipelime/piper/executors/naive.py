@@ -21,9 +21,9 @@ class NaiveGraphExecutor(NodesGraphExecutor):
 
         for layer in graph.build_execution_stack():
             for node in layer:
-                node.command.piper.token = token
-                node.command.piper.node = node.name
+                node.command._piper.token = token
+                node.command._piper.node = node.name
 
-                logger.debug(f"Executing command: {node.command.piper.node}")
+                logger.debug(f"Executing command: {node.command._piper.node}")
 
                 node.command()

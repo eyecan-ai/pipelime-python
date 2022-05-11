@@ -23,7 +23,7 @@ class _NodeHelper:
                     else pl_imports.import_module_from_path(module_name)
                 )
                 module_nodes = {
-                    node_cls.get_node_name(): node_cls
+                    node_cls.command_title(): node_cls
                     for _, node_cls in inspect.getmembers(
                         module_,
                         lambda v: inspect.isclass(v)
@@ -151,8 +151,10 @@ def list_nodes():
     """
     List all available Piper nodes
     """
+    from pipelime.cli.pretty_print import print_node_info
+
     for node_cls in _NodeHelper.get_piper_nodes().values():
-        typer.echo(f"\n{node_cls.pretty_schema()}")
+        print_node_info(node_cls)
 
 
 @app.command("info")
@@ -165,5 +167,10 @@ def node_info(
         ),
     )
 ):
+    """
+    Get info about a Piper node
+    """
+    from pipelime.cli.pretty_print import print_node_info
+
     node_cls = _NodeHelper.get_node_or_die(node)
-    typer.echo(node_cls.pretty_schema())
+    print_node_info(node_cls)

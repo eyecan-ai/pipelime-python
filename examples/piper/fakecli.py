@@ -22,5 +22,5 @@ if __name__ == "__main__":
     a = MyUselessCommand(
         input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
     )
-    a.piper.token = "TOKEN"
+    a._piper.token = "TOKEN"
     a()
