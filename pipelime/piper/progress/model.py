@@ -26,11 +26,8 @@ class ProgressUpdate(BaseModel):
     op_info: OperationInfo
     """The operation info"""
 
-    just_started: bool = False
-    """True if this operation has just started"""
-
-    advance: int = 1
-    """The progress of the current chunk w.r.t. the previous update"""
+    progress: int = 0
+    """The progress of the current chunk"""
 
     finished: bool = False
-    """True if this operation has finished"""
+    """Whether th operation has finished"""

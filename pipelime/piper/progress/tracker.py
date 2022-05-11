@@ -14,6 +14,7 @@ class TrackCallback:
     def __init__(self):
         """Constructor for a generic `TrackCallback`"""
         self._op_info = None
+        self._progress = 0
 
     @property
     def _ready(self) -> bool:
@@ -31,7 +32,8 @@ class TrackCallback:
         if self._ready:
             raise RuntimeError("Callback already setup")
         self._op_info = op_info
-        prog = ProgressUpdate(op_info=op_info, just_started=True, advance=0)
+        self._progress = 0
+        prog = ProgressUpdate(op_info=self._op_info, progress=self._progress)
         self.on_start(prog)
 
     def advance(self, advance: int = 1) -> None:
@@ -45,7 +47,8 @@ class TrackCallback:
         """
         if not self._ready:
             raise RuntimeError("Callback not setup")
-        prog = ProgressUpdate(op_info=self._op_info, advance=advance)
+        self._progress += advance
+        prog = ProgressUpdate(op_info=self._op_info, progress=self._progress)
         self.on_advance(prog)
 
     def finish(self) -> None:
@@ -57,7 +60,8 @@ class TrackCallback:
         if not self._ready:
             raise RuntimeError("Callback not setup")
         op_info = self._op_info
-        prog = ProgressUpdate(op_info=op_info, finished=True, advance=0)
+        self._progress = op_info.total
+        prog = ProgressUpdate(op_info=op_info, finished=True, progress=self._progress)
         self.on_finish(prog)
         self._op_info = None
 
@@ -141,7 +145,7 @@ class LoguruTrackCallback(TrackCallback):
             self._op_info.node,
             self._op_info.chunk,
             self._op_info.message,
-            prog.advance,
+            prog.progress,
         )
 
     def on_finish(self, prog: ProgressUpdate) -> None:
@@ -209,10 +213,10 @@ class Tracker:
             callback.start(op_info)
 
         for x in seq:
+            yield x
+
             for callback in self._callbacks:
                 callback.advance()
-
-            yield x
 
         for callback in self._callbacks:
             callback.finish()

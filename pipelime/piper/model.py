@@ -1,11 +1,9 @@
-import subprocess
-from string import Formatter
-from typing import Any, Dict, Iterable, Sequence, Union, Optional
 from abc import abstractmethod
+from enum import Enum
+from typing import Any, Dict, Iterable, Optional, Sequence, Union
 
 import rich.progress
 from pydantic import BaseModel, Field
-from enum import Enum
 
 from pipelime.choixe import XConfig
 from pipelime.piper.progress.tracker import TrackCallbackFactory, Tracker
@@ -28,6 +26,10 @@ class PiperInfo(BaseModel):
 
 class PipelimeCommand(BaseModel):
     piper: PiperInfo = Field(PiperInfo(), description="Piper details")  # type: ignore
+    _tracker: Optional[Tracker] = None
+
+    class Config:
+        underscore_attrs_are_private = True
 
     @abstractmethod
     def run(self) -> None:
@@ -48,6 +50,13 @@ class PipelimeCommand(BaseModel):
     def get_outputs(self) -> Dict[str, Any]:
         return self._get_fields_by_flag("piper_port", PiperPortType.OUTPUT)
 
+    def _get_piper_tracker(self) -> Tracker:
+        if self._tracker is None:
+            cb = TrackCallbackFactory.get_callback()
+            self._tracker = Tracker(self.piper.token, self.piper.node, cb)
+
+        return self._tracker
+
     @classmethod
     def command_title(cls) -> str:
         if cls.__config__.title:
@@ -65,8 +74,7 @@ class PipelimeCommand(BaseModel):
         message: str = "",
     ) -> Iterable:
         if self.piper.active:
-            cb = TrackCallbackFactory.get_callback()
-            tracker = Tracker(self.piper.token, self.piper.node, cb)
+            tracker = self._get_piper_tracker()
             return tracker.track(seq, size=size, message=message)
         else:
             return rich.progress.track(
