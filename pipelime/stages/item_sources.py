@@ -33,10 +33,10 @@ class StageForgetSource(SampleStage):
     """Removes data sources, ie, file paths or remotes, from items."""
 
     always_remove: t.Sequence[t.Union[Path, ParseResult]] = pyd.Field(
-        [], description="This sources will be removed from any item."
+        default_factory=list, description="This sources will be removed from any item."
     )
     remove_by_key: t.Mapping[str, t.Sequence[t.Union[Path, ParseResult]]] = pyd.Field(
-        {}, description="Sources to be removed from specific sample keys."
+        default_factory=dict, description="Sources to be removed from specific sample keys."
     )
 
     def __init__(

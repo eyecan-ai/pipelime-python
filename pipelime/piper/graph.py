@@ -1,6 +1,6 @@
 import itertools
 from pathlib import Path
-from typing import Sequence, Set
+from typing import Sequence, Set, Iterable
 
 import networkx as nx
 
@@ -230,7 +230,9 @@ class DAGNodesGraph:
 
             if inputs is not None:
                 for input_name, input_value in inputs.items():
-                    if isinstance(input_value, str) or isinstance(input_value, Path):
+                    if isinstance(input_value, str) or not isinstance(
+                        input_value, Iterable
+                    ):
                         input_value = [input_value]
 
                     attrs = {}

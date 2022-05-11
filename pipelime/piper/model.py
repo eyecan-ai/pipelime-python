@@ -1,17 +1,25 @@
 import subprocess
 from string import Formatter
-from typing import Any, Dict, Iterable, Sequence
+from typing import Any, Dict, Iterable, Sequence, Union, Optional
+from abc import abstractmethod
 
 import rich.progress
 from pydantic import BaseModel, Field
+from enum import Enum
 
 from pipelime.choixe import XConfig
 from pipelime.piper.progress.tracker import TrackCallbackFactory, Tracker
 
 
+class PiperPortType(Enum):
+    INPUT = "input"
+    OUTPUT = "output"
+    PARAMETER = "parameter"
+
+
 class PiperInfo(BaseModel):
-    token: str = ""
-    node: str = ""
+    token: str = Field("", description="The piper execution token.")
+    node: str = Field("", description="The piper dag's node name.")
 
     @property
     def active(self) -> bool:
@@ -19,78 +27,89 @@ class PiperInfo(BaseModel):
 
 
 class PipelimeCommand(BaseModel):
-    piper: PiperInfo = PiperInfo()
+    piper: PiperInfo = Field(PiperInfo(), description="Piper details")  # type: ignore
 
+    @abstractmethod
     def run(self) -> None:
         pass
 
-    def _filter_fields_by_flag(self, flag: str) -> Iterable[str]:
-        for k, v in self.__fields__.items():
-            if v.field_info.extra.get(flag, False):
+    @classmethod
+    def _filter_fields_by_flag(cls, flag: str, value: Any) -> Iterable[str]:
+        for k, v in cls.__fields__.items():
+            if v.field_info.extra.get(flag, object()) == value:
                 yield k
 
-    def _get_fields_by_flag(self, flag: str) -> Dict[str, Any]:
-        return {k: getattr(self, k) for k in self._filter_fields_by_flag(flag)}
+    def _get_fields_by_flag(self, flag: str, value: Any) -> Dict[str, Any]:
+        return {k: getattr(self, k) for k in self._filter_fields_by_flag(flag, value)}
 
     def get_inputs(self) -> Dict[str, Any]:
-        return self._get_fields_by_flag("piper_input")
+        return self._get_fields_by_flag("piper_port", PiperPortType.INPUT)
 
     def get_outputs(self) -> Dict[str, Any]:
-        return self._get_fields_by_flag("piper_output")
+        return self._get_fields_by_flag("piper_port", PiperPortType.OUTPUT)
+
+    @classmethod
+    def command_title(cls) -> str:
+        if cls.__config__.title:
+            return cls.__config__.title
+        return cls.__name__
 
     def command_name(self) -> str:
-        return self.__class__.__name__
+        return self.command_title()
 
-    def track(self, seq: Iterable, message: str = "") -> Iterable:
+    def track(
+        self,
+        seq: Union[Sequence, Iterable],
+        *,
+        size: Optional[int] = None,
+        message: str = "",
+    ) -> Iterable:
         if self.piper.active:
             cb = TrackCallbackFactory.get_callback()
             tracker = Tracker(self.piper.token, self.piper.node, cb)
-            return tracker.track(seq, message=message)
+            return tracker.track(seq, size=size, message=message)
         else:
-            return rich.progress.track(seq, description=message)
+            return rich.progress.track(
+                seq, total=len(seq) if size is None else size, description=message
+            )
+
+    @classmethod
+    def pretty_schema(
+        cls, *, show_name: bool = True, indent: int = 0, indent_offs: int = 2
+    ) -> str:
+        import inspect
+
+        schema_str = f"'{inspect.getdoc(cls)}' " + "{\n"
+        if show_name:
+            schema_str = ((" " * indent) + f"{cls.command_title()}: ") + schema_str
+
+        for field in cls.__fields__.values():
+            fname = field.name if not field.alias else field.alias
+
+            if isinstance(field.type_, PipelimeCommand):
+                fvalue = field.type_.pretty_schema(
+                    show_name=False,
+                    indent=indent_offs + indent,
+                    indent_offs=indent_offs,
+                )
+            else:
+                fhelp = (
+                    f"'{field.field_info.description}' "
+                    if field.field_info.description
+                    else ""
+                )
+                fvalue = (
+                    f"`{field.type_.__name__}`  "
+                    + fhelp
+                    + ("[required" if field.required else " [optional")
+                    + f", default={field.get_default()}]"
+                )
+            schema_str += (" " * (indent_offs + indent)) + f"{fname}: {fvalue}\n"
+        schema_str += (" " * indent) + "}"
+        return schema_str
 
     def __call__(self) -> None:
         self.run()
-
-
-class ShellCommand(PipelimeCommand):
-    command: str
-    inputs: Dict[str, Any] = Field(default_factory=dict)
-    outputs: Dict[str, Any] = Field(default_factory=dict)
-
-    def get_inputs(self) -> Dict[str, Any]:
-        return self.inputs
-
-    def get_outputs(self) -> Dict[str, Any]:
-        return self.outputs
-
-    def command_name(self) -> str:
-        return self.command
-
-    def _to_command_chunk(self, key: str, value: Any) -> str:
-        if isinstance(value, Sequence):
-            cmd += f" --{key} {value[0]} {self._to_command_chunk(key, value[1:])}"
-
-        elif isinstance(value, Dict):
-            raise NotImplementedError("Dict values are not supported")
-
-        elif isinstance(value, bool):
-            cmd += f" --{key}"
-
-        else:
-            cmd += f" --{key} {value}"
-
-    def run(self) -> None:
-        cmd = self.command
-        fields = [fname for _, fname, _, _ in Formatter().parse(cmd) if fname]
-        args = {**self.inputs, **self.outputs}
-        cmd = cmd.format(**args)
-
-        for key in set(args.keys()).difference(fields):
-            value = args[key]
-            cmd += self._to_command_chunk(key, value)
-
-        subprocess.run(cmd, shell=True)
 
 
 class DAGModel(BaseModel):

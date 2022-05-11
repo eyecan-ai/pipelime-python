@@ -3,7 +3,7 @@ import typing as t
 
 
 class _NodeHelper:
-    std_modules = ["pipelime.cli.nodes"]
+    std_modules = ["pipelime.commands"]
     additional_modules: t.List[str] = []
     cached_nodes: t.Optional[t.Dict] = None
 
@@ -11,7 +11,7 @@ class _NodeHelper:
     def get_piper_nodes(cls):
         import inspect
         import pipelime.choixe.utils.imports as pl_imports
-        from pipelime.cli.nodes import PipelimeCommand, PiperNode
+        from pipelime.piper import PipelimeCommand
 
         if cls.cached_nodes is None:
             all_modules = cls.std_modules + list(cls.additional_modules)
@@ -28,7 +28,7 @@ class _NodeHelper:
                         module_,
                         lambda v: inspect.isclass(v)
                         and issubclass(v, PipelimeCommand)
-                        and v not in (PipelimeCommand, PiperNode),
+                        and v is not PipelimeCommand,
                     )
                 }
                 all_nodes = {**all_nodes, **module_nodes}
