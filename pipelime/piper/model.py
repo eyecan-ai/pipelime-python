@@ -26,10 +26,7 @@ class PiperInfo(BaseModel):
 
 class PipelimeCommand(BaseModel):
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
-    _tracker: Optional[Tracker] = None
-
-    class Config:
-        underscore_attrs_are_private = True
+    _tracker: Optional[Tracker] = PrivateAttr(None)
 
     @abstractmethod
     def run(self) -> None:
@@ -73,7 +70,7 @@ class PipelimeCommand(BaseModel):
         size: Optional[int] = None,
         message: str = "",
     ) -> Iterable:
-        if self.piper.active:
+        if self._piper.active:
             tracker = self._get_piper_tracker()
             return tracker.track(seq, size=size, message=message)
         else:
