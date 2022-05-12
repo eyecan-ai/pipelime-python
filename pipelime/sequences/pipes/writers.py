@@ -1,5 +1,5 @@
 from pathlib import Path
-from filelock import FileLock, Timeout
+
 import typing as t
 import pydantic as pyd
 
@@ -77,29 +77,7 @@ class UnderfolderWriter(PipedSequenceBase):
                 if v.is_shared:
                     filepath = self.folder / k
                     if not any(f.exists() for f in v.get_all_names(filepath)):
-                        lock_filepath = filepath.with_suffix(".~lock")
-                        lock = FileLock(str(lock_filepath))
-
-                        delete_lockfile = False
-                        try:
-                            with lock.acquire(timeout=1):
-                                # check again to avoid races
-                                if not any(
-                                    f.exists() for f in v.get_all_names(filepath)
-                                ):
-                                    v.serialize(filepath)
-                                    # on Unix we must manually delete the lock file
-                                    # NB: only the thread/process which has serialized
-                                    # the file should delete the the lock file, ie, the
-                                    # link to the inode, while other threads/processes
-                                    # may still have a valid reference to the inode
-                                    # itself.
-                                    delete_lockfile = True
-                        except Timeout:  # pragma: no cover
-                            pass
-
-                        if delete_lockfile:
-                            lock_filepath.unlink(missing_ok=True)
+                        v.serialize(filepath)
                 else:
                     v.serialize(self._data_folder / f"{id_str}_{k}")
 
