@@ -220,13 +220,8 @@ class DAGNodesGraph:
         for node_name, node in dag_model.nodes.items():
             node: PipelimeCommand
 
-            print(getattr(node, "command", node.__class__.__name__))
-
             inputs = node.get_inputs()
             outputs = node.get_outputs()
-
-            print(inputs)
-            print(outputs)
 
             if inputs is not None:
                 for input_name, input_value in inputs.items():

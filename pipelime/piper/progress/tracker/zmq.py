@@ -12,7 +12,14 @@ class ZmqTrackCallback(TrackCallback):
     def __init__(self, addr: str = "tcp://*:5556") -> None:
         super().__init__()
         self._addr = addr
+        self._socket = None
 
+    def _send(self, prog: ProgressUpdate) -> None:
+        topic = prog.op_info.token
+        if self._socket is not None:
+            self._socket.send_multipart([topic.encode(), prog.json().encode()])
+
+    def on_start(self, prog: ProgressUpdate) -> None:
         try:
             import zmq
 
@@ -27,12 +34,6 @@ class ZmqTrackCallback(TrackCallback):
             logger.error(f"{self.__class__.__name__} needs `pyzmq` python package.")
             self._socket = None
 
-    def _send(self, prog: ProgressUpdate) -> None:
-        topic = prog.op_info.token
-        if self._socket is not None:
-            self._socket.send_multipart([topic.encode(), prog.json().encode()])
-
-    def on_start(self, prog: ProgressUpdate) -> None:
         self._send(prog)
 
     def on_advance(self, prog: ProgressUpdate) -> None:
@@ -41,6 +42,5 @@ class ZmqTrackCallback(TrackCallback):
     def on_finish(self, prog: ProgressUpdate) -> None:
         self._send(prog)
 
-    def __del__(self) -> None:
         if self._socket is not None:
             self._socket.close()

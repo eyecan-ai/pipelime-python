@@ -3,6 +3,11 @@ from abc import ABC, abstractmethod
 from loguru import logger
 
 from pipelime.piper.graph import DAGNodesGraph
+from pipelime.piper.progress.listener.base import Listener
+from pipelime.piper.progress.listener.factory import (
+    ListenerCallbackFactory,
+    ProgressReceiverFactory,
+)
 
 
 class NodesGraphExecutor(ABC):
@@ -15,11 +20,12 @@ class NodesGraphExecutor(ABC):
         super().__init__()
 
     @abstractmethod
-    def exec(self, graph: DAGNodesGraph) -> bool:
+    def exec(self, graph: DAGNodesGraph, token: str = "") -> bool:
         """Executes the given NodesGraph.
 
         Args:
             graph (DAGNodesGraph): input DAGNodesGraph
+            token (str, optional): execution token shared among nodes. Defaults to "".
 
         Returns:
             bool: TRUE if the execution was successful, FALSE otherwise
@@ -53,11 +59,13 @@ class WatcherNodesGraphExecutor(NodesGraphExecutor):
     def exec(self, graph: DAGNodesGraph, token: str = "") -> bool:
         res = False
         logger.disable(self._executor.__module__)
-        watcher = Watcher(token)
+        receiver = ProgressReceiverFactory.get_receiver(token)
+        callback = ListenerCallbackFactory.get_callback()
+        listener = Listener(receiver, callback)
         try:
-            watcher.watch()
+            listener.start()
             res = self._executor.exec(graph, token)
         finally:
-            watcher.stop()
+            listener.stop()
             logger.enable(self._executor.__module__)
         return res

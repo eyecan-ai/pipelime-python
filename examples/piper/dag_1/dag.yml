@@ -2,21 +2,19 @@ nodes:
   $for(params.flags):
     ## GENERATE SAMPLES
     generator_$index:
-      $model: pipelime.piper.model.ShellCommand
+      $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:MyUselessCommand"
       $args:
-        command: pipelime datasets generate_toy_dataset --size $var(params.size)
-        outputs:
-          output_folder: $var(params.output_folder)/generated_$item
+        input_folder: $var(params.output_folder)/input_$item
+        output_folder: $var(params.output_folder)/generated_$item
+        n: 10
 
     ## SUBSAMPLE EACH DATASET
     subsample_$index:
-      $model: pipelime.piper.model.ShellCommand
+      $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:MyUselessCommand"
       $args:
-        command: pipelime underfolder subsample --factor 0.5
-        inputs:
-          input_folder: $var(params.output_folder)/generated_$item
-        outputs:
-          output_folder: $var(params.output_folder)/subsampled_$item
+        input_folder: $var(params.output_folder)/generated_$item
+        output_folder: $var(params.output_folder)/subsampled_$item
+        n: 10
 
     ## EXECUTE CUSTOM NODE ON EACH DATASET
     detection_$index:
@@ -24,16 +22,13 @@ nodes:
       $args:
         input_folder: $var(params.output_folder)/subsampled_$item
         output_folder: $var(params.output_folder)/detected_$item
-        fake_time: 0.01
+        n: 10
 
   ## SUM UP RESULTS
   summation:
-    $model: pipelime.piper.model.ShellCommand
+    $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:FakeSum"
     $args:
-      command: pipelime underfolder sum
-      inputs:
-        input_folders:
-          $for(params.flags):
-            - $var(params.output_folder)/detected_$item
-      outputs:
-        output_folder: $var(params.output_folder)/summed
+      input_folders:
+        $for(params.flags):
+          - $var(params.output_folder)/detected_$item
+      output_folder: $var(params.output_folder)/summed

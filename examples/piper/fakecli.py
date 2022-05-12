@@ -1,13 +1,14 @@
 from pathlib import Path
+from typing import Sequence
 
 from pydantic import Field
 
-from pipelime.piper.model import PipelimeCommand
+from pipelime.piper.model import PipelimeCommand, PiperPortType
 
 
 class MyUselessCommand(PipelimeCommand):
-    input_folder: Path = Field(..., piper_input=True)
-    output_folder: Path = Field(..., piper_output=True)
+    input_folder: Path = Field(..., piper_port=PiperPortType.INPUT)
+    output_folder: Path = Field(..., piper_port=PiperPortType.OUTPUT)
     n: int = 10
 
     def run(self) -> None:
@@ -18,6 +19,18 @@ class MyUselessCommand(PipelimeCommand):
             time.sleep(0.5)
 
         for x in self.track(range(self.n), message="Doing stuff 2..."):
+            time.sleep(0.5)
+
+
+class FakeSum(PipelimeCommand):
+    input_folders: Sequence[Path] = Field(..., piper_port=PiperPortType.INPUT)
+    output_folder: Path = Field(..., piper_port=PiperPortType.OUTPUT)
+
+    def run(self) -> None:
+        import time
+
+        print(self.input_folders, self.output_folder)
+        for x in self.track(range(5), message="Summing stuff..."):
             time.sleep(0.5)
 
 

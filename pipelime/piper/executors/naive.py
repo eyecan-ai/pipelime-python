@@ -4,7 +4,7 @@ from pipelime.piper.executors.base import NodesGraphExecutor
 from pipelime.piper.graph import DAGNodesGraph, GraphNodeOperation
 
 
-class NaiveGraphExecutor(NodesGraphExecutor):
+class NaiveNodesGraphExecutor(NodesGraphExecutor):
     def exec(self, graph: DAGNodesGraph, token: str = "") -> bool:
         """Executes the given graph.
 
