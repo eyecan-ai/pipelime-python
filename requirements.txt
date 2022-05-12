@@ -3,7 +3,6 @@ rich>=9.9.0
 pyyaml
 toml
 loguru
-filelock
 numpy
 imageio>=2.17.0
 tifffile

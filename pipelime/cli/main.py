@@ -1,5 +1,6 @@
-import typer
 import typing as t
+
+import typer
 
 
 class _NodeHelper:
@@ -10,6 +11,7 @@ class _NodeHelper:
     @classmethod
     def get_piper_nodes(cls):
         import inspect
+
         import pipelime.choixe.utils.imports as pl_imports
         from pipelime.piper import PipelimeCommand
 
@@ -99,7 +101,7 @@ def run(
     ctx: typer.Context = typer.Option(None),
 ):
     """
-    Run a Piper node
+    Run a piper command.
     """
     import pydash as py_
 
@@ -147,14 +149,25 @@ def run(
 
 
 @app.command("list")
-def list_nodes():
+def list_nodes(
+    details: bool = typer.Option(
+        False,
+        "--details",
+        "-d",
+        help="Show a complete field description for each command.",
+    )
+):
     """
-    List all available Piper nodes
+    List all available piper commands.
     """
-    from pipelime.cli.pretty_print import print_node_info
+    from pipelime.cli.pretty_print import print_node_names, print_node_info
 
-    for node_cls in _NodeHelper.get_piper_nodes().values():
-        print_node_info(node_cls)
+    if details:
+        for node_cls in _NodeHelper.get_piper_nodes().values():
+            print_node_info(node_cls)
+            print("")
+    else:
+        print_node_names(*_NodeHelper.get_piper_nodes().values())
 
 
 @app.command("info")
@@ -162,13 +175,13 @@ def node_info(
     node: str = typer.Argument(
         ...,
         help=(
-            "The Piper node, ie, a `command`, a `package.module.ClassName` "
+            "The piper command, ie, a `command-name`, a `package.module.ClassName` "
             "class path or a `path/to/module.py:ClassName` uri."
         ),
     )
 ):
     """
-    Get info about a Piper node
+    Get info about a piper command.
     """
     from pipelime.cli.pretty_print import print_node_info
 
