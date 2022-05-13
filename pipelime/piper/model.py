@@ -6,7 +6,8 @@ import rich.progress
 from pydantic import BaseModel, Field, PrivateAttr
 
 from pipelime.choixe import XConfig
-from pipelime.piper.progress.tracker import TrackCallbackFactory, Tracker
+from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
+from pipelime.piper.progress.tracker.base import Tracker
 
 
 class PiperPortType(Enum):
