@@ -8,7 +8,7 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 
 
 class ShellCommand(PipelimeCommand, title="shell"):
-    """A generic Piper node wrapping a shell command."""
+    """A generic pipelime command wrapping a shell command."""
 
     command: str = Field(..., description="""The shell command to execute.""")
     inputs: Dict[str, Any] = Field(

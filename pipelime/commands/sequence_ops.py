@@ -71,6 +71,6 @@ class PipeCommand(PipelimeCommand, title="pipe"):
             self.grabber.grab_all(
                 seq,
                 keep_order=False,
-                parent_node=self,
+                parent_cmd=self,
                 track_message="Writing results...",
             )

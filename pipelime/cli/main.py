@@ -5,18 +5,16 @@ from rich import print as rprint
 
 
 def _pinfo(val):
-    rprint("[cyan]", val, "[/]", sep="")
+    rprint(f"[cyan]{val}[/]")
 
 
 def _pwarn(val):
-    rprint("[orange1][bold blink]WARNING:[/bold blink]", val, "[/orange1]")
+    rprint(f"[orange1][bold blink]WARNING:[/bold blink] {val}[/orange1]")
 
 
 def _perr(val):
     rprint(
-        "[dark_red on white][bold blink]ERROR:[/bold blink]",
-        val,
-        "[/dark_red on white]",
+        f"[dark_red on white][bold blink]ERROR:[/bold blink] {val}[/dark_red on white]"
     )
 
 
@@ -24,11 +22,11 @@ class _Helper:
     std_cmd_modules = ["pipelime.commands"]
     extra_modules: t.List[str] = []
 
-    cached_nodes: t.Optional[t.Dict] = None
-    cached_seq_ops: t.Optional[t.Tuple[t.Dict, t.Dict]] = None
+    cached_cmds: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
+    cached_seq_ops: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
 
     @classmethod
-    def get_sequence_operations(cls):
+    def get_sequence_operators(cls):
         import pipelime.choixe.utils.imports as pl_imports
         import pipelime.sequences as pls
 
@@ -39,64 +37,72 @@ class _Helper:
                 else pl_imports.import_module_from_path(module_name)
                 for module_name in cls.extra_modules
             ]
-            cls.cached_seq_ops = (
-                pls.SamplesSequence._sources,
-                pls.SamplesSequence._pipes,
-            )
+            cls.cached_seq_ops = {
+                (
+                    "Sequence Generator",
+                    "Sequence Generators",
+                ): pls.SamplesSequence._sources,
+                (
+                    "Sequence Operation",
+                    "Sequence Operations",
+                ): pls.SamplesSequence._pipes,
+            }
 
         return cls.cached_seq_ops
 
     @classmethod
-    def get_piper_nodes(cls):
+    def get_piper_commands(cls):
         import inspect
 
         import pipelime.choixe.utils.imports as pl_imports
         from pipelime.piper import PipelimeCommand
 
-        if cls.cached_nodes is None:
+        if cls.cached_cmds is None:
             all_modules = cls.std_cmd_modules + list(cls.extra_modules)
-            all_nodes = {}
+            all_cmds = {}
             for module_name in all_modules:
                 module_ = (
                     pl_imports.import_module_from_file(module_name)
                     if module_name.endswith(".py")
                     else pl_imports.import_module_from_path(module_name)
                 )
-                module_nodes = {
-                    node_cls.command_title(): node_cls
-                    for _, node_cls in inspect.getmembers(
+                module_cmds = {
+                    cmd_cls.command_title(): cmd_cls
+                    for _, cmd_cls in inspect.getmembers(
                         module_,
                         lambda v: inspect.isclass(v)
                         and issubclass(v, PipelimeCommand)
                         and v is not PipelimeCommand,
                     )
                 }
-                all_nodes = {**all_nodes, **module_nodes}
-            cls.cached_nodes = all_nodes
-        return cls.cached_nodes
+                all_cmds = {**all_cmds, **module_cmds}
+            cls.cached_cmds = {("Piper Command", "Piper Commands"): all_cmds}
+        return cls.cached_cmds
 
     @classmethod
-    def get_operation_or_die(cls, op_name: str):
-        ops = _Helper.get_sequence_operations()
-        if op_name not in ops[0] and op_name not in ops[1]:
-            _pwarn(f"{op_name} is not a registered operation!")
-            _pinfo("Have you added the module with `--module`?")
-            raise typer.Exit()
-        return ops[0].get(op_name) or ops[1].get(op_name)
+    def get_operator(cls, operator_name: str):
+        for op_type, op_dict in _Helper.get_sequence_operators().items():
+            if operator_name in op_dict:
+                return (op_type, op_dict[operator_name])
+        return None
 
     @classmethod
-    def get_node_or_die(cls, node_name: str):
+    def get_command(cls, command_name: str):
         import pipelime.choixe.utils.imports as pl_imports
 
-        if "." in node_name or ":" in node_name:
-            return pl_imports.import_symbol(node_name)
+        if "." in command_name or ":" in command_name:
+            try:
+                return (
+                    ("Imported Command", "Imported Commands"),
+                    pl_imports.import_symbol(command_name),
+                )
+            except ImportError:
+                return None
 
-        nodes = _Helper.get_piper_nodes()
-        if node_name not in nodes:
-            _pwarn(f"{node_name} is not a Piper node!")
-            _pinfo("Have you added the module with `--module`?")
-            raise typer.Exit()
-        return nodes[node_name]
+        for cmd_type, cmd_dict in _Helper.get_piper_commands().items():
+            if command_name in cmd_dict:
+                return (cmd_type, cmd_dict[command_name])
+        return None
 
 
 def _convert_val(val: str):
@@ -136,11 +142,12 @@ def callback(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
 )
 def run(
-    node: str = typer.Argument(
+    command: str = typer.Argument(
         ...,
         help=(
-            "The Piper node to run, ie, a `command`, a `package.module.ClassName` "
-            "class path or a `path/to/module.py:ClassName` uri."
+            "The Piper command to run, ie, a `command-name`, "
+            "a `package.module.ClassName` class path or "
+            "a `path/to/module.py:ClassName` uri."
         ),
     ),
     ctx: typer.Context = typer.Option(None),
@@ -150,7 +157,12 @@ def run(
     """
     import pydash as py_
 
-    node_cls = _Helper.get_node_or_die(node)
+    cmd_cls = _Helper.get_command(command)
+    if cmd_cls is None:
+        _perr(f"{command} is not a piper command!")
+        _pwarn("Have you added the module with `--module`?")
+        raise typer.Exit(1)
+    cmd_cls = cmd_cls[1]
 
     last_opt = None
     last_val = None
@@ -181,23 +193,47 @@ def run(
             last_val += (_convert_val(extra_arg),)
     _store_opt()
 
-    _pinfo(f"Creating `{node}` node with options:")
+    _pinfo(f"Creating `{command}` command with options:")
     _pinfo(all_opts)
 
-    node_obj = node_cls(**all_opts)
+    cmd_obj = cmd_cls(**all_opts)
 
-    _pinfo("\nCreated node:")
-    _pinfo(node_obj.dict())
+    _pinfo("\nCreated command:")
+    _pinfo(cmd_obj.dict())
 
     _pinfo("\nRunning...")
-    node_obj()
+    cmd_obj()
+
+
+def _print_details(info, show_class_path_and_piper_port):
+    from pipelime.cli.pretty_print import print_model_info
+
+    for info_type, info_map in info.items():
+        for info_cls in info_map.values():
+            print(f"---{info_type[0]}")
+            print_model_info(
+                info_cls,
+                show_class_path=show_class_path_and_piper_port,
+                show_piper_port=show_class_path_and_piper_port,
+            )
+
+
+def _print_short_help(info, show_class_path):
+    from pipelime.cli.pretty_print import print_models_short_help
+
+    for info_type, info_map in info.items():
+        print(f"---{info_type[1]}")
+        print_models_short_help(
+            *[info_cls for info_cls in info_map.values()],
+            show_class_path=show_class_path,
+        )
 
 
 @app.command("list")
-def list_nodes_and_ops(
+def list_commands_and_ops(
     seq: bool = typer.Option(
         True,
-        help="Show the available generators and operations on samples sequences.",
+        help="Show the available sequence operators.",
     ),
     cmd: bool = typer.Option(
         True,
@@ -207,54 +243,58 @@ def list_nodes_and_ops(
         False,
         "--details",
         "-d",
-        help="Show a complete field description for each command and each operation.",
+        help="Show a complete field description for each command and operator.",
     ),
 ):
     """
-    List all available samples sequence's operations and piper commands.
+    List available sequence operators and piper commands.
     """
-    from pipelime.cli.pretty_print import print_node_names, print_node_info
-
     if details:
         if cmd:
-            for node_cls in _Helper.get_piper_nodes().values():
-                print("---Piper Command")
-                print_node_info(node_cls)
+            _print_details(
+                _Helper.get_piper_commands(), show_class_path_and_piper_port=True
+            )
         if seq:
-            desc = ("---Sequence Generator", "---Sequence Operation")
-            for op_map, d in zip(_Helper.get_sequence_operations(), desc):
-                for op_cls in op_map.values():
-                    print(d)
-                    print_node_info(
-                        op_cls, show_class_path=False
-                    )
+            _print_details(
+                _Helper.get_sequence_operators(), show_class_path_and_piper_port=False
+            )
     else:
         if cmd:
-            print("---Piper Commands")
-            print_node_names(*_Helper.get_piper_nodes().values())
+            _print_short_help(_Helper.get_piper_commands(), show_class_path=True)
         if seq:
-            desc = ("---Sequence Generators", "---Sequence Operations")
-            for op_map, d in zip(_Helper.get_sequence_operations(), desc):
-                print(d)
-                print_node_names(
-                    *[op_cls for op_cls in op_map.values()], show_class_path=False
-                )
+            _print_short_help(_Helper.get_sequence_operators(), show_class_path=False)
 
 
 @app.command("info")
-def node_info(
-    node: str = typer.Argument(
+def commands_and_ops_info(
+    command_or_operator: str = typer.Argument(
         ...,
         help=(
-            "The piper command, ie, a `command-name`, a `package.module.ClassName` "
-            "class path or a `path/to/module.py:ClassName` uri."
+            "A sequence operator or a piper command, ie, a `command-name`, "
+            "a `package.module.ClassName` class path or "
+            "a `path/to/module.py:ClassName` uri."
         ),
     )
 ):
     """
-    Get info about a piper command.
+    Get detailed info about a sequence operator or a piper command.
     """
-    from pipelime.cli.pretty_print import print_node_info
+    from pipelime.cli.pretty_print import print_model_info
 
-    node_cls = _NodeHelper.get_node_or_die(node)
-    print_node_info(node_cls)
+    info_cls = _Helper.get_operator(command_or_operator)
+    if info_cls is None:
+        info_cls = _Helper.get_command(command_or_operator)
+        show_class_path_and_piper_port = True
+    else:
+        show_class_path_and_piper_port = False
+
+    if info_cls is None:
+        _perr(f"{command_or_operator} is not a sequence operator nor a piper command!")
+        _pwarn("Have you added the module with `--module`?")
+        raise typer.Exit(1)
+    print(f"---{info_cls[0][0]}")
+    print_model_info(
+        info_cls[1],
+        show_class_path=show_class_path_and_piper_port,
+        show_piper_port=show_class_path_and_piper_port,
+    )

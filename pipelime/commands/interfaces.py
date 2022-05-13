@@ -23,7 +23,7 @@ class GrabberInterface(pyd.BaseModel):
         sequence,
         *,
         keep_order: bool,
-        parent_node=None,
+        parent_cmd=None,
         track_message: str = "",
         sample_fn=None,
     ):
@@ -35,8 +35,8 @@ class GrabberInterface(pyd.BaseModel):
         size = len(sequence)
         track_fn = (
             None
-            if parent_node is None
-            else (lambda x: parent_node.track(x, size=size, message=track_message))
+            if parent_cmd is None
+            else (lambda x: parent_cmd.track(x, size=size, message=track_message))
         )
         grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn)
 
