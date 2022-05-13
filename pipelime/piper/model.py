@@ -25,7 +25,7 @@ class PiperInfo(BaseModel):
         return len(self.token) > 0
 
 
-class PipelimeCommand(BaseModel):
+class PipelimeCommand(BaseModel, extra="forbid"):
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: Optional[Tracker] = PrivateAttr(None)
 

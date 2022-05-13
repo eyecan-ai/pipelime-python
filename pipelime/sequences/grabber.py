@@ -6,7 +6,7 @@ import typing as t
 import pipelime.sequences as pls
 
 
-class Grabber(pyd.BaseModel):
+class Grabber(pyd.BaseModel, extra="forbid"):
     num_workers: int = pyd.Field(
         0,
         description=(

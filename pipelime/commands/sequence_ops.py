@@ -20,15 +20,17 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
         description="Grabber options.",
     )
-    operations: str = Field(
+    operations: t.Union[
+        str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
+    ] = Field(
         ...,
-        description="The pipeline to run as a one-line YAML/JSON string "
-        "or a path to a YAML/JSON file (use <filepath>:<key-path> to load a "
-        "from a pydash-like path).\n"
-        "Can be an ordered mapping or a sequence of ordered mappings. "
-        "Each key is the name of the operation to run, while the value "
-        "gathers the arguments to pass to the operation, which might be "
-        "a single value, a sequence of values or a mapping.",
+        description="The pipeline to run or a path to a YAML/JSON file "
+        "(use <filepath>:<key-path> to load the definitions from a pydash-like path).\n"
+        "The pipeline is defined as a mapping or a sequence of mappings where "
+        "each key is a sequence operator to run, while the value gathers "
+        "the arguments, ie, a single value, a sequence of values or a mapping.\n"
+        "You can inspect the available operators by running `pipelime list --seq` and "
+        "`pipelime list --seq --details`.",
     )
 
     _pipe_list: t.Union[
@@ -41,21 +43,24 @@ class PipeCommand(PipelimeCommand, title="pipe"):
 
         super().__init__(**data)
 
-        filepath, _, root_key = (
-            self.operations.rpartition(":")
-            if ":" in self.operations
-            else (self.operations, None, None)
-        )
-        filepath = Path(filepath)
-        if filepath.exists():
-            with filepath.open() as f:
-                self._pipe_list = yaml.safe_load(f)
-                if root_key is not None:
-                    self._pipe_list = py_.get(  # type: ignore
-                        self._pipe_list, root_key, default=None
-                    )
+        if isinstance(self.operations, str):
+            filepath, _, root_key = (
+                self.operations.rpartition(":")
+                if ":" in self.operations
+                else (self.operations, None, None)
+            )
+            filepath = Path(filepath)
+            if filepath.exists():
+                with filepath.open() as f:
+                    self._pipe_list = yaml.safe_load(f)
+                    if root_key is not None:
+                        self._pipe_list = py_.get(  # type: ignore
+                            self._pipe_list, root_key, default=None
+                        )
+            else:
+                self._pipe_list = yaml.safe_load(str(self.operations))
         else:
-            self._pipe_list = yaml.safe_load(str(self.operations))
+            self._pipe_list = self.operations
 
         if not self._pipe_list:
             raise ValueError(f"Invalid pipeline: {self.operations}")

@@ -4,7 +4,7 @@ from pathlib import Path
 import pydantic as pyd
 
 
-class GrabberInterface(pyd.BaseModel):
+class GrabberInterface(pyd.BaseModel, extra="forbid"):
     """Multiprocessing grabbing options."""
 
     num_workers: int = pyd.Field(
@@ -41,7 +41,7 @@ class GrabberInterface(pyd.BaseModel):
         grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn)
 
 
-class InputDatasetInterface(pyd.BaseModel):
+class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
     """Input dataset options."""
 
     folder: pyd.DirectoryPath = pyd.Field(..., description="Dataset root folder.")
@@ -64,7 +64,7 @@ class InputDatasetInterface(pyd.BaseModel):
         return str(self.folder)
 
 
-class SerializationModeInterface(pyd.BaseModel):
+class SerializationModeInterface(pyd.BaseModel, extra="forbid"):
     """Serialization modes for items and keys."""
 
     override: t.Mapping[str, t.Optional[t.Union[str, t.Sequence[str]]]] = pyd.Field(
@@ -137,7 +137,7 @@ class SerializationModeInterface(pyd.BaseModel):
             cm.__exit__(exc_type, exc_value, traceback)
 
 
-class OutputDatasetInterface(pyd.BaseModel):
+class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
     """Output dataset options."""
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")

@@ -54,7 +54,10 @@ class UnderfolderWriter(
             self.key_serialization_mode = {}
 
         if not self.exists_ok and (self.folder.exists() or self._data_folder.exists()):
-            raise FileExistsError("Trying to overwrite an existing dataset.")
+            raise FileExistsError(
+                "Trying to overwrite an existing dataset. "
+                "Please use `exists_ok=True` to overwrite."
+            )
 
         self._data_folder.mkdir(parents=True, exist_ok=True)
 

@@ -138,6 +138,21 @@ def callback(
     _Helper.extra_modules = extra_modules
 
 
+def _store_opt(last_opt, last_val, all_opts):
+    import pydash as py_
+
+    if last_opt is not None:
+        val = last_val if last_val is not None else True
+
+        curr_val = py_.get(all_opts, last_opt, None)
+        if curr_val is None:
+            py_.set_(all_opts, last_opt, val)
+        else:
+            if not isinstance(curr_val, list):
+                curr_val = [curr_val]
+            py_.set_(all_opts, last_opt, [val] + curr_val)
+
+
 @app.command(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
 )
@@ -150,12 +165,12 @@ def run(
             "a `path/to/module.py:ClassName` uri."
         ),
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
     ctx: typer.Context = typer.Option(None),
 ):
     """
     Run a piper command.
     """
-    import pydash as py_
 
     cmd_cls = _Helper.get_command(command)
     if cmd_cls is None:
@@ -168,21 +183,9 @@ def run(
     last_val = None
     all_opts = {}
 
-    def _store_opt():
-        if last_opt is not None:
-            val = last_val if last_val is not None else True
-
-            curr_val = py_.get(all_opts, last_opt, None)
-            if curr_val is None:
-                py_.set_(all_opts, last_opt, val)
-            else:
-                if not isinstance(curr_val, list):
-                    curr_val = [curr_val]
-                py_.set_(all_opts, last_opt, [val] + curr_val)
-
     for extra_arg in ctx.args:
         if extra_arg.startswith("--"):
-            _store_opt()
+            _store_opt(last_opt, last_val, all_opts)
             last_opt, _, last_val = extra_arg[2:].partition("=")
             last_val = None if not last_val else _convert_val(last_val)
         elif last_val is None:
@@ -191,17 +194,20 @@ def run(
             if not isinstance(last_val, tuple):
                 last_val = (last_val,)
             last_val += (_convert_val(extra_arg),)
-    _store_opt()
+    _store_opt(last_opt, last_val, all_opts)
 
-    _pinfo(f"Creating `{command}` command with options:")
-    _pinfo(all_opts)
+    if verbose:
+        _pinfo(f"\nCreating command `{command}` with options:")
+        _pinfo(all_opts)
 
     cmd_obj = cmd_cls(**all_opts)
 
-    _pinfo("\nCreated command:")
-    _pinfo(cmd_obj.dict())
+    if verbose:
+        _pinfo(f"\nCreated command `{command}`:")
+        _pinfo(cmd_obj.dict())
 
-    _pinfo("\nRunning...")
+    if verbose:
+        _pinfo("\nRunning `{command}`...")
     cmd_obj()
 
 
