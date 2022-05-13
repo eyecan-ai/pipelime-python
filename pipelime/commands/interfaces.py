@@ -64,7 +64,9 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
         return str(self.folder)
 
 
-class SerializationModeInterface(pyd.BaseModel, extra="forbid"):
+class SerializationModeInterface(
+    pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True
+):
     """Serialization modes for items and keys."""
 
     override: t.Mapping[str, t.Optional[t.Union[str, t.Sequence[str]]]] = pyd.Field(
@@ -93,9 +95,6 @@ class SerializationModeInterface(pyd.BaseModel, extra="forbid"):
 
     _overridden_modes_cms: t.List[t.ContextManager]
     _disabled_modes_cms: t.List[t.ContextManager]
-
-    class Config:
-        underscore_attrs_are_private = True
 
     def _get_class_list(
         self, cls_paths: t.Optional[t.Union[str, t.Sequence[str]]]

@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Any, Dict, Iterable, Optional, Sequence, Union
+from typing import Any, Dict, Iterable, Optional, Sequence, Union, ClassVar
 
 import rich.progress
 from pydantic import BaseModel, Field, PrivateAttr
@@ -26,6 +26,11 @@ class PiperInfo(BaseModel):
 
 
 class PipelimeCommand(BaseModel, extra="forbid"):
+    """Base class for all pipelime commands.
+    Subclasses should implement the run method.
+    """
+
+    _classpath: ClassVar[Optional[str]] = None
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: Optional[Tracker] = PrivateAttr(None)
 
@@ -54,6 +59,12 @@ class PipelimeCommand(BaseModel, extra="forbid"):
             self._tracker = Tracker(self._piper.token, self._piper.node, cb)
 
         return self._tracker
+
+    @classmethod
+    def classpath(cls) -> str:
+        if not cls._classpath:
+            return f"{cls.__module__}.{cls.__name__}"
+        return cls._classpath
 
     @classmethod
     def command_title(cls) -> str:

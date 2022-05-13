@@ -10,20 +10,6 @@ from rich.table import Table
 from pipelime.piper import PiperPortType
 
 
-def _get_signature(model_cls: t.Type[BaseModel]) -> str:
-    excluded = [
-        mfield.alias
-        for mfield in model_cls.__fields__.values()
-        if mfield.field_info.exclude
-    ]
-    sig = inspect.signature(model_cls)
-    sig = sig.replace(
-        parameters=[p for p in sig.parameters.values() if p.name not in excluded],
-        return_annotation=inspect.Signature.empty,
-    )
-    return str(sig)
-
-
 def print_models_short_help(
     *model_cls: t.Type[BaseModel],
     show_class_path: bool = True,
@@ -32,7 +18,7 @@ def print_models_short_help(
     for m in model_cls:
         col_vals = [_command_title(m)]
         if show_class_path:
-            col_vals.append(f"[italic grey50]{m.__module__}.{m.__name__}[/]")
+            col_vals.append(f"[italic grey50]{_command_classpath(m)}[/]")
         col_vals.append(inspect.getdoc(m) or "")
         grid.add_row(*col_vals)
     rprint(grid)
@@ -46,7 +32,7 @@ def print_model_info(
     show_piper_port: bool = True,
 ):
     cpath_str = (
-        f"\n[italic grey23]({model_cls.__module__}.{model_cls.__name__})[/]"
+        f"\n[italic grey23]{_command_classpath(model_cls)}[/]"
         if show_class_path
         else ""
     )
@@ -77,12 +63,6 @@ def print_model_info(
         )
 
     rprint(grid)
-
-
-def _command_title(model_cls: t.Type[BaseModel]) -> str:
-    if model_cls.__config__.title:
-        return model_cls.__config__.title
-    return model_cls.__name__
 
 
 def _field_row(
@@ -137,3 +117,29 @@ def _field_row(
                 indent_offs=indent_offs,
                 show_piper_port=show_piper_port,
             )
+
+
+def _get_signature(model_cls: t.Type[BaseModel]) -> str:
+    excluded = [
+        mfield.alias
+        for mfield in model_cls.__fields__.values()
+        if mfield.field_info.exclude
+    ]
+    sig = inspect.signature(model_cls)
+    sig = sig.replace(
+        parameters=[p for p in sig.parameters.values() if p.name not in excluded],
+        return_annotation=inspect.Signature.empty,
+    )
+    return str(sig)
+
+
+def _command_title(model_cls: t.Type[BaseModel]) -> str:
+    if model_cls.__config__.title:
+        return model_cls.__config__.title
+    return model_cls.__name__
+
+
+def _command_classpath(model_cls: t.Type[BaseModel]) -> str:
+    if hasattr(model_cls, "classpath"):
+        return model_cls.classpath()  # type: ignore
+    return f"{model_cls.__module__}.{model_cls.__name__}"

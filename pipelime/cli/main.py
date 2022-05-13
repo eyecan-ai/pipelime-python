@@ -1,4 +1,5 @@
 import typing as t
+from types import ModuleType
 
 import typer
 from rich import print as rprint
@@ -22,21 +23,41 @@ class _Helper:
     std_cmd_modules = ["pipelime.commands"]
     extra_modules: t.List[str] = []
 
+    cached_extra_modules: t.Dict[str, ModuleType] = {}
     cached_cmds: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
     cached_seq_ops: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
 
     @classmethod
-    def get_sequence_operators(cls):
+    def add_extra_modules(cls, modules: t.List[str]):
+        cls.extra_modules += modules
+
+    @classmethod
+    def is_cache_valid(cls) -> bool:
+        return len(cls.std_cmd_modules) + len(cls.extra_modules) == len(
+            cls.cached_extra_modules
+        )
+
+    @classmethod
+    def import_modules(cls):
         import pipelime.choixe.utils.imports as pl_imports
+
+        if not cls.is_cache_valid():
+            for module_name in cls.std_cmd_modules + cls.extra_modules:
+                if module_name not in cls.cached_extra_modules:
+                    cls.cached_extra_modules[module_name] = (
+                        pl_imports.import_module_from_file(module_name)
+                        if module_name.endswith(".py")
+                        else pl_imports.import_module_from_path(module_name)
+                    )
+
+        return cls.cached_extra_modules
+
+    @classmethod
+    def get_sequence_operators(cls):
         import pipelime.sequences as pls
 
-        if cls.cached_seq_ops is None:
-            _ = [
-                pl_imports.import_module_from_file(module_name)
-                if module_name.endswith(".py")
-                else pl_imports.import_module_from_path(module_name)
-                for module_name in cls.extra_modules
-            ]
+        if not cls.is_cache_valid() or cls.cached_seq_ops is None:
+            cls.import_modules()
             cls.cached_seq_ops = {
                 (
                     "Sequence Generator",
@@ -54,18 +75,12 @@ class _Helper:
     def get_piper_commands(cls):
         import inspect
 
-        import pipelime.choixe.utils.imports as pl_imports
         from pipelime.piper import PipelimeCommand
 
-        if cls.cached_cmds is None:
-            all_modules = cls.std_cmd_modules + list(cls.extra_modules)
+        if not cls.is_cache_valid() or cls.cached_cmds is None:
+            all_modules = cls.import_modules()
             all_cmds = {}
-            for module_name in all_modules:
-                module_ = (
-                    pl_imports.import_module_from_file(module_name)
-                    if module_name.endswith(".py")
-                    else pl_imports.import_module_from_path(module_name)
-                )
+            for module_name, module_ in all_modules.items():
                 module_cmds = {
                     cmd_cls.command_title(): cmd_cls
                     for _, cmd_cls in inspect.getmembers(
@@ -75,6 +90,11 @@ class _Helper:
                         and v is not PipelimeCommand,
                     )
                 }
+
+                if module_name.endswith(".py"):
+                    for cmd_cls in module_cmds.values():
+                        cmd_cls._classpath = f"{module_name}:{cmd_cls.__name__}"
+
                 all_cmds = {**all_cmds, **module_cmds}
             cls.cached_cmds = {("Piper Command", "Piper Commands"): all_cmds}
         return cls.cached_cmds
@@ -135,7 +155,7 @@ def callback(
     """
     Pipelime Command Line Interface
     """
-    _Helper.extra_modules = extra_modules
+    _Helper.add_extra_modules(list(extra_modules))
 
 
 def _store_opt(last_opt, last_val, all_opts):
@@ -216,7 +236,7 @@ def _print_details(info, show_class_path_and_piper_port):
 
     for info_type, info_map in info.items():
         for info_cls in info_map.values():
-            print(f"---{info_type[0]}")
+            print(f"\n---{info_type[0]}")
             print_model_info(
                 info_cls,
                 show_class_path=show_class_path_and_piper_port,
@@ -228,7 +248,7 @@ def _print_short_help(info, show_class_path):
     from pipelime.cli.pretty_print import print_models_short_help
 
     for info_type, info_map in info.items():
-        print(f"---{info_type[1]}")
+        print(f"\n---{info_type[1]}")
         print_models_short_help(
             *[info_cls for info_cls in info_map.values()],
             show_class_path=show_class_path,
@@ -298,7 +318,7 @@ def commands_and_ops_info(
         _perr(f"{command_or_operator} is not a sequence operator nor a piper command!")
         _pwarn("Have you added the module with `--module`?")
         raise typer.Exit(1)
-    print(f"---{info_cls[0][0]}")
+    print(f"\n---{info_cls[0][0]}")
     print_model_info(
         info_cls[1],
         show_class_path=show_class_path_and_piper_port,
