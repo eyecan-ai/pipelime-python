@@ -75,7 +75,9 @@ class PipelimeCommand(BaseModel):
             return tracker.track(seq, size=size, message=message)
         else:
             return rich.progress.track(
-                seq, total=len(seq) if size is None else size, description=message
+                seq,
+                total=len(seq) if size is None else size,  # type: ignore
+                description=message,
             )
 
     def __call__(self) -> None:

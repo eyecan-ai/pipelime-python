@@ -1,12 +1,50 @@
 import typing as t
 
 import typer
+from rich import print as rprint
 
 
-class _NodeHelper:
-    std_modules = ["pipelime.commands"]
-    additional_modules: t.List[str] = []
+def _pinfo(val):
+    rprint("[cyan]", val, "[/]", sep="")
+
+
+def _pwarn(val):
+    rprint("[orange1][bold blink]WARNING:[/bold blink]", val, "[/orange1]")
+
+
+def _perr(val):
+    rprint(
+        "[dark_red on white][bold blink]ERROR:[/bold blink]",
+        val,
+        "[/dark_red on white]",
+    )
+
+
+class _Helper:
+    std_cmd_modules = ["pipelime.commands"]
+    extra_modules: t.List[str] = []
+
     cached_nodes: t.Optional[t.Dict] = None
+    cached_seq_ops: t.Optional[t.Tuple[t.Dict, t.Dict]] = None
+
+    @classmethod
+    def get_sequence_operations(cls):
+        import pipelime.choixe.utils.imports as pl_imports
+        import pipelime.sequences as pls
+
+        if cls.cached_seq_ops is None:
+            _ = [
+                pl_imports.import_module_from_file(module_name)
+                if module_name.endswith(".py")
+                else pl_imports.import_module_from_path(module_name)
+                for module_name in cls.extra_modules
+            ]
+            cls.cached_seq_ops = (
+                pls.SamplesSequence._sources,
+                pls.SamplesSequence._pipes,
+            )
+
+        return cls.cached_seq_ops
 
     @classmethod
     def get_piper_nodes(cls):
@@ -16,7 +54,7 @@ class _NodeHelper:
         from pipelime.piper import PipelimeCommand
 
         if cls.cached_nodes is None:
-            all_modules = cls.std_modules + list(cls.additional_modules)
+            all_modules = cls.std_cmd_modules + list(cls.extra_modules)
             all_nodes = {}
             for module_name in all_modules:
                 module_ = (
@@ -38,18 +76,25 @@ class _NodeHelper:
         return cls.cached_nodes
 
     @classmethod
+    def get_operation_or_die(cls, op_name: str):
+        ops = _Helper.get_sequence_operations()
+        if op_name not in ops[0] and op_name not in ops[1]:
+            _pwarn(f"{op_name} is not a registered operation!")
+            _pinfo("Have you added the module with `--module`?")
+            raise typer.Exit()
+        return ops[0].get(op_name) or ops[1].get(op_name)
+
+    @classmethod
     def get_node_or_die(cls, node_name: str):
         import pipelime.choixe.utils.imports as pl_imports
 
         if "." in node_name or ":" in node_name:
             return pl_imports.import_symbol(node_name)
 
-        nodes = _NodeHelper.get_piper_nodes()
+        nodes = _Helper.get_piper_nodes()
         if node_name not in nodes:
-            typer.secho(
-                f"WARNING: {node_name} is not a Piper node!", fg="white", bg="red"
-            )
-            typer.secho("Have you added the module with `--module`?", bold=True)
+            _pwarn(f"{node_name} is not a Piper node!")
+            _pinfo("Have you added the module with `--module`?")
             raise typer.Exit()
         return nodes[node_name]
 
@@ -77,14 +122,14 @@ app = typer.Typer()
 
 @app.callback()
 def callback(
-    additional_modules: t.List[str] = typer.Option(
+    extra_modules: t.List[str] = typer.Option(
         [], "--module", "-m", help="Additional modules to import."
     )
 ):
     """
     Pipelime Command Line Interface
     """
-    _NodeHelper.additional_modules = additional_modules
+    _Helper.extra_modules = extra_modules
 
 
 @app.command(
@@ -105,7 +150,7 @@ def run(
     """
     import pydash as py_
 
-    node_cls = _NodeHelper.get_node_or_die(node)
+    node_cls = _Helper.get_node_or_die(node)
 
     last_opt = None
     last_val = None
@@ -136,38 +181,64 @@ def run(
             last_val += (_convert_val(extra_arg),)
     _store_opt()
 
-    typer.echo(f"Creating `{node}` node with options:")
-    typer.echo(all_opts)
+    _pinfo(f"Creating `{node}` node with options:")
+    _pinfo(all_opts)
 
     node_obj = node_cls(**all_opts)
 
-    typer.echo("Created node:")
-    typer.echo(node_obj.dict())
+    _pinfo("\nCreated node:")
+    _pinfo(node_obj.dict())
 
-    typer.echo("Running...")
+    _pinfo("\nRunning...")
     node_obj()
 
 
 @app.command("list")
-def list_nodes(
+def list_nodes_and_ops(
+    seq: bool = typer.Option(
+        True,
+        help="Show the available generators and operations on samples sequences.",
+    ),
+    cmd: bool = typer.Option(
+        True,
+        help="Show the available piper commands.",
+    ),
     details: bool = typer.Option(
         False,
         "--details",
         "-d",
-        help="Show a complete field description for each command.",
-    )
+        help="Show a complete field description for each command and each operation.",
+    ),
 ):
     """
-    List all available piper commands.
+    List all available samples sequence's operations and piper commands.
     """
     from pipelime.cli.pretty_print import print_node_names, print_node_info
 
     if details:
-        for node_cls in _NodeHelper.get_piper_nodes().values():
-            print_node_info(node_cls)
-            print("")
+        if cmd:
+            for node_cls in _Helper.get_piper_nodes().values():
+                print("---Piper Command")
+                print_node_info(node_cls)
+        if seq:
+            desc = ("---Sequence Generator", "---Sequence Operation")
+            for op_map, d in zip(_Helper.get_sequence_operations(), desc):
+                for op_cls in op_map.values():
+                    print(d)
+                    print_node_info(
+                        op_cls, show_class_path=False
+                    )
     else:
-        print_node_names(*_NodeHelper.get_piper_nodes().values())
+        if cmd:
+            print("---Piper Commands")
+            print_node_names(*_Helper.get_piper_nodes().values())
+        if seq:
+            desc = ("---Sequence Generators", "---Sequence Operations")
+            for op_map, d in zip(_Helper.get_sequence_operations(), desc):
+                print(d)
+                print_node_names(
+                    *[op_cls for op_cls in op_map.values()], show_class_path=False
+                )
 
 
 @app.command("info")

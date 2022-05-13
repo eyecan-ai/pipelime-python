@@ -1,18 +1,18 @@
 import os
-from pathlib import Path
 import typing as t
+from pathlib import Path
+
 import pydantic as pyd
 
 import pipelime.sequences as pls
-from pipelime.items.base import ItemFactory, Item
+from pipelime.items.base import Item, ItemFactory
 
 
-@pls.source_sequence("from_underfolder")
-class UnderfolderReader(pls.SamplesSequence):
-    """A SamplesSequence loading data from an Underfolder dataset. Usage::
-
-    sseq = SamplesSequence.from_underfolder(folder)
-    """
+@pls.source_sequence
+class UnderfolderReader(
+    pls.SamplesSequence, title="from_underfolder", underscore_attrs_are_private=True
+):
+    """A SamplesSequence loading data from an Underfolder dataset."""
 
     folder: Path = pyd.Field(
         ..., description="The root folder of the Underfolder dataset."
@@ -31,17 +31,14 @@ class UnderfolderReader(pls.SamplesSequence):
     _samples: t.Sequence[pls.Sample] = []
     _root_sample: pls.Sample = pls.Sample(None)
 
-    class Config:
-        underscore_attrs_are_private = True
-
-    @pyd.validator("must_exist")
+    @pyd.validator("must_exist", always=True)
     def check_folder_exists(cls, v, values, **kwargs):
         p = values["folder"]
         if v and not p.exists():
             raise ValueError(f"Root folder {p} does not exist.")
         return v
 
-    def __init__(self, folder, **data):
+    def __init__(self, folder: Path, **data):
         super().__init__(folder=folder, **data)  # type: ignore
 
         if self.folder.exists():

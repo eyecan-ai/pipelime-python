@@ -10,14 +10,31 @@ from rich.table import Table
 from pipelime.piper import PiperPortType
 
 
-def print_node_names(*model_cls: t.Type[BaseModel]):
-    grid = Table.grid("Name", "Class Path", "Description", padding=(0, 1))
+def _get_signature(model_cls: t.Type[BaseModel]) -> str:
+    excluded = [
+        mfield.alias
+        for mfield in model_cls.__fields__.values()
+        if mfield.field_info.exclude
+    ]
+    sig = inspect.signature(model_cls)
+    sig = sig.replace(
+        parameters=[p for p in sig.parameters.values() if p.name not in excluded],
+        return_annotation=inspect.Signature.empty,
+    )
+    return str(sig)
+
+
+def print_node_names(
+    *model_cls: t.Type[BaseModel],
+    show_class_path: bool = True,
+):
+    grid = Table.grid(padding=(0, 1))
     for m in model_cls:
-        grid.add_row(
-            _command_title(m),
-            f"[italic grey50]{m.__module__}.{m.__name__}[/]",
-            inspect.getdoc(m),
-        )
+        col_vals = [_command_title(m)]
+        if show_class_path:
+            col_vals.append(f"[italic grey50]{m.__module__}.{m.__name__}[/]")
+        col_vals.append(inspect.getdoc(m))
+        grid.add_row(*col_vals)
     rprint(grid)
 
 
@@ -25,7 +42,14 @@ def print_node_info(
     model_cls: t.Type[BaseModel],
     *,
     indent_offs: int = 2,
+    show_class_path: bool = True,
 ):
+    cpath_str = (
+        f"\n[italic grey23]({model_cls.__module__}.{model_cls.__name__})[/]"
+        if show_class_path
+        else ""
+    )
+
     grid = Table(
         "Fields",
         "Description",
@@ -36,7 +60,7 @@ def print_node_info(
         box=box.SIMPLE_HEAVY,
         title=(
             f"[bold dark_red]{_command_title(model_cls)}[/]\n"
-            f"[italic grey23]({model_cls.__module__}.{model_cls.__name__})[/]"
+            f"[blue]{_get_signature(model_cls)}[/]{cpath_str}"
         ),
         caption=inspect.getdoc(model_cls),
         title_style="on white",
@@ -56,6 +80,9 @@ def _command_title(model_cls: t.Type[BaseModel]) -> str:
 
 
 def _field_row(grid: Table, field, indent: int, indent_offs: int):
+    if field.field_info.exclude:
+        return
+
     is_model = inspect.isclass(field.outer_type_) and issubclass(
         field.outer_type_, BaseModel
     )

@@ -1,11 +1,11 @@
+import typing as t
 from pathlib import Path
 
-import typing as t
 import pydantic as pyd
 
 import pipelime.sequences as pls
+from pipelime.items import Item, SerializationMode
 from pipelime.sequences.pipes.base import PipedSequenceBase
-from pipelime.items import SerializationMode, Item
 
 
 class _serialization_mode_override:
@@ -25,14 +25,11 @@ class _serialization_mode_override:
             self._item.serialization_mode = self._prev_mode
 
 
-@pls.piped_sequence("to_underfolder")
-class UnderfolderWriter(PipedSequenceBase):
-    """Writes samples to an underfolder dataset while iterating over them. Usage::
-
-        sseq = sseq.to_underfolder("out_path")
-
-    :raises FileExistsError: if `exists_ok` is False and `folder` exists.
-    """
+@pls.piped_sequence
+class UnderfolderWriter(
+    PipedSequenceBase, title="to_underfolder", underscore_attrs_are_private=True
+):
+    """Writes samples to an underfolder dataset while iterating over them."""
 
     folder: Path = pyd.Field(..., description="The output folder.")
     zfill: t.Optional[int] = pyd.Field(None, description="Custom index zero-filling.")
@@ -45,9 +42,6 @@ class UnderfolderWriter(PipedSequenceBase):
 
     _data_folder: Path
     _effective_zfill: int
-
-    class Config:
-        underscore_attrs_are_private = True
 
     def __init__(self, folder: Path, **data):
         super().__init__(folder=folder, **data)  # type: ignore
