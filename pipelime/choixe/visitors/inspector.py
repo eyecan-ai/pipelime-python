@@ -23,6 +23,7 @@ from pipelime.choixe.ast.nodes import (
     NodeVisitor,
     StrBundleNode,
     SweepNode,
+    SymbolNode,
     VarNode,
 )
 from pipelime.choixe.ast.parser import parse
@@ -106,6 +107,9 @@ class Inspector(NodeVisitor):
     def visit_sweep(self, node: SweepNode) -> Inspection:
         start = Inspection(processed=True)
         return sum([x.accept(self) for x in node.cases], start=start)
+
+    def visit_symbol(self, node: SymbolNode) -> Any:
+        return Inspection(symbols={str(node.symbol.data)})
 
     def visit_instance(self, node: InstanceNode) -> Inspection:
         return Inspection(symbols={str(node.symbol.data)}) + node.args.accept(self)

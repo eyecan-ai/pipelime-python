@@ -1,8 +1,10 @@
 import ast
-import astunparse
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
+
+import astunparse
+from schema import Schema
 
 from pipelime.choixe.ast.nodes import (
     CmdNode,
@@ -20,11 +22,11 @@ from pipelime.choixe.ast.nodes import (
     Node,
     StrBundleNode,
     SweepNode,
+    SymbolNode,
     TmpDirNode,
     UuidNode,
     VarNode,
 )
-from schema import Schema
 
 DIRECTIVE_PREFIX = "$"
 """Prefix used at the start of all Choixe directives."""
@@ -153,6 +155,7 @@ class Parser:
             self._token_schema("date"): DateNode,
             self._token_schema("cmd"): CmdNode,
             self._token_schema("tmp"): TmpDirNode,
+            self._token_schema("symbol"): SymbolNode,
         }
 
         self._extended_and_special_forms = {

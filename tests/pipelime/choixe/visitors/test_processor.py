@@ -2,11 +2,13 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import Tuple
 
+import numpy as np
+from deepdiff import DeepDiff
+from pydantic import BaseModel
+
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors import process
-from deepdiff import DeepDiff
-from pydantic import BaseModel
 
 
 class MyCompositeClass:
@@ -211,6 +213,16 @@ class TestProcessor:
             {"foo": {"bar": "10"}},
             {"foo": {"foo": 20}},
             {"foo": {"foo": 30}},
+        ]
+        self._expectation_test(data, expected)
+
+    def test_symbol(self):
+        data = {
+            "a": "$symbol(numpy.zeros)",
+            "b": "$symbol(builtins.float)",
+        }
+        expected = [
+            {"a": np.zeros, "b": float},
         ]
         self._expectation_test(data, expected)
 

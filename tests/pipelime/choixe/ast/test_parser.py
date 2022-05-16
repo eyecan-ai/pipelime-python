@@ -16,6 +16,7 @@ from pipelime.choixe.ast.nodes import (
     ModelNode,
     StrBundleNode,
     SweepNode,
+    SymbolNode,
     TmpDirNode,
     UuidNode,
     VarNode,
@@ -285,6 +286,11 @@ class TestStringParse:
             expr += f'("{name}")'
         name = LiteralNode(name) if name is not None else None
         assert parse(expr) == TmpDirNode(name)
+
+    @pytest.mark.parametrize(["symbol"], [["builtins.str"], ["np.array"]])
+    def test_symbol(self, symbol: str) -> None:
+        expr = f"$symbol({symbol})"
+        assert parse(expr) == SymbolNode(LiteralNode(symbol))
 
 
 class TestParserRaise:

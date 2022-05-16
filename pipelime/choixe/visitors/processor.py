@@ -27,6 +27,7 @@ from pipelime.choixe.ast.nodes import (
     NodeVisitor,
     StrBundleNode,
     SweepNode,
+    SymbolNode,
     TmpDirNode,
     UuidNode,
     VarNode,
@@ -153,15 +154,21 @@ class Processor(NodeVisitor):
         else:
             return [unparse(node)]
 
+    def visit_symbol(self, node: SymbolNode) -> List[Any]:
+        branches = node.symbol.accept(self)
+        return [import_symbol(s, cwd=self._cwd) for s in branches]
+
     def visit_instance(self, node: InstanceNode) -> List[Any]:
-        symbol = node.symbol.data
-        branches = node.args.accept(self)
-        return [import_symbol(symbol, cwd=self._cwd)(**x) for x in branches]
+        symbol_branches = node.symbol.accept(self)
+        args_branches = node.args.accept(self)
+        branches = list(product(symbol_branches, args_branches))
+        return [import_symbol(s, cwd=self._cwd)(**a) for s, a in branches]
 
     def visit_model(self, node: ModelNode) -> Any:
-        symbol = node.symbol.data
-        branches = node.args.accept(self)
-        return [import_symbol(symbol, cwd=self._cwd).parse_obj(x) for x in branches]
+        symbol_branches = node.symbol.accept(self)
+        args_branches = node.args.accept(self)
+        branches = list(product(symbol_branches, args_branches))
+        return [import_symbol(s, cwd=self._cwd).parse_obj(a) for s, a in branches]
 
     def visit_for(self, node: ForNode) -> List[Any]:
         iterable = py_.get(self._context, node.iterable.data)
