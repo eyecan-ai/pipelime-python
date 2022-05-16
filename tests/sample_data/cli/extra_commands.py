@@ -4,8 +4,8 @@ from pipelime.commands.interfaces import InputDatasetInterface, OutputDatasetInt
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
-class RandomSlice(PipelimeCommand, title="rnd_slice"):
-    """Extracts a random slice from the input dataset."""
+class RandomSlice(PipelimeCommand, title="randrange"):
+    """Extracts a random range from the input dataset."""
 
     input: InputDatasetInterface = Field(
         ..., description="Input dataset.", piper_port=PiperPortType.INPUT

@@ -1,5 +1,6 @@
-from pipelime.sequences import SamplesSequence
 import typing as t
+
+from pipelime.sequences import SamplesSequence
 
 
 def _build_op(
@@ -11,7 +12,15 @@ def _build_op(
         name: str,
         args: t.Union[t.Mapping[str, t.Any], t.Sequence],
     ) -> SamplesSequence:
-        fn = getattr(seq, name)
+        if ":" in name:
+            from pipelime.choixe.utils.imports import import_module
+
+            module_name, _, op_name = name.rpartition(":")
+            import_module(module_name)
+        else:
+            op_name = name
+
+        fn = getattr(seq, op_name)
         return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
 
     if isinstance(ops, str):

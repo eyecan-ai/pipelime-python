@@ -3,6 +3,7 @@ from abc import abstractmethod
 import itertools
 import typing as t
 import pydantic as pyd
+from loguru import logger
 
 from pipelime.sequences.sample import Sample
 
@@ -71,6 +72,7 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
 
     _sources: t.ClassVar[t.Dict[str, t.Type[SamplesSequence]]] = {}
     _pipes: t.ClassVar[t.Dict[str, t.Type[SamplesSequence]]] = {}
+    _operator_path: t.ClassVar[str] = ""
 
     @classmethod
     def name(cls) -> str:
@@ -87,7 +89,7 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
                 if not isinstance(field_value, SamplesSequence):
                     raise ValueError(
                         f"{field_name} is tagged as `pipe_source`, "
-                        "so it must be a SamplesSequence instance."
+                        "but it is not a SamplesSequence instance."
                     )
                 source_list = field_value.to_pipe(recursive)
             else:
@@ -96,21 +98,36 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
                 if recursive and isinstance(field_value, SamplesSequence):
                     field_value = field_value.to_pipe(recursive)
                 arg_dict[field_name] = field_value
-        return source_list + [{self.name(): arg_dict}]
+        return source_list + [{self._operator_path: arg_dict}]
+
+
+def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
+    from pathlib import Path
+    import inspect
+
+    if cls.__module__.startswith("pipelime"):
+        cls._operator_path = cls.name()
+    else:
+        module_path = Path(inspect.getfile(cls)).resolve().as_posix()
+        if (cls.__module__.replace(".", "/") + ".py") in module_path:
+            module_path = cls.__module__
+        cls._operator_path = module_path + ":" + cls.name()
+    return cls
 
 
 def source_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     if hasattr(SamplesSequence, cls.name()):
-        raise ValueError(f"Function {cls.name()} has been already registered.")
+        logger.warning(f"Function {cls.name()} has been already registered.")
 
     setattr(SamplesSequence, cls.name(), cls)
     SamplesSequence._sources[cls.name()] = cls
+    cls = _add_operator_path(cls)
     return cls
 
 
 def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     if hasattr(SamplesSequence, cls.name()):
-        raise ValueError(f"Function {cls.name()} has been already registered.")
+        logger.warning(f"Function {cls.name()} has been already registered.")
 
     prms_source_name = None
     for mfield in cls.__fields__.values():
@@ -130,4 +147,5 @@ def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
 
     setattr(SamplesSequence, cls.name(), _helper)
     SamplesSequence._pipes[cls.name()] = cls
+    cls = _add_operator_path(cls)
     return cls

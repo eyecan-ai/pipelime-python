@@ -72,6 +72,16 @@ def import_module_from_path(module_class_path: str) -> ModuleType:
     return importlib.import_module(module_class_path)
 
 
+def import_module(
+    module_file_or_class_path: str, cwd: Optional[Path] = None
+) -> ModuleType:
+    return (
+        import_module_from_file(module_file_or_class_path, cwd)
+        if module_file_or_class_path.endswith(".py")
+        else import_module_from_path(module_file_or_class_path)
+    )
+
+
 def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
     """Dynamically imports a given symbol. A symbol can be either:
 

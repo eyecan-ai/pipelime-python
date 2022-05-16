@@ -23,18 +23,18 @@ class _Helper:
     std_cmd_modules = ["pipelime.commands"]
     extra_modules: t.List[str] = []
 
-    cached_extra_modules: t.Dict[str, ModuleType] = {}
+    cached_modules: t.Dict[str, ModuleType] = {}
     cached_cmds: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
     cached_seq_ops: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
 
     @classmethod
-    def add_extra_modules(cls, modules: t.List[str]):
-        cls.extra_modules += modules
+    def set_extra_modules(cls, modules: t.Sequence[str]):
+        cls.extra_modules = list(modules)
 
     @classmethod
     def is_cache_valid(cls) -> bool:
-        return len(cls.std_cmd_modules) + len(cls.extra_modules) == len(
-            cls.cached_extra_modules
+        return all(
+            m in cls.cached_modules for m in (cls.std_cmd_modules + cls.extra_modules)
         )
 
     @classmethod
@@ -43,20 +43,18 @@ class _Helper:
 
         if not cls.is_cache_valid():
             for module_name in cls.std_cmd_modules + cls.extra_modules:
-                if module_name not in cls.cached_extra_modules:
-                    cls.cached_extra_modules[module_name] = (
+                if module_name not in cls.cached_modules:
+                    cls.cached_modules[module_name] = (
                         pl_imports.import_module_from_file(module_name)
                         if module_name.endswith(".py")
                         else pl_imports.import_module_from_path(module_name)
                     )
 
-        return cls.cached_extra_modules
-
     @classmethod
     def get_sequence_operators(cls):
         import pipelime.sequences as pls
 
-        if not cls.is_cache_valid() or cls.cached_seq_ops is None:
+        if cls.cached_seq_ops is None or not cls.is_cache_valid():
             cls.import_modules()
             cls.cached_seq_ops = {
                 (
@@ -77,10 +75,10 @@ class _Helper:
 
         from pipelime.piper import PipelimeCommand
 
-        if not cls.is_cache_valid() or cls.cached_cmds is None:
-            all_modules = cls.import_modules()
+        if cls.cached_cmds is None or not cls.is_cache_valid():
+            cls.import_modules()
             all_cmds = {}
-            for module_name, module_ in all_modules.items():
+            for module_name, module_ in cls.cached_modules.items():
                 module_cmds = {
                     cmd_cls.command_title(): cmd_cls
                     for _, cmd_cls in inspect.getmembers(
@@ -155,7 +153,7 @@ def callback(
     """
     Pipelime Command Line Interface
     """
-    _Helper.add_extra_modules(list(extra_modules))
+    _Helper.set_extra_modules(extra_modules)
 
 
 def _store_opt(last_opt, last_val, all_opts):
