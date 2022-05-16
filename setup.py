@@ -4,10 +4,10 @@
 
 from setuptools import setup, find_packages
 
-with open("README.rst", encoding='UTF-8') as readme_file:
+with open("README.rst", encoding="UTF-8") as readme_file:
     readme = readme_file.read()
 
-with open("requirements.txt", encoding='UTF-8') as requirements_file:
+with open("requirements.txt", encoding="UTF-8") as requirements_file:
     requirements = requirements_file.readlines()
 
 setup_requirements = [
@@ -16,11 +16,10 @@ setup_requirements = [
 
 test_requirements = [
     "pytest>=3",
+    "pytest-cov",
 ]
 
-extras_requirements = {
-    'minio': ['minio']
-}
+extras_requirements = {"minio": ["minio"]}
 
 setup(
     author="Daniele De Gregorio",
