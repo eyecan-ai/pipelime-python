@@ -48,6 +48,10 @@ class TestInspector:
                 Inspection(variables={"x": None, "variable": {"x": None}}),
             ],
             [
+                "$symbol(my_package.my_symbol)",
+                Inspection(symbols={"my_package.my_symbol"}),
+            ],
+            [
                 {"$call": "numpy.array", "$args": {"shape": [4, 3, 2]}},
                 Inspection(symbols={"numpy.array"}),
             ],

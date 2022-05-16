@@ -47,6 +47,9 @@ class NodeVisitor:  # pragma: no cover
     def visit_sweep(self, node: SweepNode) -> Any:
         return node
 
+    def visit_symbol(self, node: SymbolNode) -> Any:
+        return node
+
     def visit_instance(self, node: InstanceNode) -> Any:
         return node
 
@@ -199,6 +202,16 @@ class SweepNode(HashNode):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_sweep(self)
+
+
+@dataclass
+class SymbolNode(Node):
+    """A `SymbolNode` represents a Choixe instance block to import a generic python object."""
+
+    symbol: LiteralNode
+
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit_symbol(self)
 
 
 @dataclass

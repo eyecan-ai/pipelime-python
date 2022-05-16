@@ -19,6 +19,7 @@ from pipelime.choixe.ast.nodes import (
     Node,
     StrBundleNode,
     SweepNode,
+    SymbolNode,
     TmpDirNode,
     UuidNode,
     VarNode,
@@ -95,6 +96,7 @@ from pipelime.choixe.visitors import unparse
             ListNode(LiteralNode(10), LiteralNode(-0.25), ListNode(LiteralNode("aa"))),
             [10, -0.25, ["aa"]],
         ],
+        [SymbolNode(LiteralNode("numpy.zeros")), "$symbol(numpy.zeros)"],
         [
             InstanceNode(
                 LiteralNode("path/to_my/file.py:MyClass"),

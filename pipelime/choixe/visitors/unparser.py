@@ -17,6 +17,7 @@ from pipelime.choixe.ast.nodes import (
     NodeVisitor,
     StrBundleNode,
     SweepNode,
+    SymbolNode,
     TmpDirNode,
     UuidNode,
     VarNode,
@@ -64,6 +65,9 @@ class Unparser(NodeVisitor):
 
     def visit_import(self, node: ImportNode) -> Union[Dict, str]:
         return self._unparse_auto("import", node.path)
+
+    def visit_symbol(self, node: SymbolNode) -> Any:
+        return self._unparse_auto("symbol", node.symbol)
 
     def visit_instance(self, node: InstanceNode) -> Dict[str, Any]:
         return {
