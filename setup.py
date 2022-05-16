@@ -16,6 +16,7 @@ setup_requirements = [
 
 test_requirements = [
     "pytest>=3",
+    "pytest-cov",
 ]
 
 extras_requirements = {"minio": ["minio"], "zmq": ["pyzmq"], "all": ["minio", "pyzmq"]}
