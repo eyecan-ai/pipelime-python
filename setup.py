@@ -19,7 +19,7 @@ test_requirements = [
     "pytest-cov",
 ]
 
-extras_requirements = {"minio": ["minio"]}
+extras_requirements = {"minio": ["minio"], "zmq": ["pyzmq"], "all": ["minio", "pyzmq"]}
 
 setup(
     author="Daniele De Gregorio",
@@ -38,7 +38,7 @@ setup(
     description="data pipeline 101",
     entry_points={
         "console_scripts": [
-            "pipelime=pipelime.cli.main:pipelime",
+            "pipelime=pipelime.cli.main:app",
         ],
     },
     install_requires=requirements,

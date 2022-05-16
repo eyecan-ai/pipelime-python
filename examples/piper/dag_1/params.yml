@@ -1,0 +1,6 @@
+params:
+  flags: ["A", "B", "C"]
+  output_folder: output
+  size: 50
+  schemas:
+    detected: schema_detected.schema

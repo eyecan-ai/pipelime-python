@@ -101,7 +101,7 @@ class TestSamplesSequences:
             {"cat": {"to_cat": b}},
         ]
 
-        assert a.pipe(recursive=False) == expected_pipe
+        assert a.to_pipe(recursive=False) == expected_pipe
 
         expected_pipe[3]["cat"]["to_cat"] = [
             {
@@ -114,7 +114,7 @@ class TestSamplesSequences:
             {"shuffle": {"seed": None}},
         ]
 
-        assert a.pipe(recursive=True) == expected_pipe
+        assert a.to_pipe(recursive=True) == expected_pipe
 
     def test_build_pipe(self):
         from pipelime.stages import StageIdentity
