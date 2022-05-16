@@ -39,7 +39,7 @@ class ProgressReceiver(ABC):
         """Wait for the next progress update"""
         try:
             res = self.receive()
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.exception(e)
             res = None
         return res
@@ -66,7 +66,7 @@ class Listener:
         while not self._stop_flag:
             prog = next(self._receiver)
             if prog is None:
-                continue
+                continue  # pragma: no cover
 
             for cb in self._callbacks:
                 cb.on_update(prog)
