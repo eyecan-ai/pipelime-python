@@ -80,15 +80,30 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
             return cls.__config__.title
         return cls.__name__
 
-    def to_pipe(self, recursive: bool) -> t.List[t.Dict[str, t.Any]]:
+    def to_pipe(self, recursive: bool = True) -> t.List[t.Dict[str, t.Any]]:
+        """Serializes this sequence to a pipe list. You can then pass this list to
+        `pipelime.sequences.build_pipe` to reconstruct the sequence.
+        NB: nested sequences are recursively serialized only if `recursive` is True,
+        while other objects are not. Consider to use `pipelime.choixe` features to
+        fully (de)-serialized them to YAML/JSON.
+
+        :param recursive: if True nested sequences are recursively serialized,
+            defaults to True.
+        :type recursive: bool, optional.
+        :raises ValueError: if a field is tagged as `pipe_source` but it is not
+            a SamplesSequence.
+        :return: the serialized pipe list.
+        :rtype: t.List[t.Dict[str, t.Any]]
+        """
         source_list = []
         arg_dict = {}
         for field_name, model_field in self.__fields__.items():
             field_value = getattr(self, field_name)
+            field_alias = model_field.alias
             if model_field.field_info.extra.get("pipe_source", False):
                 if not isinstance(field_value, SamplesSequence):
                     raise ValueError(
-                        f"{field_name} is tagged as `pipe_source`, "
+                        f"{field_alias} is tagged as `pipe_source`, "
                         "but it is not a SamplesSequence instance."
                     )
                 source_list = field_value.to_pipe(recursive)
@@ -97,7 +112,7 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
                 # straightforward to de-serialize them when subclasses are used
                 if recursive and isinstance(field_value, SamplesSequence):
                     field_value = field_value.to_pipe(recursive)
-                arg_dict[field_name] = field_value
+                arg_dict[field_alias] = field_value
         return source_list + [{self._operator_path: arg_dict}]
 
 
