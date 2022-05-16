@@ -26,7 +26,7 @@ class TestItems:
                 for other in items_folder.glob(fp.stem + ".*"):
                     if other not in checked_items:
                         checked_items.add(other)
-                        trg_item = ItemFactory.get_instance(fp)()
+                        trg_item = ItemFactory.get_instance(other)()
 
                         if isinstance(ref_item, np.ndarray):
                             assert _np_eq(ref_item, trg_item)
