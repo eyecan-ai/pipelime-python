@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import copy
 import re
 import typing as t
@@ -17,6 +18,20 @@ class SamplePathRegex:
         return key, path
 
 
+class sample_schema:
+    def __init__(self, data: t.Mapping[str, t.Mapping[str, t.Any]]):
+        self._schema = data
+
+    def __call__(self, sample: Sample) -> bool:
+        return self._schema == sample.to_schema()._schema
+
+    def __repr__(self) -> str:
+        return f"<sample_schema {repr(self._schema)}>"
+
+    def __str__(self) -> str:
+        return repr(self)
+
+
 class Sample(t.Mapping[str, Item]):
     """A Sample is a mapping from keys to Items. Any modification creates a new instance
     which is a shallow copy of the original Sample, ie, Item instances are shared, but
@@ -28,6 +43,9 @@ class Sample(t.Mapping[str, Item]):
     def __init__(self, data: t.Optional[t.Mapping[str, Item]]):
         super().__init__()
         self._data = data if data is not None else {}
+
+    def to_schema(self) -> sample_schema:
+        return sample_schema({k: v.to_schema() for k, v in self._data.items()})
 
     def to_dict(self) -> t.Dict[str, t.Any]:
         return {k: v() for k, v in self.items()}

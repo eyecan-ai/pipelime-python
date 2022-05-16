@@ -1,6 +1,7 @@
-import pytest
-import pipelime.sequences as pls
 import numpy as np
+import pytest
+
+import pipelime.sequences as pls
 
 
 def _np_eq(x, y) -> bool:
@@ -31,6 +32,12 @@ class TestSample:
         assert all(k in sample for k in data)
         assert all(_np_eq(sample[k](), v()) for k, v in data.items())
         assert sample.to_dict() == {k: v() for k, v in data.items()}
+
+    def test_to_schema(self):
+        from schema import Schema
+
+        sample, _ = self._mixed_sample()
+        assert Schema(sample.to_schema()).is_valid(sample)
 
     def test_shallow_copy(self):
         sample, _ = self._np_sample()
