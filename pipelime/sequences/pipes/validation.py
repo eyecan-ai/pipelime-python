@@ -20,10 +20,10 @@ class ValidatedSequence(
         ),
     )
     lazy: bool = pyd.Field(
-        True, description="If True, samples will be validated only when accessed."
+        False, description="If True, samples will be validated only when accessed."
     )
     max_samples: int = pyd.Field(
-        -1,
+        1,
         description=(
             "When the validation is NOT lazy, "
             "only the slice `[0:max_samples]` is checked."
@@ -53,4 +53,4 @@ class ValidatedSequence(
             raise ValueError(
                 f"Sample schema validation failed for:\n{str(sample)}\n\n"
                 f"Errors:\n{display_errors(errs)}"
-            )
+            ) from e
