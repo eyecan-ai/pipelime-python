@@ -564,9 +564,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
         return self.make_new(*new_sources, shared=self.is_shared)
 
-    def to_schema(self) -> t.Mapping[str, t.Any]:
-        return {"type": type(self), "data": self.schema_def()}
-
     def __call__(self) -> t.Optional[T]:
         if self._data_cache is not None:
             return self._data_cache
@@ -649,11 +646,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         :rtype: T
         """
         return raw_data
-
-    def schema_def(self) -> t.Mapping:
-        """Subclasses can override to add additional information to the schema
-        definition, such as data size, internal structure, etc."""
-        return {}
 
     def __repr__(self) -> str:
         return (

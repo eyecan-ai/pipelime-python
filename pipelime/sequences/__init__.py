@@ -1,4 +1,4 @@
-from pipelime.sequences.sample import Sample, sample_schema
+from pipelime.sequences.sample import Sample
 from pipelime.sequences.samples_sequence import (
     SamplesSequence,
     source_sequence,
