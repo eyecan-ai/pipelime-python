@@ -1,0 +1,82 @@
+nodes:
+
+  $for(params.flags, x): 
+    generator_$item:
+      $model: TODO
+      $args:
+        output_folder: $var(params.output_folder)/generated_$item
+        suffix: _$item
+        size: $var(params.generated_dataset_size)
+
+    filter_keys_$item:
+      $model: TODO
+      $args:
+        input_folder: $var(params.output_folder)/generated_$item
+        output_folder: $var(params.output_folder)/filtered_$item
+        keys:
+          $for(params.filter_keys, y):
+            - $item(y)_$item(x)
+
+    subsample_$item:
+      $model: TODO
+      $args:
+        input_folder: $var(params.output_folder)/filtered_$item
+        output_folder: $var(params.output_folder)/subsampled_$item
+        factor: 0.5
+      
+    remap_keys_$item:
+      $model: TODO
+      $args:
+        input_folder: $var(params.output_folder)/subsampled_$item
+        output_folder: $var(params.output_folder)/remapped_$item
+        mapping:
+          $for(params.filter_keys, y):
+            $item(y)_$item(x): $item(y)
+        remove: {}
+      
+  detection:
+    $model: TODO
+    $args:
+      input_folders: 
+        $for(params.flags):
+          - $var(params.output_folder)/remapped_$item
+      output_folders:
+        $for(params.flags):
+          - $var(params.output_folder)/detected_$item
+      fake_time: 0.01
+  
+  summation:
+    $model: TODO
+    $args:
+      input_folders:
+        $for(params.flags):
+          - $var(params.output_folder)/detected_$item
+      output_folder: $var(params.output_folder)/summed
+
+  split:
+    $model: TODO
+    $args:
+      input_folder: $var(params.output_folder)/summed
+      output_folders:
+        $for(params.splits, x):
+          - $var(params.output_folder)/split_$item(x.name)
+      splits:
+        $for(params.splits, x):
+          - $item(x.p)
+  
+  $for(params.splits, x):
+    shuffle_$item:
+      $model: TODO
+      $args:
+        input_folder: $var(params.output_folder)/split_$item(x.name)
+        output_folder: $var(params.output_folder)/split_$item(x.name)_shuffled
+        seed: 10
+  
+  sumup:
+    $model: TODO
+    $args:
+      input_folders:
+        $for(params.splits, x):
+          - $var(params.output_folder)/split_$item(x.name)_shuffled
+      output_folder: $var(params.final_folder)
+          
