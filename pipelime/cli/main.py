@@ -233,8 +233,8 @@ def run(
 
     if verbose:
         _pinfo(f"\nCreated command `{command}`:")
-        _pinfo(cmd_obj.dict())
-    from pydantic.error_wrappers import ValidationError
+        _pinfo(repr(cmd_obj))
+
     if verbose:
         _pinfo(f"\nRunning `{command}`...")
     cmd_obj()

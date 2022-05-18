@@ -8,7 +8,7 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 
 
 class PipeCommand(PipelimeCommand, title="pipe"):
-    """A general purpose command to build up linear pipelines."""
+    """A general-purpose command to build up linear pipelines."""
 
     operations: t.Union[
         str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]

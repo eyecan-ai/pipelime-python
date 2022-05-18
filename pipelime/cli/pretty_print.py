@@ -53,14 +53,14 @@ def print_model_info(
         expand=True,
     )
 
-    for field in model_cls.__fields__.values():
-        _field_row(
-            grid,
-            field,
-            indent=0,
-            indent_offs=indent_offs,
-            show_piper_port=show_piper_port,
-        )
+    _iterate_field_model(
+        model_cls=model_cls,
+        grid=grid,
+        indent=0,
+        indent_offs=indent_offs,
+        show_piper_port=show_piper_port,
+        add_blank_row=True,
+    )
 
     rprint(grid)
 
@@ -71,10 +71,8 @@ def _field_row(
     if field.field_info.exclude:
         return
 
-    is_model = inspect.isclass(field.outer_type_) and issubclass(
-        field.outer_type_, BaseModel
-    )
-    fname = field.name if not field.alias else field.alias
+    is_model = _is_model(field.outer_type_)
+
     if show_piper_port:
         fport = str(
             field.field_info.extra.get("piper_port", PiperPortType.PARAMETER).value
@@ -89,7 +87,10 @@ def _field_row(
 
     line = (
         [
-            (" " * indent) + f"{fname}",
+            (" " * indent)
+            + ("[bold salmon1]" if indent == 0 else "")
+            + f"{field.alias}"
+            + ("[/]" if indent == 0 else ""),
             "\u25B6 " + field.field_info.description
             if field.field_info.description
             else "",
@@ -110,13 +111,31 @@ def _field_row(
     grid.add_row(*line)
 
     if is_model:
-        for subfield in field.outer_type_.__fields__.values():  # type: ignore
-            _field_row(
-                grid,
-                subfield,
+        _iterate_field_model(
+            model_cls=field.outer_type_,
+            grid=grid,
+            indent=indent + indent_offs,
+            indent_offs=indent_offs,
+            show_piper_port=show_piper_port,
+            add_blank_row=False,
+        )
+    else:
+        inner_types = _get_inner_args(field.outer_type_)
+        last_types = inner_types
+        while last_types:
+            last_types = _get_inner_args(*last_types)
+            inner_types |= last_types
+        inner_types = {arg for arg in inner_types if _is_model(arg)}
+
+        for arg in inner_types:
+            grid.add_row((" " * indent) + f"[grey50]-----{arg.__name__}[/]")
+            _iterate_field_model(
+                model_cls=arg,
+                grid=grid,
                 indent=indent + indent_offs,
                 indent_offs=indent_offs,
                 show_piper_port=show_piper_port,
+                add_blank_row=False,
             )
 
 
@@ -134,6 +153,14 @@ def _get_signature(model_cls: t.Type[BaseModel]) -> str:
     return str(sig)
 
 
+def _is_model(type_):
+    return inspect.isclass(type_) and issubclass(type_, BaseModel)
+
+
+def _get_inner_args(*type_):
+    return {arg for t_ in type_ for arg in t.get_args(t_)}
+
+
 def _command_title(model_cls: t.Type[BaseModel]) -> str:
     if model_cls.__config__.title:
         return model_cls.__config__.title
@@ -144,3 +171,18 @@ def _command_classpath(model_cls: t.Type[BaseModel]) -> str:
     if hasattr(model_cls, "classpath"):
         return model_cls.classpath()  # type: ignore
     return f"{model_cls.__module__}.{model_cls.__name__}"
+
+
+def _iterate_field_model(
+    model_cls, grid, indent, indent_offs, show_piper_port, add_blank_row
+):
+    for field in model_cls.__fields__.values():  # type: ignore
+        _field_row(
+            grid,
+            field,
+            indent=indent,
+            indent_offs=indent_offs,
+            show_piper_port=show_piper_port,
+        )
+        if add_blank_row:
+            grid.add_row()
