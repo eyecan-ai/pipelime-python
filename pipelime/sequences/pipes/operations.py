@@ -214,6 +214,6 @@ class RepeatedSequence(PipedSequenceBase, title="repeat"):
         return len(self.source) * self.count_
 
     def get_sample(self, idx: int) -> pls.Sample:
-        if idx >= len(self):
+        if idx < 0 or idx >= len(self):
             raise IndexError(f"Sample index `{idx}` is out of range.")
         return self.source[idx % len(self.source)]

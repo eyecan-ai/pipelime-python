@@ -10,16 +10,6 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 class PipeCommand(PipelimeCommand, title="pipe"):
     """A general purpose command to build up linear pipelines."""
 
-    input: pl_interfaces.InputDatasetInterface = Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
-    )
-    output: pl_interfaces.OutputDatasetInterface = Field(
-        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
-    )
-    grabber: pl_interfaces.GrabberInterface = Field(
-        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
-        description="Grabber options.",
-    )
     operations: t.Union[
         str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
     ] = Field(
@@ -31,6 +21,16 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         "the arguments, ie, a single value, a sequence of values or a mapping.\n"
         "You can inspect the available operators by running `pipelime list --seq` and "
         "`pipelime list --seq --details`.",
+    )
+    input: pl_interfaces.InputDatasetInterface = Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    output: pl_interfaces.OutputDatasetInterface = Field(
+        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+    )
+    grabber: pl_interfaces.GrabberInterface = Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
     )
 
     _pipe_list: t.Union[

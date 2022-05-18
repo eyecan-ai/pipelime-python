@@ -43,7 +43,7 @@ def run(
     params_file: Path = Option(..., "-p", "--params", help=params_help),
     watch: bool = Option(False, "-w", "--watch", is_flag=True, help="Watch the DAG"),
     token: str = Option(
-        str(uuid.uuid1()), "-t", "--token", help="The piper execution token"
+        uuid.uuid1().hex, "-t", "--token", help="The piper execution token"
     ),
 ):
     from pipelime.piper.executors.factory import NodesGraphExecutorFactory

@@ -81,7 +81,7 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
         ),
     )
 
-    _schema_model: t.Type[pyd.BaseModel] = pyd.PrivateAttr(pyd.BaseModel)
+    _schema_model: t.Type[pyd.BaseModel] = pyd.PrivateAttr()
 
     def _make_pydantic_schema(self):
         from pipelime.choixe.utils.imports import import_symbol
@@ -270,3 +270,53 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
 
     def __str__(self) -> str:
         return str(self.folder)
+
+
+class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
+    """Toy dataset creation options."""
+
+    length: int = pyd.Field(..., description="The number of samples to generate.")
+    with_images: bool = pyd.Field(True, description="Whether to generate images.")
+    with_masks: bool = pyd.Field(
+        True, description="Whether to generate masks with object labels."
+    )
+    with_instances: bool = pyd.Field(
+        True, description="Whether to generate images with object indexes."
+    )
+    with_objects: bool = pyd.Field(True, description="Whether to generate objects.")
+    with_bboxes: bool = pyd.Field(
+        True, description="Whether to generate objects' bboxes."
+    )
+    with_kpts: bool = pyd.Field(
+        True, description="Whether to generate objects' keypoints."
+    )
+    image_size: int = pyd.Field(256, description="The size of the generated images.")
+    key_format: str = pyd.Field(
+        "*",
+        description=(
+            "The sample key format, where `*` will be replaced with the base key name."
+        ),
+    )
+    max_labels: int = pyd.Field(
+        5, description="The maximum number of object labels in the dataset."
+    )
+    objects_range: t.Tuple[int, int] = pyd.Field(
+        (1, 5), description="The (min, max) number of objects in each sample."
+    )
+
+    def create_dataset_generator(self):
+        from pipelime.sequences import SamplesSequence
+
+        return SamplesSequence.toy_dataset(  # type: ignore
+            length=self.length,
+            with_images=self.with_images,
+            with_masks=self.with_masks,
+            with_instances=self.with_instances,
+            with_objects=self.with_objects,
+            with_bboxes=self.with_bboxes,
+            with_kpts=self.with_kpts,
+            image_size=self.image_size,
+            key_format=self.key_format,
+            max_labels=self.max_labels,
+            objects_range=self.objects_range,
+        )
