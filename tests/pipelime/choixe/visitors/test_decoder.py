@@ -66,7 +66,7 @@ class Cat(BaseModel):
                 },
             },
         ],
-        [LiteralNode(Path("/tmp/foo.txt")), "/tmp/foo.txt"],
+        [LiteralNode(Path("/tmp/foo.txt")), str(Path("/tmp/foo.txt"))],
     ],
 )
 def test_decode(node: Node, expected: Any):

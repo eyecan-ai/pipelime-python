@@ -1,7 +1,7 @@
 from pipelime.items.base import (
-    SerializationMode,
     Item,
     UnknownItem,
+    SerializationMode,
     set_item_serialization_mode,
     item_serialization_mode,
     set_item_disabled_serialization_modes,

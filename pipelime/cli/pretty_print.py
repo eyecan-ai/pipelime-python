@@ -100,10 +100,11 @@ def _field_row(
             ),
         ]
         + ([fport] if show_piper_port else [])
-        + [
-            "[green]\u2713[/]" if field.required else "[red]\u2717[/]",
-            f"{field.get_default()}",
-        ]
+        + (
+            ["[green]\u2713[/]", ""]
+            if field.required
+            else ["[red]\u2717[/]", f"{field.get_default()}"]
+        )
     )
 
     grid.add_row(*line)

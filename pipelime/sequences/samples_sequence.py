@@ -61,10 +61,8 @@ class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`.
 
-    The list of all available pipes and sources, along with respective schemas, can be
-    retrieved through `SamplesSequence.pipes` and `SamplesSequence.sources`. Also,
-    descriptive help messages are provided for each method, eg, try
-    `help(SamplesSequence.map)`.
+    The list of all available pipes and sources, along with respective pydantic models,
+    can be retrieved through `pipelime list --details`.
 
     NB: when defining a pipe, the `source` sample sequence must be bound to a pydantic
     Field with `pipe_source=True`.
