@@ -106,13 +106,22 @@ class _Helper:
 
     @classmethod
     def get_command(cls, command_name: str):
+        from pydantic import BaseModel
+
         import pipelime.choixe.utils.imports as pl_imports
+        from pipelime.piper import PipelimeCommand
 
         if "." in command_name or ":" in command_name:
             try:
+                imported_symbol = pl_imports.import_symbol(command_name)
+                if not issubclass(imported_symbol, BaseModel):
+                    raise ValueError(f"{command_name} is not a pydantic model.")
+
                 return (
-                    ("Imported Command", "Imported Commands"),
-                    pl_imports.import_symbol(command_name),
+                    ("Imported Command", "Imported Commands")
+                    if issubclass(imported_symbol, PipelimeCommand)
+                    else ("Imported Model", "Imported Models"),
+                    imported_symbol,
                 )
             except ImportError:
                 return None
@@ -190,8 +199,10 @@ def run(
     Run a piper command.
     """
 
+    from pipelime.piper import PipelimeCommand
+
     cmd_cls = _Helper.get_command(command)
-    if cmd_cls is None:
+    if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
         _perr(f"{command} is not a piper command!")
         _pwarn("Have you added the module with `--module`?")
         raise typer.Exit(1)
@@ -223,9 +234,9 @@ def run(
     if verbose:
         _pinfo(f"\nCreated command `{command}`:")
         _pinfo(cmd_obj.dict())
-
+    from pydantic.error_wrappers import ValidationError
     if verbose:
-        _pinfo("\nRunning `{command}`...")
+        _pinfo(f"\nRunning `{command}`...")
     cmd_obj()
 
 

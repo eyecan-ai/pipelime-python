@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import copy
 import re
 import typing as t
@@ -28,6 +29,9 @@ class Sample(t.Mapping[str, Item]):
     def __init__(self, data: t.Optional[t.Mapping[str, Item]]):
         super().__init__()
         self._data = data if data is not None else {}
+
+    def to_schema(self) -> t.Mapping[str, t.Type[Item]]:
+        return {k: type(v) for k, v in self._data.items()}
 
     def to_dict(self) -> t.Dict[str, t.Any]:
         return {k: v() for k, v in self.items()}
