@@ -1,4 +1,5 @@
 import typing as t
+
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
@@ -73,7 +74,8 @@ class SplitCommand(PipelimeCommand, title="split"):
 
         if split_total > input_length:
             raise ValueError(
-                "The sum of the split sizes is greater than the input length."
+                f"The sum of the split sizes ({split_total}) "
+                f"is greater than the input length ({input_length})."
             )
         if none_idx >= 0:
             split_sizes[none_idx] = input_length - split_total
@@ -92,8 +94,8 @@ class SplitCommand(PipelimeCommand, title="split"):
                         keep_order=False,
                         parent_cmd=self,
                         track_message=(
-                            f"Writing split {idx}/{len(split_sizes)} "
-                            "({split_length} samples)..."
+                            f"Writing split {idx + 1}/{len(split_sizes)} "
+                            f"({split_length} samples)..."
                         ),
                     )
             split_start = split_stop

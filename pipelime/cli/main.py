@@ -137,6 +137,8 @@ def _convert_val(val: str):
         return True
     if val.lower() == "false":
         return False
+    if val.lower() in ("none", "null"):
+        return None
     try:
         num = int(val)
         return num
@@ -169,15 +171,13 @@ def _store_opt(last_opt, last_val, all_opts):
     import pydash as py_
 
     if last_opt is not None:
-        val = last_val if last_val is not None else True
-
         curr_val = py_.get(all_opts, last_opt, None)
         if curr_val is None:
-            py_.set_(all_opts, last_opt, val)
+            py_.set_(all_opts, last_opt, last_val)
         else:
             if not isinstance(curr_val, list):
                 curr_val = [curr_val]
-            py_.set_(all_opts, last_opt, [val] + curr_val)
+            py_.set_(all_opts, last_opt, curr_val + [last_val])
 
 
 @app.command(

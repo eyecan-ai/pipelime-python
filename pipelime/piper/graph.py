@@ -232,17 +232,20 @@ class DAGNodesGraph:
 
                     attrs = {}
                     for x in input_value:
-                        n0 = GraphNodeData(str(x), str(x))
-                        n1 = GraphNodeOperation(node_name, node)
-                        g.add_edge(n0, n1)
-                        attrs.update(
-                            {
-                                (n0, n1): {
-                                    DAGNodesGraph.GraphAttrs.INPUT_PORT: input_name,
-                                    DAGNodesGraph.GraphAttrs.EDGE_TYPE: "DATA_2_OPERATION",
+                        if x:  # discard empty strings and None
+                            n0 = GraphNodeData(str(x), str(x))
+                            n1 = GraphNodeOperation(node_name, node)
+                            g.add_edge(n0, n1)
+                            attrs.update(
+                                {
+                                    (n0, n1): {
+                                        DAGNodesGraph.GraphAttrs.INPUT_PORT: input_name,
+                                        DAGNodesGraph.GraphAttrs.EDGE_TYPE: (
+                                            "DATA_2_OPERATION"
+                                        ),
+                                    }
                                 }
-                            }
-                        )
+                            )
                     nx.set_edge_attributes(g, attrs)
 
             if outputs is not None:
