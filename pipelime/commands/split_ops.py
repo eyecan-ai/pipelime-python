@@ -99,3 +99,66 @@ class SplitCommand(PipelimeCommand, title="split"):
                         ),
                     )
             split_start = split_stop
+
+
+class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
+    """Split a dataset by query."""
+
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    query: str = pyd.Field(
+        ...,
+        description=(
+            "A DictQuery to match (cfr. https://github.com/cyberlis/dictquery)."
+        ),
+    )
+    output_selected: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
+        None,
+        description=(
+            "Output dataset of sample selected by the query. "
+            "Set to None to not save to disk."
+        ),
+    )
+    output_discarded: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
+        None,
+        description=(
+            "Output dataset of sample discarded by the query. "
+            "Set to None to not save to disk."
+        ),
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    def run(self):
+        import dictquery as dq
+
+        reader = self.input.create_reader()
+        if self.output_selected is not None:
+            self._filter(
+                reader,
+                self.output_selected,
+                lambda x: dq.match(x.direct_access(), self.query),
+                "selected samples",
+            )
+        if self.output_discarded is not None:
+            self._filter(
+                reader,
+                self.output_selected,
+                lambda x: not dq.match(x.direct_access(), self.query),
+                "discarded samples",
+            )
+
+    def _filter(self, reader, output, fn, message):
+        seq = reader.filter(fn)
+        seq = output.append_writer(seq)
+
+        with output.serialization_cm():
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_cmd=self,
+                track_message=f"Writing {message} ({len(seq)} samples)...",
+            )

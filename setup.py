@@ -19,7 +19,7 @@ test_requirements = [
     "pytest-cov",
 ]
 
-extras_requirements = {"minio": ["minio"], "zmq": ["pyzmq"], "all": ["minio", "pyzmq"]}
+extras_requirements = {"minio": ["minio"], "all": ["minio"]}
 
 setup(
     author="Daniele De Gregorio",

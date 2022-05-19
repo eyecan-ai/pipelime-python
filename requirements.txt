@@ -13,3 +13,5 @@ deepdiff
 pydash
 pydantic
 schema
+pyzmq
+dictquery

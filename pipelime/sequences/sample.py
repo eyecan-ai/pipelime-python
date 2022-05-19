@@ -96,14 +96,29 @@ class Sample(t.Mapping[str, Item]):
         """
         import pydash as py_
 
-        key, path = SamplePathRegex.split(key_path)
-        if key not in self._data:
-            return default
+        return py_.get(self.direct_access(), key_path, default)
 
-        value = self._data[key]()
-        if path:
-            value = py_.get(value, path, default)
-        return value
+    def direct_access(self) -> t.Mapping[str, t.Any]:
+        """Returns a mapping of the keys to the item values, ie, you directly get the
+        value of the items without having to `__call__()` them."""
+
+        class _DirectAccess(t.Mapping[str, t.Any]):
+            def __init__(self, data: t.Mapping[str, Item]):
+                self._data = data
+
+            def __getitem__(self, key: str) -> Item:
+                return self._data[key]()
+
+            def __iter__(self) -> t.Iterator[str]:
+                return iter(self._data)
+
+            def __len__(self) -> int:
+                return len(self._data)
+
+            def __contains__(self, key: str) -> bool:
+                return key in self._data
+
+        return _DirectAccess(self._data)
 
     def change_key(self, old_key: str, new_key: str, delete_old_key: bool) -> Sample:
         if new_key not in self._data and old_key in self._data:
