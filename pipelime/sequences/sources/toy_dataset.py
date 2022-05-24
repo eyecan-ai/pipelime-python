@@ -30,7 +30,11 @@ class SamplesList(
     key_format: str = pyd.Field(
         "*",
         description=(
-            "The sample key format, where `*` will be replaced with the base key name."
+            "The sample key format. Any `*` will be replaced with the "
+            "base key name, eg, `my_*_key` on [`image`, `mask`] generates "
+            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
+            "suffixed to the base key name, ie, `MyKey` on `image` gives "
+            "`imageMyKey`. If empty, the base key name will be used as-is."
         ),
     )
     max_labels: int = pyd.Field(
@@ -44,7 +48,9 @@ class SamplesList(
 
     @pyd.validator("key_format")
     def validate_key_format(cls, v):
-        return "*" if not v else (v if "*" in v else f"{v}*")
+        if "*" in v:
+            return v
+        return "*" + v
 
     def __init__(self, length: int, **data):
         super().__init__(length=length, **data)  # type: ignore

@@ -29,7 +29,7 @@ class StageAlbumentations(SampleStage):
             "source key, eg, `aug_*_out` on [`image`, `mask`] generates "
             "`aug_image_out` and `aug_mask_out`. If no `*` is found, the string is "
             "suffixed to the source key, ie, `OutName` on `image` gives "
-            "`imageOutName`. If empty, the source key will be used."
+            "`imageOutName`. If empty, the source key will be used as-is."
         ),
     )
 

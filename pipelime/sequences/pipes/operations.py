@@ -26,15 +26,34 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
     """Zips two Sequences by merging each Sample."""
 
     to_zip: pls.SamplesSequence = pyd.Field(..., description="The sequence to merge.")
+    key_format: str = pyd.Field(
+        "*",
+        description=(
+            "The zipped samples' key format. Any `*` will be replaced with the "
+            "source key, eg, `my_*_key` on [`image`, `mask`] generates "
+            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
+            "suffixed to source key, ie, `MyKey` on `image` gives "
+            "`imageMyKey`. If empty, the source key will be used as-is."
+        ),
+    )
+
+    _key_formatting_stage: plst.StageKeyFormat = pyd.PrivateAttr()
+
+    @pyd.validator("key_format")
+    def validate_key_format(cls, v):
+        if "*" in v:
+            return v
+        return "*" + v
 
     def __init__(self, to_zip: pls.SamplesSequence, **data):
         super().__init__(to_zip=to_zip, **data)  # type: ignore
+        self._key_formatting_stage = plst.StageKeyFormat(key_format=self.key_format)
 
     def size(self) -> int:
         return min(len(self.source), len(self.to_zip))
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[idx].merge(self.to_zip[idx])
+        return self.source[idx].merge(self._key_formatting_stage(self.to_zip[idx]))
 
 
 @pls.piped_sequence

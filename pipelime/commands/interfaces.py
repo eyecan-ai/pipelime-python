@@ -294,7 +294,11 @@ class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
     key_format: str = pyd.Field(
         "*",
         description=(
-            "The sample key format, where `*` will be replaced with the base key name."
+            "The sample key format. Any `*` will be replaced with the "
+            "base key name, eg, `my_*_key` on [`image`, `mask`] generates "
+            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
+            "suffixed to the base key name, ie, `MyKey` on `image` gives "
+            "`imageMyKey`. If empty, the base key name will be used."
         ),
     )
     max_labels: int = pyd.Field(
@@ -303,6 +307,12 @@ class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
     objects_range: t.Tuple[int, int] = pyd.Field(
         (1, 5), description="The (min, max) number of objects in each sample."
     )
+
+    @pyd.validator("key_format")
+    def validate_key_format(cls, v):
+        if "*" in v:
+            return v
+        return "*" + v
 
     def create_dataset_generator(self):
         from pipelime.sequences import SamplesSequence
