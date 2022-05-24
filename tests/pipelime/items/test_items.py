@@ -199,8 +199,8 @@ class TestItems:
         # data lake
         remote_url = make_remote_url(
             scheme="file",
-            netloc="localhost",
-            path=(tmp_path / "rmbucket"),
+            host="localhost",
+            bucket=(tmp_path / "rmbucket"),
         )
 
         input_seq = SamplesSequence.from_underfolder(  # type: ignore

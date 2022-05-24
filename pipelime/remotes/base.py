@@ -1,10 +1,49 @@
+import hashlib
+import typing as t
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
-import hashlib
 from urllib.parse import ParseResult, unquote_plus, urlparse
+
 from loguru import logger
 
-import typing as t
+
+class NetlocData:
+    __slots__ = "host", "user", "password", "init_args"
+
+    host: str
+    user: str
+    password: str
+    init_args: t.Dict[str, t.Union[int, float, str, bool, None]]
+
+    def __init__(self, url: ParseResult):
+        user_pwd, _, self.host = url.netloc.rpartition("@")
+        self.user, _, self.password = user_pwd.partition(":")
+
+        self.init_args = {
+            kw.split("=", 1)[0]: NetlocData._convert_val(kw.split("=", 1)[1])
+            for kw in url.query.split(":")
+            if len(kw) >= 3 and "=" in kw
+        }
+
+    @staticmethod
+    def _convert_val(val: str):
+        if val.lower() == "true":
+            return True
+        if val.lower() == "false":
+            return False
+        if val.lower() in ("none", "null"):
+            return None
+        try:
+            num = int(val)
+            return num
+        except ValueError:
+            pass
+        try:
+            num = float(val)
+            return num
+        except ValueError:
+            pass
+        return val
 
 
 class RemoteRegister(ABCMeta):
@@ -21,40 +60,53 @@ class RemoteRegister(ABCMeta):
 
     @classmethod
     def get_instance(
-        cls, scheme: str, netloc: str, **kwargs
+        cls, scheme: str, netloc_data: NetlocData
     ) -> t.Optional["BaseRemote"]:
         """Return a remote instance for this scheme and netloc.
 
         :param scheme: the protocol name, eg, 's3' or 'file'.
         :type scheme: str
-        :param netloc: the address of the endpoint.
-        :type netloc: str
-        :param **kwargs: arguments forwarded to the remote instance `__init__()`
-        :return: the remote instance or None if the scheme is unknown.
+        :param netloc_data: the netloc data info, ie, the host address and user account.
+        :type netloc: NetlocData
         :rtype: Optional[BaseRemote]
         """
-        remote_instance = cls.REMOTE_INSTANCES.get((scheme, netloc))
+        remote_instance = cls.REMOTE_INSTANCES.get((scheme, netloc_data.host))
         if remote_instance is None:
             remote_class = cls.REMOTE_CLASSES.get(scheme)
             if remote_class is not None:
-                remote_instance = remote_class(netloc, **kwargs)
-                cls.REMOTE_INSTANCES[(scheme, netloc)] = remote_instance
+                remote_instance = remote_class(netloc_data)
+                cls.REMOTE_INSTANCES[(scheme, netloc_data.host)] = remote_instance
             else:
                 logger.warning(f"Unknown remote scheme '{scheme}'.")  # pragma: no cover
         return remote_instance
 
 
 def make_remote_url(
-    scheme: str = "", netloc: str = "", path: t.Union[str, Path] = "", **init_args
+    *,
+    scheme: str = "",
+    user: str = "",
+    password: str = "",
+    host: str = "",
+    port: t.Optional[int] = None,
+    bucket: t.Union[str, Path] = "",
+    **init_args,
 ) -> ParseResult:
-    # we want to normalize the path as "/path/to/loc" or "/c:/path/to/loc"
+    # NB: we want to normalize the path as "/path/to/loc" or "/c:/path/to/loc"
+    if user:
+        user_pwd = user
+        if password:
+            user_pwd += f":{password}"
+        user_pwd += "@"
+    else:
+        user_pwd = ""
+    host_port = host + (f":{port}" if port else "")
     return urlparse(
         ParseResult(
             scheme=scheme,
-            netloc=netloc,
-            path=Path(path).as_posix(),
+            netloc=f"{user_pwd}{host_port}",
+            path=Path(bucket).as_posix(),
             params="",
-            query=":".join([k + "=" + str(v) for k, v in init_args.items()]),
+            query=":".join(f"{k}={v}" for k, v in init_args.items()),
             fragment="",
         ).geturl()
     )
@@ -64,35 +116,12 @@ def create_remote(url: ParseResult) -> t.Optional["BaseRemote"]:
     """Return a remote instance for this scheme and netloc.
 
     :param url: the url describing the remote as
-        `<scheme>://<netloc>/<any_path>[?<init-kw>=<init-val>:<init-kw>=<init-val>...]`
+        `<scheme>://[user[:pwd]@]<netloc>/<any_path>[?<init-kw>=<init-val>:<init-kw>=<init-val>...]`
     :type url: ParseResult
     :return: the remote instance or None if the scheme is unknown.
     :rtype: Optional[BaseRemote]
     """
-
-    def _convert_val(val: str):
-        if val == "True":
-            return True  # pragma: no cover
-        if val == "False":
-            return False  # pragma: no cover
-        try:  # pragma: no cover
-            num = int(val)
-            return num
-        except ValueError:
-            pass
-        try:  # pragma: no cover
-            num = float(val)
-            return num
-        except ValueError:
-            pass
-        return val
-
-    init_args = {
-        kw.split("=", 1)[0]: _convert_val(kw.split("=", 1)[1])
-        for kw in url.query.split(":")
-        if len(kw) >= 3 and "=" in kw
-    }
-    return RemoteRegister.get_instance(url.scheme, url.netloc, **init_args)
+    return RemoteRegister.get_instance(url.scheme, NetlocData(url))
 
 
 def paths_from_url(
@@ -118,13 +147,13 @@ def paths_from_url(
 class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     """Base class for any remote."""
 
-    def __init__(self, netloc: str):
+    def __init__(self, netloc_data: NetlocData):
         """Set the network address.
 
-        :param netloc: the network address.
-        :type netloc: str
+        :param netloc_data: the network data info.
+        :type netloc: NetlocData
         """
-        self._netloc = netloc
+        self._netloc = netloc_data.host
 
     def upload_file(
         self, local_file: t.Union[Path, str], target_base_path: str

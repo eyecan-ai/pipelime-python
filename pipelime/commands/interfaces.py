@@ -1,5 +1,6 @@
 import typing as t
 from pathlib import Path
+from urllib.parse import ParseResult
 
 import pydantic as pyd
 
@@ -270,6 +271,61 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
 
     def __str__(self) -> str:
         return str(self.folder)
+
+
+class UrlDataModel(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True):
+    """URL data model."""
+
+    scheme: str = pyd.Field(..., description="The addressing scheme, eg, `s3`.")
+    user: str = pyd.Field("", description="The user name.")
+    password: str = pyd.Field("", description="The user password.")
+    host: str = pyd.Field(..., description="The host name or ip address.")
+    port: t.Optional[pyd.NonNegativeInt] = pyd.Field(
+        None, description="The optional port number."
+    )
+    bucket: str = pyd.Field(..., description="The path to the remote data bucket.")
+    args: t.Mapping[str, str] = pyd.Field(
+        default_factory=dict, description="Optional remote-specific arguments."
+    )
+
+    def get_url(self):
+        from pipelime.remotes import make_remote_url
+
+        return make_remote_url(
+            scheme=self.scheme,
+            user=self.user,
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            bucket=self.bucket,
+            **self.args,
+        )
+
+
+class RemoteInterface(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True):
+    """Remote data lake options."""
+
+    url: t.Union[str, UrlDataModel] = pyd.Field(
+        ...,
+        description=(
+            "The remote data lake URL. You can user the format "
+            "`s3://user:password@host:port/bucket?kw1=arg1:kw2=arg2`."
+        ),
+    )
+
+    _parsed_url: ParseResult
+
+    def __init__(self, **data):
+        from urllib.parse import urlparse
+
+        self._parsed_url = (
+            self.url.get_url()
+            if isinstance(self.url, UrlDataModel)
+            else urlparse(self.url)
+        )
+
+    def get_url(self):
+        return self._parsed_url
 
 
 class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):

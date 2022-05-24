@@ -42,7 +42,8 @@ class TestSamplesSequenceOperations:
             [sample.extract_keys(*keys2) for sample in source]
         )
 
-        zipped = seq1.zip(seq2)
+        prefix = "prefix*"
+        zipped = seq1.zip(seq2, key_format=prefix)
         assert len(zipped) == len(seq1)
         assert len(zipped) == len(seq2)
         for sample_m, sample_1, sample_2, sample_s in zip(zipped, seq1, seq2, source):
@@ -50,13 +51,28 @@ class TestSamplesSequenceOperations:
             assert len(sample_1.keys() | sample_2.keys()) == len(sample_s.keys())
             assert len(sample_s.keys()) == len(sample_m.keys())
             assert all(k in sample_m for k in sample_1)
-            assert all(k in sample_m for k in sample_2)
-            assert all(k in sample_m for k in sample_s)
-            assert all(k in sample_s for k in sample_m)
+            assert all(prefix.replace("*", k) in sample_m for k in sample_2)
+            assert all(
+                (prefix.replace("*", k) if k in sample_2 else k) in sample_m
+                for k in sample_s
+            )
+            assert all(
+                (k[len(prefix) - 1 :] if k.startswith(prefix[:-1]) else k) in sample_s
+                for k in sample_m
+            )
             assert all(v is sample_m[k] for k, v in sample_1.items())
-            assert all(v is sample_m[k] for k, v in sample_2.items())
-            assert all(v is sample_m[k] for k, v in sample_s.items())
-            assert all(v is sample_s[k] for k, v in sample_m.items())
+            assert all(
+                v is sample_m[prefix.replace("*", k)] for k, v in sample_2.items()
+            )
+            assert all(
+                v is sample_m[(prefix.replace("*", k) if k in sample_2 else k)]
+                for k, v in sample_s.items()
+            )
+            assert all(
+                v
+                is sample_s[(k[len(prefix) - 1 :] if k.startswith(prefix[:-1]) else k)]
+                for k, v in sample_m.items()
+            )
 
     def _cat_test(self, minimnist_dataset: dict, fn):
         source = pls.SamplesSequence.from_underfolder(  # type: ignore

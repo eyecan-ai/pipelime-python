@@ -1,11 +1,12 @@
-from urllib.parse import ParseResult
-from pathlib import Path
 import typing as t
+from pathlib import Path
+from urllib.parse import ParseResult
+
 import pydantic as pyd
 
+from pipelime.items import Item
 from pipelime.sequences import Sample
 from pipelime.stages import SampleStage
-from pipelime.items import Item
 
 
 class StageUploadToRemote(SampleStage):
@@ -36,7 +37,8 @@ class StageForgetSource(SampleStage):
         default_factory=list, description="This sources will be removed from any item."
     )
     remove_by_key: t.Mapping[str, t.Sequence[t.Union[Path, ParseResult]]] = pyd.Field(
-        default_factory=dict, description="Sources to be removed from specific sample keys."
+        default_factory=dict,
+        description="Sources to be removed from specific sample keys.",
     )
 
     def __init__(

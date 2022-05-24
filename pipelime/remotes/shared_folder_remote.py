@@ -1,11 +1,12 @@
-from pipelime.remotes.base import BaseRemote
-from loguru import logger
-from pathlib import Path, WindowsPath
-import os
 import hashlib
+import os
 import shutil
-
 import typing as t
+from pathlib import Path, WindowsPath
+
+from loguru import logger
+
+from pipelime.remotes.base import BaseRemote, NetlocData
 
 
 class SharedFolderRemote(BaseRemote):
@@ -14,15 +15,15 @@ class SharedFolderRemote(BaseRemote):
     _HASH_FN_KEY_ = "__HASH_FN__"
     _DEFAULT_HASH_FN_ = "sha256"
 
-    def __init__(self, netloc: str):
+    def __init__(self, netloc_data: NetlocData):
         """Filesystem-based remote.
 
-        :param netloc: the ip address, can be empty.
-        :type netloc: str
+        :param netloc_data: the network data info.
+        :type netloc: NetlocData
         """
-        if netloc == "localhost" or netloc == "127.0.0.1":
-            netloc = ""
-        super().__init__(netloc)
+        if netloc_data.host == "localhost" or netloc_data.host == "127.0.0.1":
+            netloc_data.host = ""
+        super().__init__(netloc_data)
 
     def _maybe_create_root(self, target_base_path: Path):
         if not target_base_path.exists():
