@@ -49,6 +49,16 @@ class SplitCommand(PipelimeCommand, title="split"):
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
         ..., description="Input dataset.", piper_port=PiperPortType.INPUT
     )
+    shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
+        False,
+        description=(
+            "Shuffle the dataset before subsampling and splitting. "
+            "Optionally specify the random seed."
+        ),
+    )
+    subsample: pyd.PositiveInt = pyd.Field(
+        1, description="Take 1-every-nth input sample. Applied after shuffling."
+    )
     splits: t.Sequence[t.Union[PercSplit, AbsoluteSplit]] = pyd.Field(
         ..., description="Splits definition.", piper_port=PiperPortType.OUTPUT
     )
@@ -59,6 +69,12 @@ class SplitCommand(PipelimeCommand, title="split"):
 
     def run(self):
         reader = self.input.create_reader()
+        if self.shuffle:
+            reader = reader.shuffle(
+                self.shuffle if not isinstance(self.shuffle, bool) else None
+            )
+        if self.subsample != 1:
+            reader = reader[:: self.subsample]
         input_length = len(reader)
 
         split_sizes = [s.split_size(input_length) for s in self.splits]
@@ -101,7 +117,7 @@ class SplitCommand(PipelimeCommand, title="split"):
             split_start = split_stop
 
 
-class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
+class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     """Split a dataset by query."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
@@ -109,9 +125,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
     )
     query: str = pyd.Field(
         ...,
-        description=(
-            "A DictQuery to match (cfr. https://github.com/cyberlis/dictquery)."
-        ),
+        description=("A query to match (cfr. https://github.com/cyberlis/dictquery)."),
     )
     output_selected: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
         None,
@@ -119,6 +133,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
             "Output dataset of sample selected by the query. "
             "Set to None to not save to disk."
         ),
+        piper_port=PiperPortType.OUTPUT,
     )
     output_discarded: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
         None,
@@ -126,6 +141,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
             "Output dataset of sample discarded by the query. "
             "Set to None to not save to disk."
         ),
+        piper_port=PiperPortType.OUTPUT,
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
@@ -133,21 +149,19 @@ class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
     )
 
     def run(self):
-        import dictquery as dq
-
         reader = self.input.create_reader()
         if self.output_selected is not None:
             self._filter(
                 reader,
                 self.output_selected,
-                lambda x: dq.match(x.direct_access(), self.query),
+                lambda x: x.match(self.query),
                 "selected samples",
             )
         if self.output_discarded is not None:
             self._filter(
                 reader,
                 self.output_selected,
-                lambda x: not dq.match(x.direct_access(), self.query),
+                lambda x: not x.match(self.query),
                 "discarded samples",
             )
 
@@ -162,3 +176,107 @@ class SplitByQueryCommand(PipelimeCommand, title="split-by-query"):
                 parent_cmd=self,
                 track_message=f"Writing {message} ({len(seq)} samples)...",
             )
+
+
+class SplitByValueCommand(PipelimeCommand, title="split-value"):
+    """Split a dataset into multiple sequences,
+    one for each unique value of a given key."""
+
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    key: str = pyd.Field(
+        ...,
+        description=(
+            "The key to use. A pydash-like dot notation "
+            "can be used to access nested attributes."
+        ),
+    )
+    output: pl_interfaces.OutputDatasetInterface = pyd.Field(
+        None,
+        description=(
+            "Common options for the output sequences, "
+            "which will be placed in subfolders."
+        ),
+        piper_port=PiperPortType.OUTPUT,
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    def run(self):
+        import uuid
+
+        from pipelime.sequences import Sample
+
+        class WorkerHelper:
+            def __init__(self, idx_key, value_key):
+                self._idx_key = idx_key
+                self._value_key = value_key
+                self._groups = {}
+
+            def _value_to_str(self, value):
+                import numpy as np
+
+                if isinstance(value, np.ndarray):
+                    if value.size == 1:
+                        value = (
+                            int(value)
+                            if np.issubdtype(value.dtype, np.integer)
+                            else float(value)
+                        )
+                    else:
+                        value = tuple(value)
+                return (
+                    str(value)
+                    .replace(", ", "„")
+                    .replace(",", "„")
+                    .replace(" ", "_")
+                    .replace("/", "-")
+                    .replace("\\", "-")
+                    .replace("<", "‹")
+                    .replace(">", "›")
+                    .replace(":", "⁚")
+                    .replace('"', "'")
+                    .replace("|", "¦")
+                    .replace("?", "⁇")
+                    .replace("*", "⁎")
+                )
+
+            def __call__(self, x: Sample):
+                value = x.deep_get(self._value_key)
+                if value is not None:
+                    value = self._value_to_str(value)
+                    self._groups.setdefault(value, []).append(int(x[self._idx_key]()))
+
+        reader = self.input.create_reader()
+
+        unique_idx_key = uuid.uuid1().hex
+        worker = WorkerHelper(unique_idx_key, self.key)
+        self.grabber.grab_all(
+            reader.enumerate(idx_key=unique_idx_key),
+            keep_order=True,
+            parent_cmd=self,
+            track_message="Gathering unique values...",
+            sample_fn=worker,
+        )
+
+        for idx, (group_val, group_idxs) in enumerate(worker._groups.items()):
+            split_name = f"{self.key}={group_val}"
+            split_output = self.output.copy(
+                update={"folder": self.output.folder / split_name}
+            )
+
+            split_name = f"{split_name} " if len(split_name) < 20 else ""
+            split_seq = split_output.append_writer(reader.select(group_idxs))
+            with split_output.serialization_cm():
+                self.grabber.grab_all(
+                    split_seq,
+                    keep_order=False,
+                    parent_cmd=self,
+                    track_message=(
+                        f"Writing split {idx + 1}/{len(worker._groups)} "
+                        f"{split_name}({len(split_seq)} samples)..."
+                    ),
+                )

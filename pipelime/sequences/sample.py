@@ -98,6 +98,14 @@ class Sample(t.Mapping[str, Item]):
 
         return py_.get(self.direct_access(), key_path, default)
 
+    def match(self, query: str) -> bool:
+        """Match the Sample against a query.
+        (cfr. https://github.com/cyberlis/dictquery).
+        """
+        import dictquery as dq
+
+        return dq.match(self.direct_access(), query)
+
     def direct_access(self) -> t.Mapping[str, t.Any]:
         """Returns a mapping of the keys to the item values, ie, you directly get the
         value of the items without having to `__call__()` them."""

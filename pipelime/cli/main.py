@@ -24,8 +24,28 @@ class _Helper:
     extra_modules: t.List[str] = []
 
     cached_modules: t.Dict[str, ModuleType] = {}
-    cached_cmds: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
-    cached_seq_ops: t.Optional[t.Dict[t.Tuple[str, str], t.Dict]] = None
+    cached_cmds: t.Dict[t.Tuple[str, str], t.Dict] = {}
+    cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
+
+    @classmethod
+    def complete_operator(cls, is_cmd: bool, is_seq_ops: bool):
+        import inspect
+
+        valid_completion_items = list(
+            (cls.get_piper_commands() if is_cmd else {}).values()
+        ) + list((cls.get_sequence_operators() if is_seq_ops else {}).values())
+        valid_completion_items = [
+            (k, inspect.getdoc(v) or "")
+            for elem in valid_completion_items
+            for k, v in elem.items()
+        ]
+
+        def _complete(incomplete: str):
+            for name, help_text in valid_completion_items:
+                if name.startswith(incomplete):
+                    yield (name, help_text)
+
+        return _complete
 
     @classmethod
     def set_extra_modules(cls, modules: t.Sequence[str]):
@@ -38,8 +58,12 @@ class _Helper:
         )
 
     @classmethod
-    def import_modules(cls):
+    def import_operators_and_commands(cls):
+        import inspect
+
         import pipelime.choixe.utils.imports as pl_imports
+        import pipelime.sequences as pls
+        from pipelime.piper import PipelimeCommand
 
         if not cls.is_cache_valid():
             for module_name in cls.std_cmd_modules + cls.extra_modules:
@@ -50,12 +74,6 @@ class _Helper:
                         else pl_imports.import_module_from_path(module_name)
                     )
 
-    @classmethod
-    def get_sequence_operators(cls):
-        import pipelime.sequences as pls
-
-        if cls.cached_seq_ops is None or not cls.is_cache_valid():
-            cls.import_modules()
             cls.cached_seq_ops = {
                 (
                     "Sequence Generator",
@@ -67,16 +85,6 @@ class _Helper:
                 ): pls.SamplesSequence._pipes,
             }
 
-        return cls.cached_seq_ops
-
-    @classmethod
-    def get_piper_commands(cls):
-        import inspect
-
-        from pipelime.piper import PipelimeCommand
-
-        if cls.cached_cmds is None or not cls.is_cache_valid():
-            cls.import_modules()
             all_cmds = {}
             for module_name, module_ in cls.cached_modules.items():
                 module_cmds = {
@@ -95,6 +103,15 @@ class _Helper:
 
                 all_cmds = {**all_cmds, **module_cmds}
             cls.cached_cmds = {("Piper Command", "Piper Commands"): all_cmds}
+
+    @classmethod
+    def get_sequence_operators(cls):
+        cls.import_operators_and_commands()
+        return cls.cached_seq_ops
+
+    @classmethod
+    def get_piper_commands(cls):
+        cls.import_operators_and_commands()
         return cls.cached_cmds
 
     @classmethod
@@ -309,6 +326,7 @@ def commands_and_ops_info(
             "a `package.module.ClassName` class path or "
             "a `path/to/module.py:ClassName` uri."
         ),
+        autocompletion=_Helper.complete_operator(is_cmd=True, is_seq_ops=True),
     )
 ):
     """

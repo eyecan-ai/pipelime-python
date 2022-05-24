@@ -149,6 +149,39 @@ class SlicedSequence(
 
 
 @pls.piped_sequence
+class IndexSelectionSequence(
+    PipedSequenceBase, title="select", underscore_attrs_are_private=True
+):
+    """Given a list of indexes, extracts the corresponding samples from the input
+    SamplesSequence. The index sequence is not automatically sorted.
+    """
+
+    indexes: t.Sequence[int] = pyd.Field(
+        ...,
+        description=(
+            "The indexes to extract. Negative values start counting from the end."
+        ),
+    )
+
+    def __init__(self, indexes: t.Sequence[int], **data):
+        super().__init__(indexes=indexes, **data)  # type: ignore
+
+        for idx in self.indexes:
+            if idx < 0:
+                idx += len(self.source)
+            if idx < 0 or idx >= len(self.source):
+                raise ValueError(
+                    "Index {} is out of range [0, {})".format(idx, len(self.source))
+                )
+
+    def size(self) -> int:
+        return len(self.indexes)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        return self.source[self.indexes[idx]]
+
+
+@pls.piped_sequence
 class ShuffledSequence(
     PipedSequenceBase, title="shuffle", underscore_attrs_are_private=True
 ):

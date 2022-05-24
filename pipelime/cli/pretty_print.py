@@ -125,7 +125,9 @@ def _field_row(
         while last_types:
             last_types = _get_inner_args(*last_types)
             inner_types |= last_types
-        inner_types = {arg for arg in inner_types if _is_model(arg)}
+        inner_types = {
+            arg for arg in inner_types if _is_model(arg) and arg is not BaseModel
+        }
 
         for arg in inner_types:
             grid.add_row((" " * indent) + f"[grey50]-----{arg.__name__}[/]")
@@ -157,8 +159,26 @@ def _is_model(type_):
     return inspect.isclass(type_) and issubclass(type_, BaseModel)
 
 
+def _recursive_args_flattening(arg):
+    if isinstance(arg, t.Mapping):
+        return {
+            a
+            for k, v in arg.items()
+            for u in (_recursive_args_flattening(k), _recursive_args_flattening(v))
+            for a in u
+        }
+    if isinstance(arg, t.Collection):
+        return {a for v in arg for a in _recursive_args_flattening(v)}
+    return {arg}
+
+
 def _get_inner_args(*type_):
-    return {arg for t_ in type_ for arg in t.get_args(t_)}
+    return {
+        a
+        for t_ in type_
+        for arg in t.get_args(t_)
+        for a in _recursive_args_flattening(arg)
+    }
 
 
 def _command_title(model_cls: t.Type[BaseModel]) -> str:

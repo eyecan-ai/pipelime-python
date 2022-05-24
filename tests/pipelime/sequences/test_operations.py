@@ -169,3 +169,15 @@ class TestSamplesSequenceOperations:
         for i in range(3):
             for s in source:
                 assert next(riter) is s
+
+    def test_select(self, minimnist_dataset: dict):
+        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=minimnist_dataset["path"], merge_root_items=False
+        )
+        idxs = [1, 2, 5, 9]
+        select_seq = source.select(idxs)
+
+        assert len(select_seq) == len(idxs)
+
+        for i, s in zip(idxs, select_seq):
+            assert s is source[i]

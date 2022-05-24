@@ -47,7 +47,7 @@ class TestSample:
         sample_schema = create_model(
             "SampleSchema",
             __config__=SampleConfig,
-            **{k: (v, ...) for k, v in sample.to_schema().items()}
+            **{k: (v, ...) for k, v in sample.to_schema().items()},
         )
 
         try:
@@ -208,6 +208,10 @@ class TestSample:
         assert sample.deep_get(r"sec\ond[2].c") == 36
         assert sample.deep_get("not.there", "default") == "default"
         assert sample.deep_get("notthere", "default") == "default"
+
+    def test_match(self):
+        sample, data = self._mixed_sample()
+        assert sample.match(f"`c.foo` == '{data['c']()['foo']}'")
 
     def test_change_key_invalid(self):
         sample, _ = self._np_sample()
