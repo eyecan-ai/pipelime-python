@@ -318,6 +318,7 @@ class RemoteInterface(pyd.BaseModel, extra="forbid", underscore_attrs_are_privat
     def __init__(self, **data):
         from urllib.parse import urlparse
 
+        super().__init__(**data)
         self._parsed_url = (
             self.url.get_url()
             if isinstance(self.url, UrlDataModel)

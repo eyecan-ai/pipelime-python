@@ -1,7 +1,7 @@
 import typing as t
 from pathlib import Path
 
-from pydantic import Field, PrivateAttr
+import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
@@ -12,7 +12,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
 
     operations: t.Union[
         str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
-    ] = Field(
+    ] = pyd.Field(
         ...,
         description="The pipeline to run or a path to a YAML/JSON file "
         "(use <filepath>:<key-path> to load the definitions from a pydash-like path).\n"
@@ -22,20 +22,20 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         "You can inspect the available operators by running `pipelime list --seq` and "
         "`pipelime list --seq --details`.",
     )
-    input: pl_interfaces.InputDatasetInterface = Field(
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
         ..., description="Input dataset.", piper_port=PiperPortType.INPUT
     )
-    output: pl_interfaces.OutputDatasetInterface = Field(
+    output: pl_interfaces.OutputDatasetInterface = pyd.Field(
         ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
     )
-    grabber: pl_interfaces.GrabberInterface = Field(
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
         description="Grabber options.",
     )
 
     _pipe_list: t.Union[
         str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
-    ] = PrivateAttr()
+    ] = pyd.PrivateAttr()
 
     def __init__(self, **data):
         import yaml
@@ -79,3 +79,58 @@ class PipeCommand(PipelimeCommand, title="pipe"):
                 parent_cmd=self,
                 track_message="Writing results...",
             )
+
+
+class AddRemoteCommand(PipelimeCommand, title="remote-add"):
+    """Upload samples to one or more remotes."""
+
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    remotes: t.Union[
+        pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
+    ] = pyd.Field(..., description="Remote data lakes addresses.")
+    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
+        default_factory=list,
+        description="Keys to upload. Leave empty to upload all the keys.",
+    )
+    output: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
+        None,
+        description="Optional output dataset with remote items.",
+        piper_port=PiperPortType.OUTPUT,
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    @pyd.validator("remotes", "keys")
+    def validate_remotes(cls, v):
+        return (
+            v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
+        )
+
+    def run(self):
+        from pipelime.stages import StageUploadToRemote
+
+        seq = self.input.create_reader().map(
+            StageUploadToRemote(
+                remotes=[r.get_url() for r in self.remotes],  # type: ignore
+                keys_to_upload=self.keys,
+            )
+        )
+
+        if self.output is not None:
+            seq = self.output.append_writer(seq)
+            with self.output.serialization_cm():
+                self._grab_all(seq)
+        else:
+            self._grab_all(seq)
+
+    def _grab_all(self, seq):
+        self.grabber.grab_all(
+            seq,
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Uploading data ({len(seq)} samples)...",
+        )
