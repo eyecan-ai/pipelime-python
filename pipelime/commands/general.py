@@ -77,7 +77,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
                 seq,
                 keep_order=False,
                 parent_cmd=self,
-                track_message="Writing results...",
+                track_message=f"Writing results ({len(seq)} samples)...",
             )
 
 
@@ -97,16 +97,15 @@ class CloneCommand(PipelimeCommand, title="clone"):
     )
 
     def run(self):
+        seq = self.input.create_reader()
+        seq = self.output.append_writer(seq)
         with self.output.serialization_cm():
-            seq = self.input.create_reader()
-            seq = self.output.append_writer(seq)
-            with self.output.serialization_cm():
-                self.grabber.grab_all(
-                    seq,
-                    keep_order=False,
-                    parent_cmd=self,
-                    track_message="Cloning data...",
-                )
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_cmd=self,
+                track_message=f"Cloning data ({len(seq)} samples)...",
+            )
 
 
 class AddRemoteCommand(PipelimeCommand, title="remote-add"):
@@ -162,3 +161,55 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
             parent_cmd=self,
             track_message=f"Uploading data ({len(seq)} samples)...",
         )
+
+
+class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
+    """Remove one or more remote from a dataset.
+    NB: data is not removed from the remote data lake."""
+
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    remotes: t.Union[
+        pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
+    ] = pyd.Field(..., description="Remote data lakes addresses.")
+    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
+        default_factory=list,
+        description=(
+            "Remove remotes on these keys only. Leave empty to affect all the keys."
+        ),
+    )
+    output: pl_interfaces.OutputDatasetInterface = pyd.Field(
+        None,
+        description="Output dataset.",
+        piper_port=PiperPortType.OUTPUT,
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    @pyd.validator("remotes", "keys")
+    def validate_remotes(cls, v):
+        return (
+            v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
+        )
+
+    def run(self):
+        from pipelime.stages import StageForgetSource
+
+        remotes = [r.get_url() for r in self.remotes]  # type: ignore
+        remove_all = remotes if not self.keys else []
+        remove_by_key = {k: remotes for k in self.keys}
+
+        seq = self.input.create_reader().map(
+            StageForgetSource(*remove_all, **remove_by_key)
+        )
+        seq = self.output.append_writer(seq)
+        with self.output.serialization_cm():
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_cmd=self,
+                track_message=f"Removing remotes ({len(seq)} samples)...",
+            )

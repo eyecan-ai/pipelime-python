@@ -23,7 +23,7 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
         self,
         sequence,
         *,
-        keep_order: bool,
+        keep_order: bool = False,
         parent_cmd=None,
         track_message: str = "",
         sample_fn=None,

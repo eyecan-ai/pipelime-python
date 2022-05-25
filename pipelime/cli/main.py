@@ -58,12 +58,52 @@ class _Helper:
         )
 
     @classmethod
-    def import_operators_and_commands(cls):
+    def _load_commands(cls):
         import inspect
 
+        from pipelime.piper import PipelimeCommand
+
+        def _warn_double_def(cmd_name, first, second):
+            _perr(f"Found duplicate command `{cmd_name}`")
+            _pwarn(f"Defined as `{first.classpath()}`")
+            _pwarn(f"       and `{second.classpath()}`")
+            raise typer.Exit(1)
+
+        all_cmds = {}
+        for module_name, module_ in cls.cached_modules.items():
+            module_cmds = tuple(
+                (cmd_cls.command_title(), cmd_cls)
+                for _, cmd_cls in inspect.getmembers(
+                    module_,
+                    lambda v: inspect.isclass(v)
+                    and issubclass(v, PipelimeCommand)
+                    and v is not PipelimeCommand,
+                )
+            )
+
+            if module_name.endswith(".py"):
+                for _, cmd_cls in module_cmds:
+                    cmd_cls._classpath = f"{module_name}:{cmd_cls.__name__}"
+
+            # check for double commands in the same module
+            for idx, (cmd_name, cmd_cls) in enumerate(module_cmds):
+                for other_cmd_name, other_cmd_cls in module_cmds[idx + 1 :]:  # noqa
+                    if cmd_name == other_cmd_name:
+                        _warn_double_def(cmd_name, cmd_cls, other_cmd_cls)
+
+            # check for double commands across modules
+            module_cmds = dict(module_cmds)
+            for cmd_name, cmd_cls in module_cmds.items():
+                if cmd_name in all_cmds:
+                    _warn_double_def(cmd_name, cmd_cls, all_cmds[cmd_name])
+
+            all_cmds = {**all_cmds, **module_cmds}
+        return all_cmds
+
+    @classmethod
+    def import_operators_and_commands(cls):
         import pipelime.choixe.utils.imports as pl_imports
         import pipelime.sequences as pls
-        from pipelime.piper import PipelimeCommand
 
         if not cls.is_cache_valid():
             for module_name in cls.std_cmd_modules + cls.extra_modules:
@@ -85,24 +125,9 @@ class _Helper:
                 ): pls.SamplesSequence._pipes,
             }
 
-            all_cmds = {}
-            for module_name, module_ in cls.cached_modules.items():
-                module_cmds = {
-                    cmd_cls.command_title(): cmd_cls
-                    for _, cmd_cls in inspect.getmembers(
-                        module_,
-                        lambda v: inspect.isclass(v)
-                        and issubclass(v, PipelimeCommand)
-                        and v is not PipelimeCommand,
-                    )
-                }
-
-                if module_name.endswith(".py"):
-                    for cmd_cls in module_cmds.values():
-                        cmd_cls._classpath = f"{module_name}:{cmd_cls.__name__}"
-
-                all_cmds = {**all_cmds, **module_cmds}
-            cls.cached_cmds = {("Piper Command", "Piper Commands"): all_cmds}
+            cls.cached_cmds = {
+                ("Piper Command", "Piper Commands"): cls._load_commands()
+            }
 
     @classmethod
     def get_sequence_operators(cls):

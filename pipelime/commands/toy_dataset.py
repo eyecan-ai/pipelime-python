@@ -26,5 +26,5 @@ class ToyDatasetCommand(PipelimeCommand, title="toy_dataset"):
                 seq,
                 keep_order=False,
                 parent_cmd=self,
-                track_message="Writing toy dataset...",
+                track_message=f"Writing toy dataset ({len(seq)} samples)...",
             )
