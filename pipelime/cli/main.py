@@ -226,6 +226,7 @@ def _store_opt(last_opt, last_val, all_opts):
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
 )
 def run(
+    ctx: typer.Context,
     command: str = typer.Argument(
         ...,
         help=(
@@ -235,7 +236,6 @@ def run(
         ),
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
-    ctx: typer.Context = typer.Option(None),
 ):
     """
     Run a piper command.

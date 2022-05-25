@@ -45,14 +45,17 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
 class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
     """Sample schema validation."""
 
-    sample_schema: t.Union[str, t.Mapping[str, str]] = pyd.Field(
+    sample_schema: t.Union[
+        str, t.Mapping[str, t.Union[str, t.Tuple[str, bool]]]
+    ] = pyd.Field(
         ...,
         description=(
             "The sample schema to validate, ie, a mapping from sample keys to expected "
             "item types.\nThe schema can be a class path to a pydantic model where "
             "fields' names are the sample keys, while fields' values are the item "
-            "types. Otherwise, an explicit `key: item-classpath` mapping must be "
-            "provided."
+            "types. Otherwise, an explicit `key: item-classpath` or "
+            "`key: (item-classpath, is-required)` mapping must be provided "
+            "(the default class path `pipelime.item` can be omitted)."
         ),
     )
     validators: t.Optional[t.Mapping[str, str]] = pyd.Field(
@@ -75,14 +78,24 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
         True, description="If True, samples will be validated only when accessed."
     )
     max_samples: int = pyd.Field(
-        -1,
+        1,
         description=(
             "When the validation is NOT lazy, "
-            "only the slice `[0:max_samples]` is checked."
+            "only the slice `[0:max_samples]` is checked. "
+            "Set to 0 to check all the samples."
         ),
     )
 
     _schema_model: t.Type[pyd.BaseModel] = pyd.PrivateAttr()
+
+    @pyd.validator("sample_schema")
+    def validate_schema(cls, v):
+        if isinstance(v, t.Mapping):
+            return {
+                k: ((v, True) if isinstance(v, (str, bytes)) else v)
+                for k, v in v.items()
+            }
+        return v
 
     def _make_pydantic_schema(self):
         from pipelime.choixe.utils.imports import import_symbol
@@ -94,11 +107,17 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
                 raise ValueError(f"`{self.sample_schema}` is not a pydantic model.")
             self._schema_model = imported_v
         elif isinstance(self.sample_schema, t.Mapping):
-            item_map = {
-                k: import_symbol(cp if "." in cp else f"pipelime.items.{cp}")
-                for k, cp in self.sample_schema.items()
-            }
-            for item_cls in item_map.values():
+            item_map = {}
+            for k, (cp, req) in self.sample_schema.items():
+                item_cls = import_symbol(cp if "." in cp else f"pipelime.items.{cp}")
+                item_map[f"{k}_"] = (
+                    item_cls,
+                    pyd.Field(..., alias=k)
+                    if req
+                    else pyd.Field(default_factory=item_cls, alias=k),
+                )
+
+            for item_cls, _ in item_map.values():
                 if not issubclass(item_cls, Item):
                     raise ValueError(
                         "Model mapping must be a `key: item-class` mapping."

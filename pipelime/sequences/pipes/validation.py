@@ -26,14 +26,20 @@ class ValidatedSequence(
         1,
         description=(
             "When the validation is NOT lazy, "
-            "only the slice `[0:max_samples]` is checked."
+            "only the slice `[0:max_samples]` is checked. "
+            "Set to 0 to check all the samples."
         ),
     )
 
     def __init__(self, **data):
         super().__init__(**data)
         if not self.lazy:
-            for sample in self.source[0 : self.max_samples]:  # noqa: E203
+            seq = (
+                self.source
+                if self.max_samples == 0
+                else self.source[0 : self.max_samples]  # noqa
+            )
+            for sample in seq:  # noqa: E203
                 self._check_sample(sample)  # type: ignore
 
     def get_sample(self, idx: int) -> pls.Sample:

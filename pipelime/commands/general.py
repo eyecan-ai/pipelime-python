@@ -213,3 +213,77 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
                 parent_cmd=self,
                 track_message=f"Removing remotes ({len(seq)} samples)...",
             )
+
+
+class ValidateCommand(PipelimeCommand, title="validate"):
+    """Print a minimal schema which will validate the given input. Also, if a schema
+    is set on the input dataset, it will be used to validate the input."""
+
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    max_samples: int = pyd.Field(
+        0,
+        description=(
+            "Max number of samples to consider when creating the schema.  "
+            "Set to 0 to check all the samples."
+        ),
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    def run(self):
+        from pipelime.sequences import Sample
+
+        class WorkerHelper:
+            def __init__(self):
+                self._counter = {}
+
+            def __call__(self, x: Sample):
+                for k, v in x.items():
+                    class_name = (
+                        v.__class__.__name__
+                        if v.__class__.__module__.startswith("pipelime.items")
+                        else f"{v.__class__.__module__}.{v.__class__.__name__}"
+                    )
+                    if k in self._counter:
+                        if self._counter[k][0] != class_name:
+                            raise ValueError(
+                                f"Key {k} has multiple types: "
+                                f"{self._counter[k]} and {class_name}"
+                            )
+                        self._counter[k][1] += 1
+                    else:
+                        self._counter[k] = [class_name, 1]
+
+        seq = self.input.create_reader()
+        if self.max_samples != 0:
+            seq = seq[0 : self.max_samples]  # noqa
+        worker = WorkerHelper()
+        self.grabber.grab_all(
+            seq,
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Reading data ({len(seq)} samples)...",
+            sample_fn=worker,
+        )
+
+        sample_schema = {
+            k: (class_name, count == len(seq))
+            for k, (class_name, count) in worker._counter.items()
+        }
+        self._print_schema(
+            pl_interfaces.SampleValidationInterface(
+                sample_schema=sample_schema,
+                ignore_extra_keys=False,
+                lazy=(self.max_samples == 0),
+                max_samples=self.max_samples,
+            )
+        )
+
+    def _print_schema(self, sample_schema):
+        import json
+
+        print(json.dumps(json.loads(sample_schema.json()), indent=2))

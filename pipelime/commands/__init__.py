@@ -3,6 +3,7 @@ from pipelime.commands.general import (
     CloneCommand,
     AddRemoteCommand,
     RemoveRemoteCommand,
+    ValidateCommand,
 )
 from pipelime.commands.shell import ShellCommand
 from pipelime.commands.split_ops import (
