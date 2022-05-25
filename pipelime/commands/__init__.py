@@ -1,4 +1,4 @@
-from pipelime.commands.general import PipeCommand, AddRemoteCommand
+from pipelime.commands.general import PipeCommand, CloneCommand, AddRemoteCommand
 from pipelime.commands.shell import ShellCommand
 from pipelime.commands.split_ops import (
     SplitByQueryCommand,

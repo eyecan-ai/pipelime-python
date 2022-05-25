@@ -31,12 +31,6 @@ def print_model_info(
     show_class_path: bool = True,
     show_piper_port: bool = True,
 ):
-    cpath_str = (
-        f"\n[italic grey23]{_command_classpath(model_cls)}[/]"
-        if show_class_path
-        else ""
-    )
-
     grid = Table(
         *(
             ["Fields", "Description", "Type"]
@@ -46,9 +40,10 @@ def print_model_info(
         box=box.SIMPLE_HEAVY,
         title=(
             f"[bold dark_red]{_command_title(model_cls)}[/]\n"
-            f"[blue]{_get_signature(model_cls)}[/]{cpath_str}"
+            f"[blue]{_get_signature(model_cls)}[/]\n"
+            f"[italic grey23]{inspect.getdoc(model_cls)}[/]"
         ),
-        caption=inspect.getdoc(model_cls),
+        caption=_command_classpath(model_cls) if show_class_path else None,
         title_style="on white",
         expand=True,
     )

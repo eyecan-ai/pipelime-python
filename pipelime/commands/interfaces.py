@@ -208,6 +208,8 @@ class SerializationModeInterface(
             return []
         if isinstance(cls_paths, str):
             cls_paths = [cls_paths]
+        if "_" in cls_paths:
+            return []
         cls_paths = [c if "." in c else f"pipelime.items.{c}" for c in cls_paths]
         return [import_symbol(c) for c in cls_paths]
 

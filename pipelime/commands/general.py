@@ -81,6 +81,34 @@ class PipeCommand(PipelimeCommand, title="pipe"):
             )
 
 
+class CloneCommand(PipelimeCommand, title="clone"):
+    """Clone a dataset. You can use this command to create a local copy of a dataset
+    hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option."""
+
+    input: pl_interfaces.InputDatasetInterface = pyd.Field(
+        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    )
+    output: pl_interfaces.OutputDatasetInterface = pyd.Field(
+        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    def run(self):
+        with self.output.serialization_cm():
+            seq = self.input.create_reader()
+            seq = self.output.append_writer(seq)
+            with self.output.serialization_cm():
+                self.grabber.grab_all(
+                    seq,
+                    keep_order=False,
+                    parent_cmd=self,
+                    track_message="Cloning data...",
+                )
+
+
 class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     """Upload samples to one or more remotes."""
 
