@@ -8,3 +8,4 @@ from pipelime.stages.key_transformations import (
     StageKeysFilter,
     StageRemap,
 )
+from pipelime.stages.item_info import StageItemInfo

@@ -1,4 +1,5 @@
 import typing as t
+from enum import Enum
 from pathlib import Path
 
 import pydantic as pyd
@@ -38,8 +39,8 @@ class PipeCommand(PipelimeCommand, title="pipe"):
     ] = pyd.PrivateAttr()
 
     def __init__(self, **data):
-        import yaml
         import pydash as py_
+        import yaml
 
         super().__init__(**data)
 
@@ -238,52 +239,28 @@ class ValidateCommand(PipelimeCommand, title="validate"):
     )
 
     def run(self):
-        from pipelime.sequences import Sample
-
-        class WorkerHelper:
-            def __init__(self):
-                self._item_info = {}
-
-            def __call__(self, x: Sample):
-                for k, v in x.items():
-                    class_name = (
-                        v.__class__.__name__
-                        if v.__class__.__module__.startswith("pipelime.items")
-                        else f"{v.__class__.__module__}.{v.__class__.__name__}"
-                    )
-                    if k in self._item_info:
-                        if self._item_info[k][0] != class_name:
-                            raise ValueError(
-                                f"Key {k} has multiple types: "
-                                f"{self._item_info[k][0]} and {class_name}."
-                            )
-                        if self._item_info[k][1] != v.is_shared:
-                            raise ValueError(
-                                f"Key {k} is not always shared or not shared."
-                            )
-                        self._item_info[k][2] += 1
-                    else:
-                        self._item_info[k] = [class_name, v.is_shared, 1]
+        from pipelime.stages import StageItemInfo
 
         seq = self.input.create_reader()
         if self.max_samples != 0:
             seq = seq[0 : self.max_samples]  # noqa
-        worker = WorkerHelper()
+        item_info = StageItemInfo()
+
         self.grabber.grab_all(
             seq,
             keep_order=False,
             parent_cmd=self,
             track_message=f"Reading data ({len(seq)} samples)",
-            sample_fn=worker,
+            sample_fn=item_info,
         )
 
         sample_schema = {
             k: pl_interfaces.ItemValidationModel(
-                class_path=class_name,
-                is_optional=(count != len(seq)),
-                is_shared=is_shared,
+                class_path=info.class_path,
+                is_optional=(info.count_ != len(seq)),
+                is_shared=info.is_shared,
             ).dict(by_alias=True)
-            for k, (class_name, is_shared, count) in worker._item_info.items()
+            for k, info in item_info.items_info().items()
         }
         self._print_schema(
             pl_interfaces.SampleValidationInterface(
@@ -296,6 +273,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     def _print_schema(self, sample_schema):
         import json
+
         import pydash as py_
 
         through_json = json.loads(sample_schema.json(by_alias=True))
