@@ -77,7 +77,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
                 seq,
                 keep_order=False,
                 parent_cmd=self,
-                track_message=f"Writing results ({len(seq)} samples)...",
+                track_message=f"Writing results ({len(seq)} samples)",
             )
 
 
@@ -104,7 +104,7 @@ class CloneCommand(PipelimeCommand, title="clone"):
                 seq,
                 keep_order=False,
                 parent_cmd=self,
-                track_message=f"Cloning data ({len(seq)} samples)...",
+                track_message=f"Cloning data ({len(seq)} samples)",
             )
 
 
@@ -159,7 +159,7 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
             seq,
             keep_order=False,
             parent_cmd=self,
-            track_message=f"Uploading data ({len(seq)} samples)...",
+            track_message=f"Uploading data ({len(seq)} samples)",
         )
 
 
@@ -211,7 +211,7 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
                 seq,
                 keep_order=False,
                 parent_cmd=self,
-                track_message=f"Removing remotes ({len(seq)} samples)...",
+                track_message=f"Removing remotes ({len(seq)} samples)",
             )
 
 
@@ -229,6 +229,9 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             "Set to 0 to check all the samples."
         ),
     )
+    root_key_path: str = pyd.Field(
+        "", description="Root key path for the output schema."
+    )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
         description="Grabber options.",
@@ -239,7 +242,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
         class WorkerHelper:
             def __init__(self):
-                self._counter = {}
+                self._item_info = {}
 
             def __call__(self, x: Sample):
                 for k, v in x.items():
@@ -248,15 +251,19 @@ class ValidateCommand(PipelimeCommand, title="validate"):
                         if v.__class__.__module__.startswith("pipelime.items")
                         else f"{v.__class__.__module__}.{v.__class__.__name__}"
                     )
-                    if k in self._counter:
-                        if self._counter[k][0] != class_name:
+                    if k in self._item_info:
+                        if self._item_info[k][0] != class_name:
                             raise ValueError(
                                 f"Key {k} has multiple types: "
-                                f"{self._counter[k]} and {class_name}"
+                                f"{self._item_info[k][0]} and {class_name}."
                             )
-                        self._counter[k][1] += 1
+                        if self._item_info[k][1] != v.is_shared:
+                            raise ValueError(
+                                f"Key {k} is not always shared or not shared."
+                            )
+                        self._item_info[k][2] += 1
                     else:
-                        self._counter[k] = [class_name, 1]
+                        self._item_info[k] = [class_name, v.is_shared, 1]
 
         seq = self.input.create_reader()
         if self.max_samples != 0:
@@ -266,13 +273,17 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             seq,
             keep_order=False,
             parent_cmd=self,
-            track_message=f"Reading data ({len(seq)} samples)...",
+            track_message=f"Reading data ({len(seq)} samples)",
             sample_fn=worker,
         )
 
         sample_schema = {
-            k: (class_name, count == len(seq))
-            for k, (class_name, count) in worker._counter.items()
+            k: pl_interfaces.ItemValidationModel(
+                class_path=class_name,
+                is_optional=(count != len(seq)),
+                is_shared=is_shared,
+            ).dict(by_alias=True)
+            for k, (class_name, is_shared, count) in worker._item_info.items()
         }
         self._print_schema(
             pl_interfaces.SampleValidationInterface(
@@ -285,5 +296,52 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     def _print_schema(self, sample_schema):
         import json
+        import pydash as py_
 
-        print(json.dumps(json.loads(sample_schema.json()), indent=2))
+        through_json = json.loads(sample_schema.json(by_alias=True))
+        if self.root_key_path:
+            tmp_dict = {}
+            py_.set_(tmp_dict, self.root_key_path, through_json)
+            through_json = tmp_dict
+        print("\n\nYAML/JSON schema definition:\n")
+        print("****************************")
+        print(json.dumps(through_json, indent=2))
+        print("****************************")
+        print("\n\nCommand line usage:\n")
+        print("*********************")
+        print(" ".join(self._flatten_dict(through_json)))
+        print("*********************")
+
+    def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):
+        cmd_line = []
+        for k, v in dict_.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else f"{prefix}{k}"
+            if isinstance(v, t.Mapping):
+                cmd_line.extend(
+                    self._flatten_dict(v, parent_key=new_key, sep=sep, prefix=prefix)
+                )
+            elif isinstance(v, t.Sequence) and not isinstance(v, (str, bytes)):
+                cmd_line.extend(
+                    self._flatten_list(v, parent_key=new_key, sep=sep, prefix=prefix)
+                )
+            else:
+                cmd_line.append(new_key)
+                cmd_line.append(str(v))
+        return cmd_line
+
+    def _flatten_list(self, list_, parent_key, sep=".", prefix="--"):
+        cmd_line = []
+        for i, v in enumerate(list_):
+            new_key = f"{parent_key}[{i}]"
+            if isinstance(v, t.Mapping):
+                cmd_line.extend(
+                    self._flatten_dict(v, parent_key=new_key, sep=sep, prefix=prefix)
+                )
+            elif isinstance(v, t.Sequence) and not isinstance(v, (str, bytes)):
+                cmd_line.extend(
+                    self._flatten_list(v, parent_key=new_key, sep=sep, prefix=prefix)
+                )
+            else:
+                cmd_line.append(new_key)
+                cmd_line.append(str(v))
+        return cmd_line

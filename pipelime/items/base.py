@@ -649,8 +649,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__}(data={repr(self._data_cache)},"
-            f" sources={self._file_sources}, remotes={self._remote_sources})"
+            f"{self.__class__}(data={repr(self._data_cache)}, "
+            f"sources={self._file_sources}, remotes={self._remote_sources}) "
+            f"shared={self.is_shared}, cache={self.cache_data}"
+            f"serialization={self.serialization_mode})"
         )
 
     def __str__(self) -> str:
@@ -665,6 +667,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             + str_srcs
             + ["    remotes:"]
             + str_rmts
+            + [
+                f"    shared: {self.is_shared}",
+                f"    cache: {self.cache_data}",
+                f"    serialization: {self.serialization_mode}",
+            ]
         )
 
 

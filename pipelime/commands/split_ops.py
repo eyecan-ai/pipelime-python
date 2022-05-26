@@ -111,7 +111,7 @@ class SplitCommand(PipelimeCommand, title="split"):
                         parent_cmd=self,
                         track_message=(
                             f"Writing split {idx + 1}/{len(split_sizes)} "
-                            f"({split_length} samples)..."
+                            f"({split_length} samples)"
                         ),
                     )
             split_start = split_stop
@@ -174,7 +174,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
                 seq,
                 keep_order=False,
                 parent_cmd=self,
-                track_message=f"Writing {message} ({len(seq)} samples)...",
+                track_message=f"Writing {message} ({len(seq)} samples)",
             )
 
 
@@ -258,7 +258,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
             reader.enumerate(idx_key=unique_idx_key),
             keep_order=True,
             parent_cmd=self,
-            track_message="Gathering unique values...",
+            track_message="Gathering unique values",
             sample_fn=worker,
         )
 
@@ -277,6 +277,6 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
                     parent_cmd=self,
                     track_message=(
                         f"Writing split {idx + 1}/{len(worker._groups)} "
-                        f"{split_name}({len(split_seq)} samples)..."
+                        f"{split_name}({len(split_seq)} samples)"
                     ),
                 )

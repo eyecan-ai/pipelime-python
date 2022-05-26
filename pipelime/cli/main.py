@@ -201,7 +201,7 @@ app = typer.Typer()
 def callback(
     extra_modules: t.List[str] = typer.Option(
         [], "--module", "-m", help="Additional modules to import."
-    )
+    ),
 ):
     """
     Pipelime Command Line Interface

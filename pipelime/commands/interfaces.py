@@ -42,29 +42,99 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
         grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn)
 
 
+class ItemValidationModel(pyd.BaseModel, extra="forbid"):
+    """Item schema validation."""
+
+    class_path: str = pyd.Field(
+        ...,
+        description=(
+            "The item class path. The default package `pipelime.item` can be omitted"
+        ),
+    )
+    is_optional: bool = pyd.Field(
+        True, description="Whether the item is required or optional."
+    )
+    is_shared: bool = pyd.Field(False, description="Whether the item is shared or not.")
+    validator_: t.Optional[str] = pyd.Field(
+        None,
+        description=(
+            "A class path to a callable accepting the item value and either returning "
+            "a validated value or raising an exception in case of error."
+        ),
+        alias="validator",
+    )
+
+    _item_cls = pyd.PrivateAttr()
+    _validator_callable = pyd.PrivateAttr()
+
+    def __init__(self, **data):
+        from pipelime.choixe.utils.imports import import_symbol
+        from pipelime.items import Item
+
+        super().__init__(**data)
+
+        self._item_cls = import_symbol(
+            self.class_path
+            if "." in self.class_path
+            else f"pipelime.items.{self.class_path}"
+        )
+        if not issubclass(self._item_cls, Item):
+            raise ValueError("Item classes must inherit from `pipelime.items.Item`.")
+
+        def _identity(v):
+            return v
+
+        self._validator_callable = (
+            import_symbol(self.validator_) if self.validator_ else _identity
+        )
+
+    def make_field(self, key_name: str):
+        return (
+            self._item_cls,
+            pyd.Field(default_factory=self._item_cls, alias=key_name)
+            if self.is_optional
+            else pyd.Field(..., alias=key_name),
+        )
+
+    def make_validator_method(self, field_name: str):
+        import uuid
+
+        # we need random names and dynamic function creation
+        # to avoid reusing the same function name for validators
+        # (yes, pydantic is really pedantic...)
+        rnd_name = uuid.uuid1().hex
+
+        _validator_wrapper = (
+            "def validate_{}_fn(cls, v):\n".format(rnd_name)
+            + "    if v.is_shared != {}:\n".format(self.is_shared)
+            + "        raise ValueError(\n"
+            + "            'Item must{}be shared.'\n".format(
+                " not " if not self.is_shared else " "
+            )
+            + "        )\n"
+            + "    return user_validator_{}(v)\n".format(rnd_name)
+        )
+
+        local_scope = {
+            **globals(),
+            f"user_validator_{rnd_name}": self._validator_callable,
+        }
+        exec(_validator_wrapper, local_scope)
+        fn_helper = local_scope[f"validate_{rnd_name}_fn"]
+        return pyd.validator(field_name)(fn_helper)
+
+
 class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
     """Sample schema validation."""
 
-    sample_schema: t.Union[
-        str, t.Mapping[str, t.Union[str, t.Tuple[str, bool]]]
-    ] = pyd.Field(
+    sample_schema: t.Union[str, t.Mapping[str, ItemValidationModel]] = pyd.Field(
         ...,
         description=(
             "The sample schema to validate, ie, a mapping from sample keys to expected "
             "item types.\nThe schema can be a class path to a pydantic model where "
             "fields' names are the sample keys, while fields' values are the item "
-            "types. Otherwise, an explicit `key: item-classpath` or "
-            "`key: (item-classpath, is-required)` mapping must be provided "
-            "(the default class path `pipelime.item` can be omitted)."
-        ),
-    )
-    validators: t.Optional[t.Mapping[str, str]] = pyd.Field(
-        None,
-        description=(
-            "When `sample_schema` is an explicit mapping, validators "
-            "can be set for each field as a class path to a callable accepting the "
-            "field value and either returning a validated version or raising an "
-            "exception in case of error."
+            "types. Otherwise, an explicit `key-name: ItemValidationModel` mapping "
+            "must be provided."
         ),
     )
     ignore_extra_keys: bool = pyd.Field(
@@ -88,66 +158,42 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
 
     _schema_model: t.Type[pyd.BaseModel] = pyd.PrivateAttr()
 
-    @pyd.validator("sample_schema")
-    def validate_schema(cls, v):
-        if isinstance(v, t.Mapping):
-            return {
-                k: ((v, True) if isinstance(v, (str, bytes)) else v)
-                for k, v in v.items()
-            }
-        return v
-
-    def _make_pydantic_schema(self):
+    def _import_schema(self, schema_path: str):
         from pipelime.choixe.utils.imports import import_symbol
-        from pipelime.items import Item
 
-        if isinstance(self.sample_schema, str):
-            imported_v = import_symbol(self.sample_schema)
-            if not issubclass(imported_v, pyd.BaseModel):
-                raise ValueError(f"`{self.sample_schema}` is not a pydantic model.")
-            self._schema_model = imported_v
-        elif isinstance(self.sample_schema, t.Mapping):
-            item_map = {}
-            for k, (cp, req) in self.sample_schema.items():
-                item_cls = import_symbol(cp if "." in cp else f"pipelime.items.{cp}")
-                item_map[f"{k}_"] = (
-                    item_cls,
-                    pyd.Field(..., alias=k)
-                    if req
-                    else pyd.Field(default_factory=item_cls, alias=k),
-                )
+        imported_schema = import_symbol(schema_path)
+        if not issubclass(imported_schema, pyd.BaseModel):
+            raise ValueError(f"`{schema_path}` is not a pydantic model.")
+        return imported_schema
 
-            for item_cls, _ in item_map.values():
-                if not issubclass(item_cls, Item):
-                    raise ValueError(
-                        "Model mapping must be a `key: item-class` mapping."
-                    )
+    def _make_schema(self, schema_def: t.Mapping[str, ItemValidationModel]):
+        class Config(pyd.BaseConfig):
+            arbitrary_types_allowed = True
+            extra = pyd.Extra.ignore if self.ignore_extra_keys else pyd.Extra.forbid
 
-            class Config(pyd.BaseConfig):
-                arbitrary_types_allowed = True
-                extra = pyd.Extra.ignore if self.ignore_extra_keys else pyd.Extra.forbid
+        def _safe_name(k):
+            return f"{k}___"
 
-            _validators = None
-            if self.validators is not None:
-                _validators = {}
-                for k, v_cp in self.validators.items():
-                    v_call = import_symbol(v_cp)
+        _item_map = {_safe_name(k): v.make_field(k) for k, v in schema_def.items()}
+        _validators = {
+            f"validate_{k}": v.make_validator_method(_safe_name(k))
+            for k, v in schema_def.items()
+        }
 
-                    def _validator_wrapper(cls, val):
-                        return v_call(val)
-
-                    _validators[f"validate_{k}"] = pyd.validator(k)(_validator_wrapper)
-
-            self._schema_model = pyd.create_model(
-                "SampleSchema",
-                __config__=Config,
-                __validators__=_validators,  # type: ignore
-                **item_map,
-            )
+        return pyd.create_model(
+            "SampleSchema",
+            __config__=Config,
+            __validators__=_validators,
+            **_item_map,
+        )
 
     def __init__(self, **data):
         super().__init__(**data)
-        self._make_pydantic_schema()
+        self._schema_model = (
+            self._import_schema(self.sample_schema)
+            if isinstance(self.sample_schema, str)
+            else self._make_schema(self.sample_schema)
+        )
 
     def append_validator(self, sequence):
         return sequence.validate_samples(
