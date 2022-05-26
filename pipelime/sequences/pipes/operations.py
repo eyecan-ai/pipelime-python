@@ -1,4 +1,5 @@
 import typing as t
+from pathlib import Path
 
 import pydantic as pyd
 
@@ -269,3 +270,46 @@ class RepeatedSequence(PipedSequenceBase, title="repeat"):
         if idx < 0 or idx >= len(self):
             raise IndexError(f"Sample index `{idx}` is out of range.")
         return self.source[idx % len(self.source)]
+
+
+@pls.piped_sequence
+class CachedSequence(PipedSequenceBase, title="cache"):
+    """Cache the input Samples the first time they are accessed."""
+
+    cache_folder: t.Optional[Path] = pyd.Field(
+        None,
+        description=(
+            "The cache folder path. Leave empty to use a temporary folder "
+            "which will be deleted when exiting the process."
+        ),
+    )
+
+    _temp_folder = pyd.PrivateAttr(None)
+
+    def __init__(self, **data):
+        super().__init__(**data)  # type: ignore
+        if self.cache_folder is None:
+            from tempfile import TemporaryDirectory
+
+            self._temp_folder = TemporaryDirectory()
+            self.cache_folder = Path(self._temp_folder.name)
+        else:
+            if self.cache_folder.exists():
+                raise FileExistsError(
+                    f"The cache folder `{self.cache_folder}` already exists."
+                )
+            self.cache_folder.mkdir(parents=True, exist_ok=True)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        import pickle
+
+        filename: Path = self.cache_folder / f"{idx}.pkl"  # type: ignore
+
+        if filename.exists():
+            with open(filename, 'rb') as fd:
+                return pickle.load(fd)
+
+        x = self.source[idx]
+        with open(filename, "wb") as fd:
+            pickle.dump(x, fd, protocol=-1)
+        return x

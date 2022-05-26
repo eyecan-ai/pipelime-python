@@ -1,5 +1,4 @@
 import typing as t
-from enum import Enum
 from pathlib import Path
 
 import pydantic as pyd

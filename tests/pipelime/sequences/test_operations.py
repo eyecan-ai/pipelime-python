@@ -1,5 +1,6 @@
-import pipelime.sequences as pls
 import typing as t
+
+import pipelime.sequences as pls
 
 
 class TestSamplesSequenceOperations:
@@ -57,7 +58,8 @@ class TestSamplesSequenceOperations:
                 for k in sample_s
             )
             assert all(
-                (k[len(prefix) - 1 :] if k.startswith(prefix[:-1]) else k) in sample_s
+                (k[len(prefix) - 1 :] if k.startswith(prefix[:-1]) else k)  # noqa: E203
+                in sample_s
                 for k in sample_m
             )
             assert all(v is sample_m[k] for k, v in sample_1.items())
@@ -70,7 +72,13 @@ class TestSamplesSequenceOperations:
             )
             assert all(
                 v
-                is sample_s[(k[len(prefix) - 1 :] if k.startswith(prefix[:-1]) else k)]
+                is sample_s[
+                    (
+                        k[len(prefix) - 1 :]  # noqa: E203
+                        if k.startswith(prefix[:-1])
+                        else k
+                    )
+                ]
                 for k, v in sample_m.items()
             )
 
@@ -197,3 +205,37 @@ class TestSamplesSequenceOperations:
 
         for i, s in zip(idxs, select_seq):
             assert s is source[i]
+
+    def test_cache(self, minimnist_dataset: dict):
+        import numpy as np
+
+        from pipelime.stages import SampleStage
+
+        class LocalStage(SampleStage):
+            counter: int = 0
+
+            def __call__(self, x):
+                print("counter", self.counter)
+                self.counter += 1
+                x = x.duplicate_key("image", "img2")
+                _ = x["img2"]()
+                return x
+
+        local_stage = LocalStage()
+        source = (
+            pls.SamplesSequence.from_underfolder(  # type: ignore
+                folder=minimnist_dataset["path"], merge_root_items=False
+            )
+            .map(local_stage)
+            .cache()
+        )
+
+        saved_samples = [x for x in source]
+        for idx, x in enumerate(source):
+            s = saved_samples[idx]
+            assert x is not s
+            assert x["image"]().size != 0
+            assert x["img2"]().size != 0
+            assert np.array_equal(x["image"](), s["image"](), equal_nan=True)
+            assert np.array_equal(x["img2"](), s["img2"](), equal_nan=True)
+        assert local_stage.counter == len(source)
