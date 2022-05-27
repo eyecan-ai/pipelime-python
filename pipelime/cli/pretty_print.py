@@ -7,7 +7,58 @@ from rich import box
 from rich import print as rprint
 from rich.table import Table
 
-from pipelime.piper import PiperPortType
+from pipelime.piper import PipelimeCommand, PiperPortType
+
+
+def _input_icon():
+    return "\U0001F4E5"
+
+
+def _output_icon():
+    return "\U0001F4E6"
+
+
+def _parameter_icon():
+    return "\U0001F4D0"
+
+
+def print_debug(val):
+    rprint(f"[italic grey50]{val}[/]")
+
+
+def print_info(val):
+    rprint(f"[cyan]{val}[/]")
+
+
+def print_warning(val):
+    rprint(f"[orange1][bold blink]WARNING:[/bold blink] {val}[/orange1]")
+
+
+def print_error(val):
+    rprint(
+        f"[dark_red on white][bold blink]ERROR:[/bold blink] {val}[/dark_red on white]"
+    )
+
+
+def print_model_field_values(
+    model_fields: t.Mapping,
+    port_values: t.Mapping[str, t.Any],
+    icon: str = "",
+):
+    for k, v in port_values.items():
+        rprint(
+            f"\n{icon if icon else '***'} {k}:",
+            f"[italic grey50]{model_fields[k].field_info.description}[/]",
+        )
+        rprint(str(v))
+
+
+def print_command_inputs(command: PipelimeCommand):
+    print_model_field_values(command.__fields__, command.get_inputs(), _input_icon())
+
+
+def print_command_outputs(command: PipelimeCommand):
+    print_model_field_values(command.__fields__, command.get_outputs(), _output_icon())
 
 
 def print_models_short_help(
@@ -74,9 +125,11 @@ def _field_row(
         ).upper()
 
         if fport == PiperPortType.INPUT.value.upper():
-            fport = "[yellow]" + fport + "[/]"
+            fport = f"{_input_icon()} [yellow]{fport}[/]"
         elif fport == PiperPortType.OUTPUT.value.upper():
-            fport = "[cyan]" + fport + "[/]"
+            fport = f"{_output_icon()} [cyan]{fport}[/]"
+        else:
+            fport = f"{_parameter_icon()} {fport}"
     else:
         fport = None
 

@@ -2,21 +2,6 @@ import typing as t
 from types import ModuleType
 
 import typer
-from rich import print as rprint
-
-
-def _pinfo(val):
-    rprint(f"[cyan]{val}[/]")
-
-
-def _pwarn(val):
-    rprint(f"[orange1][bold blink]WARNING:[/bold blink] {val}[/orange1]")
-
-
-def _perr(val):
-    rprint(
-        f"[dark_red on white][bold blink]ERROR:[/bold blink] {val}[/dark_red on white]"
-    )
 
 
 class _Helper:
@@ -61,12 +46,13 @@ class _Helper:
     def _load_commands(cls):
         import inspect
 
+        from pipelime.cli.pretty_print import print_error, print_warning
         from pipelime.piper import PipelimeCommand
 
         def _warn_double_def(cmd_name, first, second):
-            _perr(f"Found duplicate command `{cmd_name}`")
-            _pwarn(f"Defined as `{first.classpath()}`")
-            _pwarn(f"       and `{second.classpath()}`")
+            print_error(f"Found duplicate command `{cmd_name}`")
+            print_warning(f"Defined as `{first.classpath()}`")
+            print_warning(f"       and `{second.classpath()}`")
             raise typer.Exit(1)
 
         all_cmds = {}
@@ -241,12 +227,18 @@ def run(
     Run a piper command.
     """
 
+    from pipelime.cli.pretty_print import (
+        print_error,
+        print_info,
+        print_warning,
+        print_command_outputs,
+    )
     from pipelime.piper import PipelimeCommand
 
     cmd_cls = _Helper.get_command(command)
     if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
-        _perr(f"{command} is not a piper command!")
-        _pwarn("Have you added the module with `--module`?")
+        print_error(f"{command} is not a piper command!")
+        print_warning("Have you added the module with `--module`?")
         raise typer.Exit(1)
     cmd_cls = cmd_cls[1]
 
@@ -268,26 +260,29 @@ def run(
     _store_opt(last_opt, last_val, all_opts)
 
     if verbose:
-        _pinfo(f"\nCreating command `{command}` with options:")
-        _pinfo(all_opts)
+        print_info(f"\nCreating command `{command}` with options:")
+        print_info(all_opts)
 
     cmd_obj = cmd_cls(**all_opts)
 
     if verbose:
-        _pinfo(f"\nCreated command `{command}`:")
-        _pinfo(repr(cmd_obj))
+        print_info(f"\nCreated command `{command}`:")
+        print_info(repr(cmd_obj))
 
     if verbose:
-        _pinfo(f"\nRunning `{command}`...")
+        print_info(f"\nRunning `{command}`...")
     cmd_obj()
+
+    print_info(f"\n`{command}` outputs:")
+    print_command_outputs(cmd_obj)
 
 
 def _print_details(info, show_class_path_and_piper_port):
-    from pipelime.cli.pretty_print import print_model_info
+    from pipelime.cli.pretty_print import print_info, print_model_info
 
     for info_type, info_map in info.items():
         for info_cls in info_map.values():
-            print(f"\n---{info_type[0]}")
+            print_info(f"\n---{info_type[0]}")
             print_model_info(
                 info_cls,
                 show_class_path=show_class_path_and_piper_port,
@@ -296,10 +291,10 @@ def _print_details(info, show_class_path_and_piper_port):
 
 
 def _print_short_help(info, show_class_path):
-    from pipelime.cli.pretty_print import print_models_short_help
+    from pipelime.cli.pretty_print import print_info, print_models_short_help
 
     for info_type, info_map in info.items():
-        print(f"\n---{info_type[1]}")
+        print_info(f"\n---{info_type[1]}")
         print_models_short_help(
             *[info_cls for info_cls in info_map.values()],
             show_class_path=show_class_path,
@@ -357,7 +352,12 @@ def commands_and_ops_info(
     """
     Get detailed info about a sequence operator or a piper command.
     """
-    from pipelime.cli.pretty_print import print_model_info
+    from pipelime.cli.pretty_print import (
+        print_error,
+        print_info,
+        print_model_info,
+        print_warning,
+    )
 
     info_cls = _Helper.get_operator(command_or_operator)
     if info_cls is None:
@@ -367,10 +367,12 @@ def commands_and_ops_info(
         show_class_path_and_piper_port = False
 
     if info_cls is None:
-        _perr(f"{command_or_operator} is not a sequence operator nor a piper command!")
-        _pwarn("Have you added the module with `--module`?")
+        print_error(
+            f"{command_or_operator} is not a sequence operator nor a piper command!"
+        )
+        print_warning("Have you added the module with `--module`?")
         raise typer.Exit(1)
-    print(f"\n---{info_cls[0][0]}")
+    print_info(f"\n---{info_cls[0][0]}")
     print_model_info(
         info_cls[1],
         show_class_path=show_class_path_and_piper_port,

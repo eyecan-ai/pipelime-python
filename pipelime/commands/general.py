@@ -216,8 +216,63 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
 
 
 class ValidateCommand(PipelimeCommand, title="validate"):
-    """Print a minimal schema which will validate the given input. Also, if a schema
-    is set on the input dataset, it will be used to validate the input."""
+    """Outputs a minimal schema which will validate the given input."""
+
+    class OutputSchemaDefinition(pyd.BaseModel):
+        schema_def: t.Any
+
+        def __str__(self) -> str:
+            import json
+
+            return json.dumps(self.schema_def, indent=2)
+
+    class OutputCmdLineSchema(pyd.BaseModel):
+        schema_def: t.Any
+
+        def __str__(self) -> str:
+            return " ".join(self._flatten_dict(self.schema_def))
+
+        def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):
+            cmd_line = []
+            for k, v in dict_.items():
+                new_key = f"{parent_key}{sep}{k}" if parent_key else f"{prefix}{k}"
+                if isinstance(v, t.Mapping):
+                    cmd_line.extend(
+                        self._flatten_dict(
+                            v, parent_key=new_key, sep=sep, prefix=prefix
+                        )
+                    )
+                elif isinstance(v, t.Sequence) and not isinstance(v, (str, bytes)):
+                    cmd_line.extend(
+                        self._flatten_list(
+                            v, parent_key=new_key, sep=sep, prefix=prefix
+                        )
+                    )
+                else:
+                    cmd_line.append(new_key)
+                    cmd_line.append(str(v))
+            return cmd_line
+
+        def _flatten_list(self, list_, parent_key, sep=".", prefix="--"):
+            cmd_line = []
+            for i, v in enumerate(list_):
+                new_key = f"{parent_key}[{i}]"
+                if isinstance(v, t.Mapping):
+                    cmd_line.extend(
+                        self._flatten_dict(
+                            v, parent_key=new_key, sep=sep, prefix=prefix
+                        )
+                    )
+                elif isinstance(v, t.Sequence) and not isinstance(v, (str, bytes)):
+                    cmd_line.extend(
+                        self._flatten_list(
+                            v, parent_key=new_key, sep=sep, prefix=prefix
+                        )
+                    )
+                else:
+                    cmd_line.append(new_key)
+                    cmd_line.append(str(v))
+            return cmd_line
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
         ..., description="Input dataset.", piper_port=PiperPortType.INPUT
@@ -237,7 +292,23 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         description="Grabber options.",
     )
 
+    output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
+        None,
+        description="YAML/JSON schema definition",
+        exclude=True,
+        repr=False,
+        piper_port=PiperPortType.OUTPUT,
+    )
+    output_cmd_line_schema: t.Optional[OutputCmdLineSchema] = pyd.Field(
+        None,
+        description="Schema definition on command line",
+        exclude=True,
+        repr=False,
+        piper_port=PiperPortType.OUTPUT,
+    )
+
     def run(self):
+        import json
         from pipelime.stages import StageItemInfo
 
         seq = self.input.create_reader()
@@ -261,64 +332,24 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             ).dict(by_alias=True)
             for k, info in item_info.items_info().items()
         }
-        self._print_schema(
-            pl_interfaces.SampleValidationInterface(
-                sample_schema=sample_schema,
-                ignore_extra_keys=False,
-                lazy=(self.max_samples == 0),
-                max_samples=self.max_samples,
-            )
+
+        sample_validation = pl_interfaces.SampleValidationInterface(
+            sample_schema=sample_schema,
+            ignore_extra_keys=False,
+            lazy=(self.max_samples == 0),
+            max_samples=self.max_samples,
         )
-
-    def _print_schema(self, sample_schema):
-        import json
-
-        import pydash as py_
-
-        through_json = json.loads(sample_schema.json(by_alias=True))
+        through_json = json.loads(sample_validation.json(by_alias=True))
         if self.root_key_path:
+            import pydash as py_
+
             tmp_dict = {}
             py_.set_(tmp_dict, self.root_key_path, through_json)
             through_json = tmp_dict
-        print("\n\nYAML/JSON schema definition:\n")
-        print("****************************")
-        print(json.dumps(through_json, indent=2))
-        print("****************************")
-        print("\n\nCommand line usage:\n")
-        print("*********************")
-        print(" ".join(self._flatten_dict(through_json)))
-        print("*********************")
 
-    def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):
-        cmd_line = []
-        for k, v in dict_.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else f"{prefix}{k}"
-            if isinstance(v, t.Mapping):
-                cmd_line.extend(
-                    self._flatten_dict(v, parent_key=new_key, sep=sep, prefix=prefix)
-                )
-            elif isinstance(v, t.Sequence) and not isinstance(v, (str, bytes)):
-                cmd_line.extend(
-                    self._flatten_list(v, parent_key=new_key, sep=sep, prefix=prefix)
-                )
-            else:
-                cmd_line.append(new_key)
-                cmd_line.append(str(v))
-        return cmd_line
-
-    def _flatten_list(self, list_, parent_key, sep=".", prefix="--"):
-        cmd_line = []
-        for i, v in enumerate(list_):
-            new_key = f"{parent_key}[{i}]"
-            if isinstance(v, t.Mapping):
-                cmd_line.extend(
-                    self._flatten_dict(v, parent_key=new_key, sep=sep, prefix=prefix)
-                )
-            elif isinstance(v, t.Sequence) and not isinstance(v, (str, bytes)):
-                cmd_line.extend(
-                    self._flatten_list(v, parent_key=new_key, sep=sep, prefix=prefix)
-                )
-            else:
-                cmd_line.append(new_key)
-                cmd_line.append(str(v))
-        return cmd_line
+        self.output_schema_def = ValidateCommand.OutputSchemaDefinition(
+            schema_def=through_json
+        )
+        self.output_cmd_line_schema = ValidateCommand.OutputCmdLineSchema(
+            schema_def=through_json
+        )
