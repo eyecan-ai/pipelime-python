@@ -217,10 +217,10 @@ def _print_short_help(info, show_class_path):
         )
 
 
-def print_commands_and_ops_list(details: bool):
+def print_commands_and_ops_list(show_details: bool = False):
     """
     Print a list of all available sequence operators and piper commands.
     """
-    print_fn = _print_details if details else _print_short_help
+    print_fn = _print_details if show_details else _print_short_help
     print_fn(PipelimeSymbolsHelper.get_piper_commands(), True)
     print_fn(PipelimeSymbolsHelper.get_sequence_operators(), False)
