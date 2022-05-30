@@ -10,6 +10,7 @@ class ZMQProgressReceiver(ProgressReceiver):
     """A receiver for progress updates over pubsub ZMQ socket"""
 
     def __init__(self, token: str) -> None:
+        self._token = token
         try:
             import zmq
 
@@ -24,5 +25,13 @@ class ZMQProgressReceiver(ProgressReceiver):
 
     def receive(self) -> Optional[ProgressUpdate]:
         if self._socket is not None:
-            _, messagedata = self._socket.recv_multipart()
+
+            # Receive a message
+            token, messagedata = self._socket.recv_multipart()
+
+            # If token is wrong, wait for another message
+            if token.decode() != self._token:
+                return self.receive()
+
+            # Parse message and return
             return ProgressUpdate.parse_raw(messagedata.decode())
