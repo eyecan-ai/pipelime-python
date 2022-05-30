@@ -1,6 +1,6 @@
 import itertools
 from pathlib import Path
-from typing import Sequence, Set, Iterable
+from typing import Sequence, Set, Iterable, Collection
 
 import networkx as nx
 
@@ -25,7 +25,7 @@ class GraphNode:
     def __repr__(self) -> str:
         return f"{self.type}({self.name})"
 
-    def __eq__(self, o: object) -> bool:
+    def __eq__(self, o) -> bool:
         return self.id == o.id
 
 
@@ -136,13 +136,13 @@ class DAGNodesGraph:
 
     def consume(
         self,
-        operation_nodes: Sequence[GraphNodeOperation],
+        operation_nodes: Collection[GraphNodeOperation],
     ) -> Set[GraphNodeData]:
         """Given a set of operations, consume them and return the set of produced data,
         i.e. the data are the outputs of the operations.
 
         Args:
-            operation_nodes (Sequence[GraphNodeOperation]): The set of operations to be
+            operation_nodes (Collection[GraphNodeOperation]): The set of operations to be
             consumed.
 
         Returns:
@@ -158,7 +158,7 @@ class DAGNodesGraph:
             consumed_data.update(out_data)
         return consumed_data
 
-    def build_execution_stack(self) -> Sequence[Sequence[GraphNodeOperation]]:
+    def build_execution_stack(self) -> Sequence[Set[GraphNodeOperation]]:
         """Builds the execution stack of the DAG. The execution stack is a list of lists
         of operations. Each list of operations is a virtual layer of operations that
         can be executed in parallel because they have no dependencies.
@@ -168,7 +168,7 @@ class DAGNodesGraph:
         """
 
         # the execution stack is a list of lists of nodes. Each list represents a
-        execution_stack: Sequence[Sequence[GraphNodeOperation]] = []
+        execution_stack: Sequence[Set[GraphNodeOperation]] = []
 
         # initalize global produced data with the root nodes
         global_produced_data = set()

@@ -38,18 +38,15 @@ if __name__ == "__main__":
     a = MyUselessCommand(
         input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
     )
-    a._piper.token = "TOKEN"
-    a._piper.node = "UselessCommand_A"
+    a.set_piper_info(token="TOKEN", node="UselessCommand_A")
     a()
     a = MyUselessCommand(
         input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
     )
-    a._piper.token = "TOKEN"
-    a._piper.node = "UselessCommand_B"
+    a.set_piper_info(token="TOKEN", node="UselessCommand_B")
     a()
     a = MyUselessCommand(
         input_folder=Path("/tmp/input"), output_folder=Path("/tmp/output")
     )
-    a._piper.token = "TOKEN"
-    a._piper.node = "UselessCommand_C"
+    a.set_piper_info(token="TOKEN", node="UselessCommand_C")
     a()

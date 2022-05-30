@@ -1,4 +1,4 @@
-from abc import ABC, abstractclassmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -6,7 +6,8 @@ from pipelime.piper.model import DAGModel
 
 
 class DAGParser(ABC):
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def parse_cfg(cls, cfg: Dict, params: Optional[Dict] = None) -> DAGModel:
         """Parses the given configuration into a DAGModel.
 
@@ -20,7 +21,8 @@ class DAGParser(ABC):
         """
         pass
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def parse_file(
         cls,
         cfg_file: Path,

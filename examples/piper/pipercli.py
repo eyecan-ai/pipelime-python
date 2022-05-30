@@ -107,9 +107,9 @@ def draw(
 
     # Show or Write
     if output_file is not None:
-        drawer.export(graph, output_file)
+        drawer.export(graph, str(output_file))
         if open:
-            start_file(output_file)
+            start_file(str(output_file))
         else:
             rich.print("graph image saved to:", output_file)
     else:

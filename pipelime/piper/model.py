@@ -13,13 +13,13 @@ class PiperPortType(Enum):
     PARAMETER = "parameter"
 
 
-class PiperInfo(BaseModel):
+class PiperInfo(BaseModel, extra="forbid"):
     token: str = Field("", description="The piper execution token.")
     node: str = Field("", description="The piper dag's node name.")
 
     @property
     def active(self) -> bool:
-        return len(self.token) > 0
+        return bool(self.token)
 
 
 class PipelimeCommand(BaseModel, extra="forbid"):
@@ -74,6 +74,17 @@ class PipelimeCommand(BaseModel, extra="forbid"):
     def command_name(self) -> str:
         return self.command_title()
 
+    def set_piper_info(
+        self,
+        *,
+        token: t.Optional[str] = None,
+        node: t.Optional[str] = None,
+    ):
+        if token is not None:
+            self._piper.token = token
+        if node is not None:
+            self._piper.node = node
+
     def track(
         self,
         seq: t.Union[t.Sequence, t.Iterable],
@@ -97,8 +108,10 @@ class PipelimeCommand(BaseModel, extra="forbid"):
         self.run()
 
 
-class DAGModel(BaseModel):
-    nodes: t.Dict[str, PipelimeCommand]
+class DAGModel(BaseModel, extra="forbid"):
+    """A Piper DAG as a `<node>: <command>` mapping."""
+
+    nodes: t.Mapping[str, PipelimeCommand]
 
     def purged_dict(self):
         from pipelime.choixe import XConfig

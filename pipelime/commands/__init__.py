@@ -12,3 +12,4 @@ from pipelime.commands.split_ops import (
     SplitCommand,
 )
 from pipelime.commands.toy_dataset import ToyDatasetCommand
+from pipelime.commands.piper import PiperRunCommand, PiperDrawCommand

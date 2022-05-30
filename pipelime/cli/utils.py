@@ -158,16 +158,38 @@ class PipelimeSymbolsHelper:
                 return (cmd_type, cmd_dict[command_name])
         return None
 
+    @classmethod
+    def show_error_and_help(cls, name: str, should_be_cmd: bool, should_be_op: bool):
+        from pipelime.cli.pretty_print import print_error, print_warning, print_info
+        from difflib import get_close_matches
+
+        should_be = []
+        names_list = []
+        if should_be_cmd:
+            should_be.append("a piper command")
+            names_list += [
+                v2 for v1 in cls.get_piper_commands().values() for v2 in v1.keys()
+            ]
+        if should_be_op:
+            should_be.append("a sequence operator")
+            names_list += [
+                v2 for v1 in cls.get_sequence_operators().values() for v2 in v1.keys()
+            ]
+        similar_names = get_close_matches(name, names_list, cutoff=0.3)
+
+        print_error(f"{name} is not {' nor '.join(should_be)}!")
+        print_warning("Have you added the module with `--module`?")
+        if similar_names:
+            print_info(f"Similar entries: {', '.join(similar_names)}")
+
 
 def print_command_or_op_info(command_or_operator: str):
     """
     Prints detailed info about a sequence operator or a piper command.
     """
     from pipelime.cli.pretty_print import (
-        print_error,
         print_info,
         print_model_info,
-        print_warning,
     )
 
     info_cls = PipelimeSymbolsHelper.get_operator(command_or_operator)
@@ -178,10 +200,9 @@ def print_command_or_op_info(command_or_operator: str):
         show_class_path_and_piper_port = False
 
     if info_cls is None:
-        print_error(
-            f"{command_or_operator} is not a sequence operator nor a piper command!"
+        PipelimeSymbolsHelper.show_error_and_help(
+            command_or_operator, should_be_cmd=True, should_be_op=True
         )
-        print_warning("Have you added the module with `--module`?")
         raise ValueError(
             f"{command_or_operator} is not a sequence operator nor a piper command!"
         )
