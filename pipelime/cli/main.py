@@ -148,6 +148,14 @@ def pl_main(  # noqa: C901
             "a `package.module.ClassName` class path or "
             "a `path/to/module.py:ClassName` uri."
         ),
+        autocompletion=PipelimeSymbolsHelper.complete_name(
+            is_cmd=True,
+            is_seq_ops=False,
+            additional_names=[
+                ("list", "show commands and operators"),
+                ("help", "show help for a command or operator"),
+            ],
+        ),
     ),
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,

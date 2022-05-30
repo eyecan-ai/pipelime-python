@@ -11,7 +11,13 @@ class PipelimeSymbolsHelper:
     cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
 
     @classmethod
-    def complete_operator(cls, is_cmd: bool, is_seq_ops: bool):
+    def complete_name(
+        cls,
+        is_cmd: bool,
+        is_seq_ops: bool,
+        *,
+        additional_names: t.Sequence[t.Tuple[str, str]] = [],
+    ):
         import inspect
 
         valid_completion_items = list(
@@ -21,7 +27,7 @@ class PipelimeSymbolsHelper:
             (k, inspect.getdoc(v) or "")
             for elem in valid_completion_items
             for k, v in elem.items()
-        ]
+        ] + list(additional_names)
 
         def _complete(incomplete: str):
             for name, help_text in valid_completion_items:
