@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
-from pipelime.choixe.ast.nodes import DictNode, ListNode, Node
+from pipelime.choixe.ast.nodes import DictNode, InstanceNode, ListNode, Node, ModelNode
 from pipelime.choixe.visitors.unparser import Unparser
 
 
@@ -31,31 +31,38 @@ class Chunk:
 class Walker(Unparser):
     """Specialization of the `Unparser` for the walk operation."""
 
-    def visit_dict(self, node: DictNode) -> Chunk:
+    def __init__(self) -> None:
+        super().__init__()
+
+        # Wrap all visiting methods adding a chunkify step.
+        for x in dir(self):
+            if x.startswith("visit_"):
+                setattr(self, x, self._wrapped_visit(getattr(self, x)))
+
+    def _chunkify(self, data: Dict) -> Chunk:
         chunk = Chunk([])
-        for k, v in node.nodes.items():
-            key = k.accept(self)
-            value = v.accept(self)
-            assert isinstance(key, str), "Only string keys are allowed in dict walk"
 
-            if not isinstance(value, Chunk):
-                value = Chunk([Entry([], value)])
+        for k, v in data.items():
+            if not isinstance(v, Chunk):
+                v = Chunk([Entry([], v)])
 
-            chunk += value.prepend(key)
+            chunk += v.prepend(k)
 
         return chunk
 
-    def visit_list(self, node: ListNode) -> Chunk:
-        chunk = Chunk([])
-        for i, x in enumerate(node.nodes):
-            value = x.accept(self)
+    def _wrapped_visit(self, func: Callable[[Node], Any]) -> Callable[[Node], Any]:
+        def wrapper(node: Node) -> Chunk:
+            data = func(node)
 
-            if not isinstance(value, Chunk):
-                value = Chunk([Entry([], value)])
+            if isinstance(data, List):
+                data = dict(enumerate(data))
 
-            chunk += value.prepend(i)
+            if isinstance(data, Dict):
+                return self._chunkify(data)
+            else:
+                return data
 
-        return chunk
+        return wrapper
 
 
 def walk(node: Node) -> List[Tuple[List[Union[str, int]], Any]]:
