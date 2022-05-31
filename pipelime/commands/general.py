@@ -221,7 +221,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
     class OutputSchemaDefinition(pyd.BaseModel):
         schema_def: t.Any
 
-        def __str__(self) -> str:
+        def __repr__(self) -> str:
             import json
 
             return json.dumps(self.schema_def, indent=2)
@@ -229,7 +229,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
     class OutputCmdLineSchema(pyd.BaseModel):
         schema_def: t.Any
 
-        def __str__(self) -> str:
+        def __repr__(self) -> str:
             return " ".join(self._flatten_dict(self.schema_def))
 
         def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):

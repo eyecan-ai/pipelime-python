@@ -11,7 +11,7 @@ class SplitBase(pyd.BaseModel, extra="forbid"):
         None, description="Output split. Set to None to not save to disk."
     )
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return "" if self.output is None else str(self.output.folder)
 
 
@@ -59,7 +59,9 @@ class SplitCommand(PipelimeCommand, title="split"):
     subsample: pyd.PositiveInt = pyd.Field(
         1, description="Take 1-every-nth input sample. Applied after shuffling."
     )
-    splits: t.Sequence[t.Union[PercSplit, AbsoluteSplit]] = pyd.Field(
+    splits: t.Union[
+        PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
+    ] = pyd.Field(
         ..., description="Splits definition.", piper_port=PiperPortType.OUTPUT
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
@@ -77,7 +79,8 @@ class SplitCommand(PipelimeCommand, title="split"):
             reader = reader[:: self.subsample]
         input_length = len(reader)
 
-        split_sizes = [s.split_size(input_length) for s in self.splits]
+        splits = self.splits if isinstance(self.splits, t.Sequence) else [self.splits]
+        split_sizes = [s.split_size(input_length) for s in splits]
         none_idx = -1
         split_total = 0
         for i, s in enumerate(split_sizes):
@@ -98,7 +101,7 @@ class SplitCommand(PipelimeCommand, title="split"):
 
         split_start = 0
         for idx, split_length, split in zip(
-            range(len(split_sizes)), split_sizes, self.splits
+            range(len(split_sizes)), split_sizes, splits
         ):
             split_stop = split_start + split_length  # type: ignore
             if split.output is not None:

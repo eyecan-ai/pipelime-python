@@ -25,7 +25,7 @@ class FakeDetector(PipelimeCommand, title="fake_detector"):
             seq = input_.create_reader()
 
             # Add metadata
-            out_seq = SamplesSequence.from_list([])
+            out_seq = SamplesSequence.from_list([])  # type: ignore
             for sample in self.track(seq):
                 data = {"keypoints": [np.random.randint(0, 100, (10, 4)).tolist()]}
                 sample["fake_detection"] = YamlMetadataItem(data)

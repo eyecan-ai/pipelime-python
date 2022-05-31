@@ -58,9 +58,7 @@ class Token:
 class Scanner:
     """Choixe Scanner of python str objects."""
 
-    DIRECTIVE_RE = (
-        rf"(?:\$[^\)\( \.\,\$]+\([^\(\)]*\))|(?:\$[^\)\( \.\,\$]+)|(?:[^\$]*)"
-    )
+    DIRECTIVE_RE = r"(?:\$[^\)\( \.\,\$]+\([^\(\)]*\))|(?:\$[^\)\( \.\,\$]+)|(?:[^\$]*)"
     """Regex used to check if a string is a Choixe directive."""
 
     def _scan_argument(
@@ -243,8 +241,8 @@ class Parser:
             if schema.is_valid(data):
                 try:
                     return fn(data)
-                except:
-                    raise ChoixeStructValidationError(data)
+                except Exception as e:
+                    raise ChoixeStructValidationError(data) from e
 
         # Check for each entry if it is a key_value form, in that case parse it and add
         # it to the bundle. Keep track of what is left to parse.

@@ -206,7 +206,7 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
 class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
     """Input dataset options."""
 
-    folder: pyd.DirectoryPath = pyd.Field(..., description="Dataset root folder.")
+    folder: Path = pyd.Field(..., description="Dataset root folder.")
     merge_root_items: bool = pyd.Field(
         True,
         description=(
@@ -228,7 +228,7 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
             reader = self.schema_.append_validator(reader)
         return reader
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return str(self.folder)
 
 
@@ -336,7 +336,7 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
             writer = self.schema_.append_validator(writer)
         return writer
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return str(self.folder)
 
 

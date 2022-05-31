@@ -76,8 +76,6 @@ class PiperDrawCommand(PipelimeCommand, title="piper-draw"):
         import platform
         import subprocess
 
-        import cv2 as cv
-
         from pipelime.piper.drawing.factory import NodesGraphDrawerFactory
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel
@@ -100,6 +98,8 @@ class PiperDrawCommand(PipelimeCommand, title="piper-draw"):
             if self.open:
                 start_file(str(self.output))
         else:
+            from PIL import Image
+
             graph_image = drawer.draw(graph=graph)
-            cv.imshow("graph", cv.cvtColor(graph_image, cv.COLOR_RGB2BGR))
-            cv.waitKey(0)
+            img = Image.fromarray(graph_image, "RGB")
+            img.show("Graph")

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from pydantic.typing import display_as_type
 from rich import box
 from rich import print as rprint
+from rich.pretty import pprint
 from rich.table import Table
 
 from pipelime.piper import PipelimeCommand, PiperPortType
@@ -50,7 +51,7 @@ def print_model_field_values(
             f"\n{icon if icon else '***'} {k}:",
             f"[italic grey50]{model_fields[k].field_info.description}[/]",
         )
-        rprint(str(v))
+        pprint(v, expand_all=True)
 
 
 def print_command_inputs(command: PipelimeCommand):

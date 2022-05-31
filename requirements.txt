@@ -9,6 +9,7 @@ tifffile
 albumentations>=1.0.0
 astunparse
 python-box
+pygraphviz
 deepdiff
 pydash
 pydantic

@@ -116,4 +116,4 @@ class DAGModel(BaseModel, extra="forbid"):
     def purged_dict(self):
         from pipelime.choixe import XConfig
 
-        return XConfig(data={"nodes": self.nodes}).to_dict()
+        return XConfig(data={"nodes": self.nodes}).decode()

@@ -58,13 +58,13 @@ class TestCliBase:
         outpath = tmp_path / "output"
         args = [
             "pipe",
-            "--input.folder",
+            "#input.folder",
             str(minimnist_dataset["path"]),
-            "--output.folder",
+            "#output.folder",
             str(outpath),
-            "--output.serialization.override.DEEP_COPY",
+            "#output.serialization.override.DEEP_COPY",
             "NpyNumpyItem",
-            "--operations",
+            "#operations",
             r"{slice: {stop: 10}, '"
             + str(data_folder / "cli" / "extra_operators.py")
             + r":reverse': {num: 5} }",

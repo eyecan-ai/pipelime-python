@@ -9,6 +9,14 @@ from pipelime.cli.utils import (
 )
 
 
+def _print_xconfig(name, data):
+    import json
+    from pipelime.cli.pretty_print import print_info
+
+    print_info(f"\n{name}:")
+    print_info(json.dumps(data.to_dict(), indent=2))
+
+
 def _convert_val(val: str):
     if val.lower() == "true":
         return True
@@ -27,21 +35,6 @@ def _convert_val(val: str):
     except ValueError:
         pass
     return val
-
-
-def _store_opt(last_opt, last__val, all_opts):
-    import pydash as py_
-
-    if last_opt is not None:
-        curr_val = py_.get(all_opts, last_opt, None)
-        if curr_val is None:
-            py_.set_(all_opts, last_opt, last__val)
-        else:
-            if not isinstance(curr_val, tuple):
-                curr_val = (curr_val,)
-            if not isinstance(last__val, tuple):
-                last__val = (last__val,)
-            py_.set_(all_opts, last_opt, curr_val + last__val)
 
 
 def _process_key_arg(arg):
@@ -65,15 +58,19 @@ def _process_val_arg(arg, last_val):
 
 
 def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]]:
+    from pipelime.choixe.utils.common import deep_set_
+
     cfg_last_opt, cfg_last_val, prms_last_opt, prms_last_val = None, None, None, None
     cfg_opts, prms_opts = {}, {}
     expecting_cfg_val: t.Optional[bool] = None
 
     def _store_last_opt():
         if expecting_cfg_val:
-            _store_opt(cfg_last_opt, cfg_last_val, cfg_opts)
+            deep_set_(cfg_opts, key_path=cfg_last_opt, value=cfg_last_val, append=True)
         elif expecting_cfg_val is not None:
-            _store_opt(prms_last_opt, prms_last_val, prms_opts)
+            deep_set_(
+                prms_opts, key_path=prms_last_opt, value=prms_last_val, append=True
+            )
 
     for extra_arg in cmd_args:
         if extra_arg.startswith("#"):
@@ -129,20 +126,22 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the parameters to compile the input "
-            "configuration. Command line options starting with `@` will update "
+            "A YAML/JSON file with some or all the context parameters to compile the "
+            "input configuration. Command line options starting with `@` will update "
             "and override the ones in the file."
         ),
     ),
     run_all: t.Optional[bool] = typer.Option(
         None,
         help=(
-            "In case of multiple configurations, run them all. "
-            "Otherwise, run only the first one."
+            "In case of multiple configurations, run them all, "
+            "otherwise, run only the first one. If not specified, user will be "
+            "notified if multiple configurations are found."
         ),
     ),
     command: str = typer.Argument(
-        ...,
+        "",
+        show_default=False,
         help=(
             "A sequence operator or a piper command, ie, a `command-name`, "
             "a `package.module.ClassName` class path or "
@@ -160,10 +159,13 @@ def pl_main(  # noqa: C901
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
         help=(
-            "Piper command arguments. Options starting with `--` are considered part "
+            "Piper command arguments. Options starting with `#` are considered part "
             "of the command configurations, while options starting with `@` are part "
             "of the context, ie, the parameters to compile the input configuration."
         ),
+    ),
+    help: bool = typer.Option(
+        False, "--help", show_default=False, help="Show this message and exit."
     ),
 ):
     """
@@ -177,38 +179,49 @@ def pl_main(  # noqa: C901
     """
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 
-    if command in ("help", "--help", "-h"):
-        if command_args:
+    if command_args is None:
+        command_args = []
+
+    if help or command == "help" or "help" in command_args:
+        if command and command != "help":
+            print_command_or_op_info(command)
+        elif command_args:
             print_command_or_op_info(command_args[0])
         else:
             print(ctx.get_help())
     elif command == "list":
         print_commands_and_ops_list(verbose)
-    else:
+    elif command:
         from pipelime.choixe import XConfig
         from pipelime.cli.pretty_print import print_error, print_info
 
         base_cfg = XConfig() if config is None else XConfig.from_file(config)
         base_prms = XConfig() if params is None else XConfig.from_file(params)
 
-        (cmdline_cfg, cmdline_prms,) = (
-            (None, None) if not command_args else _extract_options(command_args)
-        )
+        cmdline_cfg, cmdline_prms = _extract_options(command_args)
         cmdline_cfg = XConfig(cmdline_cfg)
         cmdline_prms = XConfig(cmdline_prms)
 
+        if verbose:
+            _print_xconfig("Loaded configuration file", base_cfg)
+            _print_xconfig("Loaded parameter file", base_prms)
+            _print_xconfig("Configuration options from command line", cmdline_cfg)
+            _print_xconfig("Parameter options from command line", cmdline_prms)
+
         base_cfg.deep_update(cmdline_cfg, full_merge=True)
+        _print_xconfig("After update", base_cfg)
         base_prms.deep_update(cmdline_prms, full_merge=True)
         effective_configs = (
             [base_cfg.process(base_prms)]
             if run_all is not None and not run_all
             else base_cfg.process_all(base_prms)
         )
+
         for cfg in effective_configs:
             if not cfg.inspect().processed:
                 print_error("The configuration has not been fully processed.")
                 if verbose:
-                    print_info(cfg)
+                    _print_xconfig("Unprocessed data", cfg)
                 else:
                     print_info(
                         "Run with --verbose to see the final configuration file."
@@ -227,6 +240,11 @@ def pl_main(  # noqa: C901
             if verbose and cfg_size > 1:
                 print_info(f"*** CONFIGURATION {idx}/{cfg_size} ***")
             run_command(command, cfg.to_dict(), verbose)
+    else:
+        from pipelime.cli.pretty_print import print_error
+
+        print_error("No command specified.")
+        typer.Exit(1)
 
 
 def run_command(command: str, cmd_args: t.Mapping, verbose: bool):
@@ -257,7 +275,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool):
 
     if verbose:
         print_info(f"\nCreated command `{command}`:")
-        print_info(repr(cmd_obj))
+        print_info(cmd_obj.dict())
 
     if verbose:
         print_info(f"\nRunning `{command}`...")
