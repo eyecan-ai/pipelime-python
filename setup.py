@@ -19,7 +19,11 @@ test_requirements = [
     "pytest-cov",
 ]
 
-extras_requirements = {"minio": ["minio"], "all": ["minio"]}
+extras_requirements = {
+    "s3": ["minio"],
+    "draw": ["pygraphviz"],
+    "all": ["minio", "pygraphviz"],
+}
 
 setup(
     author="Daniele De Gregorio",
