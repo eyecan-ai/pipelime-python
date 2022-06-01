@@ -237,6 +237,11 @@ class DAGNodesGraph:
         io_map: Optional[Mapping[str, Any]],
         is_input: bool,
     ):
+        def _to_str(x):
+            if hasattr(x, "__piper_repr__"):
+                return x.__piper_repr__()
+            return str(x)
+
         if io_map is not None:
             for name, value in io_map.items():
                 if (
@@ -249,7 +254,8 @@ class DAGNodesGraph:
                 attrs = {}
                 for x in value:
                     if x:  # discard empty strings and None
-                        n0 = GraphNodeData(str(x), str(x))
+                        x_name = _to_str(x)
+                        n0 = GraphNodeData(x_name, x_name)
                         n1 = GraphNodeOperation(node_name, node_cmd)
                         if is_input:
                             port_attr = DAGNodesGraph.GraphAttrs.INPUT_PORT

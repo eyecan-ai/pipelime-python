@@ -1,6 +1,7 @@
 from pipelime.commands.general import (
     PipeCommand,
     CloneCommand,
+    ConcatCommand,
     AddRemoteCommand,
     RemoveRemoteCommand,
     ValidateCommand,

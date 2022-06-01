@@ -18,9 +18,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         "(use <filepath>:<key-path> to load the definitions from a pydash-like path).\n"
         "The pipeline is defined as a mapping or a sequence of mappings where "
         "each key is a sequence operator to run, while the value gathers "
-        "the arguments, ie, a single value, a sequence of values or a mapping.\n"
-        "You can inspect the available operators by running `pipelime list --seq` and "
-        "`pipelime list --seq --details`.",
+        "the arguments, ie, a single value, a sequence of values or a mapping.",
     )
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
         ..., description="Input dataset.", piper_port=PiperPortType.INPUT
@@ -105,6 +103,41 @@ class CloneCommand(PipelimeCommand, title="clone"):
                 keep_order=False,
                 parent_cmd=self,
                 track_message=f"Cloning data ({len(seq)} samples)",
+            )
+
+
+class ConcatCommand(PipelimeCommand, title="cat"):
+    """Concatenate two or more datasets."""
+
+    inputs: t.Sequence[pl_interfaces.InputDatasetInterface] = pyd.Field(
+        ..., description="Input datasets.", piper_port=PiperPortType.INPUT
+    )
+    output: pl_interfaces.OutputDatasetInterface = pyd.Field(
+        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+    )
+    grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        description="Grabber options.",
+    )
+
+    @pyd.validator("inputs")
+    def check_inputs(cls, v):
+        if len(v) < 2:
+            raise ValueError("You need at least two inputs.")
+        return v
+
+    def run(self):
+        input_it = iter(self.inputs)
+        seq = next(input_it).create_reader()
+        for input_ in input_it:
+            seq = seq.cat(input_.create_reader())
+        seq = self.output.append_writer(seq)
+        with self.output.serialization_cm():
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_cmd=self,
+                track_message=f"Writing data ({len(seq)} samples)",
             )
 
 
@@ -222,6 +255,9 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         schema_def: t.Any
 
         def __repr__(self) -> str:
+            return self.__piper_repr__()
+
+        def __piper_repr__(self) -> str:
             import json
 
             return json.dumps(self.schema_def, indent=2)
@@ -230,6 +266,9 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         schema_def: t.Any
 
         def __repr__(self) -> str:
+            return self.__piper_repr__()
+
+        def __piper_repr__(self) -> str:
             return " ".join(self._flatten_dict(self.schema_def))
 
         def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):

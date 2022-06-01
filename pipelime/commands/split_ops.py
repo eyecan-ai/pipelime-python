@@ -12,6 +12,9 @@ class SplitBase(pyd.BaseModel, extra="forbid"):
     )
 
     def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
         return "" if self.output is None else str(self.output.folder)
 
 

@@ -136,7 +136,7 @@ class Processor(NodeVisitor):
         if node.default is not None:
             return [node.default.data]
 
-        raise ChoixeProcessingError(f"Variable not found: {node.identifier.data}")
+        raise ChoixeProcessingError(f"Variable not found: `{node.identifier.data}`")
 
     def visit_import(self, node: ImportNode) -> List[Any]:
         path = Path(node.path.data)

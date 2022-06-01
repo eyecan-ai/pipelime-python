@@ -229,6 +229,9 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
         return reader
 
     def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
         return str(self.folder)
 
 
@@ -337,6 +340,9 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
         return writer
 
     def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
         return str(self.folder)
 
 

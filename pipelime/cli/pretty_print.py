@@ -4,8 +4,10 @@ import typing as t
 from pydantic import BaseModel
 from pydantic.typing import display_as_type
 from rich import box
+from rich.markup import escape
+from rich import get_console
 from rich import print as rprint
-from rich.pretty import pprint
+from rich.pretty import pprint, Pretty
 from rich.table import Table
 
 from pipelime.piper import PipelimeCommand, PiperPortType
@@ -23,21 +25,33 @@ def _parameter_icon():
     return "\U0001F4D0"
 
 
-def print_debug(val):
-    rprint(f"[italic grey50]{val}[/]")
+def print_debug(val, *, pretty: bool = False):
+    get_console().print(
+        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        style="italic grey50",
+    )
 
 
-def print_info(val):
-    rprint(f"[cyan]{val}[/]")
+def print_info(val, *, pretty: bool = False):
+    get_console().print(
+        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        style="cyan",
+    )
 
 
-def print_warning(val):
-    rprint(f"[orange1][bold blink]WARNING:[/bold blink] {val}[/orange1]")
+def print_warning(val, *, pretty: bool = False):
+    get_console().print(
+        "[bold blink]WARNING:[/bold blink]",
+        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        style="orange1",
+    )
 
 
-def print_error(val):
-    rprint(
-        f"[dark_red on white][bold blink]ERROR:[/bold blink] {val}[/dark_red on white]"
+def print_error(val, *, pretty: bool = False):
+    get_console().print(
+        "[bold blink]ERROR:[/bold blink]",
+        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        style="dark_red on white",
     )
 
 
@@ -49,7 +63,7 @@ def print_model_field_values(
     for k, v in port_values.items():
         rprint(
             f"\n{icon if icon else '***'} {k}:",
-            f"[italic grey50]{model_fields[k].field_info.description}[/]",
+            f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]",
         )
         pprint(v, expand_all=True)
 
@@ -68,10 +82,10 @@ def print_models_short_help(
 ):
     grid = Table.grid(padding=(0, 1))
     for m in model_cls:
-        col_vals = [_command_title(m)]
+        col_vals = [escape(_command_title(m))]
         if show_class_path:
-            col_vals.append(f"[italic grey50]{_command_classpath(m)}[/]")
-        col_vals.append(inspect.getdoc(m) or "")
+            col_vals.append(f"[italic grey50]{escape(_command_classpath(m))}[/]")
+        col_vals.append(escape(inspect.getdoc(m) or ""))
         grid.add_row(*col_vals)
     rprint(grid)
 
@@ -91,11 +105,11 @@ def print_model_info(
         ),
         box=box.SIMPLE_HEAVY,
         title=(
-            f"[bold dark_red]{_command_title(model_cls)}[/]\n"
-            f"[blue]{_get_signature(model_cls)}[/]\n"
-            f"[italic grey23]{inspect.getdoc(model_cls)}[/]"
+            f"[bold dark_red]{escape(_command_title(model_cls))}[/]\n"
+            f"[blue]{escape(_get_signature(model_cls))}[/]\n"
+            f"[italic grey23]{escape(inspect.getdoc(model_cls) or '')}[/]"
         ),
-        caption=_command_classpath(model_cls) if show_class_path else None,
+        caption=escape(_command_classpath(model_cls)) if show_class_path else None,
         title_style="on white",
         expand=True,
     )
@@ -138,9 +152,9 @@ def _field_row(
         [
             (" " * indent)
             + ("[bold salmon1]" if indent == 0 else "")
-            + f"{field.alias}"
+            + f"{escape(field.alias)}"
             + ("[/]" if indent == 0 else ""),
-            "\u25B6 " + field.field_info.description
+            ("\u25B6 " + escape(field.field_info.description))
             if field.field_info.description
             else "",
             (
@@ -149,7 +163,7 @@ def _field_row(
                 else display_as_type(field.outer_type_).replace("[", r"\[")
             ),
         ]
-        + ([fport] if show_piper_port else [])
+        + ([fport] if fport else [])
         + (
             ["[green]\u2713[/]", ""]
             if field.required

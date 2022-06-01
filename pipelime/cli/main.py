@@ -116,6 +116,7 @@ def pl_main(  # noqa: C901
         [], "--module", "-m", help="Additional modules to import."
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
     config: t.Optional[Path] = typer.Option(
         None,
         exists=True,
@@ -208,6 +209,7 @@ def pl_main(  # noqa: C901
         print_commands_and_ops_list(verbose)
     elif command:
         from pipelime.choixe import XConfig
+        from pipelime.choixe.visitors.processor import ChoixeProcessingError
         from pipelime.cli.pretty_print import print_error, print_info
 
         base_cfg = XConfig() if config is None else XConfig.from_file(config)
@@ -230,11 +232,15 @@ def pl_main(  # noqa: C901
             _print_xconfig("Merged configuration", base_cfg)
             _print_xconfig("Merged parameters", base_prms)
 
-        effective_configs = (
-            [base_cfg.process(base_prms)]
-            if run_all is not None and not run_all
-            else base_cfg.process_all(base_prms)
-        )
+        try:
+            effective_configs = (
+                [base_cfg.process(base_prms)]
+                if run_all is not None and not run_all
+                else base_cfg.process_all(base_prms)
+            )
+        except ChoixeProcessingError as e:
+            print_error(f"Invalid configuration! {e}")
+            raise typer.Exit(1)
 
         if verbose:
             print_info(
@@ -251,7 +257,7 @@ def pl_main(  # noqa: C901
                     print_info(
                         "Run with --verbose to see the final configuration file."
                     )
-                typer.Exit(1)
+                raise typer.Exit(1)
 
         if len(effective_configs) > 1 and run_all is None:
             if not typer.confirm(
@@ -264,15 +270,15 @@ def pl_main(  # noqa: C901
         for idx, cfg in enumerate(effective_configs):
             if verbose and cfg_size > 1:
                 print_info(f"*** CONFIGURATION {idx}/{cfg_size} ***")
-            run_command(command, cfg.to_dict(), verbose)
+            run_command(command, cfg.to_dict(), verbose, dry_run)
     else:
         from pipelime.cli.pretty_print import print_error
 
         print_error("No command specified.")
-        typer.Exit(1)
+        raise typer.Exit(1)
 
 
-def run_command(command: str, cmd_args: t.Mapping, verbose: bool):
+def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool):
     """
     Run a piper command.
     """
@@ -294,17 +300,19 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool):
 
     if verbose:
         print_info(f"\nCreating command `{command}` with options:")
-        print_info(cmd_args)
+        print_info(cmd_args, pretty=True)
 
     cmd_obj = cmd_cls(**cmd_args)
 
     if verbose:
         print_info(f"\nCreated command `{command}`:")
-        print_info(cmd_obj.dict())
+        print_info(cmd_obj.dict(), pretty=True)
 
     if verbose:
         print_info(f"\nRunning `{command}`...")
-    cmd_obj()
+
+    if not dry_run:
+        cmd_obj()
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)
