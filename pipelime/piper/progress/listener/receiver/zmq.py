@@ -1,5 +1,6 @@
 from typing import Optional
 
+import zmq
 from loguru import logger
 
 from pipelime.piper.progress.listener.base import ProgressReceiver
@@ -11,27 +12,24 @@ class ZMQProgressReceiver(ProgressReceiver):
 
     def __init__(self, token: str) -> None:
         self._token = token
-        try:
-            import zmq
-
-            super().__init__(token)
-            self._context = zmq.Context()
-            self._socket = self._context.socket(zmq.SUB)
-            self._socket.connect("tcp://localhost:5556")
-            self._socket.subscribe(token.encode())
-        except ModuleNotFoundError:  # pragma: no cover
-            logger.error(f"{self.__class__.__name__} needs `pyzmq` python package.")
-            self._socket = None
+        super().__init__(token)
+        self._context = zmq.Context()
+        self._socket = self._context.socket(zmq.SUB)
+        self._socket.connect("tcp://localhost:5556")
+        self._socket.subscribe(token.encode())
 
     def receive(self) -> Optional[ProgressUpdate]:
         if self._socket is not None:
+            while True:
+                # Receive a message
+                try:
+                    token, messagedata = self._socket.recv_multipart(flags=zmq.NOBLOCK)
+                except zmq.ZMQError:
+                    return None  # no message
 
-            # Receive a message
-            token, messagedata = self._socket.recv_multipart()
-
-            # If token is wrong, wait for another message
-            if token.decode() != self._token:
-                return self.receive()
+                # If token is wrong, wait for another message
+                if token.decode() == self._token:
+                    break
 
             # Parse message and return
             return ProgressUpdate.parse_raw(messagedata.decode())

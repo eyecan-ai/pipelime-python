@@ -25,6 +25,13 @@ class PiperRunCommand(PipelimeCommand, title="piper-run"):
     watch: bool = Field(
         True, description="Monitor the execution in the current console."
     )
+    successful: bool = Field(
+        None,
+        description="True if the execution was successful",
+        exclude=True,
+        repr=False,
+        piper_port=PiperPortType.OUTPUT,
+    )
 
     def run(self):
         import uuid
@@ -39,7 +46,7 @@ class PiperRunCommand(PipelimeCommand, title="piper-run"):
         dag = DAGModel(nodes=self.nodes)
         graph = DAGNodesGraph.build_nodes_graph(dag)
         executor = NodesGraphExecutorFactory.get_executor(watch=self.watch)
-        executor.exec(graph, token=self.token)
+        self.successful = executor.exec(graph, token=self.token)
 
 
 class PiperDrawCommand(PipelimeCommand, title="piper-draw"):

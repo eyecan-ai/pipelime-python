@@ -9,6 +9,11 @@ from pipelime.cli.utils import (
 )
 
 
+def _complete_yaml(incomplete: str):
+    for v in Path(".").glob(f"{incomplete}*.yaml"):
+        yield str(v)
+
+
 def _print_xconfig(name, data):
     import json
     from pipelime.cli.pretty_print import print_info
@@ -66,14 +71,22 @@ def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]
 
     def _store_last_opt():
         if expecting_cfg_val:
-            deep_set_(cfg_opts, key_path=cfg_last_opt, value=cfg_last_val, append=True)
+            deep_set_(
+                cfg_opts,
+                key_path=cfg_last_opt,
+                value=cfg_last_val if cfg_last_val is not None else True,
+                append=True,
+            )
         elif expecting_cfg_val is not None:
             deep_set_(
-                prms_opts, key_path=prms_last_opt, value=prms_last_val, append=True
+                prms_opts,
+                key_path=prms_last_opt,
+                value=prms_last_val if prms_last_val is not None else True,
+                append=True,
             )
 
     for extra_arg in cmd_args:
-        if extra_arg.startswith("#"):
+        if extra_arg.startswith("+"):
             _store_last_opt()
             expecting_cfg_val = True
             cfg_last_opt, cfg_last_val = _process_key_arg(extra_arg)
@@ -116,6 +129,7 @@ def pl_main(  # noqa: C901
             "Command line options starting with `#` will update and override "
             "the ones in the file."
         ),
+        autocompletion=_complete_yaml,
     ),
     params: t.Optional[Path] = typer.Option(
         None,
@@ -130,6 +144,7 @@ def pl_main(  # noqa: C901
             "input configuration. Command line options starting with `@` will update "
             "and override the ones in the file."
         ),
+        autocompletion=_complete_yaml,
     ),
     run_all: t.Optional[bool] = typer.Option(
         None,
@@ -165,7 +180,7 @@ def pl_main(  # noqa: C901
         ),
     ),
     help: bool = typer.Option(
-        False, "--help", show_default=False, help="Show this message and exit."
+        False, "--help", "-h", show_default=False, help="Show this message and exit."
     ),
 ):
     """
@@ -209,13 +224,23 @@ def pl_main(  # noqa: C901
             _print_xconfig("Parameter options from command line", cmdline_prms)
 
         base_cfg.deep_update(cmdline_cfg, full_merge=True)
-        _print_xconfig("After update", base_cfg)
         base_prms.deep_update(cmdline_prms, full_merge=True)
+
+        if verbose:
+            _print_xconfig("Merged configuration", base_cfg)
+            _print_xconfig("Merged parameters", base_prms)
+
         effective_configs = (
             [base_cfg.process(base_prms)]
             if run_all is not None and not run_all
             else base_cfg.process_all(base_prms)
         )
+
+        if verbose:
+            print_info(
+                f"Found {len(effective_configs)} configuration"
+                f"{'s' if not effective_configs or len(effective_configs) > 1 else ''}"
+            )
 
         for cfg in effective_configs:
             if not cfg.inspect().processed:

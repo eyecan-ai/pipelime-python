@@ -39,7 +39,7 @@ class NaiveEstimator(Estimator):
 
     @property
     def speed(self) -> float:
-        return 1 / self._avg_dt
+        return 1 / self._avg_dt if self._avg_dt != 0 else float("inf")
 
     @property
     def eta(self) -> float:

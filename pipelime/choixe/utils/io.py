@@ -22,11 +22,12 @@ def load(path: Path) -> Any:
     Returns:
         Any: The loaded object.
     """
-    ext = get_extension(path)
-    if ext in ["yaml", "yml"]:
-        return yaml.safe_load(open(path, "r"))
-    elif ext in ["json"]:
-        return json.load(open(path, "r"))
+    with open(path, "r") as fd:
+        ext = get_extension(path)
+        if ext in ["yaml", "yml"]:
+            return yaml.safe_load(fd)
+        elif ext in ["json"]:
+            return json.load(fd)
 
 
 def dump(obj: Any, path: Path) -> None:

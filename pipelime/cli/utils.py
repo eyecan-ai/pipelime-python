@@ -198,26 +198,27 @@ def print_command_or_op_info(command_or_operator: str):
         print_model_info,
     )
 
-    info_cls = PipelimeSymbolsHelper.get_operator(command_or_operator)
-    if info_cls is None:
-        info_cls = PipelimeSymbolsHelper.get_command(command_or_operator)
-        show_class_path_and_piper_port = True
-    else:
-        show_class_path_and_piper_port = False
+    def _print_info(info_cls, show_class_path_and_piper_port):
+        if info_cls is not None:
+            print_info(f"\n---{info_cls[0][0]}")
+            print_model_info(
+                info_cls[1],
+                show_class_path=show_class_path_and_piper_port,
+                show_piper_port=show_class_path_and_piper_port,
+            )
 
-    if info_cls is None:
+    info_op = PipelimeSymbolsHelper.get_operator(command_or_operator)
+    info_cmd = PipelimeSymbolsHelper.get_command(command_or_operator)
+
+    if info_op is None and info_cmd is None:
         PipelimeSymbolsHelper.show_error_and_help(
             command_or_operator, should_be_cmd=True, should_be_op=True
         )
         raise ValueError(
             f"{command_or_operator} is not a sequence operator nor a piper command!"
         )
-    print_info(f"\n---{info_cls[0][0]}")
-    print_model_info(
-        info_cls[1],
-        show_class_path=show_class_path_and_piper_port,
-        show_piper_port=show_class_path_and_piper_port,
-    )
+    _print_info(info_op, False)
+    _print_info(info_cmd, True)
 
 
 def _print_details(info, show_class_path_and_piper_port):

@@ -1,5 +1,6 @@
 import time
 
+import zmq
 from loguru import logger
 
 from pipelime.piper.progress.model import ProgressUpdate
@@ -20,19 +21,12 @@ class ZmqTrackCallback(TrackCallback):
             self._socket.send_multipart([topic.encode(), prog.json().encode()])
 
     def on_start(self, prog: ProgressUpdate) -> None:
-        try:
-            import zmq
+        self._socket = zmq.Context().socket(zmq.PUB)
+        self._socket.bind(self._addr)
 
-            self._socket = zmq.Context().socket(zmq.PUB)
-            self._socket.bind(self._addr)
-
-            # Wait for the socket to be ready...
-            # Apparently, this is the only way to do it. I don't know why.
-            time.sleep(0.2)
-
-        except ModuleNotFoundError:  # pragma: no cover
-            logger.error(f"{self.__class__.__name__} needs `pyzmq` python package.")
-            self._socket = None
+        # Wait for the socket to be ready...
+        # Apparently, this is the only way to do it. I don't know why.
+        time.sleep(0.2)
 
         self._send(prog)
 

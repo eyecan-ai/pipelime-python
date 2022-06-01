@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from threading import Thread
+import time
 from typing import Optional
 
 from loguru import logger
@@ -49,27 +50,37 @@ class Listener:
     """A listener for progress updates"""
 
     def __init__(
-        self, receiver: ProgressReceiver, *callbacks: ListenerCallback
+        self,
+        receiver: ProgressReceiver,
+        *callbacks: ListenerCallback,
+        min_poll_interval: float = 0.1
     ) -> None:
         """Initialize the listener
 
         Args:
             receiver (ProgressReceiver): The progress receiver to use
+            callbacks (ListenerCallback): The callbacks to call
+            min_poll_interval (float): The minimum interval, in seconds, between
+                progress updates
         """
         self._receiver = receiver
         self._callbacks = callbacks
+        self._min_poll_interval = min_poll_interval
 
         self._stop_flag = False
         self._listening_thread = None
 
     def _listen(self) -> None:
         while not self._stop_flag:
+            last_update = time.time()
             prog = next(self._receiver)
-            if prog is None:
-                continue  # pragma: no cover
+            if prog is not None:
+                for cb in self._callbacks:
+                    cb.on_update(prog)
 
-            for cb in self._callbacks:
-                cb.on_update(prog)
+            time_diff = time.time() - last_update
+            if time_diff < self._min_poll_interval:
+                time.sleep(time_diff)
 
     def start(self) -> None:
         """Start the listener in a thread"""
@@ -81,9 +92,10 @@ class Listener:
 
     def stop(self) -> None:
         """Stop the listener"""
-        self._stop_flag = True
-        self._listening_thread.join(5.0)
-        self._listening_thread = None
+        if self._listening_thread is not None:
+            self._stop_flag = True
+            self._listening_thread.join(5.0)
+            self._listening_thread = None
 
-        for cb in self._callbacks:
-            cb.on_stop()
+            for cb in self._callbacks:
+                cb.on_stop()
