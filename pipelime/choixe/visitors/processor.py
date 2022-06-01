@@ -38,6 +38,10 @@ from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors.unparser import unparse
 
 
+class ChoixeProcessingError(Exception):
+    pass
+
+
 @dataclass
 class LoopInfo:
     index: int
@@ -121,14 +125,18 @@ class Processor(NodeVisitor):
         return data
 
     def visit_var(self, node: VarNode) -> List[Any]:
-        default = None
-        if node.default is not None:
-            default = node.default.data
+        if py_.has(self._context, node.identifier.data):
+            return [py_.get(self._context, node.identifier.data)]
 
         if node.env is not None and node.env.data:
-            default = os.getenv(node.identifier.data, default=default)
+            value = os.getenv(node.identifier.data)
+            if value is not None:
+                return [value]
 
-        return [py_.get(self._context, node.identifier.data, default)]
+        if node.default is not None:
+            return [node.default.data]
+
+        raise ChoixeProcessingError(f"Variable not found: {node.identifier.data}")
 
     def visit_import(self, node: ImportNode) -> List[Any]:
         path = Path(node.path.data)
