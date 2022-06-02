@@ -22,14 +22,14 @@ class XConfig(Box):
 
     def __init__(
         self,
-        data: Optional[Dict] = None,
+        data: Optional[Mapping] = None,
         cwd: Optional[Path] = None,
         schema: Optional[Schema] = None,
     ):
         """Constructor for `XConfig`
 
         Args:
-            data (Optional[Dict], optional): Optional dictionary containing
+            data (Optional[Mapping], optional): Optional dictionary containing
             initial data. Defaults to None.
             cwd (Optional[Path], optional): An optional path with the current working
             directory to use when resolving relative imports. If set to None, the

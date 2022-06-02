@@ -7,18 +7,18 @@ from pydantic import Field
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
-class PiperRunCommand(PipelimeCommand, title="piper-run"):
-    """Executes a Piper DAG."""
+class RunCommand(PipelimeCommand, title="run"):
+    """Executes a DAG of pipelime commands."""
 
     nodes: t.Mapping[str, PipelimeCommand] = Field(
         ...,
-        description="A Piper DAG as a `<node>: <command>` mapping.",
+        description="A DAG of commands as a `<node>: <command>` mapping.",
         piper_port=PiperPortType.INPUT,
     )
     token: t.Optional[str] = Field(
         None,
         description=(
-            "The piper execution token. "
+            "The execution token. "
             "If not specified, a new token will be generated."
         ),
     )
@@ -49,8 +49,8 @@ class PiperRunCommand(PipelimeCommand, title="piper-run"):
         self.successful = executor.exec(graph, token=self.token)
 
 
-class PiperDrawCommand(PipelimeCommand, title="piper-draw"):
-    """Draws a piper DAG."""
+class DrawCommand(PipelimeCommand, title="draw"):
+    """Draws a pipelime DAG."""
 
     class DrawBackendChoice(Enum):
         GRAPHVIZ = "graphviz"

@@ -127,12 +127,12 @@ def pl_main(  # noqa: C901
         resolve_path=True,
         help=(
             "A YAML/JSON file with some or all the options required by the command. "
-            "Command line options starting with `#` will update and override "
+            "Command line options starting with `+` will update and override "
             "the ones in the file."
         ),
         autocompletion=_complete_yaml,
     ),
-    params: t.Optional[Path] = typer.Option(
+    context: t.Optional[Path] = typer.Option(
         None,
         exists=True,
         file_okay=True,
@@ -159,7 +159,7 @@ def pl_main(  # noqa: C901
         "",
         show_default=False,
         help=(
-            "A sequence operator or a piper command, ie, a `command-name`, "
+            "A sequence operator or a pipelime command, ie, a `command-name`, "
             "a `package.module.ClassName` class path or "
             "a `path/to/module.py:ClassName` uri."
         ),
@@ -175,7 +175,7 @@ def pl_main(  # noqa: C901
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
         help=(
-            "Piper command arguments. Options starting with `#` are considered part "
+            "Pipelime command arguments. Options starting with `+` are considered part "
             "of the command configurations, while options starting with `@` are part "
             "of the context, ie, the parameters to compile the input configuration."
         ),
@@ -191,7 +191,7 @@ def pl_main(  # noqa: C901
 
     `pipelime help <cmd-or-op>` prints informations on a specific command or operator.
 
-    `pipelime <command> [<args>]` runs a piper command.
+    `pipelime <command> [<args>]` runs a pipelime command.
     """
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 
@@ -213,64 +213,78 @@ def pl_main(  # noqa: C901
         from pipelime.cli.pretty_print import print_error, print_info
 
         base_cfg = XConfig() if config is None else XConfig.from_file(config)
-        base_prms = XConfig() if params is None else XConfig.from_file(params)
+        base_ctx = XConfig() if context is None else XConfig.from_file(context)
 
-        cmdline_cfg, cmdline_prms = _extract_options(command_args)
+        cmdline_cfg, cmdline_ctx = _extract_options(command_args)
         cmdline_cfg = XConfig(cmdline_cfg)
-        cmdline_prms = XConfig(cmdline_prms)
+        cmdline_ctx = XConfig(cmdline_ctx)
 
         if verbose:
             _print_xconfig("Loaded configuration file", base_cfg)
-            _print_xconfig("Loaded parameter file", base_prms)
+            _print_xconfig("Loaded context file", base_ctx)
             _print_xconfig("Configuration options from command line", cmdline_cfg)
-            _print_xconfig("Parameter options from command line", cmdline_prms)
+            _print_xconfig("Context options from command line", cmdline_ctx)
 
         base_cfg.deep_update(cmdline_cfg, full_merge=True)
-        base_prms.deep_update(cmdline_prms, full_merge=True)
+        base_ctx.deep_update(cmdline_ctx, full_merge=True)
 
         if verbose:
             _print_xconfig("Merged configuration", base_cfg)
-            _print_xconfig("Merged parameters", base_prms)
+            _print_xconfig("Merged context", base_ctx)
 
-        try:
-            effective_configs = (
-                [base_cfg.process(base_prms)]
-                if run_all is not None and not run_all
-                else base_cfg.process_all(base_prms)
-            )
-        except ChoixeProcessingError as e:
-            print_error(f"Invalid configuration! {e}")
-            raise typer.Exit(1)
+        if command == "audit":
+            from dataclasses import fields
 
-        if verbose:
-            print_info(
-                f"Found {len(effective_configs)} configuration"
-                f"{'s' if not effective_configs or len(effective_configs) > 1 else ''}"
-            )
+            print_info("\n\U0001F4C4 CONFIGURATION AUDIT\n")
+            data = base_cfg.inspect()
+            for field in fields(data):
+                value = getattr(data, field.name)
+                print_info(f"\U0001F50D {field.name}:")
+                if value or isinstance(value, bool):
+                    print_info(value, pretty=True)
 
-        for cfg in effective_configs:
-            if not cfg.inspect().processed:
-                print_error("The configuration has not been fully processed.")
-                if verbose:
-                    _print_xconfig("Unprocessed data", cfg)
-                else:
-                    print_info(
-                        "Run with --verbose to see the final configuration file."
-                    )
+            print_info("\n\U0001F4C4 CONTEXT AUDIT\n")
+            print_info(base_ctx.to_dict(), pretty=True)
+        else:
+            try:
+                effective_configs = (
+                    [base_cfg.process(base_ctx)]
+                    if run_all is not None and not run_all
+                    else base_cfg.process_all(base_ctx)
+                )
+            except ChoixeProcessingError as e:
+                print_error(f"Invalid configuration! {e}")
                 raise typer.Exit(1)
 
-        if len(effective_configs) > 1 and run_all is None:
-            if not typer.confirm(
-                f"{len(effective_configs)} configurations found. "
-                "Do you want to run them all?"
-            ):
-                effective_configs = effective_configs[:1]
+            if verbose:
+                print_info(
+                    f"Found {len(effective_configs)} configuration"
+                    f"{'s' if not effective_configs or len(effective_configs) > 1 else ''}"
+                )
 
-        cfg_size = len(effective_configs)
-        for idx, cfg in enumerate(effective_configs):
-            if verbose and cfg_size > 1:
-                print_info(f"*** CONFIGURATION {idx}/{cfg_size} ***")
-            run_command(command, cfg.to_dict(), verbose, dry_run)
+            for cfg in effective_configs:
+                if not cfg.inspect().processed:
+                    print_error("The configuration has not been fully processed.")
+                    if verbose:
+                        _print_xconfig("Unprocessed data", cfg)
+                    else:
+                        print_info(
+                            "Run with --verbose to see the final configuration file."
+                        )
+                    raise typer.Exit(1)
+
+            if len(effective_configs) > 1 and run_all is None:
+                if not typer.confirm(
+                    f"{len(effective_configs)} configurations found. "
+                    "Do you want to run them all?"
+                ):
+                    effective_configs = effective_configs[:1]
+
+            cfg_size = len(effective_configs)
+            for idx, cfg in enumerate(effective_configs):
+                if verbose and cfg_size > 1:
+                    print_info(f"*** CONFIGURATION {idx}/{cfg_size} ***")
+                run_command(command, cfg.to_dict(), verbose, dry_run)
     else:
         from pipelime.cli.pretty_print import print_error
 
@@ -280,7 +294,7 @@ def pl_main(  # noqa: C901
 
 def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool):
     """
-    Run a piper command.
+    Run a pipelime command.
     """
 
     from pipelime.cli.pretty_print import (
