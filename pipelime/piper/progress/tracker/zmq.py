@@ -1,7 +1,6 @@
 import time
 
 import zmq
-from loguru import logger
 
 from pipelime.piper.progress.model import ProgressUpdate
 from pipelime.piper.progress.tracker.base import TrackCallback

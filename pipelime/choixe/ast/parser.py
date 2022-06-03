@@ -79,7 +79,7 @@ class Scanner:
     def _scan_directive(self, code: str) -> Token:
         try:
             py_ast = ast.parse(f"_{code}")  # Add "_" to avoid conflicts with python
-        except SyntaxError as e:
+        except SyntaxError:
             raise ChoixeSyntaxError(code)
 
         assert isinstance(py_ast, ast.Module)

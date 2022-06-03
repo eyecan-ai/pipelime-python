@@ -1,7 +1,6 @@
 from typing import Optional
 
 import zmq
-from loguru import logger
 
 from pipelime.piper.progress.listener.base import ProgressReceiver
 from pipelime.piper.progress.model import ProgressUpdate
