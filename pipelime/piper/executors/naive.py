@@ -1,7 +1,7 @@
 from loguru import logger
 
 from pipelime.piper.executors.base import NodesGraphExecutor
-from pipelime.piper.graph import DAGNodesGraph, GraphNodeOperation
+from pipelime.piper.graph import DAGNodesGraph
 
 
 class NaiveNodesGraphExecutor(NodesGraphExecutor):
@@ -21,9 +21,9 @@ class NaiveNodesGraphExecutor(NodesGraphExecutor):
 
         for layer in graph.build_execution_stack():
             for node in layer:
-                node.command._piper.token = token
-                node.command._piper.node = node.name
+                node.command.set_piper_info(token=token, node=node.name)
 
                 logger.debug(f"Executing command: {node.command._piper.node}")
 
                 node.command()
+        return True

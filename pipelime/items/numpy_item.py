@@ -33,7 +33,7 @@ class TxtNumpyItem(NumpyItem):
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> np.ndarray:
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", "loadtxt")
+            warnings.filterwarnings(action="ignore", message="loadtxt")
             return np.atleast_1d(np.loadtxt(fp))
 
     @classmethod

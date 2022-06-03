@@ -2,6 +2,8 @@ import typing as t
 from pathlib import Path
 
 import pydantic as pyd
+from filelock import FileLock, Timeout
+from tempfile import TemporaryDirectory
 
 import pipelime.sequences as pls
 from pipelime.items import Item, SerializationMode
@@ -42,6 +44,7 @@ class UnderfolderWriter(
 
     _data_folder: Path
     _effective_zfill: int
+    _temp_folder: TemporaryDirectory
 
     def __init__(self, folder: Path, **data):
         super().__init__(folder=folder, **data)  # type: ignore
@@ -60,6 +63,7 @@ class UnderfolderWriter(
             )
 
         self._data_folder.mkdir(parents=True, exist_ok=True)
+        self._temp_folder = TemporaryDirectory()  # will be automatically deleted
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self.source[idx]
@@ -74,7 +78,18 @@ class UnderfolderWriter(
                 if v.is_shared:
                     filepath = self.folder / k
                     if not any(f.exists() for f in v.get_all_names(filepath)):
-                        v.serialize(filepath)
+                        lock = FileLock(
+                            str(Path(self._temp_folder.name) / (k + ".~lock"))
+                        )
+                        try:
+                            with lock.acquire(timeout=1):
+                                # check again to avoid races
+                                if not any(
+                                    f.exists() for f in v.get_all_names(filepath)
+                                ):
+                                    v.serialize(filepath)
+                        except Timeout:  # pragma: no cover
+                            pass
                 else:
                     v.serialize(self._data_folder / f"{id_str}_{k}")
 

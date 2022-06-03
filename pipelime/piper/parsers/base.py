@@ -1,4 +1,4 @@
-from abc import ABC, abstractclassmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -6,8 +6,8 @@ from pipelime.piper.model import DAGModel
 
 
 class DAGParser(ABC):
-    @abstractclassmethod
-    def parse_cfg(cls, cfg: Dict, params: Optional[Dict] = None) -> DAGModel:
+    @abstractmethod
+    def parse_cfg(self, cfg: Dict, params: Optional[Dict] = None) -> DAGModel:
         """Parses the given configuration into a DAGModel.
 
         Args:
@@ -20,9 +20,22 @@ class DAGParser(ABC):
         """
         pass
 
-    @abstractclassmethod
+    @abstractmethod
+    def _read_file(self, path: Path, additional_args: Optional[Dict] = None) -> Dict:
+        """Reads the given file and returns its content as dictionary.
+
+        Args:
+            path (Path): The path to the file
+            additional_args (Optional[Dict], optional): Additional parameters that will
+            overwrite the ones specified in the file. Defaults to None.
+
+        Returns:
+            Dict: The file content as dictionary
+        """
+        pass
+
     def parse_file(
-        cls,
+        self,
         cfg_file: Path,
         params_file: Optional[Path] = None,
         additional_args: Optional[Dict] = None,
@@ -39,4 +52,11 @@ class DAGParser(ABC):
         Returns:
             DAGModel: The parsed DAGModel
         """
-        pass
+        cfg = self._read_file(cfg_file)
+        if params_file is not None:
+            params = self._read_file(params_file, additional_args=additional_args)
+        elif additional_args is not None:
+            params = additional_args
+        else:
+            params = {}
+        return self.parse_cfg(cfg, params)

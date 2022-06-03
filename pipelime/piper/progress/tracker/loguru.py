@@ -15,20 +15,20 @@ class LoguruTrackCallback(TrackCallback):
         logger.log(
             self._level,
             "Token: {} | Node: {} | Chunk: {} | {} | Started.",
-            self._op_info.token,
-            self._op_info.node,
-            self._op_info.chunk,
-            self._op_info.message,
+            prog.op_info.token,
+            prog.op_info.node,
+            prog.op_info.chunk,
+            prog.op_info.message,
         )
 
     def on_advance(self, prog: ProgressUpdate):
         logger.log(
             self._level,
             "Token: {} | Node: {} | Chunk: {} | {} | Advanced of {} steps.",
-            self._op_info.token,
-            self._op_info.node,
-            self._op_info.chunk,
-            self._op_info.message,
+            prog.op_info.token,
+            prog.op_info.node,
+            prog.op_info.chunk,
+            prog.op_info.message,
             prog.progress,
         )
 
@@ -36,8 +36,8 @@ class LoguruTrackCallback(TrackCallback):
         logger.log(
             self._level,
             "Token: {} | Node: {} | Chunk: {} | {} | Finished.",
-            self._op_info.token,
-            self._op_info.node,
-            self._op_info.chunk,
-            self._op_info.message,
+            prog.op_info.token,
+            prog.op_info.node,
+            prog.op_info.chunk,
+            prog.op_info.message,
         )

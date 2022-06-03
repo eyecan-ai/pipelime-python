@@ -1,23 +1,16 @@
-from pipelime.remotes.base import BaseRemote
-from loguru import logger
 import hashlib
-
 import typing as t
+
+from loguru import logger
+
+from pipelime.remotes.base import BaseRemote, NetlocData
 
 
 class S3Remote(BaseRemote):
     _HASH_FN_KEY_ = "__HASH_FN__"
     _DEFAULT_HASH_FN_ = "sha256"
 
-    def __init__(
-        self,
-        endpoint: str,
-        access_key: t.Optional[str] = None,
-        secret_key: t.Optional[str] = None,
-        session_token: t.Optional[str] = None,
-        secure_connection: bool = True,
-        region: t.Optional[str] = None,
-    ):
+    def __init__(self, netloc_data: NetlocData):
         """S3-compatible remote. Credential can be passed or retrieved from:
             * env var:
                 ** access key: AWS_ACCESS_KEY_ID, AWS_ACCESS_KEY, MINIO_ACCESS_KEY
@@ -27,39 +20,33 @@ class S3Remote(BaseRemote):
                 ** ~/.aws/credentials
                 ** ~/[.]mc/config.json
 
-        :param endpoint: the endpoint address
-        :type endpoint: str
-        :param access_key: optional user id, defaults to None
-        :type access_key: Optional[str], optional
-        :param secret_key: optional user password, defaults to None
-        :type secret_key: Optional[str], optional
-        :param session_token: optional session token, defaults to None
-        :type session_token: Optional[str], optional
-        :param secure_connection: should use a secure connection, defaults to True
-        :type secure_connection: bool, optional
-        :param region: optional region, defaults to None
-        :type region: Optional[str], optional
+        Optional init arguments:
+            * session (str): the session token (default: None)
+            * secure (bool): establish a secure connection (default: True)
+            * region (str): the preferred region (default: None)
+
+        :param netloc_data: the network data info.
+        :type netloc: NetlocData
         """
-        super().__init__(endpoint)
+        super().__init__(netloc_data)
 
         try:
             from minio import Minio
-
             from minio.credentials import (
+                AWSConfigProvider,
                 ChainedProvider,
                 EnvAWSProvider,
                 EnvMinioProvider,
-                AWSConfigProvider,
                 MinioClientConfigProvider,
             )
 
             self._client = Minio(
-                endpoint=endpoint,
-                access_key=access_key,
-                secret_key=secret_key,
-                session_token=session_token,
-                secure=secure_connection,
-                region=region,
+                endpoint=netloc_data.host,
+                access_key=netloc_data.user,
+                secret_key=netloc_data.password,
+                session_token=netloc_data.init_args.get("session", None),
+                secure=netloc_data.init_args.get("secure", True),
+                region=netloc_data.init_args.get("region", None),
                 credentials=ChainedProvider(
                     [
                         # AWS_ACCESS_KEY_ID|AWS_ACCESS_KEY,

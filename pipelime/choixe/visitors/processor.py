@@ -38,6 +38,10 @@ from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors.unparser import unparse
 
 
+class ChoixeProcessingError(Exception):
+    pass
+
+
 @dataclass
 class LoopInfo:
     index: int
@@ -71,7 +75,7 @@ class Processor(NodeVisitor):
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
-        self._tmp_name = str(uuid.uuid4())
+        self._tmp_name = uuid.uuid1().hex
 
     def visit_dict(self, node: DictNode) -> List[Dict]:
         data = [{}]
@@ -121,14 +125,18 @@ class Processor(NodeVisitor):
         return data
 
     def visit_var(self, node: VarNode) -> List[Any]:
-        default = None
-        if node.default is not None:
-            default = node.default.data
+        if py_.has(self._context, node.identifier.data):
+            return [py_.get(self._context, node.identifier.data)]
 
         if node.env is not None and node.env.data:
-            default = os.getenv(node.identifier.data, default=default)
+            value = os.getenv(node.identifier.data)
+            if value is not None:
+                return [value]
 
-        return [py_.get(self._context, node.identifier.data, default)]
+        if node.default is not None:
+            return [node.default.data]
+
+        raise ChoixeProcessingError(f"Variable not found: `{node.identifier.data}`")
 
     def visit_import(self, node: ImportNode) -> List[Any]:
         path = Path(node.path.data)
@@ -172,7 +180,7 @@ class Processor(NodeVisitor):
 
     def visit_for(self, node: ForNode) -> List[Any]:
         iterable = py_.get(self._context, node.iterable.data)
-        id_ = uuid.uuid4().hex if node.identifier is None else str(node.identifier.data)
+        id_ = uuid.uuid1().hex if node.identifier is None else str(node.identifier.data)
         prev_loop = self._current_loop
         self._current_loop = id_
 
@@ -212,7 +220,7 @@ class Processor(NodeVisitor):
         return [py_.get(self._loop_data[loop_id].item, f"{sep}{key}")]
 
     def visit_uuid(self, node: UuidNode) -> List[str]:
-        return [str(uuid.uuid4())]
+        return [uuid.uuid1().hex]
 
     def visit_date(self, node: DateNode) -> List[str]:
         format_ = node.format

@@ -1,12 +1,9 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Any, Dict, Iterable, Optional, Sequence, Union, ClassVar
+import typing as t
 
-import rich.progress
 from pydantic import BaseModel, Field, PrivateAttr
 
-from pipelime.choixe import XConfig
-from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
 from pipelime.piper.progress.tracker.base import Tracker
 
 
@@ -16,13 +13,13 @@ class PiperPortType(Enum):
     PARAMETER = "parameter"
 
 
-class PiperInfo(BaseModel):
+class PiperInfo(BaseModel, extra="forbid"):
     token: str = Field("", description="The piper execution token.")
     node: str = Field("", description="The piper dag's node name.")
 
     @property
     def active(self) -> bool:
-        return len(self.token) > 0
+        return bool(self.token)
 
 
 class PipelimeCommand(BaseModel, extra="forbid"):
@@ -30,31 +27,33 @@ class PipelimeCommand(BaseModel, extra="forbid"):
     Subclasses should implement the run method.
     """
 
-    _classpath: ClassVar[Optional[str]] = None
+    _classpath: t.ClassVar[t.Optional[str]] = None
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
-    _tracker: Optional[Tracker] = PrivateAttr(None)
+    _tracker: t.Optional[Tracker] = PrivateAttr(None)
 
     @abstractmethod
     def run(self) -> None:
         pass
 
     @classmethod
-    def _filter_fields_by_flag(cls, flag: str, value: Any) -> Iterable[str]:
+    def _filter_fields_by_flag(cls, flag: str, value: t.Any) -> t.Iterable[str]:
         for k, v in cls.__fields__.items():
             if v.field_info.extra.get(flag, object()) == value:
                 yield k
 
-    def _get_fields_by_flag(self, flag: str, value: Any) -> Dict[str, Any]:
+    def _get_fields_by_flag(self, flag: str, value: t.Any) -> t.Dict[str, t.Any]:
         return {k: getattr(self, k) for k in self._filter_fields_by_flag(flag, value)}
 
-    def get_inputs(self) -> Dict[str, Any]:
+    def get_inputs(self) -> t.Dict[str, t.Any]:
         return self._get_fields_by_flag("piper_port", PiperPortType.INPUT)
 
-    def get_outputs(self) -> Dict[str, Any]:
+    def get_outputs(self) -> t.Dict[str, t.Any]:
         return self._get_fields_by_flag("piper_port", PiperPortType.OUTPUT)
 
     def _get_piper_tracker(self) -> Tracker:
         if self._tracker is None:
+            from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
+
             cb = TrackCallbackFactory.get_callback()
             self._tracker = Tracker(self._piper.token, self._piper.node, cb)
 
@@ -75,13 +74,26 @@ class PipelimeCommand(BaseModel, extra="forbid"):
     def command_name(self) -> str:
         return self.command_title()
 
+    def set_piper_info(
+        self,
+        *,
+        token: t.Optional[str] = None,
+        node: t.Optional[str] = None,
+    ):
+        if token is not None:
+            self._piper.token = token
+        if node is not None:
+            self._piper.node = node
+
     def track(
         self,
-        seq: Union[Sequence, Iterable],
+        seq: t.Union[t.Sequence, t.Iterable],
         *,
-        size: Optional[int] = None,
+        size: t.Optional[int] = None,
         message: str = "",
-    ) -> Iterable:
+    ) -> t.Iterable:
+        import rich.progress
+
         if self._piper.active:
             tracker = self._get_piper_tracker()
             return tracker.track(seq, size=size, message=message)
@@ -96,8 +108,12 @@ class PipelimeCommand(BaseModel, extra="forbid"):
         self.run()
 
 
-class DAGModel(BaseModel):
-    nodes: Dict[str, PipelimeCommand]
+class DAGModel(BaseModel, extra="forbid"):
+    """A Piper DAG as a `<node>: <command>` mapping."""
+
+    nodes: t.Mapping[str, PipelimeCommand]
 
     def purged_dict(self):
-        return XConfig(data={"nodes": self.nodes}).to_dict()
+        from pipelime.choixe import XConfig
+
+        return XConfig(data={"nodes": self.nodes}).decode()

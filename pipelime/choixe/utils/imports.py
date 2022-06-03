@@ -6,7 +6,7 @@ from contextlib import ContextDecorator
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional, Union
-from uuid import uuid4
+from uuid import uuid1
 
 
 class add_to_sys_path(ContextDecorator):
@@ -58,7 +58,7 @@ def import_module_from_file(
         module_path = cwd / module_path
 
     with add_to_sys_path(module_path.parent):
-        id_ = uuid4().hex
+        id_ = uuid1().hex
         spec = importlib.util.spec_from_file_location(id_, str(module_path))
         if spec is None or spec.loader is None:
             raise ImportError(f"Cannot load module `{module_path}`")  # pragma: no cover

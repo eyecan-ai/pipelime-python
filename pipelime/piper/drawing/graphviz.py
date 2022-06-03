@@ -1,5 +1,5 @@
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from io import BytesIO
 from typing import Optional, Sequence
 
 import numpy as np
@@ -303,9 +303,8 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
 
         agraph: pgv.AGraph = self._build_agraph(graph)
         agraph.layout("dot")
-        f = NamedTemporaryFile(suffix=".png")
-        agraph.draw(f.name)
-        return imageio.imread(f.name)
+        bmp_img = agraph.draw(format="bmp", prog="dot")
+        return imageio.imread(BytesIO(bmp_img))
 
     def representation(self, graph: DAGNodesGraph) -> str:
         """Returns a representation of the graph as a DOT string

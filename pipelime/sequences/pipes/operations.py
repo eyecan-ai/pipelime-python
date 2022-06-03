@@ -1,4 +1,5 @@
 import typing as t
+from pathlib import Path
 
 import pydantic as pyd
 
@@ -26,15 +27,34 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
     """Zips two Sequences by merging each Sample."""
 
     to_zip: pls.SamplesSequence = pyd.Field(..., description="The sequence to merge.")
+    key_format: str = pyd.Field(
+        "*",
+        description=(
+            "The zipped samples' key format. Any `*` will be replaced with the "
+            "source key, eg, `my_*_key` on [`image`, `mask`] generates "
+            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
+            "suffixed to source key, ie, `MyKey` on `image` gives "
+            "`imageMyKey`. If empty, the source key will be used as-is."
+        ),
+    )
+
+    _key_formatting_stage: plst.StageKeyFormat = pyd.PrivateAttr()
+
+    @pyd.validator("key_format")
+    def validate_key_format(cls, v):
+        if "*" in v:
+            return v
+        return "*" + v
 
     def __init__(self, to_zip: pls.SamplesSequence, **data):
         super().__init__(to_zip=to_zip, **data)  # type: ignore
+        self._key_formatting_stage = plst.StageKeyFormat(key_format=self.key_format)
 
     def size(self) -> int:
         return min(len(self.source), len(self.to_zip))
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[idx].merge(self.to_zip[idx])
+        return self.source[idx].merge(self._key_formatting_stage(self.to_zip[idx]))
 
 
 @pls.piped_sequence
@@ -149,6 +169,39 @@ class SlicedSequence(
 
 
 @pls.piped_sequence
+class IndexSelectionSequence(
+    PipedSequenceBase, title="select", underscore_attrs_are_private=True
+):
+    """Given a list of indexes, extracts the corresponding samples from the input
+    SamplesSequence. The index sequence is not automatically sorted.
+    """
+
+    indexes: t.Sequence[int] = pyd.Field(
+        ...,
+        description=(
+            "The indexes to extract. Negative values start counting from the end."
+        ),
+    )
+
+    def __init__(self, indexes: t.Sequence[int], **data):
+        super().__init__(indexes=indexes, **data)  # type: ignore
+
+        for idx in self.indexes:
+            if idx < 0:
+                idx += len(self.source)
+            if idx < 0 or idx >= len(self.source):
+                raise ValueError(
+                    "Index {} is out of range [0, {})".format(idx, len(self.source))
+                )
+
+    def size(self) -> int:
+        return len(self.indexes)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        return self.source[self.indexes[idx]]
+
+
+@pls.piped_sequence
 class ShuffledSequence(
     PipedSequenceBase, title="shuffle", underscore_attrs_are_private=True
 ):
@@ -214,6 +267,49 @@ class RepeatedSequence(PipedSequenceBase, title="repeat"):
         return len(self.source) * self.count_
 
     def get_sample(self, idx: int) -> pls.Sample:
-        if idx >= len(self):
+        if idx < 0 or idx >= len(self):
             raise IndexError(f"Sample index `{idx}` is out of range.")
         return self.source[idx % len(self.source)]
+
+
+@pls.piped_sequence
+class CachedSequence(PipedSequenceBase, title="cache"):
+    """Cache the input Samples the first time they are accessed."""
+
+    cache_folder: t.Optional[Path] = pyd.Field(
+        None,
+        description=(
+            "The cache folder path. Leave empty to use a temporary folder "
+            "which will be deleted when exiting the process."
+        ),
+    )
+
+    _temp_folder = pyd.PrivateAttr(None)
+
+    def __init__(self, **data):
+        super().__init__(**data)  # type: ignore
+        if self.cache_folder is None:
+            from tempfile import TemporaryDirectory
+
+            self._temp_folder = TemporaryDirectory()
+            self.cache_folder = Path(self._temp_folder.name)
+        else:
+            if self.cache_folder.exists():
+                raise FileExistsError(
+                    f"The cache folder `{self.cache_folder}` already exists."
+                )
+            self.cache_folder.mkdir(parents=True, exist_ok=True)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        import pickle
+
+        filename: Path = self.cache_folder / f"{idx}.pkl"  # type: ignore
+
+        if filename.exists():
+            with open(filename, 'rb') as fd:
+                return pickle.load(fd)
+
+        x = self.source[idx]
+        with open(filename, "wb") as fd:
+            pickle.dump(x, fd, protocol=-1)
+        return x

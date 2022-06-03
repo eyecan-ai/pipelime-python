@@ -22,13 +22,21 @@ class ImageItem(NumpyItem):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> np.ndarray:
-        return np.array(iio.imread(fp, format_hint=cls.file_extensions()[0]))
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action="ignore", message=".*format_hint.*")
+            return np.array(iio.imread(fp, format_hint=cls.file_extensions()[0]))
 
     @classmethod
     def encode(cls, value: np.ndarray, fp: t.BinaryIO):
-        iio.imwrite(
-            fp, value, format_hint=cls.file_extensions()[0], **cls.save_options()
-        )
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action="ignore", message=".*format_hint.*")
+            iio.imwrite(
+                fp, value, format_hint=cls.file_extensions()[0], **cls.save_options()
+            )
 
 
 class BmpImageItem(ImageItem):

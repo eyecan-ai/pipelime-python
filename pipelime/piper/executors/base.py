@@ -11,9 +11,8 @@ from pipelime.piper.progress.listener.factory import (
 
 
 class NodesGraphExecutor(ABC):
-    """An NodesGraphExecutor is an abstract class that should implement the execution of a
-    NodesGraph made of Nodes.
-
+    """An NodesGraphExecutor is an abstract class that should
+    implement the execution of a NodesGraph made of Nodes.
     """
 
     def __init__(self) -> None:

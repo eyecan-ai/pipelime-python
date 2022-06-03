@@ -11,11 +11,11 @@ class TestCliBase:
         assert result.exception is None
         return result
 
-    def test_info(self, extra_modules):
+    def test_help(self, extra_modules):
         for module_data in extra_modules:
             for cmd in module_data["operators"] + module_data["commands"]:
                 result = self._base_launch(
-                    ["-m", str(module_data["filepath"]), "info", cmd]
+                    ["-m", str(module_data["filepath"]), "help", cmd]
                 )
                 assert cmd in result.output
 
@@ -38,29 +38,13 @@ class TestCliBase:
                 result, in_modules=module_data["operators"] + module_data["commands"]
             )
 
-        result = self._base_launch(args + ["--details"])
+        result = self._base_launch(["--verbose"] + args)
         for module_data in extra_modules:
             _check(
                 result, in_modules=module_data["operators"] + module_data["commands"]
             )
         assert "Fields" in result.output
         assert "Required" in result.output
-
-        result = self._base_launch(args + ["--no-cmd"])
-        for module_data in extra_modules:
-            _check(
-                result,
-                in_modules=module_data["operators"],
-                not_in_modules=module_data["commands"],
-            )
-
-        result = self._base_launch(args + ["--no-seq"])
-        for module_data in extra_modules:
-            _check(
-                result,
-                in_modules=module_data["commands"],
-                not_in_modules=module_data["operators"],
-            )
 
     def test_run(self, data_folder, minimnist_dataset, tmp_path):
         from pathlib import Path
@@ -73,15 +57,14 @@ class TestCliBase:
 
         outpath = tmp_path / "output"
         args = [
-            "run",
             "pipe",
-            "--input.folder",
+            "+input.folder",
             str(minimnist_dataset["path"]),
-            "--output.folder",
+            "+output.folder",
             str(outpath),
-            "--output.serialization.override.DEEP_COPY",
+            "+output.serialization.override.DEEP_COPY",
             "NpyNumpyItem",
-            "--operations",
+            "+operations",
             r"{slice: {stop: 10}, '"
             + str(data_folder / "cli" / "extra_operators.py")
             + r":reverse': {num: 5} }",

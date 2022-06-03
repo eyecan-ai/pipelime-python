@@ -43,7 +43,7 @@ def run(
     params_file: Path = Option(..., "-p", "--params", help=params_help),
     watch: bool = Option(False, "-w", "--watch", is_flag=True, help="Watch the DAG"),
     token: str = Option(
-        str(uuid.uuid1()), "-t", "--token", help="The piper execution token"
+        uuid.uuid1().hex, "-t", "--token", help="The piper execution token"
     ),
 ):
     from pipelime.piper.executors.factory import NodesGraphExecutorFactory
@@ -75,9 +75,9 @@ def draw(
     import platform
     import subprocess
 
-    import cv2 as cv
     import numpy as np
     import rich
+    from PIL import Image
 
     from pipelime.piper.drawing.factory import NodesGraphDrawerFactory
     from pipelime.piper.graph import DAGNodesGraph
@@ -107,15 +107,15 @@ def draw(
 
     # Show or Write
     if output_file is not None:
-        drawer.export(graph, output_file)
+        drawer.export(graph, str(output_file))
         if open:
-            start_file(output_file)
+            start_file(str(output_file))
         else:
             rich.print("graph image saved to:", output_file)
     else:
         graph_image = drawer.draw(graph=graph)
-        cv.imshow("graph", cv.cvtColor(graph_image, cv.COLOR_RGB2BGR))
-        cv.waitKey(0)
+        img = Image.fromarray(graph_image, "RGB")
+        img.show("Graph")
 
 
 if __name__ == "__main__":

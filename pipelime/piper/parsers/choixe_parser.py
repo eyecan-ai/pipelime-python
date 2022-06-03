@@ -7,8 +7,7 @@ from pipelime.piper.parsers.base import DAGParser
 
 
 class ChoixeDAGParser(DAGParser):
-    @classmethod
-    def parse_cfg(cls, cfg: Dict, params: Optional[Dict] = None) -> DAGModel:
+    def parse_cfg(self, cfg: Dict, params: Optional[Dict] = None) -> DAGModel:
         cfg = XConfig(cfg)
         context = XConfig(params)
 
@@ -17,15 +16,8 @@ class ChoixeDAGParser(DAGParser):
 
         return DAGModel.parse_obj(cfg)
 
-    @classmethod
-    def parse_file(
-        cls,
-        cfg_file: Path,
-        params_file: Optional[Path] = None,
-        additional_args: Optional[Dict] = None,
-    ) -> DAGModel:
-        cfg = XConfig.from_file(cfg_file)
-        params = XConfig() if params_file is None else XConfig.from_file(params_file)
-        add_args = XConfig() if additional_args is None else XConfig(additional_args)
-        params.deep_update(add_args)
-        return cls.parse_cfg(cfg.to_dict(), params.to_dict())
+    def _read_file(self, path: Path, additional_args: Optional[Dict] = None) -> Dict:
+        data = XConfig.from_file(path)
+        additional_args = {} if additional_args is None else additional_args
+        data.deep_update(additional_args)
+        return data

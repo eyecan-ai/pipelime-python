@@ -649,8 +649,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__}(data={repr(self._data_cache)},"
-            f" sources={self._file_sources}, remotes={self._remote_sources})"
+            f"{self.__class__}(data={repr(self._data_cache)}, "
+            f"sources={self._file_sources}, remotes={self._remote_sources}) "
+            f"shared={self.is_shared}, cache={self.cache_data}"
+            f"serialization={self.serialization_mode})"
         )
 
     def __str__(self) -> str:
@@ -665,6 +667,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             + str_srcs
             + ["    remotes:"]
             + str_rmts
+            + [
+                f"    shared: {self.is_shared}",
+                f"    cache: {self.cache_data}",
+                f"    serialization: {self.serialization_mode}",
+            ]
         )
 
 
@@ -675,8 +682,8 @@ class UnknownItem(Item[t.Any]):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
-        raise NotImplemented(f"{cls.__name__}: cannot decode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot decode.")  # pragma: no cover
 
     @classmethod
     def encode(cls, value: t.Any, fp: t.BinaryIO):
-        raise NotImplemented(f"{cls.__name__}: cannot encode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot encode.")  # pragma: no cover

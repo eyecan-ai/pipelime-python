@@ -10,7 +10,6 @@ class NaiveEstimator(Estimator):
     def __init__(self, alpha: float = 0.9):
         super().__init__()
         self.alpha = alpha
-        self._start_time = -1
 
     def reset(self, total: int) -> None:
         self._avg_dt = -1
@@ -40,7 +39,7 @@ class NaiveEstimator(Estimator):
 
     @property
     def speed(self) -> float:
-        return 1 / self._avg_dt
+        return 1 / self._avg_dt if self._avg_dt != 0 else float("inf")
 
     @property
     def eta(self) -> float:

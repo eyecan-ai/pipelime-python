@@ -1,6 +1,6 @@
 import itertools
-from pathlib import Path
-from typing import Sequence, Set, Iterable
+from pydantic import BaseModel
+from typing import Optional, Sequence, Mapping, Set, Iterable, Collection, Any
 
 import networkx as nx
 
@@ -25,7 +25,7 @@ class GraphNode:
     def __repr__(self) -> str:
         return f"{self.type}({self.name})"
 
-    def __eq__(self, o: object) -> bool:
+    def __eq__(self, o) -> bool:
         return self.id == o.id
 
 
@@ -136,14 +136,14 @@ class DAGNodesGraph:
 
     def consume(
         self,
-        operation_nodes: Sequence[GraphNodeOperation],
+        operation_nodes: Collection[GraphNodeOperation],
     ) -> Set[GraphNodeData]:
         """Given a set of operations, consume them and return the set of produced data,
         i.e. the data are the outputs of the operations.
 
         Args:
-            operation_nodes (Sequence[GraphNodeOperation]): The set of operations to be
-            consumed.
+            operation_nodes (Collection[GraphNodeOperation]): The set of operations
+                to be consumed.
 
         Returns:
             Set[GraphNodeData]: The set of produced data.
@@ -158,7 +158,7 @@ class DAGNodesGraph:
             consumed_data.update(out_data)
         return consumed_data
 
-    def build_execution_stack(self) -> Sequence[Sequence[GraphNodeOperation]]:
+    def build_execution_stack(self) -> Sequence[Set[GraphNodeOperation]]:
         """Builds the execution stack of the DAG. The execution stack is a list of lists
         of operations. Each list of operations is a virtual layer of operations that
         can be executed in parallel because they have no dependencies.
@@ -168,7 +168,7 @@ class DAGNodesGraph:
         """
 
         # the execution stack is a list of lists of nodes. Each list represents a
-        execution_stack: Sequence[Sequence[GraphNodeOperation]] = []
+        execution_stack: Sequence[Set[GraphNodeOperation]] = []
 
         # initalize global produced data with the root nodes
         global_produced_data = set()
@@ -223,50 +223,58 @@ class DAGNodesGraph:
             inputs = node.get_inputs()
             outputs = node.get_outputs()
 
-            if inputs is not None:
-                for input_name, input_value in inputs.items():
-                    if isinstance(input_value, str) or not isinstance(
-                        input_value, Iterable
-                    ):
-                        input_value = [input_value]
-
-                    attrs = {}
-                    for x in input_value:
-                        n0 = GraphNodeData(str(x), str(x))
-                        n1 = GraphNodeOperation(node_name, node)
-                        g.add_edge(n0, n1)
-                        attrs.update(
-                            {
-                                (n0, n1): {
-                                    DAGNodesGraph.GraphAttrs.INPUT_PORT: input_name,
-                                    DAGNodesGraph.GraphAttrs.EDGE_TYPE: "DATA_2_OPERATION",
-                                }
-                            }
-                        )
-                    nx.set_edge_attributes(g, attrs)
-
-            if outputs is not None:
-                for output_name, output_value in outputs.items():
-                    if isinstance(output_value, str) or isinstance(output_value, Path):
-                        output_value = [output_value]
-
-                    attrs = {}
-                    for x in output_value:
-                        n0 = GraphNodeOperation(node_name, node)
-                        n1 = GraphNodeData(str(x), str(x))
-                        g.add_edge(n0, n1)
-                        attrs.update(
-                            {
-                                (n0, n1): {
-                                    DAGNodesGraph.GraphAttrs.OUTPUT_PORT: output_name,
-                                    DAGNodesGraph.GraphAttrs.EDGE_TYPE: "OPERATION_2_DATA",
-                                }
-                            }
-                        )
-
-                    nx.set_edge_attributes(g, attrs)
+            cls._add_io_ports(g, node_name, node, inputs, True)
+            cls._add_io_ports(g, node_name, node, outputs, False)
 
         return DAGNodesGraph(raw_graph=g)
+
+    @classmethod
+    def _add_io_ports(
+        cls,
+        di_graph: nx.DiGraph,
+        node_name: str,
+        node_cmd: PipelimeCommand,
+        io_map: Optional[Mapping[str, Any]],
+        is_input: bool,
+    ):
+        def _to_str(x):
+            if hasattr(x, "__piper_repr__"):
+                return x.__piper_repr__()
+            return str(x)
+
+        if io_map is not None:
+            for name, value in io_map.items():
+                if (
+                    isinstance(value, str)
+                    or isinstance(value, BaseModel)
+                    or not isinstance(value, Iterable)
+                ):
+                    value = [value]
+
+                attrs = {}
+                for x in value:
+                    if x:  # discard empty strings and None
+                        x_name = _to_str(x)
+                        n0 = GraphNodeData(x_name, x_name)
+                        n1 = GraphNodeOperation(node_name, node_cmd)
+                        if is_input:
+                            port_attr = DAGNodesGraph.GraphAttrs.INPUT_PORT
+                            edge_attr = "DATA_2_OPERATION"
+                        else:
+                            port_attr = DAGNodesGraph.GraphAttrs.OUTPUT_PORT
+                            edge_attr = "OPERATION_2_DATA"
+                            n0, n1 = n1, n0
+
+                        di_graph.add_edge(n0, n1)
+                        attrs.update(
+                            {
+                                (n0, n1): {
+                                    port_attr: name,
+                                    DAGNodesGraph.GraphAttrs.EDGE_TYPE: edge_attr,
+                                }
+                            }
+                        )
+                nx.set_edge_attributes(di_graph, attrs)
 
     @classmethod
     def filter_raw_graph(
@@ -294,8 +302,8 @@ class DAGNodesGraph:
                 for pair in pairs:
                     filtered_graph.add_edge(pair[0], pair[1])
 
-        # There could be single layers graph without connections, all nodes have to be kept
-        # and are therefore added to the graph
+        # There could be single layers graph without connections,
+        # all nodes have to be kept and are therefore added to the graph
         for node in full_graph.nodes:
             if node.type in types:
                 filtered_graph.add_node(node)
