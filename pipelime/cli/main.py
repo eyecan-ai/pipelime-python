@@ -102,6 +102,32 @@ def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]
     return cfg_opts, prms_opts
 
 
+def _process_cfg_or_die(cfg, ctx, run_all: t.Optional[bool], output: t.Optional[Path]):
+    from pipelime.cli.pretty_print import print_error
+    from pipelime.choixe.visitors.processor import ChoixeProcessingError
+
+    try:
+        effective_configs = (
+            [cfg.process(ctx)]
+            if run_all is not None and not run_all
+            else cfg.process_all(ctx)
+        )
+    except ChoixeProcessingError as e:
+        print_error(f"Invalid configuration! {e}")
+        raise typer.Exit(1)
+
+    if output is not None:
+        zero_fill = len(str(len(effective_configs) - 1))
+        for idx, cfg in enumerate(effective_configs):
+            filepath = (
+                output.with_name(f"{output.name}_{str(idx).zfill(zero_fill)}")
+                if len(effective_configs) > 1
+                else output
+            )
+            cfg.save_to(filepath)
+    return effective_configs
+
+
 app = typer.Typer()
 
 
@@ -154,6 +180,14 @@ def pl_main(  # noqa: C901
             "otherwise, run only the first one. If not specified, user will be "
             "notified if multiple configurations are found."
         ),
+    ),
+    output: t.Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        writable=True,
+        resolve_path=True,
+        help="Save final processed configuration to JSON/YAML.",
     ),
     command: str = typer.Argument(
         "",
@@ -209,7 +243,6 @@ def pl_main(  # noqa: C901
         print_commands_and_ops_list(verbose)
     elif command:
         from pipelime.choixe import XConfig
-        from pipelime.choixe.visitors.processor import ChoixeProcessingError
         from pipelime.cli.pretty_print import print_error, print_info
 
         base_cfg = XConfig() if config is None else XConfig.from_file(config)
@@ -245,16 +278,11 @@ def pl_main(  # noqa: C901
 
             print_info("\n\U0001F4C4 CONTEXT AUDIT\n")
             print_info(base_ctx.to_dict(), pretty=True)
+
+            _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
+            raise typer.Exit(0)
         else:
-            try:
-                effective_configs = (
-                    [base_cfg.process(base_ctx)]
-                    if run_all is not None and not run_all
-                    else base_cfg.process_all(base_ctx)
-                )
-            except ChoixeProcessingError as e:
-                print_error(f"Invalid configuration! {e}")
-                raise typer.Exit(1)
+            effective_configs = _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
 
             if verbose:
                 print_info(

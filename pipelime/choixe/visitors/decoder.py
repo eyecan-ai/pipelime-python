@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ class Decoder(Unparser):
             return data.item()
         elif isinstance(data, BaseModel):
             symbol = f"{data.__module__}.{data.__class__.__qualname__}"
-            return {"$model": symbol, "$args": data.dict()}
+            return {"$model": symbol, "$args": json.loads(data.json(by_alias=True))}
         elif isinstance(data, Path):
             return str(data)
         else:
