@@ -25,7 +25,7 @@ class ZmqTrackCallback(TrackCallback):
 
         # Wait for the socket to be ready...
         # Apparently, this is the only way to do it. I don't know why.
-        time.sleep(0.2)
+        time.sleep(1)
 
         self._send(prog)
 

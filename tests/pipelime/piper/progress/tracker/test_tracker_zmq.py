@@ -14,7 +14,6 @@ def zmq_socket() -> zmq.Socket:
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:5556")
     socket.subscribe(b"token")
-    time.sleep(0.2)
     yield socket
     socket.close()
 
@@ -31,10 +30,17 @@ class TestLoguruTrackCallback:
         progress_update = ProgressUpdate(op_info=op_info, progress=0, finished=False)
 
         def _check_zmq():
-            token, msg = zmq_socket.recv_multipart()
-            prog = ProgressUpdate.parse_obj(json.loads(msg.decode("utf-8")))
-            assert token.decode() == "token"
-            assert prog == progress_update
+            t0 = time.time()
+            while time.time() - t0 < 10:
+                try:
+                    token, msg = zmq_socket.recv_multipart(flags=zmq.NOBLOCK)
+                    prog = ProgressUpdate.parse_obj(json.loads(msg.decode("utf-8")))
+                    assert token.decode() == "token"
+                    assert prog == progress_update
+                    return
+                except zmq.ZMQError:
+                    pass
+            assert False
 
         # Assert that the loguru sink was called on start hook
         callback.on_start(progress_update)

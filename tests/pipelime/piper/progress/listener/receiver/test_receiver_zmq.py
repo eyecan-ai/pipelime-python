@@ -14,7 +14,7 @@ class TestZMQProgressReceiver:
         context = zmq.Context()
         socket = context.socket(zmq.PUB)
         socket.bind("tcp://*:5556")
-        time.sleep(0.5)
+        time.sleep(1)
         for i in range(2 * self.N_PACKETS):
             token = "token" if i % 2 == 0 else "token2"
             prog = ProgressUpdate(op_info=op_info, progress=i // 2)
