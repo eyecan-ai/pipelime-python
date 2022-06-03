@@ -57,7 +57,9 @@ class SamplesSequenceBase(t.Sequence[Sample]):
         return self.cat(other)  # type: ignore
 
 
-class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
+class SamplesSequence(
+    SamplesSequenceBase, pyd.BaseModel, extra="forbid", copy_on_model_validation=False
+):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`.
 

@@ -114,7 +114,7 @@ class Sample(t.Mapping[str, Item]):
             def __init__(self, data: t.Mapping[str, Item]):
                 self._data = data
 
-            def __getitem__(self, key: str) -> Item:
+            def __getitem__(self, key: str) -> t.Any:
                 return self._data[key]()
 
             def __iter__(self) -> t.Iterator[str]:
