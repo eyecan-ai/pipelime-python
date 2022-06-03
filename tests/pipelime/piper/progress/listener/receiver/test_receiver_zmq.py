@@ -36,9 +36,15 @@ class TestZMQProgressReceiver:
         thread.start()
 
         try:
-            for i in range(self.N_PACKETS):
+            packets = []
+            t = time.time()
+            while len(packets) < self.N_PACKETS and time.time() - t < 10:
                 prog = receiver.receive()
-                print(prog)
+                if prog is not None:
+                    packets.append(prog)
+                    print(prog)
+
+            for i, prog in enumerate(packets):
                 assert isinstance(prog, ProgressUpdate)
                 assert prog.op_info == op_info
                 assert prog.progress == i
