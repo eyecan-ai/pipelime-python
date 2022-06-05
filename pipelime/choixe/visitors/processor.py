@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Iterable
 
 import pydash as py_
 
@@ -180,6 +180,14 @@ class Processor(NodeVisitor):
 
     def visit_for(self, node: ForNode) -> List[Any]:
         iterable = py_.get(self._context, node.iterable.data)
+        if not isinstance(iterable, Iterable):
+            if not py_.has(self._context, node.iterable.data):
+                raise ChoixeProcessingError(
+                    f"Loop variable `{node.iterable.data}` not found in context"
+                )
+            raise ChoixeProcessingError(
+                f"Loop variable `{node.iterable.data}` is not iterable"
+            )
         id_ = uuid.uuid1().hex if node.identifier is None else str(node.identifier.data)
         prev_loop = self._current_loop
         self._current_loop = id_

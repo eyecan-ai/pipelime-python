@@ -195,13 +195,17 @@ def pl_main(  # noqa: C901
         help=(
             "A sequence operator or a pipelime command, ie, a `command-name`, "
             "a `package.module.ClassName` class path or "
-            "a `path/to/module.py:ClassName` uri."
+            "a `path/to/module.py:ClassName` uri.\n\n"
+            "Special commands:\n\n"
+            "- `list` shows commands and operators\n\n"
+            "- `audit` inspects configuration and context files"
         ),
         autocompletion=PipelimeSymbolsHelper.complete_name(
             is_cmd=True,
             is_seq_ops=False,
             additional_names=[
                 ("list", "show commands and operators"),
+                ("audit", "inspect configuration and context files"),
                 ("help", "show help for a command or operator"),
             ],
         ),
@@ -280,13 +284,18 @@ def pl_main(  # noqa: C901
             print_info("\n\U0001F4C4 CONTEXT AUDIT\n")
             print_info(base_ctx.to_dict(), pretty=True)
 
-            _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
+            effective_configs = _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
+            pls = "s" if len(effective_configs) != 1 else ""
+            print_info(
+                "\U0001F389 Configuration successfully processed "
+                f"({len(effective_configs)} variant{pls})."
+            )
             raise typer.Exit(0)
         else:
             effective_configs = _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
 
             if verbose:
-                pls = "s" if not effective_configs or len(effective_configs) > 1 else ""
+                pls = "s" if len(effective_configs) != 1 else ""
                 print_info(f"Found {len(effective_configs)} configuration{pls}")
 
             for cfg in effective_configs:
