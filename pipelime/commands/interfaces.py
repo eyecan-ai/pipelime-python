@@ -218,6 +218,11 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
         None, alias="schema", description="Sample schema validation."
     )
 
+    @pyd.validator("folder")
+    def resolve_folder(cls, v: Path):
+        # see https://bugs.python.org/issue38671
+        return v.resolve().absolute()
+
     def create_reader(self):
         from pipelime.sequences import SamplesSequence
 
@@ -324,6 +329,11 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
     schema_: t.Optional[SampleValidationInterface] = pyd.Field(
         None, alias="schema", description="Sample schema validation."
     )
+
+    @pyd.validator("folder")
+    def resolve_folder(cls, v: Path):
+        # see https://bugs.python.org/issue38671
+        return v.resolve().absolute()
 
     def serialization_cm(self) -> t.ContextManager:
         return self.serialization

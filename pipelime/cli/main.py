@@ -73,14 +73,14 @@ def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]
         if expecting_cfg_val:
             deep_set_(
                 cfg_opts,
-                key_path=cfg_last_opt,
+                key_path=cfg_last_opt,  # type: ignore
                 value=cfg_last_val if cfg_last_val is not None else True,
                 append=True,
             )
         elif expecting_cfg_val is not None:
             deep_set_(
                 prms_opts,
-                key_path=prms_last_opt,
+                key_path=prms_last_opt,  # type: ignore
                 value=prms_last_val if prms_last_val is not None else True,
                 append=True,
             )
@@ -90,7 +90,7 @@ def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]
             _store_last_opt()
             expecting_cfg_val = True
             cfg_last_opt, cfg_last_val = _process_key_arg(extra_arg)
-        elif extra_arg.startswith("@"):
+        elif extra_arg.startswith("!"):
             _store_last_opt()
             expecting_cfg_val = False
             prms_last_opt, prms_last_val = _process_key_arg(extra_arg)
@@ -168,7 +168,7 @@ def pl_main(  # noqa: C901
         resolve_path=True,
         help=(
             "A YAML/JSON file with some or all the context parameters to compile the "
-            "input configuration. Command line options starting with `@` will update "
+            "input configuration. Command line options starting with `!` will update "
             "and override the ones in the file."
         ),
         autocompletion=_complete_yaml,
@@ -210,7 +210,7 @@ def pl_main(  # noqa: C901
         None,
         help=(
             "Pipelime command arguments. Options starting with `+` are considered part "
-            "of the command configurations, while options starting with `@` are part "
+            "of the command configurations, while options starting with `!` are part "
             "of the context, ie, the parameters to compile the input configuration."
         ),
     ),
@@ -221,9 +221,10 @@ def pl_main(  # noqa: C901
     """
     Pipelime Command Line Interface. Examples:
 
-    `pipelime list` prints a list of the available commands and operators.
+    `pipelime list` prints a list of the available commands and sequence operators.
 
-    `pipelime help <cmd-or-op>` prints informations on a specific command or operator.
+    `pipelime help <cmd-or-op>` prints informations on a specific command or sequence
+    operator.
 
     `pipelime <command> [<args>]` runs a pipelime command.
     """
@@ -285,10 +286,8 @@ def pl_main(  # noqa: C901
             effective_configs = _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
 
             if verbose:
-                print_info(
-                    f"Found {len(effective_configs)} configuration"
-                    f"{'s' if not effective_configs or len(effective_configs) > 1 else ''}"
-                )
+                pls = "s" if not effective_configs or len(effective_configs) > 1 else ""
+                print_info(f"Found {len(effective_configs)} configuration{pls}")
 
             for cfg in effective_configs:
                 if not cfg.inspect().processed:

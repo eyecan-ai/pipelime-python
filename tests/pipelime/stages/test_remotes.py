@@ -171,7 +171,7 @@ class TestRemotes:
             minimnist_private_dataset["path"],
             even_output,
             remote_url,
-            lambda x: int(x["label"]()) % 2 == 0,
+            lambda x: int(x["label"]()) % 2 == 0,  # type: ignore
             minimnist_private_dataset["image_keys"],
             True,
         )

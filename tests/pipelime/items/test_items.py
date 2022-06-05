@@ -204,7 +204,7 @@ class TestItems:
         )
 
         input_seq = SamplesSequence.from_underfolder(  # type: ignore
-            minimnist_private_dataset["path"], merge_root_items=False
+            minimnist_private_dataset["path"], merge_root_items=True
         )
 
         # upload to remote (remote source is added to the items)
@@ -246,8 +246,12 @@ class TestItems:
                         elif p.suffix == pli.PngImageItem.file_extensions()[0]:
                             assert p.stat().st_nlink == 1
                         else:
+                            format_suffix = (
+                                pli.JsonMetadataItem.file_extensions()[0]
+                                if ".json" in p.suffixes
+                                else pli.YamlMetadataItem.file_extensions()[0]
+                            )
                             assert (
                                 "".join(p.suffixes)
-                                == pli.JsonMetadataItem.file_extensions()[0]
-                                + pli.Item.REMOTE_FILE_EXT
+                                == format_suffix + pli.Item.REMOTE_FILE_EXT
                             )
