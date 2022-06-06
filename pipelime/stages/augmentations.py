@@ -49,7 +49,7 @@ class StageAlbumentations(SampleStage):
         else:
             return v
 
-    @pyd.validator("output_key_format")
+    @pyd.validator("output_key_format", always=True)
     def validate_output_key_format(cls, v):
         if "*" in v:
             return v
