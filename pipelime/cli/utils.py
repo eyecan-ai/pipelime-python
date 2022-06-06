@@ -21,7 +21,7 @@ class PipelimeSymbolsHelper:
         import inspect
 
         valid_completion_items = list(
-            (cls.get_piper_commands() if is_cmd else {}).values()
+            (cls.get_pipelime_commands() if is_cmd else {}).values()
         ) + list((cls.get_sequence_operators() if is_seq_ops else {}).values())
         valid_completion_items = [
             (k, inspect.getdoc(v) or "")
@@ -126,7 +126,7 @@ class PipelimeSymbolsHelper:
         return cls.cached_seq_ops
 
     @classmethod
-    def get_piper_commands(cls):
+    def get_pipelime_commands(cls):
         cls.import_operators_and_commands()
         return cls.cached_cmds
 
@@ -159,7 +159,7 @@ class PipelimeSymbolsHelper:
             except ImportError:
                 return None
 
-        for cmd_type, cmd_dict in PipelimeSymbolsHelper.get_piper_commands().items():
+        for cmd_type, cmd_dict in PipelimeSymbolsHelper.get_pipelime_commands().items():
             if command_name in cmd_dict:
                 return (cmd_type, cmd_dict[command_name])
         return None
@@ -174,7 +174,7 @@ class PipelimeSymbolsHelper:
         if should_be_cmd:
             should_be.append("a piper command")
             names_list += [
-                v2 for v1 in cls.get_piper_commands().values() for v2 in v1.keys()
+                v2 for v1 in cls.get_pipelime_commands().values() for v2 in v1.keys()
             ]
         if should_be_op:
             should_be.append("a sequence operator")
@@ -245,10 +245,26 @@ def _print_short_help(info, show_class_path):
         )
 
 
-def print_commands_and_ops_list(show_details: bool = False):
-    """
-    Print a list of all available sequence operators and piper commands.
-    """
+def print_commands_and_ops_list(
+    show_details: bool = False, *, show_cmds: bool = True, show_ops: bool = True
+):
+    """Print a list of all available sequence operators and pipelime commands."""
     print_fn = _print_details if show_details else _print_short_help
-    print_fn(PipelimeSymbolsHelper.get_piper_commands(), True)
-    print_fn(PipelimeSymbolsHelper.get_sequence_operators(), False)
+    if show_cmds:
+        print_fn(PipelimeSymbolsHelper.get_pipelime_commands(), True)
+    if show_ops:
+        print_fn(PipelimeSymbolsHelper.get_sequence_operators(), False)
+
+
+def print_commands_list(show_details: bool = False):
+    """Print a list of all available pipelime commands."""
+    print_commands_and_ops_list(
+        show_details=show_details, show_cmds=True, show_ops=False
+    )
+
+
+def print_sequence_operators_list(show_details: bool = False):
+    """Print a list of all available sequence operators."""
+    print_commands_and_ops_list(
+        show_details=show_details, show_cmds=False, show_ops=True
+    )

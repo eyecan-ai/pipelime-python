@@ -14,12 +14,12 @@ def _complete_yaml(incomplete: str):
         yield str(v)
 
 
-def _print_xconfig(name, data):
+def _print_dict(name, data):
     import json
     from pipelime.cli.pretty_print import print_info
 
     print_info(f"\n{name}:")
-    print_info(json.dumps(data.to_dict(), indent=2))
+    print_info(json.dumps(data, indent=2))
 
 
 def _convert_val(val: str):
@@ -100,6 +100,39 @@ def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]
             prms_last_val = _process_val_arg(extra_arg, prms_last_val)
     _store_last_opt()
     return cfg_opts, prms_opts
+
+
+def _update_dispatch(original_value, item):
+    if isinstance(item, t.Mapping):
+        if isinstance(original_value, t.MutableMapping):
+            _dict_update(original_value, item)
+            return True
+    elif isinstance(item, t.Sequence):
+        if isinstance(original_value, t.MutableSequence):
+            _list_update(original_value, item)
+            return True
+    return False
+
+
+def _list_update(to_be_updated: t.MutableSequence, data: t.Sequence):
+    to_be_updated.extend([None] * (len(data) - len(to_be_updated)))  # this is safe
+    if data[-1] is None:
+        del to_be_updated[len(data) - 1 :]  # noqa: E203
+    for idx, item in enumerate(data):
+        if item is not None:
+            original_value = to_be_updated[idx]
+            if _update_dispatch(original_value, item):
+                continue
+            to_be_updated[idx] = item
+
+
+def _dict_update(to_be_updated: t.MutableMapping, data: t.Mapping):
+    for k, v in data.items():
+        if k in to_be_updated:
+            original_value = to_be_updated[k]
+            if _update_dispatch(original_value, v):
+                continue
+        to_be_updated[k] = v
 
 
 def _process_cfg_or_die(cfg, ctx, run_all: t.Optional[bool], output: t.Optional[Path]):
@@ -248,27 +281,33 @@ def pl_main(  # noqa: C901
         print_commands_and_ops_list(verbose)
     elif command:
         from pipelime.choixe import XConfig
+        import pipelime.choixe.utils.io as choixe_io
         from pipelime.cli.pretty_print import print_error, print_info
 
-        base_cfg = XConfig() if config is None else XConfig.from_file(config)
-        base_ctx = XConfig() if context is None else XConfig.from_file(context)
+        base_cfg = {} if config is None else choixe_io.load(config)
+        base_ctx = {} if context is None else choixe_io.load(context)
 
         cmdline_cfg, cmdline_ctx = _extract_options(command_args)
-        cmdline_cfg = XConfig(cmdline_cfg)
-        cmdline_ctx = XConfig(cmdline_ctx)
 
         if verbose:
-            _print_xconfig("Loaded configuration file", base_cfg)
-            _print_xconfig("Loaded context file", base_ctx)
-            _print_xconfig("Configuration options from command line", cmdline_cfg)
-            _print_xconfig("Context options from command line", cmdline_ctx)
+            _print_dict("Loaded configuration file", base_cfg)
+            _print_dict("Loaded context file", base_ctx)
+            _print_dict("Configuration options from command line", cmdline_cfg)
+            _print_dict("Context options from command line", cmdline_ctx)
 
-        base_cfg.deep_update(cmdline_cfg, full_merge=True)
-        base_ctx.deep_update(cmdline_ctx, full_merge=True)
+        _dict_update(base_cfg, cmdline_cfg)
+        _dict_update(base_ctx, cmdline_ctx)
 
         if verbose:
-            _print_xconfig("Merged configuration", base_cfg)
-            _print_xconfig("Merged context", base_ctx)
+            _print_dict("Merged configuration", base_cfg)
+            _print_dict("Merged context", base_ctx)
+
+        base_cfg = XConfig(
+            data=base_cfg, cwd=Path.cwd() if config is None else config.parent
+        )
+        base_ctx = XConfig(
+            data=base_ctx, cwd=Path.cwd() if context is None else context.parent
+        )
 
         if command == "audit":
             from dataclasses import fields
@@ -302,7 +341,7 @@ def pl_main(  # noqa: C901
                 if not cfg.inspect().processed:
                     print_error("The configuration has not been fully processed.")
                     if verbose:
-                        _print_xconfig("Unprocessed data", cfg)
+                        _print_dict("Unprocessed data", cfg)
                     else:
                         print_info(
                             "Run with --verbose to see the final configuration file."
