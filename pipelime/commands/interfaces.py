@@ -36,7 +36,9 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
         track_fn = (
             None
             if parent_cmd is None
-            else (lambda x: parent_cmd.track(x, size=len(sequence), message=track_message))
+            else (
+                lambda x: parent_cmd.track(x, size=len(sequence), message=track_message)
+            )
         )
         grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn)
 
