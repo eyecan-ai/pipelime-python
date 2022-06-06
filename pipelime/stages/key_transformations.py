@@ -15,7 +15,7 @@ class StageDuplicateKey(SampleStage):
         ),
     )
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         return x.duplicate_key(self.source_key, self.copy_to)
 
 
@@ -43,7 +43,7 @@ class StageKeyFormat(SampleStage):
             return v
         return "*" + v
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         keys = list(x.keys())
         for k in keys:
             x = x.rename_key(k, self.key_format.replace("*", k))
@@ -62,7 +62,7 @@ class StageRemap(SampleStage):
         "in the output sample before name remapping",
     )
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         if self.remove_missing:
             x = x.extract_keys(*self.remap.keys())
         for kold, knew in self.remap.items():
@@ -81,7 +81,7 @@ class StageKeysFilter(SampleStage):
         ),
     )
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         return (
             x.remove_keys(*self.key_list)
             if self.negate

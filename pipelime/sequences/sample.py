@@ -149,10 +149,10 @@ class Sample(t.Mapping[str, Item]):
     def extract_keys(self, *keys_to_keep: str) -> Sample:
         return Sample({k: v for k, v in self._data.items() if k in keys_to_keep})
 
-    def merge(self, other: "Sample") -> Sample:
+    def merge(self, other: Sample) -> Sample:
         return Sample({**self._data, **other._data})
 
-    def update(self, other: "Sample") -> Sample:
+    def update(self, other: Sample) -> Sample:
         return self.merge(other)
 
     def __getitem__(self, key: str) -> Item:

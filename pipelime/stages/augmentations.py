@@ -74,7 +74,7 @@ class StageAlbumentations(SampleStage):
 
         self._trobj.add_targets(target_types)
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         to_transform = {k: x[v]() for k, v in self._target_to_keys.items() if v in x}
         transformed = self._trobj(**to_transform)  # type: ignore
         for k, v in transformed.items():

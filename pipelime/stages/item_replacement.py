@@ -15,7 +15,7 @@ class StageReplaceItem(SampleStage):
         ),
     )
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         for key, item_cls in self.key_item_map.items():
             if key in x:
                 old_item = x[key]

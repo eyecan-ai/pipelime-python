@@ -25,7 +25,7 @@ class StageItemInfo(SampleStage):
     def items_info(self):
         return self._items_info
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         for k, v in x.items():
             class_name = (
                 v.__class__.__name__
