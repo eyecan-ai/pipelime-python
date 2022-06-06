@@ -4,7 +4,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Mapping, Optional, Set
 
 import pydash as py_
 
@@ -38,10 +38,19 @@ class Inspection:
     symbols: Set[str] = field(default_factory=set)
     processed: bool = False
 
+    def _iteratee(self, obj_value, src_value, key, obj, source) -> Any:
+        res = None
+        if obj_value is not None and src_value is None:
+            res = obj_value
+        print(key, obj_value, src_value, res)
+        return res
+
     def __add__(self, other: Inspection) -> Inspection:
         return Inspection(
             imports={*self.imports, *other.imports},
-            variables=py_.merge(self.variables, other.variables),
+            variables=py_.merge_with(
+                self.variables, other.variables, iteratee=self._iteratee
+            ),
             environ={**self.environ, **other.environ},
             symbols={*self.symbols, *other.symbols},
             processed=self.processed and other.processed,
@@ -52,6 +61,7 @@ class Inspector(NodeVisitor):
     def __init__(self, cwd: Optional[Path] = None) -> None:
         super().__init__()
         self._cwd = cwd if cwd is not None else Path(os.getcwd())
+        self._named_for_loops: Dict[str, str] = {}
 
     def visit_dict(self, node: DictNode) -> Inspection:
         inspections = []
@@ -118,6 +128,8 @@ class Inspector(NodeVisitor):
         return self.visit_instance(node)
 
     def visit_for(self, node: ForNode) -> Inspection:
+        if node.identifier is not None:
+            self._named_for_loops[node.identifier.data] = node.iterable.data
         iterable_insp = Inspection(variables=py_.set_({}, node.iterable.data, None))
         body_insp = node.body.accept(self)
         return iterable_insp + body_insp
@@ -126,7 +138,13 @@ class Inspector(NodeVisitor):
         return Inspection()
 
     def visit_item(self, node: ItemNode) -> Inspection:
-        return Inspection()
+        variables = {}
+        if node.identifier is not None:
+            loop_id, _, key = node.identifier.data.partition(".")
+            iterable_name = self._named_for_loops[loop_id]
+            full_path = f"{iterable_name}.{key}"
+            py_.set_(variables, full_path, None)
+        return Inspection(variables=variables)
 
 
 def inspect(node: Node, cwd: Optional[Path] = None) -> Inspection:

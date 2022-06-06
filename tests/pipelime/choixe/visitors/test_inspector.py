@@ -80,9 +80,47 @@ class TestInspector:
                     }
                 ),
             ],
+            [
+                {
+                    "a": "$var(x.sub_var)",
+                    "b": "$var(x)",
+                },
+                Inspection(variables={"x": {"sub_var": None}}),
+            ],
+            [
+                {
+                    "foo": "$var(my_var_a)",
+                    "$for(my_var_b, x)": {
+                        "b_$index(x)": "$item(x.sub_var_a)",
+                        "a_$index(x)": "$item(x)",
+                    },
+                    "$for(my_var_c, y)": {
+                        "a_$index(y)": "$item(y.sub_var_a)",
+                        "c_$index(y)": "$item(y.sub_var_b.sub_sub_var_a)",
+                        "b_$index(y)": "$item(y.sub_var_b)",
+                    },
+                    "$for(my_var_c, z)": {
+                        "b_$index(z)": "$item(z.sub_var_a.sub_sub_var_b)",
+                        "c_$index(z)": "$item(z.sub_var_b)",
+                        "a_$index(z)": "$item(z.sub_var_a.sub_sub_var_a)",
+                    },
+                },
+                Inspection(
+                    variables={
+                        "my_var_a": None,
+                        "my_var_b": {"sub_var_a": None},
+                        "my_var_c": {
+                            "sub_var_a": {"sub_sub_var_a": None, "sub_sub_var_b": None},
+                            "sub_var_b": {"sub_sub_var_a": None},
+                        },
+                    }
+                ),
+            ],
         ],
     )
     def test_inspector(self, expr, expected):
+        print(inspect(parse(expr)))
+        print(expected)
         assert inspect(parse(expr)) == expected
 
     def test_relative_import(self, choixe_plain_cfg):
