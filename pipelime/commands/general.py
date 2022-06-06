@@ -324,7 +324,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         ),
     )
     root_key_path: str = pyd.Field(
-        "", description="Root key path for the output schema."
+        "input.schema", description="Root key path for the output schema."
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
