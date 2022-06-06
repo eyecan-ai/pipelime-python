@@ -1,7 +1,6 @@
 import typing as t
 import pydantic as pyd
 
-from pipelime.sequences import Sample
 from pipelime.items import Item
 from pipelime.stages import SampleStage
 
@@ -16,7 +15,7 @@ class StageReplaceItem(SampleStage):
         ),
     )
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":
         for key, item_cls in self.key_item_map.items():
             if key in x:
                 old_item = x[key]

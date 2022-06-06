@@ -2,7 +2,6 @@ import typing as t
 
 import pydantic as pyd
 
-from pipelime.sequences import Sample
 from pipelime.stages import SampleStage
 
 
@@ -26,7 +25,7 @@ class StageItemInfo(SampleStage):
     def items_info(self):
         return self._items_info
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":
         for k, v in x.items():
             class_name = (
                 v.__class__.__name__

@@ -306,7 +306,7 @@ class CachedSequence(PipedSequenceBase, title="cache"):
         filename: Path = self.cache_folder / f"{idx}.pkl"  # type: ignore
 
         if filename.exists():
-            with open(filename, 'rb') as fd:
+            with open(filename, "rb") as fd:
                 return pickle.load(fd)
 
         x = self.source[idx]
