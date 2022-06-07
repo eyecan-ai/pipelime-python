@@ -13,6 +13,8 @@ class MyStage(SampleStage):
             value = x[self.source_key]
             if isinstance(value, NumpyItem):
                 x = x.set_value_as(
-                    self.target_key, self.source_key, float(value()) * 2.5  # type: ignore
+                    self.target_key,
+                    self.source_key,
+                    float(value()) * 2.5,  # type: ignore
                 )
         return x
