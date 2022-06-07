@@ -286,6 +286,21 @@ def pl_main(  # noqa: C901
         import pipelime.choixe.utils.io as choixe_io
         from pipelime.cli.pretty_print import print_error, print_info
 
+        if verbose:
+            print_info(
+                "No configuration file"
+                if config is None
+                else f"Configuration file: {config}"
+            )
+            print_info(
+                "No context file" if context is None else f"Context file: {config}"
+            )
+            print_info(
+                f"Other command and context arguments: {command_args}"
+                if command_args
+                else "No other command or context arguments"
+            )
+
         base_cfg = {} if config is None else choixe_io.load(config)
         base_ctx = {} if context is None else choixe_io.load(context)
 
