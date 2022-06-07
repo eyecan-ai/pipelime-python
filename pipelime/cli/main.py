@@ -43,7 +43,17 @@ def _convert_val(val: str):
 
 
 def _process_key_arg(arg):
+    from pipelime.cli.pretty_print import print_error, print_warning
+
     opt, _, val = arg[1:].partition("=")
+    if opt.endswith(".") or ".." in opt or ".[" in opt:
+        print_error(f"Invalid key path: `{opt}`")
+        print_warning(
+            "Remember: Bash and other shells want the choixe's dollar sign (`$`) "
+            "enclosed with single quotes."
+        )
+        raise typer.Exit(1)
+
     if val:
         val = tuple(_convert_val(v) for v in val.split(","))
         if len(val) == 1:
