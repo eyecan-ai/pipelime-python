@@ -3,26 +3,30 @@ from types import ModuleType
 
 
 class PipelimeSymbolsHelper:
-    std_cmd_modules = ["pipelime.commands"]
+    std_modules = ["pipelime.commands", "pipelime.stages"]
     extra_modules: t.List[str] = []
 
     cached_modules: t.Dict[str, ModuleType] = {}
     cached_cmds: t.Dict[t.Tuple[str, str], t.Dict] = {}
     cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
+    cached_stages: t.Dict[t.Tuple[str, str], t.Dict] = {}
 
     @classmethod
     def complete_name(
         cls,
         is_cmd: bool,
-        is_seq_ops: bool,
+        is_seq_op: bool,
+        is_stage: bool,
         *,
         additional_names: t.Sequence[t.Tuple[str, str]] = [],
     ):
         import inspect
 
-        valid_completion_items = list(
-            (cls.get_pipelime_commands() if is_cmd else {}).values()
-        ) + list((cls.get_sequence_operators() if is_seq_ops else {}).values())
+        valid_completion_items = (
+            list((cls.get_pipelime_commands() if is_cmd else {}).values())
+            + list((cls.get_sequence_operators() if is_seq_op else {}).values())
+            + list((cls.get_sample_stages() if is_stage else {}).values())
+        )
         valid_completion_items = [
             (k, inspect.getdoc(v) or "")
             for elem in valid_completion_items
@@ -43,61 +47,75 @@ class PipelimeSymbolsHelper:
     @classmethod
     def is_cache_valid(cls) -> bool:
         return all(
-            m in cls.cached_modules for m in (cls.std_cmd_modules + cls.extra_modules)
+            m in cls.cached_modules for m in (cls.std_modules + cls.extra_modules)
         )
 
     @classmethod
-    def _load_commands(cls):
+    def _symbol_name(cls, symbol):
+        return (
+            symbol.command_title()
+            if hasattr(symbol, "command_title")
+            else symbol.__name__
+        )
+
+    @classmethod
+    def _warn_double_def(cls, type_, name, first, second):
+        from pipelime.cli.pretty_print import print_error, print_warning
+
+        print_error(f"Found duplicate {type_} `{name}`")
+        print_warning(f"Defined as `{first.classpath()}`")
+        print_warning(f"       and `{second.classpath()}`")
+        raise ValueError(f"Duplicate {type_} `{name}`")
+
+    @classmethod
+    def _load_symbols(cls, base_cls: t.Type, symbol_type: str):
         import inspect
 
-        from pipelime.piper import PipelimeCommand
-
-        def _warn_double_def(cmd_name, first, second):
-            from pipelime.cli.pretty_print import print_error, print_warning
-
-            print_error(f"Found duplicate command `{cmd_name}`")
-            print_warning(f"Defined as `{first.classpath()}`")
-            print_warning(f"       and `{second.classpath()}`")
-            raise ValueError(f"Duplicate command `{cmd_name}`")
-
-        all_cmds = {}
+        all_syms = {}
         for module_name, module_ in cls.cached_modules.items():
-            module_cmds = tuple(
-                (cmd_cls.command_title(), cmd_cls)
-                for _, cmd_cls in inspect.getmembers(
+            module_symbols = tuple(
+                (cls._symbol_name(sym_cls), sym_cls)
+                for _, sym_cls in inspect.getmembers(
                     module_,
                     lambda v: inspect.isclass(v)
-                    and issubclass(v, PipelimeCommand)
-                    and v is not PipelimeCommand,
+                    and issubclass(v, base_cls)
+                    and not inspect.isabstract(v),
                 )
             )
 
+            # set module path when loading from file
             if module_name.endswith(".py"):
-                for _, cmd_cls in module_cmds:
-                    cmd_cls._classpath = f"{module_name}:{cmd_cls.__name__}"
+                for _, sym_cls in module_symbols:
+                    sym_cls._classpath = f"{module_name}:{sym_cls.__name__}"
 
-            # check for double commands in the same module
-            for idx, (cmd_name, cmd_cls) in enumerate(module_cmds):
-                for other_cmd_name, other_cmd_cls in module_cmds[idx + 1 :]:  # noqa
-                    if cmd_name == other_cmd_name:
-                        _warn_double_def(cmd_name, cmd_cls, other_cmd_cls)
+            # check for double symbols in the same module
+            for idx, (sym_name, sym_cls) in enumerate(module_symbols):
+                for other_sym_name, other_sym_cls in module_symbols[idx + 1 :]:  # noqa
+                    if sym_name == other_sym_name:
+                        cls._warn_double_def(
+                            symbol_type, sym_name, sym_cls, other_sym_cls
+                        )
 
             # check for double commands across modules
-            module_cmds = dict(module_cmds)
-            for cmd_name, cmd_cls in module_cmds.items():
-                if cmd_name in all_cmds:
-                    _warn_double_def(cmd_name, cmd_cls, all_cmds[cmd_name])
+            module_symbols = dict(module_symbols)
+            for sym_name, sym_cls in module_symbols.items():
+                if sym_name in all_syms:
+                    cls._warn_double_def(
+                        symbol_type, sym_name, sym_cls, all_syms[sym_name]
+                    )
 
-            all_cmds = {**all_cmds, **module_cmds}
-        return all_cmds
+            all_syms = {**all_syms, **module_symbols}
+        return all_syms
 
     @classmethod
-    def import_operators_and_commands(cls):
+    def import_everything(cls):
         import pipelime.choixe.utils.imports as pl_imports
-        import pipelime.sequences as pls
+        import pipelime.sequences as pl_seq
+        from pipelime.piper import PipelimeCommand
+        from pipelime.stages import SampleStage
 
         if not cls.is_cache_valid():
-            for module_name in cls.std_cmd_modules + cls.extra_modules:
+            for module_name in cls.std_modules + cls.extra_modules:
                 if module_name not in cls.cached_modules:
                     cls.cached_modules[module_name] = (
                         pl_imports.import_module_from_file(module_name)
@@ -109,26 +127,78 @@ class PipelimeSymbolsHelper:
                 (
                     "Sequence Generator",
                     "Sequence Generators",
-                ): pls.SamplesSequence._sources,
+                ): pl_seq.SamplesSequence._sources,
                 (
                     "Sequence Piped Operation",
                     "Sequence Piped Operations",
-                ): pls.SamplesSequence._pipes,
+                ): pl_seq.SamplesSequence._pipes,
             }
 
             cls.cached_cmds = {
-                ("Piper Command", "Piper Commands"): cls._load_commands()
+                ("Pipelime Command", "Pipelime Commands"): cls._load_symbols(
+                    PipelimeCommand, "command"
+                )
+            }
+
+            cls.cached_stages = {
+                ("Sample Stage", "Sample Stages"): cls._load_symbols(
+                    SampleStage, "stage"
+                )
             }
 
     @classmethod
+    def get_pipelime_commands(cls):
+        cls.import_everything()
+        return cls.cached_cmds
+
+    @classmethod
     def get_sequence_operators(cls):
-        cls.import_operators_and_commands()
+        cls.import_everything()
         return cls.cached_seq_ops
 
     @classmethod
-    def get_pipelime_commands(cls):
-        cls.import_operators_and_commands()
-        return cls.cached_cmds
+    def get_sample_stages(cls):
+        cls.import_everything()
+        return cls.cached_stages
+
+    @classmethod
+    def get_symbol(
+        cls,
+        symbol_path: str,
+        base_cls: t.Type,
+        symbol_cache: t.Mapping[t.Tuple[str, str], t.Mapping],
+    ):
+        import pipelime.choixe.utils.imports as pl_imports
+
+        if "." in symbol_path or ":" in symbol_path:
+            try:
+                imported_symbol = pl_imports.import_symbol(symbol_path)
+                if not issubclass(imported_symbol, base_cls):
+                    raise ValueError(
+                        f"{symbol_path} must derived from {base_cls.__name__}."
+                    )
+
+                return imported_symbol
+            except ImportError:
+                return None
+
+        for sym_type, sym_dict in symbol_cache.items():
+            if symbol_path in sym_dict:
+                return (sym_type, sym_dict[symbol_path])
+        return None
+
+    @classmethod
+    def get_command(cls, command_name: str):
+        from pipelime.piper import PipelimeCommand
+
+        sym_cls = cls.get_symbol(
+            command_name, PipelimeCommand, cls.get_pipelime_commands()
+        )
+        if sym_cls is None:
+            return None
+        if not isinstance(sym_cls, tuple):
+            return (("Imported Command", "Imported Commands"), sym_cls)
+        return sym_cls
 
     @classmethod
     def get_operator(cls, operator_name: str):
@@ -138,41 +208,27 @@ class PipelimeSymbolsHelper:
         return None
 
     @classmethod
-    def get_command(cls, command_name: str):
-        from pydantic import BaseModel
+    def get_stage(cls, stage_name: str):
+        from pipelime.stages import SampleStage
 
-        import pipelime.choixe.utils.imports as pl_imports
-        from pipelime.piper import PipelimeCommand
-
-        if "." in command_name or ":" in command_name:
-            try:
-                imported_symbol = pl_imports.import_symbol(command_name)
-                if not issubclass(imported_symbol, BaseModel):
-                    raise ValueError(f"{command_name} is not a pydantic model.")
-
-                return (
-                    ("Imported Command", "Imported Commands")
-                    if issubclass(imported_symbol, PipelimeCommand)
-                    else ("Imported Model", "Imported Models"),
-                    imported_symbol,
-                )
-            except ImportError:
-                return None
-
-        for cmd_type, cmd_dict in PipelimeSymbolsHelper.get_pipelime_commands().items():
-            if command_name in cmd_dict:
-                return (cmd_type, cmd_dict[command_name])
-        return None
+        sym_cls = cls.get_symbol(stage_name, SampleStage, cls.get_sample_stages())
+        if sym_cls is None:
+            return None
+        if not isinstance(sym_cls, tuple):
+            return (("Imported Stage", "Imported Stages"), sym_cls)
+        return sym_cls
 
     @classmethod
-    def show_error_and_help(cls, name: str, should_be_cmd: bool, should_be_op: bool):
+    def show_error_and_help(
+        cls, name: str, should_be_cmd: bool, should_be_op: bool, should_be_stage: bool
+    ):
         from pipelime.cli.pretty_print import print_error, print_warning, print_info
         from difflib import get_close_matches
 
         should_be = []
         names_list = []
         if should_be_cmd:
-            should_be.append("a piper command")
+            should_be.append("a pipelime command")
             names_list += [
                 v2 for v1 in cls.get_pipelime_commands().values() for v2 in v1.keys()
             ]
@@ -180,6 +236,11 @@ class PipelimeSymbolsHelper:
             should_be.append("a sequence operator")
             names_list += [
                 v2 for v1 in cls.get_sequence_operators().values() for v2 in v1.keys()
+            ]
+        if should_be_stage:
+            should_be.append("a sample stage")
+            names_list += [
+                v2 for v1 in cls.get_sample_stages().values() for v2 in v1.keys()
             ]
         similar_names = get_close_matches(name, names_list, cutoff=0.3)
 
@@ -189,39 +250,46 @@ class PipelimeSymbolsHelper:
             print_info(f"Similar entries: {', '.join(similar_names)}")
 
 
-def print_command_or_op_info(command_or_operator: str):
+def print_command_op_stage_info(command_operator_stage: str):
     """
-    Prints detailed info about a sequence operator or a piper command.
+    Prints detailed info about a pipelime command, a sequence operator or a sample
+    stage.
     """
     from pipelime.cli.pretty_print import (
         print_info,
         print_model_info,
     )
 
-    def _print_info(info_cls, show_class_path_and_piper_port):
+    def _print_info(info_cls, show_class_path, show_piper_port):
         if info_cls is not None:
             print_info(f"\n---{info_cls[0][0]}")
             print_model_info(
                 info_cls[1],
-                show_class_path=show_class_path_and_piper_port,
-                show_piper_port=show_class_path_and_piper_port,
+                show_class_path=show_class_path,
+                show_piper_port=show_piper_port,
             )
 
-    info_op = PipelimeSymbolsHelper.get_operator(command_or_operator)
-    info_cmd = PipelimeSymbolsHelper.get_command(command_or_operator)
+    info_stg = PipelimeSymbolsHelper.get_stage(command_operator_stage)
+    info_op = PipelimeSymbolsHelper.get_operator(command_operator_stage)
+    info_cmd = PipelimeSymbolsHelper.get_command(command_operator_stage)
 
-    if info_op is None and info_cmd is None:
+    if info_stg is None and info_op is None and info_cmd is None:
         PipelimeSymbolsHelper.show_error_and_help(
-            command_or_operator, should_be_cmd=True, should_be_op=True
+            command_operator_stage,
+            should_be_cmd=True,
+            should_be_op=True,
+            should_be_stage=True,
         )
         raise ValueError(
-            f"{command_or_operator} is not a sequence operator nor a piper command!"
+            f"{command_operator_stage} is not a pipelime command, "
+            "nor a sequence operator nor a sample stage!"
         )
-    _print_info(info_op, False)
-    _print_info(info_cmd, True)
+    _print_info(info_stg, show_class_path=True, show_piper_port=False)
+    _print_info(info_op, show_class_path=False, show_piper_port=False)
+    _print_info(info_cmd, show_class_path=True, show_piper_port=True)
 
 
-def _print_details(info, show_class_path_and_piper_port):
+def _print_details(info, show_class_path, show_piper_port):
     from pipelime.cli.pretty_print import print_info, print_model_info
 
     for info_type, info_map in info.items():
@@ -229,12 +297,12 @@ def _print_details(info, show_class_path_and_piper_port):
             print_info(f"\n---{info_type[0]}")
             print_model_info(
                 info_cls,
-                show_class_path=show_class_path_and_piper_port,
-                show_piper_port=show_class_path_and_piper_port,
+                show_class_path=show_class_path,
+                show_piper_port=show_piper_port,
             )
 
 
-def _print_short_help(info, show_class_path):
+def _print_short_help(info, show_class_path, *args, **kwargs):
     from pipelime.cli.pretty_print import print_info, print_models_short_help
 
     for info_type, info_map in info.items():
@@ -245,26 +313,51 @@ def _print_short_help(info, show_class_path):
         )
 
 
-def print_commands_and_ops_list(
-    show_details: bool = False, *, show_cmds: bool = True, show_ops: bool = True
+def print_commands_ops_stages_list(
+    show_details: bool = False,
+    *,
+    show_cmds: bool = True,
+    show_ops: bool = True,
+    show_stages: bool = True,
 ):
     """Print a list of all available sequence operators and pipelime commands."""
     print_fn = _print_details if show_details else _print_short_help
     if show_cmds:
-        print_fn(PipelimeSymbolsHelper.get_pipelime_commands(), True)
+        print_fn(
+            PipelimeSymbolsHelper.get_pipelime_commands(),
+            show_class_path=True,
+            show_piper_port=True,
+        )
     if show_ops:
-        print_fn(PipelimeSymbolsHelper.get_sequence_operators(), False)
+        print_fn(
+            PipelimeSymbolsHelper.get_sequence_operators(),
+            show_class_path=False,
+            show_piper_port=False,
+        )
+    if show_stages:
+        print_fn(
+            PipelimeSymbolsHelper.get_sample_stages(),
+            show_class_path=True,
+            show_piper_port=False,
+        )
 
 
 def print_commands_list(show_details: bool = False):
     """Print a list of all available pipelime commands."""
-    print_commands_and_ops_list(
-        show_details=show_details, show_cmds=True, show_ops=False
+    print_commands_ops_stages_list(
+        show_details=show_details, show_cmds=True, show_ops=False, show_stages=False
     )
 
 
 def print_sequence_operators_list(show_details: bool = False):
     """Print a list of all available sequence operators."""
-    print_commands_and_ops_list(
-        show_details=show_details, show_cmds=False, show_ops=True
+    print_commands_ops_stages_list(
+        show_details=show_details, show_cmds=False, show_ops=True, show_stages=False
+    )
+
+
+def print_sample_stages_list(show_details: bool = False):
+    """Print a list of all available sample stages."""
+    print_commands_ops_stages_list(
+        show_details=show_details, show_cmds=False, show_ops=False, show_stages=True
     )

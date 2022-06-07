@@ -4,8 +4,8 @@ import typer
 
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
-    print_command_or_op_info,
-    print_commands_and_ops_list,
+    print_command_op_stage_info,
+    print_commands_ops_stages_list,
 )
 
 
@@ -226,7 +226,7 @@ def pl_main(  # noqa: C901
         "",
         show_default=False,
         help=(
-            "A sequence operator or a pipelime command, ie, a `command-name`, "
+            "A pipelime command, ie, a `command-name`, "
             "a `package.module.ClassName` class path or "
             "a `path/to/module.py:ClassName` uri.\n\n"
             "Special commands:\n\n"
@@ -235,11 +235,12 @@ def pl_main(  # noqa: C901
         ),
         autocompletion=PipelimeSymbolsHelper.complete_name(
             is_cmd=True,
-            is_seq_ops=False,
+            is_seq_op=False,
+            is_stage=False,
             additional_names=[
-                ("list", "show commands and operators"),
+                ("list", "show commands, operators and stages"),
                 ("audit", "inspect configuration and context files"),
-                ("help", "show help for a command or operator"),
+                ("help", "show help for a command, an operator or a stage"),
             ],
         ),
     ),
@@ -258,10 +259,11 @@ def pl_main(  # noqa: C901
     """
     Pipelime Command Line Interface. Examples:
 
-    `pipelime list` prints a list of the available commands and sequence operators.
+    `pipelime list` prints a list of the available commands, sequence operators
+    and stages.
 
-    `pipelime help <cmd-or-op>` prints informations on a specific command or sequence
-    operator.
+    `pipelime help <cmd-op-stg>` prints informations on a specific command, sequence
+    operator or stage.
 
     `pipelime <command> [<args>]` runs a pipelime command.
     """
@@ -272,13 +274,13 @@ def pl_main(  # noqa: C901
 
     if help or command == "help" or "help" in command_args:
         if command and command != "help":
-            print_command_or_op_info(command)
+            print_command_op_stage_info(command)
         elif command_args:
-            print_command_or_op_info(command_args[0])
+            print_command_op_stage_info(command_args[0])
         else:
             print(ctx.get_help())
     elif command == "list":
-        print_commands_and_ops_list(verbose)
+        print_commands_ops_stages_list(verbose)
     elif command:
         from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
@@ -382,7 +384,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     cmd_cls = PipelimeSymbolsHelper.get_command(command)
     if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
         PipelimeSymbolsHelper.show_error_and_help(
-            command, should_be_cmd=True, should_be_op=False
+            command, should_be_cmd=True, should_be_op=False, should_be_stage=False
         )
         raise typer.Exit(1)
     cmd_cls = cmd_cls[1]

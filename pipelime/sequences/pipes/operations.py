@@ -234,7 +234,7 @@ class EnumeratedSequence(
         "~idx", description="The new key containing the index item."
     )
     item_cls_path: str = pyd.Field(
-        "pipelime.items.NpyNumpyItem", description="The item class holding the index."
+        "pipelime.items.TxtNumpyItem", description="The item class holding the index."
     )
 
     _item_cls: t.Type[pli.Item]

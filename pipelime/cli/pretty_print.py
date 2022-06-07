@@ -132,7 +132,9 @@ def _field_row(
     if field.field_info.exclude:
         return
 
-    is_model = _is_model(field.outer_type_)
+    is_model = _is_model(field.outer_type_) and not inspect.isabstract(
+        field.outer_type_
+    )
 
     if show_piper_port:
         fport = str(
