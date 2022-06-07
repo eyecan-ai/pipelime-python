@@ -253,8 +253,8 @@ def _command_title(model_cls: t.Type[BaseModel]) -> str:
 
 
 def _command_classpath(model_cls: t.Type[BaseModel]) -> str:
-    if hasattr(model_cls, "classpath"):
-        return model_cls.classpath()  # type: ignore
+    if hasattr(model_cls, "_classpath") and model_cls._classpath:  # type: ignore
+        return model_cls._classpath  # type: ignore
     return f"{model_cls.__module__}.{model_cls.__name__}"
 
 

@@ -27,7 +27,6 @@ class PipelimeCommand(BaseModel, extra="forbid"):
     Subclasses should implement the run method.
     """
 
-    _classpath: t.ClassVar[t.Optional[str]] = None
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: t.Optional[Tracker] = PrivateAttr(None)
 
@@ -58,12 +57,6 @@ class PipelimeCommand(BaseModel, extra="forbid"):
             self._tracker = Tracker(self._piper.token, self._piper.node, cb)
 
         return self._tracker
-
-    @classmethod
-    def classpath(cls) -> str:
-        if not cls._classpath:
-            return f"{cls.__module__}.{cls.__name__}"
-        return cls._classpath
 
     @classmethod
     def command_title(cls) -> str:

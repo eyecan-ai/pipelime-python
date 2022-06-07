@@ -62,9 +62,14 @@ class PipelimeSymbolsHelper:
     def _warn_double_def(cls, type_, name, first, second):
         from pipelime.cli.pretty_print import print_error, print_warning
 
+        def get_classpath(m) -> str:
+            if hasattr(m, "_classpath") and m._classpath:
+                return m._classpath
+            return f"{m.__module__}.{m.__name__}"
+
         print_error(f"Found duplicate {type_} `{name}`")
-        print_warning(f"Defined as `{first.classpath()}`")
-        print_warning(f"       and `{second.classpath()}`")
+        print_warning(f"Defined as `{get_classpath(first)}`")
+        print_warning(f"       and `{get_classpath(second)}`")
         raise ValueError(f"Duplicate {type_} `{name}`")
 
     @classmethod
@@ -178,6 +183,9 @@ class PipelimeSymbolsHelper:
                         f"{symbol_path} must derived from {base_cls.__name__}."
                     )
 
+                if ".py:" in symbol_path:
+                    imported_symbol._classpath = symbol_path
+
                 return imported_symbol
             except ImportError:
                 return None
@@ -269,9 +277,15 @@ def print_command_op_stage_info(command_operator_stage: str):
                 show_piper_port=show_piper_port,
             )
 
-    info_stg = PipelimeSymbolsHelper.get_stage(command_operator_stage)
+    try:
+        info_stg = PipelimeSymbolsHelper.get_stage(command_operator_stage)
+    except ValueError:
+        info_stg = None
     info_op = PipelimeSymbolsHelper.get_operator(command_operator_stage)
-    info_cmd = PipelimeSymbolsHelper.get_command(command_operator_stage)
+    try:
+        info_cmd = PipelimeSymbolsHelper.get_command(command_operator_stage)
+    except ValueError:
+        info_cmd = None
 
     if info_stg is None and info_op is None and info_cmd is None:
         PipelimeSymbolsHelper.show_error_and_help(
