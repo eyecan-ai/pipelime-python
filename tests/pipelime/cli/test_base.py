@@ -67,7 +67,7 @@ class TestCliBase:
             "+operations",
             r"{slice: {stop: 10}, '"
             + str(data_folder / "cli" / "extra_operators.py")
-            + r":reverse': {num: 5} }",
+            + r":reversed': {num: 5} }",
         ]
 
         self._base_launch(args)

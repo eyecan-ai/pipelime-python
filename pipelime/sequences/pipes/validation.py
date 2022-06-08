@@ -3,7 +3,7 @@ import typing as t
 import pydantic as pyd
 
 import pipelime.sequences as pls
-from pipelime.sequences.pipes.base import PipedSequenceBase
+from pipelime.sequences.pipes import PipedSequenceBase
 
 
 @pls.piped_sequence

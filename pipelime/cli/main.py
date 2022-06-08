@@ -27,7 +27,7 @@ def _convert_val(val: str):
         return True
     if val.lower() == "false":
         return False
-    if val.lower() in ("none", "null"):
+    if val.lower() in ("none", "null", "nul"):
         return None
     try:
         num = int(val)
@@ -279,6 +279,10 @@ def pl_main(  # noqa: C901
     operator or stage.
 
     `pipelime <command> [<args>]` runs a pipelime command.
+
+    NB: command (+name) and context (!name) arguments with no value are treated as
+    TRUE boolean values. Use `false` (as well as `true`) to explicitly set a boolean
+    and `none`/`null`/`nul` to enforce `None`.
     """
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 

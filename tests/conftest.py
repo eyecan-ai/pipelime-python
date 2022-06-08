@@ -40,7 +40,7 @@ def extra_modules(data_folder: Path) -> t.List[t.Dict[str, t.Any]]:
         },
         {
             "filepath": (data_folder / "cli" / "extra_operators.py"),
-            "operators": ["reverse", "slice"],
+            "operators": ["reversed", "slice"],
             "commands": ["shell"],
         },
     ]

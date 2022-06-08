@@ -6,7 +6,7 @@ import pydantic as pyd
 import pipelime.items as pli
 import pipelime.sequences as pls
 import pipelime.stages as plst
-from pipelime.sequences.pipes.base import PipedSequenceBase
+from pipelime.sequences.pipes import PipedSequenceBase
 
 
 @pls.piped_sequence

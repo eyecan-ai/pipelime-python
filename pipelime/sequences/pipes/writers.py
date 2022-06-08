@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 
 import pipelime.sequences as pls
 from pipelime.items import Item, SerializationMode
-from pipelime.sequences.pipes.base import PipedSequenceBase
+from pipelime.sequences.pipes import PipedSequenceBase
 
 
 class _serialization_mode_override:
