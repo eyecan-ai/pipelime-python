@@ -1,0 +1,12 @@
+input:
+  folder: $var(input_path)
+  merge_root_items: false
+splits:
+  - output:
+      folder: $var(output_path)/eighty_percent
+      exists_ok: true
+    fraction: 0.8
+  - output:
+      folder: $var(output_path)/four
+      exists_ok: true
+    length: 4
