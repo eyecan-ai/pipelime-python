@@ -50,8 +50,11 @@ def _process_key_arg(arg):
         print_error(f"Invalid key path: `{opt}`")
         print_warning(
             "Remember: Bash and other shells want the choixe's dollar sign (`$`) "
-            "enclosed with single quotes."
+            "escaped! Try with single quotes (eg, bash, zsh) or backslash (eg, zsh)."
         )
+        print_warning("For example:")
+        print_warning("bash, zsh: +operations.map.$model => '+operations.map.$model'")
+        print_warning(r"zsh: +operations.map.$model => +operations.map.\$model")
         raise typer.Exit(1)
 
     if val:
