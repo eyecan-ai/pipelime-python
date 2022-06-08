@@ -76,7 +76,7 @@ class TestCliBase:
         gt = (
             SamplesSequence.from_underfolder(minimnist_dataset["path"])  # type: ignore
             .slice(stop=10)
-            .reverse(num=5)
+            .reversed(num=5)
         )
         assert len(outreader) == len(gt)
         for o, g in zip(outreader, gt):
