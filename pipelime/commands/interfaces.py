@@ -251,7 +251,7 @@ class SerializationModeInterface(
         description=(
             "Serialization modes overridden for specific item types, "
             "eg, `{CREATE_NEW_FILE: [ImageItem, my.package.MyItem, "
-            "my/module.py:OtherItem]}`. An empty value applies to all items."
+            "my/module.py:OtherItem]}`. A Null value applies to all items."
         ),
     )
     disable: t.Mapping[str, t.Union[str, t.Sequence[str]]] = pyd.Field(

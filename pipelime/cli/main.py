@@ -22,6 +22,10 @@ def _print_dict(name, data):
     print_info(json.dumps(data, indent=2))
 
 
+class NoValue:
+    pass
+
+
 def _convert_val(val: str):
     if val.lower() == "true":
         return True
@@ -62,12 +66,12 @@ def _process_key_arg(arg):
         if len(val) == 1:
             val = val[0]
     else:
-        val = None
+        val = NoValue()
     return opt, val
 
 
 def _process_val_arg(arg, last_val):
-    if last_val is None:
+    if isinstance(last_val, NoValue):
         return _convert_val(arg)
     else:
         if not isinstance(last_val, tuple):
@@ -78,7 +82,8 @@ def _process_val_arg(arg, last_val):
 def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]]:
     from pipelime.choixe.utils.common import deep_set_
 
-    cfg_last_opt, cfg_last_val, prms_last_opt, prms_last_val = None, None, None, None
+    cfg_last_opt, prms_last_opt = None, None
+    cfg_last_val, prms_last_val = NoValue(), NoValue()
     cfg_opts, prms_opts = {}, {}
     expecting_cfg_val: t.Optional[bool] = None
 
@@ -87,14 +92,14 @@ def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]
             deep_set_(
                 cfg_opts,
                 key_path=cfg_last_opt,  # type: ignore
-                value=cfg_last_val if cfg_last_val is not None else True,
+                value=True if isinstance(cfg_last_val, NoValue) else cfg_last_val,
                 append=True,
             )
         elif expecting_cfg_val is not None:
             deep_set_(
                 prms_opts,
                 key_path=prms_last_opt,  # type: ignore
-                value=prms_last_val if prms_last_val is not None else True,
+                value=True if isinstance(prms_last_val, NoValue) else prms_last_val,
                 append=True,
             )
 
