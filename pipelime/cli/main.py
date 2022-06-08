@@ -189,11 +189,6 @@ app = typer.Typer()
 )
 def pl_main(  # noqa: C901
     ctx: typer.Context,
-    extra_modules: t.List[str] = typer.Option(
-        [], "--module", "-m", help="Additional modules to import."
-    ),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
-    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
     config: t.Optional[Path] = typer.Option(
         None,
         exists=True,
@@ -203,9 +198,9 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the options required by the command. "
-            "Command line options starting with `+` will update and override "
-            "the ones in the file."
+            "A YAML/JSON file with some or all the arguments "
+            "required by the command.\n\n"
+            "`+name` command line options update and override them.\n\n "
         ),
         autocompletion=_complete_yaml,
     ),
@@ -218,11 +213,13 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the context parameters to compile the "
-            "input configuration. Command line options starting with `!` will update "
-            "and override the ones in the file."
+            "A YAML/JSON file with some or all the context parameters.\n\n"
+            "`!name` command line options update and override them.\n\n "
         ),
         autocompletion=_complete_yaml,
+    ),
+    extra_modules: t.List[str] = typer.Option(
+        [], "--module", "-m", help="Additional modules to import."
     ),
     run_all: t.Optional[bool] = typer.Option(
         None,
@@ -240,6 +237,8 @@ def pl_main(  # noqa: C901
         resolve_path=True,
         help="Save final processed configuration to JSON/YAML.",
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+    dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
     command: str = typer.Argument(
         "",
         show_default=False,
@@ -247,9 +246,9 @@ def pl_main(  # noqa: C901
             "A pipelime command, ie, a `command-name`, "
             "a `package.module.ClassName` class path or "
             "a `path/to/module.py:ClassName` uri.\n\n"
-            "Special commands:\n\n"
-            "- `list` shows commands and operators\n\n"
-            "- `audit` inspects configuration and context files"
+            "\b\nSpecial commands:\n"
+            "- `list` shows commands and operators\n"
+            "- `audit` inspects configuration and context\n "
         ),
         autocompletion=PipelimeSymbolsHelper.complete_name(
             is_cmd=True,
@@ -257,7 +256,7 @@ def pl_main(  # noqa: C901
             is_stage=False,
             additional_names=[
                 ("list", "show commands, operators and stages"),
-                ("audit", "inspect configuration and context files"),
+                ("audit", "inspect configuration and context"),
                 ("help", "show help for a command, an operator or a stage"),
             ],
         ),
@@ -265,9 +264,9 @@ def pl_main(  # noqa: C901
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
         help=(
-            "Pipelime command arguments. Options starting with `+` are considered part "
-            "of the command configurations, while options starting with `!` are part "
-            "of the context, ie, the parameters to compile the input configuration."
+            "\b\nPipelime command arguments:\n"
+            "- `+name` is a command parameter\n"
+            "- `!name` is a context value"
         ),
     ),
     help: bool = typer.Option(
