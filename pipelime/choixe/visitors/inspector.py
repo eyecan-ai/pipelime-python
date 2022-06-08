@@ -8,24 +8,7 @@ from typing import Any, Dict, Mapping, Optional, Set
 
 import pydash as py_
 
-from pipelime.choixe.ast.nodes import (
-    DictBundleNode,
-    DictNode,
-    ForNode,
-    ImportNode,
-    IndexNode,
-    InstanceNode,
-    ItemNode,
-    ListNode,
-    LiteralNode,
-    ModelNode,
-    Node,
-    NodeVisitor,
-    StrBundleNode,
-    SweepNode,
-    SymbolNode,
-    VarNode,
-)
+import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import load
 
@@ -57,35 +40,35 @@ class Inspection:
         )
 
 
-class Inspector(NodeVisitor):
+class Inspector(ast.NodeVisitor):
     def __init__(self, cwd: Optional[Path] = None) -> None:
         super().__init__()
         self._cwd = cwd if cwd is not None else Path(os.getcwd())
         self._named_for_loops: Dict[str, str] = {}
 
-    def visit_dict(self, node: DictNode) -> Inspection:
+    def visit_dict(self, node: ast.DictNode) -> Inspection:
         inspections = []
         for k, v in node.nodes.items():
             inspections.append(k.accept(self))
             inspections.append(v.accept(self))
         return sum(inspections, start=Inspection(processed=True))
 
-    def visit_list(self, node: ListNode) -> Inspection:
+    def visit_list(self, node: ast.ListNode) -> Inspection:
         start = Inspection(processed=True)
         return sum([x.accept(self) for x in node.nodes], start=start)
 
-    def visit_object(self, node: LiteralNode) -> Inspection:
+    def visit_object(self, node: ast.LiteralNode) -> Inspection:
         return Inspection(processed=True)
 
-    def visit_dict_bundle(self, node: DictBundleNode) -> Any:
+    def visit_dict_bundle(self, node: ast.DictBundleNode) -> Any:
         start = Inspection(processed=True)
         return sum([x.accept(self) for x in node.nodes], start=start)
 
-    def visit_str_bundle(self, node: StrBundleNode) -> Inspection:
+    def visit_str_bundle(self, node: ast.StrBundleNode) -> Inspection:
         start = Inspection(processed=True)
         return sum([x.accept(self) for x in node.nodes], start=start)
 
-    def visit_var(self, node: VarNode) -> Inspection:
+    def visit_var(self, node: ast.VarNode) -> Inspection:
         default = None if node.default is None else node.default.data
         variables = py_.set_({}, node.identifier.data, default)
 
@@ -95,7 +78,7 @@ class Inspector(NodeVisitor):
 
         return Inspection(variables=variables, environ=environ)
 
-    def visit_import(self, node: ImportNode) -> Inspection:
+    def visit_import(self, node: ast.ImportNode) -> Inspection:
         path = Path(node.path.data)
         if not path.is_absolute():
             path = self._cwd / path
@@ -114,30 +97,30 @@ class Inspector(NodeVisitor):
 
         return Inspection(imports={Path(path).resolve()}) + nested
 
-    def visit_sweep(self, node: SweepNode) -> Inspection:
+    def visit_sweep(self, node: ast.SweepNode) -> Inspection:
         start = Inspection(processed=True)
         return sum([x.accept(self) for x in node.cases], start=start)
 
-    def visit_symbol(self, node: SymbolNode) -> Any:
+    def visit_symbol(self, node: ast.SymbolNode) -> Any:
         return Inspection(symbols={str(node.symbol.data)})
 
-    def visit_instance(self, node: InstanceNode) -> Inspection:
+    def visit_instance(self, node: ast.InstanceNode) -> Inspection:
         return Inspection(symbols={str(node.symbol.data)}) + node.args.accept(self)
 
-    def visit_model(self, node: ModelNode) -> Inspection:
+    def visit_model(self, node: ast.ModelNode) -> Inspection:
         return self.visit_instance(node)
 
-    def visit_for(self, node: ForNode) -> Inspection:
+    def visit_for(self, node: ast.ForNode) -> Inspection:
         if node.identifier is not None:
             self._named_for_loops[node.identifier.data] = node.iterable.data
         iterable_insp = Inspection(variables=py_.set_({}, node.iterable.data, None))
         body_insp = node.body.accept(self)
         return iterable_insp + body_insp
 
-    def visit_index(self, node: IndexNode) -> Inspection:
+    def visit_index(self, node: ast.IndexNode) -> Inspection:
         return Inspection()
 
-    def visit_item(self, node: ItemNode) -> Inspection:
+    def visit_item(self, node: ast.ItemNode) -> Inspection:
         variables = {}
         if node.identifier is not None:
             loop_id, _, key = node.identifier.data.partition(".")
@@ -147,6 +130,6 @@ class Inspector(NodeVisitor):
         return Inspection(variables=variables)
 
 
-def inspect(node: Node, cwd: Optional[Path] = None) -> Inspection:
+def inspect(node: ast.Node, cwd: Optional[Path] = None) -> Inspection:
     inspector = Inspector(cwd=cwd)
     return node.accept(inspector)
