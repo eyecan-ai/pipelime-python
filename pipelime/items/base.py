@@ -251,8 +251,8 @@ class no_data_cache(ContextDecorator):
         with no_data_cache():
             ...
 
-        # disable only for ImageItem and NumpyItem
-        with no_data_cache(ImageItem, NumpyItem):
+        # disable only for BinaryItem and NumpyItem
+        with no_data_cache(BinaryItem, NumpyItem):
             ...
 
         # apply at function invocation
