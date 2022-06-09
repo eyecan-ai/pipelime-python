@@ -116,13 +116,19 @@ class SamplesSequence(
             else:
                 # NB: do not unfold sub-pydantic models, since it may not be
                 # straightforward to de-serialize them when subclasses are used
-                if recursive and isinstance(field_value, SamplesSequence):
-                    field_value = field_value.to_pipe(
-                        recursive=recursive, obj_to_str=obj_to_str
-                    )
+                if recursive:
+                    if isinstance(field_value, SamplesSequence):
+                        field_value = field_value.to_pipe(
+                            recursive=recursive, obj_to_str=obj_to_str
+                        )
+                    elif isinstance(field_value, pyd.BaseModel):
+                        field_value = field_value.dict()
                 arg_dict[field_alias] = (
                     field_value
-                    if isinstance(field_value, (str, bytes, int, float, bool))
+                    if isinstance(
+                        field_value,
+                        (str, bytes, int, float, bool, t.Mapping, t.Sequence),
+                    )
                     else str(field_value)
                 )
         return source_list + [{self._operator_path: arg_dict}]
