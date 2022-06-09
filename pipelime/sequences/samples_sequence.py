@@ -81,7 +81,7 @@ class SamplesSequence(
         return cls.__name__
 
     def to_pipe(
-        self, recursive: bool = True, obj_to_str: bool = True
+        self, recursive: bool = True, objs_to_str: bool = True
     ) -> t.List[t.Dict[str, t.Any]]:
         """Serializes this sequence to a pipe list. You can then pass this list to
         `pipelime.sequences.build_pipe` to reconstruct the sequence.
@@ -92,8 +92,8 @@ class SamplesSequence(
         :param recursive: if True nested sequences are recursively serialized,
             defaults to True.
         :type recursive: bool, optional.
-        :param obj_to_str: if True objects are converted to string.
-        :type obj_to_str: bool, optional.
+        :param objs_to_str: if True objects are converted to string.
+        :type objs_to_str: bool, optional.
         :raises ValueError: if a field is tagged as `pipe_source` but it is not
             a SamplesSequence.
         :return: the serialized pipe list.
@@ -111,7 +111,7 @@ class SamplesSequence(
                         "but it is not a SamplesSequence instance."
                     )
                 source_list = field_value.to_pipe(
-                    recursive=recursive, obj_to_str=obj_to_str
+                    recursive=recursive, objs_to_str=objs_to_str
                 )
             else:
                 # NB: do not unfold sub-pydantic models, since it may not be
@@ -119,13 +119,13 @@ class SamplesSequence(
                 if recursive:
                     if isinstance(field_value, SamplesSequence):
                         field_value = field_value.to_pipe(
-                            recursive=recursive, obj_to_str=obj_to_str
+                            recursive=recursive, objs_to_str=objs_to_str
                         )
                     elif isinstance(field_value, pyd.BaseModel):
                         field_value = field_value.dict()
                 arg_dict[field_alias] = (
                     field_value
-                    if isinstance(
+                    if not objs_to_str or isinstance(
                         field_value,
                         (str, bytes, int, float, bool, t.Mapping, t.Sequence),
                     )
