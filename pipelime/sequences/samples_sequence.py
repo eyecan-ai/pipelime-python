@@ -80,7 +80,9 @@ class SamplesSequence(
             return cls.__config__.title
         return cls.__name__
 
-    def to_pipe(self, recursive: bool = True) -> t.List[t.Dict[str, t.Any]]:
+    def to_pipe(
+        self, recursive: bool = True, obj_to_str: bool = True
+    ) -> t.List[t.Dict[str, t.Any]]:
         """Serializes this sequence to a pipe list. You can then pass this list to
         `pipelime.sequences.build_pipe` to reconstruct the sequence.
         NB: nested sequences are recursively serialized only if `recursive` is True,
@@ -90,6 +92,8 @@ class SamplesSequence(
         :param recursive: if True nested sequences are recursively serialized,
             defaults to True.
         :type recursive: bool, optional.
+        :param obj_to_str: if True objects are converted to string.
+        :type obj_to_str: bool, optional.
         :raises ValueError: if a field is tagged as `pipe_source` but it is not
             a SamplesSequence.
         :return: the serialized pipe list.
@@ -106,13 +110,21 @@ class SamplesSequence(
                         f"{field_alias} is tagged as `pipe_source`, "
                         "but it is not a SamplesSequence instance."
                     )
-                source_list = field_value.to_pipe(recursive)
+                source_list = field_value.to_pipe(
+                    recursive=recursive, obj_to_str=obj_to_str
+                )
             else:
                 # NB: do not unfold sub-pydantic models, since it may not be
                 # straightforward to de-serialize them when subclasses are used
                 if recursive and isinstance(field_value, SamplesSequence):
-                    field_value = field_value.to_pipe(recursive)
-                arg_dict[field_alias] = field_value
+                    field_value = field_value.to_pipe(
+                        recursive=recursive, obj_to_str=obj_to_str
+                    )
+                arg_dict[field_alias] = (
+                    field_value
+                    if isinstance(field_value, (str, bytes, int, float, bool))
+                    else str(field_value)
+                )
         return source_list + [{self._operator_path: arg_dict}]
 
 

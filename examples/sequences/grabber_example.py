@@ -6,7 +6,7 @@ if __name__ == "__main__":
         Path(__file__).resolve().absolute().parents[2]
         / "tests/sample_data/datasets/underfolder_minimnist"
     )
-    seq = seq.shuffle(seed=42)
+    seq = seq.shuffle(seed=42)[2:6]
     writer = seq.to_underfolder("./writer_output", exists_ok=True).enumerate()
 
     # here comes the magic

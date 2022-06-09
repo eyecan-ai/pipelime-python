@@ -283,18 +283,25 @@ class CachedSequence(PipedSequenceBase, title="cache"):
             "which will be deleted when exiting the process."
         ),
     )
+    reuse_cache: bool = pyd.Field(
+        False,
+        description=(
+            "If `cache_folder` exists, use it anyway if true, "
+            "otherwise raise a FileExistsError."
+        ),
+    )
 
     _temp_folder = pyd.PrivateAttr(None)
 
-    def __init__(self, **data):
-        super().__init__(**data)  # type: ignore
+    def __init__(self, cache_folder: t.Optional[Path] = None, **data):
+        super().__init__(cache_folder=cache_folder, **data)  # type: ignore
         if self.cache_folder is None:
             from tempfile import TemporaryDirectory
 
             self._temp_folder = TemporaryDirectory()
             self.cache_folder = Path(self._temp_folder.name)
         else:
-            if self.cache_folder.exists():
+            if not self.reuse_cache and self.cache_folder.exists():
                 raise FileExistsError(
                     f"The cache folder `{self.cache_folder}` already exists."
                 )
@@ -310,6 +317,19 @@ class CachedSequence(PipedSequenceBase, title="cache"):
                 return pickle.load(fd)
 
         x = self.source[idx]
-        with open(filename, "wb") as fd:
-            pickle.dump(x, fd, protocol=-1)
+        self._cache_sample(x, filename)
         return x
+
+    def _cache_sample(self, x: pls.Sample, filename: Path):
+        from filelock import FileLock, Timeout
+        import pickle
+
+        lock = FileLock(str(filename.with_suffix(filename.suffix + ".~lock")))
+        try:
+            with lock.acquire(timeout=1):
+                # check again to avoid races
+                if not filename.exists():
+                    with open(filename, "wb") as fd:
+                        pickle.dump(x, fd, protocol=-1)
+        except Timeout:  # pragma: no cover
+            pass
