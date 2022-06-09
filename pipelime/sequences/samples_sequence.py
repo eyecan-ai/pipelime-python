@@ -125,7 +125,8 @@ class SamplesSequence(
                         field_value = field_value.dict()
                 arg_dict[field_alias] = (
                     field_value
-                    if not objs_to_str or isinstance(
+                    if not objs_to_str
+                    or isinstance(
                         field_value,
                         (str, bytes, int, float, bool, t.Mapping, t.Sequence),
                     )
