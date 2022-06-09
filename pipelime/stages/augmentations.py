@@ -22,7 +22,7 @@ class StageAlbumentations(SampleStage):
         ..., description="A mapping from key names to albumentation targets' names."
     )
     output_key_format: str = pyd.Field(
-        "",
+        "*",
         description=(
             "How to format the output keys. Any `*` will be replaced with the "
             "source key, eg, `aug_*_out` on [`image`, `mask`] generates "
@@ -49,7 +49,7 @@ class StageAlbumentations(SampleStage):
         else:
             return v
 
-    @pyd.validator("output_key_format", always=True)
+    @pyd.validator("output_key_format")
     def validate_output_key_format(cls, v):
         if "*" in v:
             return v
