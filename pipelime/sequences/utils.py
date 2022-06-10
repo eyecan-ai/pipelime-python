@@ -50,7 +50,8 @@ def build_pipe(
     """Build a pipeline from a list of operations.
 
     :param pipe_list: a single sequence operator or a mapping or a sequence of mappings
-    :type pipe_list: t.Union[ str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]] ]
+    :type pipe_list: t.Union[str, t.Mapping[str, t.Any],
+        t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]]
     :param source: the source symbol to start with, defaults to SamplesSequence
     :type source: t.Union[SamplesSequence, t.Type[SamplesSequence]], optional
     :return: the pipeline
