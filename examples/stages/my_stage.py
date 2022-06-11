@@ -7,14 +7,16 @@ class MyStage(SampleStage):
     target_key: str
 
     def __call__(self, x: Sample) -> Sample:
-        from pipelime.items import NumpyItem
+        from pipelime.items import NumpyItem, ImageItem
 
         if self.source_key in x:
-            value = x[self.source_key]
-            if isinstance(value, NumpyItem):
+            item = x[self.source_key]
+
+            # we want numpy items, but not images, though they are ndarrays as well
+            if isinstance(item, NumpyItem) and not isinstance(item, ImageItem):
                 x = x.set_value_as(
                     self.target_key,
                     self.source_key,
-                    float(value()) * 2.5,  # type: ignore
+                    float(item()) * 2.5,  # type: ignore
                 )
         return x
