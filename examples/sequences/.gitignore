@@ -2,3 +2,4 @@ writer_output/*
 writer_output_piped/*
 local_cache/*
 toy_dataset/*
+new_dataset/*

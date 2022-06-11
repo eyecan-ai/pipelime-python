@@ -117,6 +117,23 @@ class DataStream(
             },
         )
 
+    @classmethod
+    def create_new_underfolder(cls, path: str, zfill: int = 0) -> DataStream:
+        """Creates a DataStream to write samples to a new underfolder dataset."""
+        seq: SamplesSequence = SamplesSequence.from_underfolder(  # type: ignore
+            path, must_exist=False, watch=True
+        )
+        return cls(
+            input_sequence=seq,  # type: ignore
+            output_pipe={
+                "to_underfolder": {
+                    "folder": path,
+                    "exists_ok": False,
+                    "zfill": zfill,
+                }
+            },
+        )
+
     def __len__(self) -> int:
         return len(self.input_sequence)
 

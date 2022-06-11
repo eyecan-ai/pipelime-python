@@ -99,16 +99,18 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
     def _scan_sample_files(self):
         data_folder = self.folder / "data"
         if data_folder.exists():
-            sample_items: t.Dict[int, t.Dict[str, Path]] = {}
+            self._samples = []
             with os.scandir(str(data_folder)) as it:
                 for entry in it:
                     if entry.is_file():
                         id_key = self._extract_id_key(entry.name)
                         if id_key:
-                            item_map = sample_items.setdefault(id_key[0], {})
-                            item_map[id_key[1]] = entry.path
-
-            self._samples = [item_map for _, item_map in sorted(sample_items.items())]
+                            self._samples.extend(
+                                [{} for _ in range(id_key[0] - len(self._samples) + 1)]
+                            )
+                            self._samples[id_key[0]][id_key[1]] = (  # type: ignore
+                                entry.path
+                            )
 
     def size(self) -> int:
         return len(self._samples)
