@@ -5,7 +5,6 @@ from pathlib import Path
 import pydantic as pyd
 
 import pipelime.sequences as pls
-from pipelime.items.base import Item, ItemFactory
 
 
 @pls.source_sequence
@@ -28,8 +27,12 @@ class UnderfolderReader(
         True, description="If True raises an error when `folder` does not exist."
     )
 
-    _samples: t.Sequence[pls.Sample] = []
-    _root_sample: pls.Sample = pls.Sample(None)
+    _samples: t.List[t.Union[pls.Sample, t.Dict[str, Path]]] = pyd.PrivateAttr(
+        default_factory=list
+    )
+    _root_sample: t.Union[pls.Sample, t.Dict[str, Path]] = pyd.PrivateAttr(
+        default_factory=pls.Sample
+    )
 
     @pyd.validator("must_exist", always=True)
     def check_folder_exists(cls, v, values, **kwargs):
@@ -43,42 +46,43 @@ class UnderfolderReader(
 
         if self.folder.exists():
             # root files
-            root_items: t.Dict[str, Item] = {}
+            root_items: t.Dict[str, Path] = {}
             with os.scandir(str(self.folder)) as it:
                 for entry in it:
                     if entry.is_file():
                         key = self._extract_key(entry.name)
                         if key:
-                            root_items[key] = ItemFactory.get_instance(
-                                entry.path, shared_item=True
-                            )
-            self._root_sample = pls.Sample(root_items)
+                            root_items[key] = entry.path
+            self._root_sample = root_items
 
             # samples
             data_folder = self.folder / "data"
             if data_folder.exists():
-                sample_items: t.Dict[str, t.Dict[str, Item]] = {}
+                sample_items: t.Dict[str, t.Dict[str, Path]] = {}
                 with os.scandir(str(data_folder)) as it:
                     for entry in it:
                         if entry.is_file():
                             id_key = self._extract_id_key(entry.name)
                             if id_key:
                                 item_map = sample_items.setdefault(id_key[0], {})
-                                item_map[id_key[1]] = ItemFactory.get_instance(
-                                    entry.path
-                                )
+                                item_map[id_key[1]] = entry.path
 
                 self._samples = [
-                    pls.Sample(item_map) for _, item_map in sorted(sample_items.items())
+                    item_map for _, item_map in sorted(sample_items.items())
                 ]
 
     @property
     def root_sample(self) -> pls.Sample:
-        return self._root_sample
+        from pipelime.items.base import ItemFactory
 
-    @property
-    def samples(self) -> t.Sequence[pls.Sample]:
-        return self._samples
+        if not isinstance(self._root_sample, pls.Sample):
+            self._root_sample = pls.Sample(
+                {
+                    k: ItemFactory.get_instance(v, shared_item=True)
+                    for k, v in self._root_sample.items()
+                }
+            )
+        return self._root_sample
 
     def _extract_key(self, name: str) -> str:
         return name.partition(".")[0]
@@ -96,5 +100,15 @@ class UnderfolderReader(
         return len(self._samples)
 
     def get_sample(self, idx: int) -> pls.Sample:
+        from pipelime.items.base import ItemFactory
+
         sample = self._samples[idx]
-        return self._root_sample.merge(sample) if self.merge_root_items else sample
+        if not isinstance(sample, pls.Sample):
+            sample = pls.Sample(
+                {
+                    k: ItemFactory.get_instance(v, shared_item=False)
+                    for k, v in sample.items()
+                }
+            )
+            self._samples[idx] = sample
+        return self.root_sample.merge(sample) if self.merge_root_items else sample

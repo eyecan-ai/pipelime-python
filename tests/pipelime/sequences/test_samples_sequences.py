@@ -27,11 +27,12 @@ class TestSamplesSequences:
 
         assert isinstance(sseq, pls.SamplesSequence)
         assert minimnist_dataset["len"] == len(sseq)
+        assert isinstance(sseq[0], pls.Sample)
 
         root_sample = sseq.root_sample  # type: ignore
         assert isinstance(root_sample, pls.Sample)
 
-        sample_list = sseq.samples  # type: ignore
+        sample_list = sseq._samples  # type: ignore
         assert isinstance(sample_list, t.Sequence)
         assert minimnist_dataset["len"] == len(sample_list)
         assert isinstance(sample_list[0], pls.Sample)
@@ -67,10 +68,10 @@ class TestSamplesSequences:
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        sseq = pls.SamplesSequence.from_list(source.samples)  # type: ignore
+        sseq = pls.SamplesSequence.from_list([s for s in source])  # type: ignore
 
         assert len(source) == len(sseq)
-        assert source.samples == sseq.samples
+        assert all(s1 is s2 for s1, s2 in zip(source, sseq))
 
     def test_to_pipe(self):
         from pipelime.stages import StageIdentity
