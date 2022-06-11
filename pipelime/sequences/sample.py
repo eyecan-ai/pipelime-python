@@ -26,7 +26,7 @@ class Sample(t.Mapping[str, Item]):
 
     _data: t.Mapping[str, Item]
 
-    def __init__(self, data: t.Optional[t.Mapping[str, Item]]):
+    def __init__(self, data: t.Optional[t.Mapping[str, Item]] = None):
         super().__init__()
         self._data = data if data is not None else {}
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing as t
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from pipelime.sequences import Sample, SamplesSequence
 
@@ -66,10 +66,22 @@ def build_pipe(
     )
 
 
-class DataStream(BaseModel, extra="forbid", underscore_attrs_are_private=True):
+class DataStream(
+    t.Sequence[Sample], BaseModel, extra="forbid", underscore_attrs_are_private=True
+):
     """A stream of samples, comprising an input sequence to the data and an output
     pipe to further process the samples when ready.
     """
+
+    class _SampleGen:
+        _curr_keys: t.Optional[t.Sequence[str]]
+        _curr_sample: Sample
+
+        def __call__(self, _: int) -> Sample:
+            x = self._curr_sample
+            if self._curr_keys:
+                x = x.extract_keys(*self._curr_keys)
+            return x
 
     input_sequence: SamplesSequence = Field(..., description="Input data sequence.")
     output_pipe: t.Union[
@@ -77,24 +89,32 @@ class DataStream(BaseModel, extra="forbid", underscore_attrs_are_private=True):
     ] = Field(..., description="Output data pipe.")
 
     _output_sequence: SamplesSequence
-    _curr_keys: t.Optional[t.Sequence[str]]
-    _curr_sample: Sample
+    _sample_gen: _SampleGen = PrivateAttr(default_factory=_SampleGen)
 
     def __init__(self, **data):
-        from pipelime.stages import StageLambda
-
         super().__init__(**data)
-        sample_mod_seq = self.input_sequence.map(  # type: ignore
-            StageLambda(lambda x: self._sample_mod_fn(x))
+        self._output_sequence = build_pipe(
+            self.output_pipe,
+            SamplesSequence.from_callable(  # type: ignore
+                generator_fn=self._sample_gen, length=1
+            ),
         )
-        self._output_sequence = build_pipe(self.output_pipe, sample_mod_seq)
 
     @classmethod
-    def rw_underfolder(cls, path: str) -> DataStream:
+    def read_write_underfolder(cls, path: str) -> DataStream:
         """Creates a DataStream to read and write samples from the same underfolder."""
+        seq: SamplesSequence = SamplesSequence.from_underfolder(  # type: ignore
+            path, watch=True
+        )
         return cls(
-            input_sequence=SamplesSequence.from_underfolder(path),  # type: ignore
-            output_pipe={"to_underfolder": {"folder": path, "exists_ok": True}},
+            input_sequence=seq,  # type: ignore
+            output_pipe={
+                "to_underfolder": {
+                    "folder": path,
+                    "exists_ok": True,
+                    "zfill": seq.best_zfill(),  # to be consistent if samples are added
+                }
+            },
         )
 
     def __len__(self) -> int:
@@ -103,22 +123,18 @@ class DataStream(BaseModel, extra="forbid", underscore_attrs_are_private=True):
     def __getitem__(self, idx: int) -> Sample:
         x = self.input_sequence[idx]
         for v in x.values():
-            v.cache_data = False
+            v.cache_data = False  # always watch for changes
         return x
 
-    def process_sample(
+    def get_input(self, idx: int) -> Sample:
+        return self[idx]
+
+    def set_output(
         self,
         idx: int,
-        new_sample: Sample,
+        sample: Sample,
         keys: t.Optional[t.Sequence[str]] = None,
     ):
-        """Further process a sample."""
-        self._curr_keys = keys
-        self._curr_sample = new_sample
+        self._sample_gen._curr_keys = keys
+        self._sample_gen._curr_sample = sample
         _ = self._output_sequence[idx]
-
-    def _sample_mod_fn(self, *args, **kwargs) -> Sample:
-        x = self._curr_sample
-        if self._curr_keys:
-            x = x.extract_keys(*self._curr_keys)
-        return x
