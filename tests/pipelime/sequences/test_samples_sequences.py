@@ -95,6 +95,7 @@ class TestSamplesSequences:
                     "folder": Path("no-path"),
                     "merge_root_items": True,
                     "must_exist": False,
+                    "watch": False,
                 }
             },
             {"map": {"stage": StageIdentity()}},
@@ -110,6 +111,7 @@ class TestSamplesSequences:
                     "folder": Path("no-path-2"),
                     "merge_root_items": True,
                     "must_exist": False,
+                    "watch": False,
                 }
             },
             {"shuffle": {"seed": None}},

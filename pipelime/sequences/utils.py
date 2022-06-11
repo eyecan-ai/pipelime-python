@@ -66,7 +66,9 @@ def build_pipe(
     )
 
 
-class DataStream(BaseModel, extra="forbid", underscore_attrs_are_private=True):
+class DataStream(
+    t.Sequence[Sample], BaseModel, extra="forbid", underscore_attrs_are_private=True
+):
     """A stream of samples, comprising an input sequence to the data and an output
     pipe to further process the samples when ready.
     """
@@ -101,9 +103,18 @@ class DataStream(BaseModel, extra="forbid", underscore_attrs_are_private=True):
     @classmethod
     def read_write_underfolder(cls, path: str) -> DataStream:
         """Creates a DataStream to read and write samples from the same underfolder."""
+        seq: SamplesSequence = SamplesSequence.from_underfolder(  # type: ignore
+            path, watch=True
+        )
         return cls(
-            input_sequence=SamplesSequence.from_underfolder(path),  # type: ignore
-            output_pipe={"to_underfolder": {"folder": path, "exists_ok": True}},
+            input_sequence=seq,  # type: ignore
+            output_pipe={
+                "to_underfolder": {
+                    "folder": path,
+                    "exists_ok": True,
+                    "zfill": seq.best_zfill(),  # to be consistent if samples are added
+                }
+            },
         )
 
     def __len__(self) -> int:
@@ -112,7 +123,7 @@ class DataStream(BaseModel, extra="forbid", underscore_attrs_are_private=True):
     def __getitem__(self, idx: int) -> Sample:
         x = self.input_sequence[idx]
         for v in x.values():
-            v.cache_data = False
+            v.cache_data = False  # always watch for changes
         return x
 
     def get_input(self, idx: int) -> Sample:

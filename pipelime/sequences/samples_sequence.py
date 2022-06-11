@@ -51,7 +51,7 @@ class SamplesSequenceBase(t.Sequence[Sample]):
         :return: zfill values (maximum number of digits based on current size)
         :rtype: int
         """
-        return len(str(len(self)))
+        return len(str(len(self) - 1))
 
     def __add__(self, other: SamplesSequence) -> SamplesSequence:
         return self.cat(other)  # type: ignore
