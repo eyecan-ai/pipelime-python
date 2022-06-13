@@ -8,7 +8,7 @@ from rich.markup import escape
 from rich import get_console
 from rich import print as rprint
 from rich.pretty import pprint, Pretty
-from rich.table import Table
+from rich.table import Table, Column
 
 from pipelime.piper import PipelimeCommand, PiperPortType
 
@@ -80,7 +80,10 @@ def print_models_short_help(
     *model_cls: t.Type[BaseModel],
     show_class_path: bool = True,
 ):
-    grid = Table.grid(padding=(0, 1))
+    grid = Table.grid(
+        *([Column(overflow="fold") for _ in range(2 + int(show_class_path))]),
+        padding=(0, 1),
+    )
     for m in model_cls:
         col_vals = [escape(_command_title(m))]
         if show_class_path:
@@ -99,9 +102,16 @@ def print_model_info(
 ):
     grid = Table(
         *(
-            ["Fields", "Description", "Type"]
-            + (["Piper Port"] if show_piper_port else [])
-            + ["Required", "Default"]
+            [
+                Column("Fields", overflow="fold"),
+                Column("Description", overflow="fold"),
+                Column("Type", overflow="fold"),
+            ]
+            + ([Column("Piper Port", overflow="fold")] if show_piper_port else [])
+            + [
+                Column("Required", overflow="fold"),
+                Column("Default", overflow="fold"),
+            ]
         ),
         box=box.SIMPLE_HEAVY,
         title=(
