@@ -117,7 +117,8 @@ class ItemFactory(ABCMeta):
 
 
 def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item"]):
-    """Sets serialization mode for some or all items."""
+    """Sets serialization mode for some or all items.
+    Applies to all items if no item class is given."""
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_serialization_mode(itc, mode)
 
@@ -125,20 +126,23 @@ def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item
 def set_item_disabled_serialization_modes(
     modes: t.List[SerializationMode], *item_cls: t.Type["Item"]
 ):
-    """Disables serialization modes on selected item classes."""
+    """Disables serialization modes on selected item classes.
+    Applies to all items if no item class is given."""
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_disabled_serialization_modes(itc, modes)
 
 
 def disable_item_data_cache(*item_cls: t.Type["Item"]):
-    """Disables data cache on selected item classes."""
-    for itc in item_cls:
+    """Disables data cache on selected item classes.
+    Applies to all items if no item class is given."""
+    for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, False)
 
 
 def enable_item_data_cache(*item_cls: t.Type["Item"]):
-    """Enables data cache on selected item classes."""
-    for itc in item_cls:
+    """Enables data cache on selected item classes.
+    Applies to all items if no item class is given."""
+    for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, True)
 
 
@@ -661,16 +665,16 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return "\n".join(
             [
                 f"{self.__class__.__name__}:",
-                f"    data: {str(self._data_cache)}",
-                "    sources:",
+                f"  data: {str(self._data_cache)}",
+                "  sources:",
             ]
             + str_srcs
-            + ["    remotes:"]
+            + ["  remotes:"]
             + str_rmts
             + [
-                f"    shared: {self.is_shared}",
-                f"    cache: {self.cache_data}",
-                f"    serialization: {self.serialization_mode}",
+                f"  shared: {self.is_shared}",
+                f"  cache: {self.cache_data}",
+                f"  serialization: {self.serialization_mode}",
             ]
         )
 
