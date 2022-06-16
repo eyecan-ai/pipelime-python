@@ -171,5 +171,17 @@ class Sample(t.Mapping[str, Item]):
         return f"{self.__class__}{repr(self._data)}"
 
     def __str__(self) -> str:
-        data_str = [f"  [{k}] {str(v)}" for k, v in self._data.items()]
-        return "\n".join([f"{self.__class__.__name__}"] + data_str)
+        return "\n".join([f"[{k}] {str(v)}" for k, v in self._data.items()])
+
+    def __pl_pretty__(self) -> t.Any:
+        from rich.panel import Panel
+        from rich.columns import Columns
+        from rich import box
+
+        panels = [
+            Panel.fit(v.__pl_pretty__(), title=k, title_align="left")
+            for k, v in self._data.items()
+        ]
+        return Panel.fit(
+            Columns(panels), title="Sample", title_align="center", box=box.HORIZONTALS
+        )

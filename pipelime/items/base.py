@@ -678,6 +678,38 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             ]
         )
 
+    def __pl_pretty__(self) -> t.Any:
+        from rich.tree import Tree
+        from rich.panel import Panel
+        from rich import box
+
+        item_tree = Tree(f"{self.__class__.__name__}")
+        if self._data_cache is None:
+            item_tree.add("data")
+        else:
+            item_tree.add(
+                Panel.fit(
+                    self.pl_pretty_data(self._data_cache),
+                    title="data",
+                    title_align="left",
+                    box=box.HORIZONTALS,
+                )
+            )
+        branch = item_tree.add("sources")
+        for fs in self._file_sources:
+            branch.add(str(fs))
+        branch = item_tree.add("remotes")
+        for pr in self._remote_sources:
+            branch.add(pr.geturl())
+        item_tree.add(f"shared: {self.is_shared}")
+        item_tree.add(f"cache: {self.cache_data}")
+        item_tree.add(f"serialization: {self.serialization_mode}")
+        return item_tree
+
+    @classmethod
+    def pl_pretty_data(cls, value: T) -> t.Any:
+        return str(value)
+
 
 class UnknownItem(Item[t.Any]):
     @classmethod

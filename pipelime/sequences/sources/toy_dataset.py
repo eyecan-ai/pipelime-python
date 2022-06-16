@@ -6,7 +6,7 @@ import pipelime.sequences as pls
 
 
 @pls.source_sequence
-class SamplesList(
+class ToyDataset(
     pls.SamplesSequence, title="toy_dataset", arbitrary_types_allowed=True
 ):
     """A fake sequence of generated samples."""

@@ -375,3 +375,38 @@ def print_sample_stages_list(show_details: bool = False):
     print_commands_ops_stages_list(
         show_details=show_details, show_cmds=False, show_ops=False, show_stages=True
     )
+
+
+def pl_print(
+    *objects: t.Any,
+    sep: str = " ",
+    end: str = "\n",
+    file: t.Optional[t.IO[str]] = None,
+    flush: bool = False,
+):
+    """Prints Items, Samples, Sequences, commands, stages, operations..."""
+    import inspect
+    from rich import print as rprint
+    from pydantic import BaseModel
+    from pipelime.cli import print_model_info
+    from pipelime.sequences import SamplesSequence
+    from pipelime.piper import PipelimeCommand
+
+    for obj in objects:
+        if isinstance(obj, (str, bytes)):
+            if isinstance(obj, bytes):
+                obj = obj.decode("utf-8")
+            print_command_op_stage_info(obj)
+        elif inspect.isclass(obj) and issubclass(obj, BaseModel):
+            print_model_info(
+                obj,
+                show_class_path=(not issubclass(obj, SamplesSequence)),
+                show_piper_port=issubclass(obj, PipelimeCommand),
+            )
+        else:
+            sobj = (
+                obj.__pl_pretty__()  # type: ignore
+                if hasattr(obj, "__pl_pretty__")
+                else str(obj)
+            )
+            rprint(sobj, sep=sep, end=end, file=file, flush=flush)

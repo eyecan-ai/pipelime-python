@@ -10,8 +10,6 @@ from rich import print as rprint
 from rich.pretty import pprint, Pretty
 from rich.table import Table, Column
 
-from pipelime.piper import PipelimeCommand, PiperPortType
-
 
 def _input_icon():
     return "\U0001F4E5"
@@ -68,11 +66,11 @@ def print_model_field_values(
         pprint(v, expand_all=True)
 
 
-def print_command_inputs(command: PipelimeCommand):
+def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602
     print_model_field_values(command.__fields__, command.get_inputs(), _input_icon())
 
 
-def print_command_outputs(command: PipelimeCommand):
+def print_command_outputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602
     print_model_field_values(command.__fields__, command.get_outputs(), _output_icon())
 
 
@@ -147,6 +145,8 @@ def _field_row(
     )
 
     if show_piper_port:
+        from pipelime.piper import PiperPortType
+
         fport = str(
             field.field_info.extra.get("piper_port", PiperPortType.PARAMETER).value
         ).upper()

@@ -21,3 +21,9 @@ class BinaryItem(Item[bytes]):
         if not isinstance(raw_data, bytes):
             raise ValueError(f"{cls}: raw data must be bytes.")  # pragma: no cover
         return raw_data
+
+    @classmethod
+    def pl_pretty_data(cls, value: bytes) -> t.Any:
+        from rich.text import Text
+
+        return Text(value.hex(), overflow="ellipsis") + Text(f" ({len(value)} bytes)")

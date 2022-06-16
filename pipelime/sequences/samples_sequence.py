@@ -134,6 +134,9 @@ class SamplesSequence(
                 )
         return source_list + [{self._operator_path: arg_dict}]
 
+    def __str__(self) -> str:
+        return repr(self)
+
 
 def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     from pathlib import Path
