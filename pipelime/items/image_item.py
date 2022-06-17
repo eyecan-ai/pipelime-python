@@ -42,21 +42,11 @@ class ImageItem(NumpyItem):
     def pl_pretty_data(cls, value: np.ndarray) -> t.Any:
         IMAGE_SIZE = 32
         if value.shape[0] > IMAGE_SIZE or value.shape[1] > IMAGE_SIZE:
-            from PIL import Image
+            import albumentations as A
 
-            h, w = value.shape[0], value.shape[1]
-            if h > w:
-                w = int(w * IMAGE_SIZE / h)
-                h = IMAGE_SIZE
-            else:
-                h = int(h * IMAGE_SIZE / w)
-                w = IMAGE_SIZE
-
-            value = np.asarray(
-                Image.fromarray(value).resize(
-                    (w, h), resample=Image.Resampling.BILINEAR  # type: ignore
-                )
-            )
+            value = A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True)(
+                image=value
+            )["image"]
 
         def _get_color_str(v) -> str:
             return (
