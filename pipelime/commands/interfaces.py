@@ -215,6 +215,7 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
             "to each sample (sample values take precedence)."
         ),
     )
+    skip_empty: bool = pyd.Field(False, description="Filter out empty samples.")
     schema_: t.Optional[SampleValidationInterface] = pyd.Field(
         None, alias="schema", description="Sample schema validation."
     )
@@ -230,6 +231,8 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
         reader = SamplesSequence.from_underfolder(  # type: ignore
             folder=self.folder, merge_root_items=self.merge_root_items, must_exist=True
         )
+        if self.skip_empty:
+            reader = reader.filter(lambda x: not all(i.is_shared for i in x.values()))
         if self.schema_ is not None:
             reader = self.schema_.append_validator(reader)
         return reader
