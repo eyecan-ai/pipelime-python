@@ -38,7 +38,7 @@ class StageCompose(SampleStage):
 
     stages: t.Sequence[SampleStage] = pyd.Field(..., description="The stages to apply.")
 
-    def __init__(self, *stages: SampleStage, **data):
+    def __init__(self, stages: t.Sequence[SampleStage], **data):
         super().__init__(stages=stages, **data)  # type: ignore
 
     def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
