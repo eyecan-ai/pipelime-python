@@ -27,6 +27,9 @@ class SamplesSequenceBase(t.Sequence[Sample]):
             else self.get_sample(idx if idx >= 0 else len(self) + idx)
         )
 
+    def __add__(self, other: SamplesSequence) -> SamplesSequence:
+        return self.cat(other)  # type: ignore
+
     def is_normalized(self, max_items=-1) -> bool:
         """Checks if all samples have the same keys.
 
@@ -53,9 +56,6 @@ class SamplesSequenceBase(t.Sequence[Sample]):
         """
         return len(str(len(self) - 1))
 
-    def __add__(self, other: SamplesSequence) -> SamplesSequence:
-        return self.cat(other)  # type: ignore
-
 
 class SamplesSequence(
     SamplesSequenceBase, pyd.BaseModel, extra="forbid", copy_on_model_validation=False
@@ -79,6 +79,54 @@ class SamplesSequence(
         if cls.__config__.title:
             return cls.__config__.title
         return cls.__name__
+
+    def direct_access(self) -> t.Sequence[t.Mapping[str, t.Any]]:
+        """Returns a sequence of key-to-value mappings,
+        with no intermediate Sample and Item classes.
+        """
+        from pipelime.sequences.direct_access import DirectAccessSequence
+
+        return DirectAccessSequence(self)
+
+    def torch_dataset(self) -> "torch.utils.data.Dataset":  # type: ignore # noqa: E602
+        """Returns a torch.utils.data.Dataset interface of this samples sequence."""
+        from pipelime.sequences.torch import TorchDataset
+
+        return TorchDataset(self)
+
+    def run(
+        self,
+        *,
+        num_workers: int = 0,
+        prefetch: int = 2,
+        keep_order: bool = False,
+        sample_fn: t.Optional[t.Callable[[Sample], None]] = None,
+        track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
+    ):
+        """Go through all the samples of the sequence, optionally using multiple
+        processes and applying `sample_fn` to each sample. Also, a `track_fn` can be
+        defined, eg, to show the progress.
+
+        :param num_workers: The number of processes to spawn. If negative,
+            the number of (logical) cpu cores is used, defaults to 0
+        :type num_workers: int, optional
+        :param prefetch: The number of samples loaded in advanced by each worker,
+            defaults to 2
+        :type prefetch: int, optional
+        :param keep_order: Whether to retrieve the samples in the original order,
+            defaults to False
+        :type keep_order: bool, optional
+        :param sample_fn: a callable to run on each sample, defaults to None
+        :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
+        :param track_fn: a callable to track the progress, defaults to None
+        :type track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]], optional
+        """
+        from pipelime.sequences import Grabber, grab_all
+
+        grabber = Grabber(
+            num_workers=num_workers, prefetch=prefetch, keep_order=keep_order
+        )
+        grab_all(grabber, self, sample_fn=sample_fn, track_fn=track_fn)
 
     def to_pipe(
         self, recursive: bool = True, objs_to_str: bool = True
