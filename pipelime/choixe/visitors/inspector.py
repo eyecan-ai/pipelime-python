@@ -25,7 +25,6 @@ class Inspection:
         res = None
         if obj_value is not None and src_value is None:
             res = obj_value
-        print(key, obj_value, src_value, res)
         return res
 
     def __add__(self, other: Inspection) -> Inspection:
