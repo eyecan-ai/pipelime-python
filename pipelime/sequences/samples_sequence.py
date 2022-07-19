@@ -217,7 +217,7 @@ class SamplesSequence(
 
     @staticmethod
     def from_underfolder(
-        folder: "pathlib.Path",  # type: ignore # noqa: E602
+        folder: "pathlib.Path",  # type: ignore # noqa: E602,F821
         *,
         merge_root_items: bool = True,
         must_exist: bool = True,
@@ -248,7 +248,7 @@ class SamplesSequence(
         """
         ...
 
-    def map(self, stage: "pipelime.stages.SampleStage") -> SamplesSequence:  # type: ignore # noqa: E602
+    def map(self, stage: "pipelime.stages.SampleStage") -> SamplesSequence:  # type: ignore # noqa: E602,F821
         """Applies a stage on all samples.
         Run `pipelime help map` to read the complete documentation.
         """
@@ -322,7 +322,7 @@ class SamplesSequence(
 
     def cache(
         self,
-        cache_folder: t.Optional["pathlib.Path"] = None,  # type: ignore # noqa: E602
+        cache_folder: t.Optional["pathlib.Path"] = None,  # type: ignore # noqa: E602,F821
         *,
         reuse_cache: bool = False,
     ) -> SamplesSequence:
@@ -333,12 +333,12 @@ class SamplesSequence(
 
     def to_underfolder(
         self,
-        folder: "pathlib.Path",  # type: ignore # noqa: E602
+        folder: "pathlib.Path",  # type: ignore # noqa: E602,F821
         *,
         zfill: t.Optional[int] = None,
         key_serialization_mode: t.Optional[
             t.Mapping[
-                str, t.Union["pipelime.items.SerializationMode", str]  # type: ignore # noqa: E602
+                str, t.Union["pipelime.items.SerializationMode", str]  # type: ignore # noqa: E602,F821
             ]
         ] = None,
         exists_ok: bool = False,
