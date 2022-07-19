@@ -2,7 +2,7 @@ if __name__ == "__main__":
     from pathlib import Path
     from pipelime.sequences import Grabber, SamplesSequence, grab_all
 
-    seq = SamplesSequence.from_underfolder(  # type: ignore
+    seq = SamplesSequence.from_underfolder(
         Path(__file__).resolve().absolute().parents[2]
         / "tests/sample_data/datasets/underfolder_minimnist"
     )
