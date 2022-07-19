@@ -1,5 +1,7 @@
+from __future__ import annotations
 import typing as t
 from pathlib import Path
+from abc import ABC, abstractmethod
 import typer
 
 from pipelime.cli.utils import (
@@ -7,6 +9,170 @@ from pipelime.cli.utils import (
     print_command_op_stage_info,
     print_commands_ops_stages_list,
 )
+
+
+class CLISpecialChars:
+    @staticmethod
+    def assignment():
+        return ("=",)
+
+    @staticmethod
+    def config():
+        # MUST BE SORTED FROM THE LONGEST TO THE SHORTEST
+        return ("++", "+")
+
+    @staticmethod
+    def context():
+        # MUST BE SORTED FROM THE LONGEST TO THE SHORTEST
+        return ("??", "?")
+
+    @staticmethod
+    def ctx_start():
+        return ("//",)
+
+
+class CLIParserState(ABC):
+    def __init__(
+        self,
+        cfg_opts: t.Dict[str, t.Any] = {},
+        ctx_opts: t.Dict[str, t.Any] = {},
+        ctx_started: bool = False,
+    ):
+        self.cfg_opts = cfg_opts
+        self.ctx_opts = ctx_opts
+        self.ctx_started = ctx_started
+
+    @abstractmethod
+    def process_token(self, token: str) -> CLIParserState:
+        pass
+
+
+class CLIParserHoldState(CLIParserState):
+    def process_token(self, token: str) -> CLIParserState:
+        from pipelime.cli.pretty_print import print_error
+
+        if token in CLISpecialChars.ctx_start():
+            return CLIParserHoldState(self.cfg_opts, self.ctx_opts, True)
+        if not self.ctx_started and token.startswith(CLISpecialChars.config()):
+            opt, val = self._process_key_arg(token)
+            cli_state = CLIParserExpectingCfgValue(
+                opt, self.cfg_opts, self.ctx_opts, self.ctx_started
+            )
+            if val is not None:
+                return cli_state.process_token(val)
+            return cli_state
+        if (
+            self.ctx_started and token.startswith(CLISpecialChars.config())
+        ) or token.startswith(CLISpecialChars.context()):
+            opt, val = self._process_key_arg(token)
+            cli_state = CLIParserExpectingCtxValue(
+                opt, self.cfg_opts, self.ctx_opts, self.ctx_started
+            )
+            if val is not None:
+                return cli_state.process_token(val)
+            return cli_state
+
+        print_error(f"Unexpected token: `{token}`")
+        raise typer.Exit(1)
+
+    def _process_key_arg(self, token: str):
+        from pipelime.cli.pretty_print import print_error, print_warning
+
+        opt, val = token, None
+        for char in CLISpecialChars.config() + CLISpecialChars.context():
+            if token.startswith(char):
+                opt = token[len(char) :]  # noqa: E203
+                break
+
+        for char in CLISpecialChars.assignment():
+            if char in opt:
+                opt, _, val = opt.partition(char)
+                break
+
+        if opt.endswith(".") or ".." in opt or ".[" in opt:
+            print_error(f"Invalid key path: `{opt}`")
+            print_warning(
+                "Remember: Bash and other shells want the choixe's dollar sign (`$`) "
+                "escaped! Try with single quotes or backslash."
+            )
+            print_warning("For example:")
+            print_warning(
+                "bash/zsh: +operations.map.$model => '+operations.map.$model'"
+            )
+            print_warning(r"zsh: +operations.map.$model => +operations.map.\$model")
+            raise typer.Exit(1)
+
+        return opt, val
+
+
+class CLIParserExpectingValue(CLIParserState):
+    def __init__(
+        self,
+        key_name: str,
+        cfg_opts: t.Dict[str, t.Any] = {},
+        ctx_opts: t.Dict[str, t.Any] = {},
+        ctx_started: bool = False,
+    ):
+        super().__init__(cfg_opts, ctx_opts, ctx_started)
+        self.key_name = key_name
+
+    @abstractmethod
+    def target_cfg(self) -> t.Dict[str, t.Any]:
+        pass
+
+    def process_token(self, token: str) -> CLIParserState:
+        from pipelime.choixe.utils.common import deep_set_
+
+        if token in CLISpecialChars.ctx_start() or token.startswith(
+            CLISpecialChars.config() + CLISpecialChars.context()
+        ):
+            deep_set_(
+                self.target_cfg(),
+                key_path=self.key_name,
+                value=True,
+                append=True,
+            )
+            cli_state = CLIParserHoldState(
+                self.cfg_opts, self.ctx_opts, self.ctx_started
+            )
+            return cli_state.process_token(token)
+
+        deep_set_(
+            self.target_cfg(),
+            key_path=self.key_name,
+            value=self._convert_val(token),
+            append=True,
+        )
+        return CLIParserHoldState(self.cfg_opts, self.ctx_opts, self.ctx_started)
+
+    def _convert_val(self, val: str):
+        if val.lower() == "true":
+            return True
+        if val.lower() == "false":
+            return False
+        if val.lower() in ("none", "null", "nul"):
+            return None
+        try:
+            num = int(val)
+            return num
+        except ValueError:
+            pass
+        try:
+            num = float(val)
+            return num
+        except ValueError:
+            pass
+        return val
+
+
+class CLIParserExpectingCfgValue(CLIParserExpectingValue):
+    def target_cfg(self) -> t.Dict[str, t.Any]:
+        return self.cfg_opts
+
+
+class CLIParserExpectingCtxValue(CLIParserExpectingValue):
+    def target_cfg(self) -> t.Dict[str, t.Any]:
+        return self.ctx_opts
 
 
 def _complete_yaml(incomplete: str):
@@ -20,104 +186,6 @@ def _print_dict(name, data):
 
     print_info(f"\n{name}:")
     print_info(json.dumps(data, indent=2))
-
-
-class NoValue:
-    pass
-
-
-def _convert_val(val: str):
-    if val.lower() == "true":
-        return True
-    if val.lower() == "false":
-        return False
-    if val.lower() in ("none", "null", "nul"):
-        return None
-    try:
-        num = int(val)
-        return num
-    except ValueError:
-        pass
-    try:
-        num = float(val)
-        return num
-    except ValueError:
-        pass
-    return val
-
-
-def _process_key_arg(arg):
-    from pipelime.cli.pretty_print import print_error, print_warning
-
-    opt, _, val = arg[1:].partition("=")
-    if opt.endswith(".") or ".." in opt or ".[" in opt:
-        print_error(f"Invalid key path: `{opt}`")
-        print_warning(
-            "Remember: Bash and other shells want the choixe's dollar sign (`$`) "
-            "escaped! Try with single quotes (eg, bash, zsh) or backslash (eg, zsh)."
-        )
-        print_warning("For example:")
-        print_warning("bash, zsh: +operations.map.$model => '+operations.map.$model'")
-        print_warning(r"zsh: +operations.map.$model => +operations.map.\$model")
-        raise typer.Exit(1)
-
-    if val:
-        val = tuple(_convert_val(v) for v in val.split(","))
-        if len(val) == 1:
-            val = val[0]
-    else:
-        val = NoValue()
-    return opt, val
-
-
-def _process_val_arg(arg, last_val):
-    if isinstance(last_val, NoValue):
-        return _convert_val(arg)
-    else:
-        if not isinstance(last_val, tuple):
-            last_val = (last_val,)
-        return last_val + (_convert_val(arg),)
-
-
-def _extract_options(cmd_args) -> t.Tuple[t.Dict[str, t.Any], t.Dict[str, t.Any]]:
-    from pipelime.choixe.utils.common import deep_set_
-
-    cfg_last_opt, prms_last_opt = None, None
-    cfg_last_val, prms_last_val = NoValue(), NoValue()
-    cfg_opts, prms_opts = {}, {}
-    expecting_cfg_val: t.Optional[bool] = None
-
-    def _store_last_opt():
-        if expecting_cfg_val:
-            deep_set_(
-                cfg_opts,
-                key_path=cfg_last_opt,  # type: ignore
-                value=True if isinstance(cfg_last_val, NoValue) else cfg_last_val,
-                append=True,
-            )
-        elif expecting_cfg_val is not None:
-            deep_set_(
-                prms_opts,
-                key_path=prms_last_opt,  # type: ignore
-                value=True if isinstance(prms_last_val, NoValue) else prms_last_val,
-                append=True,
-            )
-
-    for extra_arg in cmd_args:
-        if extra_arg.startswith("+"):
-            _store_last_opt()
-            expecting_cfg_val = True
-            cfg_last_opt, cfg_last_val = _process_key_arg(extra_arg)
-        elif extra_arg.startswith("!"):
-            _store_last_opt()
-            expecting_cfg_val = False
-            prms_last_opt, prms_last_val = _process_key_arg(extra_arg)
-        elif expecting_cfg_val:
-            cfg_last_val = _process_val_arg(extra_arg, cfg_last_val)
-        elif expecting_cfg_val is not None:
-            prms_last_val = _process_val_arg(extra_arg, prms_last_val)
-    _store_last_opt()
-    return cfg_opts, prms_opts
 
 
 def _update_dispatch(original_value, item):
@@ -325,7 +393,11 @@ def pl_main(  # noqa: C901
         base_cfg = {} if config is None else choixe_io.load(config)
         base_ctx = {} if context is None else choixe_io.load(context)
 
-        cmdline_cfg, cmdline_ctx = _extract_options(command_args)
+        # process extra args
+        cli_state = CLIParserHoldState()
+        for token in command_args:
+            cli_state = cli_state.process_token(token)
+        cmdline_cfg, cmdline_ctx = cli_state.cfg_opts, cli_state.ctx_opts
 
         if verbose:
             _print_dict("Loaded configuration file", base_cfg)
