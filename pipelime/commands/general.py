@@ -14,6 +14,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
     ] = pyd.Field(
         ...,
+        alias="op",
         description="The pipeline to run or a path to a YAML/JSON file "
         "(use <filepath>:<key-path> to load the definitions from a pydash-like path).\n"
         "The pipeline is defined as a mapping or a sequence of mappings where "
@@ -21,13 +22,14 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         "the arguments, ie, a single value, a sequence of values or a mapping.",
     )
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     output: pl_interfaces.OutputDatasetInterface = pyd.Field(
-        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+        ..., alias="o", description="Output dataset.", piper_port=PiperPortType.OUTPUT
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 
@@ -84,13 +86,14 @@ class CloneCommand(PipelimeCommand, title="clone"):
     hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     output: pl_interfaces.OutputDatasetInterface = pyd.Field(
-        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+        ..., alias="o", description="Output dataset.", piper_port=PiperPortType.OUTPUT
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 
@@ -110,13 +113,14 @@ class ConcatCommand(PipelimeCommand, title="cat"):
     """Concatenate two or more datasets."""
 
     inputs: t.Sequence[pl_interfaces.InputDatasetInterface] = pyd.Field(
-        ..., description="Input datasets.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input datasets.", piper_port=PiperPortType.INPUT
     )
     output: pl_interfaces.OutputDatasetInterface = pyd.Field(
-        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+        ..., alias="o", description="Output dataset.", piper_port=PiperPortType.OUTPUT
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 
@@ -145,21 +149,24 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     """Upload samples to one or more remotes."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     remotes: t.Union[
         pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
-    ] = pyd.Field(..., description="Remote data lakes addresses.")
+    ] = pyd.Field(..., alias="r", description="Remote data lakes addresses.")
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         default_factory=list,
+        alias="k",
         description="Keys to upload. Leave empty to upload all the keys.",
     )
     output: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
         None,
+        alias="o",
         description="Optional output dataset with remote items.",
         piper_port=PiperPortType.OUTPUT,
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        alias="g",
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
         description="Grabber options.",
     )
@@ -201,23 +208,26 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
     NB: data is not removed from the remote data lake."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     remotes: t.Union[
         pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
-    ] = pyd.Field(..., description="Remote data lakes addresses.")
+    ] = pyd.Field(..., alias="r", description="Remote data lakes addresses.")
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         default_factory=list,
+        alias="k",
         description=(
             "Remove remotes on these keys only. Leave empty to affect all the keys."
         ),
     )
     output: pl_interfaces.OutputDatasetInterface = pyd.Field(
         None,
+        alias="o",
         description="Output dataset.",
         piper_port=PiperPortType.OUTPUT,
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
+        alias="g",
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
         description="Grabber options.",
     )
@@ -314,20 +324,22 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             return cmd_line
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     max_samples: int = pyd.Field(
         0,
+        alias="m",
         description=(
             "Max number of samples to consider when creating the schema.  "
             "Set to 0 to check all the samples."
         ),
     )
     root_key_path: str = pyd.Field(
-        "input.schema", description="Root key path for the output schema."
+        "input.schema", alias="r", description="Root key path for the output schema."
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 

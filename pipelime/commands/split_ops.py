@@ -50,25 +50,32 @@ class SplitCommand(PipelimeCommand, title="split"):
     """Split a dataset."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
         False,
+        alias="shf",
         description=(
             "Shuffle the dataset before subsampling and splitting. "
             "Optionally specify the random seed."
         ),
     )
     subsample: pyd.PositiveInt = pyd.Field(
-        1, description="Take 1-every-nth input sample. Applied after shuffling."
+        1,
+        alias="ss",
+        description="Take 1-every-nth input sample. Applied after shuffling.",
     )
     splits: t.Union[
         PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
     ] = pyd.Field(
-        ..., description="Splits definition.", piper_port=PiperPortType.OUTPUT
+        ...,
+        alias="s",
+        description="Splits definition.",
+        piper_port=PiperPortType.OUTPUT,
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 
@@ -76,7 +83,7 @@ class SplitCommand(PipelimeCommand, title="split"):
         reader = self.input.create_reader()
         if self.shuffle:
             reader = reader.shuffle(
-                self.shuffle if not isinstance(self.shuffle, bool) else None
+                seed=self.shuffle if not isinstance(self.shuffle, bool) else None
             )
         if self.subsample != 1:
             reader = reader[:: self.subsample]
@@ -127,14 +134,16 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     """Split a dataset by query."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     query: str = pyd.Field(
         ...,
+        alias="q",
         description=("A query to match (cfr. https://github.com/cyberlis/dictquery)."),
     )
     output_selected: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
         None,
+        alias="os",
         description=(
             "Output dataset of sample selected by the query. "
             "Set to None to not save to disk."
@@ -143,6 +152,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     )
     output_discarded: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
         None,
+        alias="od",
         description=(
             "Output dataset of sample discarded by the query. "
             "Set to None to not save to disk."
@@ -151,6 +161,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 
@@ -189,10 +200,11 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
     one for each unique value of a given key."""
 
     input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+        ..., alias="i", description="Input dataset.", piper_port=PiperPortType.INPUT
     )
     key: str = pyd.Field(
         ...,
+        alias="k",
         description=(
             "The key to use. A pydash-like dot notation "
             "can be used to access nested attributes."
@@ -200,6 +212,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
     )
     output: pl_interfaces.OutputDatasetInterface = pyd.Field(
         None,
+        alias="o",
         description=(
             "Common options for the output sequences, "
             "which will be placed in subfolders."
@@ -208,6 +221,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
     )
     grabber: pl_interfaces.GrabberInterface = pyd.Field(
         default_factory=pl_interfaces.GrabberInterface,  # type: ignore
+        alias="g",
         description="Grabber options.",
     )
 
@@ -254,7 +268,9 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
                 value = x.deep_get(self._value_key)
                 if value is not None:
                     value = self._value_to_str(value)
-                    self._groups.setdefault(value, []).append(int(x[self._idx_key]()))
+                    self._groups.setdefault(value, []).append(
+                        int(x[self._idx_key]())  # type: ignore
+                    )
 
         reader = self.input.create_reader()
 

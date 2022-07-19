@@ -10,16 +10,20 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 class ShellCommand(PipelimeCommand, title="shell"):
     """A generic pipelime command wrapping a shell command."""
 
-    command: str = Field(..., description="""The shell command to execute.""")
+    command: str = Field(
+        ..., alias="c", description="""The shell command to execute."""
+    )
     inputs: Dict[str, Any] = Field(
         default_factory=dict,
-        piper_port=PiperPortType.INPUT,
+        alias="i",
         description="The input options.",
+        piper_port=PiperPortType.INPUT,
     )
     outputs: Dict[str, Any] = Field(
         default_factory=dict,
-        piper_port=PiperPortType.OUTPUT,
+        alias="o",
         description="The output options.",
+        piper_port=PiperPortType.OUTPUT,
     )
 
     def get_inputs(self) -> Dict[str, Any]:

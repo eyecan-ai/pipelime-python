@@ -258,36 +258,51 @@ class PipelimeSymbolsHelper:
             print_info(f"Similar entries: {', '.join(similar_names)}")
 
 
+def _print_info(info_cls, show_class_path=True, show_piper_port=True):
+    from pipelime.cli.pretty_print import print_info, print_model_info
+
+    if info_cls is not None:
+        print_info(f"\n---{info_cls[0][0]}")
+        print_model_info(
+            info_cls[1],
+            show_class_path=show_class_path,
+            show_piper_port=show_piper_port,
+        )
+
+
 def print_command_op_stage_info(command_operator_stage: str):
     """
     Prints detailed info about a pipelime command, a sequence operator or a sample
     stage.
     """
-    from pipelime.cli.pretty_print import (
-        print_info,
-        print_model_info,
+    from pipelime.cli.pretty_print import print_info
+
+    info_stg_op_cmd: t.List[t.Any] = [(None, {}), (None, {}), (None, {})]
+
+    try:
+        info_stg_op_cmd[0] = (
+            PipelimeSymbolsHelper.get_stage(command_operator_stage),
+            {"show_class_path": True, "show_piper_port": False},
+        )
+    except ValueError:
+        pass
+
+    info_stg_op_cmd[1] = (
+        PipelimeSymbolsHelper.get_operator(command_operator_stage),
+        {"show_class_path": False, "show_piper_port": False},
     )
 
-    def _print_info(info_cls, show_class_path, show_piper_port):
-        if info_cls is not None:
-            print_info(f"\n---{info_cls[0][0]}")
-            print_model_info(
-                info_cls[1],
-                show_class_path=show_class_path,
-                show_piper_port=show_piper_port,
-            )
-
     try:
-        info_stg = PipelimeSymbolsHelper.get_stage(command_operator_stage)
+        info_stg_op_cmd[2] = (
+            PipelimeSymbolsHelper.get_command(command_operator_stage),
+            {"show_class_path": True, "show_piper_port": True},
+        )
     except ValueError:
-        info_stg = None
-    info_op = PipelimeSymbolsHelper.get_operator(command_operator_stage)
-    try:
-        info_cmd = PipelimeSymbolsHelper.get_command(command_operator_stage)
-    except ValueError:
-        info_cmd = None
+        pass
 
-    if info_stg is None and info_op is None and info_cmd is None:
+    available_defs = [x for x in info_stg_op_cmd if x[0] is not None]
+
+    if not available_defs:
         PipelimeSymbolsHelper.show_error_and_help(
             command_operator_stage,
             should_be_cmd=True,
@@ -298,9 +313,24 @@ def print_command_op_stage_info(command_operator_stage: str):
             f"{command_operator_stage} is not a pipelime command, "
             "nor a sequence operator nor a sample stage!"
         )
-    _print_info(info_stg, show_class_path=True, show_piper_port=False)
-    _print_info(info_op, show_class_path=False, show_piper_port=False)
-    _print_info(info_cmd, show_class_path=True, show_piper_port=True)
+
+    if len(available_defs) > 1:
+        from rich.prompt import Prompt
+
+        print_info("Multiple definitions found!")
+        idx = Prompt.ask(
+            "Show "
+            + ", ".join(f"`{v[0][0][0]}` ({i})" for i, v in enumerate(available_defs))
+            + " or ALL (-1)?",
+            choices=["-1"] + list(str(v) for v in range(len(available_defs))),
+            default="-1",
+        )
+        idx = int(idx)
+        if idx >= 0:
+            available_defs = [available_defs[idx]]
+
+    for d in available_defs:
+        _print_info(d[0], **d[1])
 
 
 def _print_details(info, show_class_path, show_piper_port):
