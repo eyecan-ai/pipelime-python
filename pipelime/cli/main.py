@@ -24,7 +24,7 @@ class CLISpecialChars:
     @staticmethod
     def context():
         # MUST BE SORTED FROM THE LONGEST TO THE SHORTEST
-        return ("??", "?")
+        return ("@@", "@")
 
     @staticmethod
     def ctx_start():
@@ -282,7 +282,7 @@ def pl_main(  # noqa: C901
         resolve_path=True,
         help=(
             "A YAML/JSON file with some or all the context parameters.\n\n"
-            "`??opt` or `?opt` command line options update and override them.\n\n"
+            "`@@opt` or `@opt` command line options update and override them.\n\n"
             "After a `//` token, `++opt` and `+opt` are accepted as well.\n\n "
         ),
         autocompletion=_complete_yaml,
@@ -335,8 +335,8 @@ def pl_main(  # noqa: C901
         help=(
             "\b\nPipelime command arguments:\n"
             "- `++opt` and `+opt` are command parameters\n"
-            "- `??opt` and `?opt` are context parameters\n"
-            "- after `//` `++opt`, `+opt`, `??opt`and `?opt` "
+            "- `@@opt` and `@opt` are context parameters\n"
+            "- after `//` `++opt`, `+opt`, `@@opt`and `@opt` "
             "are always context parameters."
         ),
     ),
@@ -355,7 +355,7 @@ def pl_main(  # noqa: C901
 
     `pipelime <command> [<args>]` runs a pipelime command.
 
-    NB: command (++opt) and context (??opt) arguments with no value are treated as
+    NB: command (++opt) and context (@@opt) arguments with no value are treated as
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
     and `none`/`null`/`nul` to enforce `None`.
     """
