@@ -439,8 +439,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 with path.open("w") as fp:
                     json.dump([rm.geturl() for rm in self._remote_sources], fp)
                 return None  # do not save remote file among file sources!
-            except Exception:
-                logger.exception(f"{self.__class__}: remote file serialization error.")
+            except Exception as exc:
+                logger.warning(  # logger.exception(
+                    f"{self.__class__}: remote file serialization error `{exc}`."
+                )
                 path.unlink(missing_ok=True)
                 path = (
                     self.as_default_name(target_path)
@@ -484,8 +486,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                     with path.open("wb") as fp:
                         self.encode(data, fp)
                     smode = None
-                except Exception:
-                    # logger.exception(f"{self.__class__}: data serialization error.")
+                except Exception as exc:
+                    logger.warning(  # logger.exception(
+                        f"{self.__class__}: new file serialization error `{exc}`."
+                    )
                     pass
 
         if smode is None:
@@ -575,8 +579,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             try:
                 with open(fsrc, "rb") as fp:
                     return self._decode_and_store(fp)
-            except Exception:
-                logger.exception(f"{self.__class__}: file source error.")
+            except Exception as exc:
+                logger.warning(  # logger.exception(
+                    f"{self.__class__}: file source error `{exc}`."
+                )
         for rmsrc in self._remote_sources:
             remote, rm_paths = plr.create_remote(rmsrc), plr.paths_from_url(rmsrc)
             if (
@@ -591,8 +597,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                         ):
                             data_stream.seek(0)
                             return self._decode_and_store(data_stream)
-                except Exception:
-                    logger.exception(f"{self.__class__}: remote source error.")
+                except Exception as exc:
+                    logger.warning(  # logger.exception(
+                        f"{self.__class__}: remote source error `{exc}`."
+                    )
         return None
 
     def _decode_and_store(self, fp: t.BinaryIO) -> T:

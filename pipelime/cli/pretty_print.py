@@ -66,11 +66,11 @@ def print_model_field_values(
         pprint(v, expand_all=True)
 
 
-def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602
+def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821
     print_model_field_values(command.__fields__, command.get_inputs(), _input_icon())
 
 
-def print_command_outputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602
+def print_command_outputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821
     print_model_field_values(command.__fields__, command.get_outputs(), _output_icon())
 
 
