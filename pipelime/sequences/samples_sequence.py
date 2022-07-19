@@ -20,7 +20,15 @@ class SamplesSequenceBase(t.Sequence[Sample]):
     def __len__(self) -> int:
         return self.size()
 
-    def __getitem__(self, idx: t.Union[int, slice]) -> Sample:
+    @t.overload
+    def __getitem__(self, idx: int) -> Sample:
+        ...
+
+    @t.overload
+    def __getitem__(self, idx: slice) -> SamplesSequence:
+        ...
+
+    def __getitem__(self, idx: t.Union[int, slice]) -> t.Union[Sample, SamplesSequence]:
         return (
             self.slice(start=idx.start, stop=idx.stop, step=idx.step)  # type: ignore
             if isinstance(idx, slice)
@@ -185,6 +193,177 @@ class SamplesSequence(
     def __str__(self) -> str:
         return repr(self)
 
+    ###########################################################################
+    # FUNCTION STUBS FOR TYPE CHECKING AND AUTO-COMPLETION
+    ###########################################################################
+
+    @staticmethod
+    def from_callable(
+        *,
+        generator_fn: t.Callable[[int], Sample],
+        length: t.Union[int, t.Callable[[], int]],
+    ) -> SamplesSequence:
+        """A SamplesSequence calling a user-defined generator to get the samples.
+        Run `pipelime help from_callable` to read the complete documentation.
+        """
+        ...
+
+    @staticmethod
+    def from_list(samples: t.Sequence[Sample]) -> SamplesSequence:
+        """A SamplesSequence from a list of Samples.
+        Run `pipelime help from_list` to read the complete documentation.
+        """
+        ...
+
+    @staticmethod
+    def from_underfolder(
+        folder: "pathlib.Path",  # type: ignore # noqa: E602
+        *,
+        merge_root_items: bool = True,
+        must_exist: bool = True,
+        watch: bool = False,
+    ) -> SamplesSequence:
+        """A SamplesSequence loading data from an Underfolder dataset.
+        Run `pipelime help from_underfolder` to read the complete documentation.
+        """
+        ...
+
+    @staticmethod
+    def toy_dataset(
+        length: int,
+        *,
+        with_images: bool = True,
+        with_masks: bool = True,
+        with_instances: bool = True,
+        with_objects: bool = True,
+        with_bboxes: bool = True,
+        with_kpts: bool = True,
+        image_size: int = 256,
+        key_format: str = "*",
+        max_labels: int = 5,
+        objects_range: t.Tuple[int, int] = (1, 5),
+    ) -> SamplesSequence:
+        """A fake sequence of generated samples.
+        Run `pipelime help toy_dataset` to read the complete documentation.
+        """
+        ...
+
+    def map(self, stage: "pipelime.stages.SampleStage") -> SamplesSequence:  # type: ignore # noqa: E602
+        """Applies a stage on all samples.
+        Run `pipelime help map` to read the complete documentation.
+        """
+        ...
+
+    def zip(self, to_zip: SamplesSequence, *, key_format: str = "*") -> SamplesSequence:
+        """Zips two Sequences by merging each Sample.
+        Run `pipelime help zip` to read the complete documentation.
+        """
+        ...
+
+    def cat(self, to_cat: SamplesSequence) -> SamplesSequence:
+        """Concatenates two SamplesSequences.
+        Run `pipelime help cat` to read the complete documentation.
+        """
+        ...
+
+    def filter(self, filter_fn: t.Callable[[Sample], bool]) -> SamplesSequence:
+        """A filtered view of a SamplesSequence.
+        Run `pipelime help filter` to read the complete documentation.
+        """
+        ...
+
+    def sort(self, key_fn: t.Callable[[Sample], t.Any]) -> SamplesSequence:
+        """A sorted view of an input SamplesSequence.
+        Run `pipelime help sort` to read the complete documentation.
+        """
+        ...
+
+    def slice(
+        self,
+        *,
+        start: t.Optional[int] = None,
+        stop: t.Optional[int] = None,
+        step: t.Optional[int] = None,
+    ) -> SamplesSequence:
+        """Functional version of the slice operator `self[start_idx:end_idx:step]`.
+        Run `pipelime help slice` to read the complete documentation.
+        """
+        ...
+
+    def select(self, indexes: t.Sequence[int]) -> SamplesSequence:
+        """Given a list of indexes, extracts the corresponding samples
+        from the input SamplesSequence. The index sequence is not automatically sorted.
+        Run `pipelime help select` to read the complete documentation.
+        """
+        ...
+
+    def shuffle(self, *, seed: t.Optional[int] = None) -> SamplesSequence:
+        """Shuffles samples in the input SamplesSequence.
+        Run `pipelime help shuffle` to read the complete documentation.
+        """
+        ...
+
+    def enumerate(
+        self,
+        *,
+        idx_key: str = "~idx",
+        item_cls_path: str = "pipelime.items.TxtNumpyItem",
+    ) -> SamplesSequence:
+        """Add a new index item to each Sample in the input SamplesSequence.
+        Run `pipelime help enumerate` to read the complete documentation.
+        """
+        ...
+
+    def repeat(self, count: int) -> SamplesSequence:
+        """Repeat this sequence so each sample is seen multiple times.
+        Run `pipelime help repeat` to read the complete documentation.
+        """
+        ...
+
+    def cache(
+        self,
+        cache_folder: t.Optional["pathlib.Path"] = None,  # type: ignore # noqa: E602
+        *,
+        reuse_cache: bool = False,
+    ) -> SamplesSequence:
+        """Cache the input Samples the first time they are accessed.
+        Run `pipelime help cache` to read the complete documentation.
+        """
+        ...
+
+    def to_underfolder(
+        self,
+        folder: "pathlib.Path",  # type: ignore # noqa: E602
+        *,
+        zfill: t.Optional[int] = None,
+        key_serialization_mode: t.Optional[
+            t.Mapping[
+                str, t.Union["pipelime.items.SerializationMode", str]  # type: ignore # noqa: E602
+            ]
+        ] = None,
+        exists_ok: bool = False,
+    ) -> SamplesSequence:
+        """Writes samples to an underfolder dataset while iterating over them.
+        Run `pipelime help to_underfolder` to read the complete documentation.
+        """
+        ...
+
+    def validate_samples(
+        self,
+        *,
+        sample_schema: t.Type[pyd.BaseModel],
+        lazy: bool = False,
+        max_samples: int = 1,
+    ) -> SamplesSequence:
+        """Validates the source sequence against a schema.
+        Run `pipelime help validate_samples` to read the complete documentation.
+        """
+        ...
+
+    ###########################################################################
+    # STUBS END
+    ###########################################################################
+
 
 def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     from pathlib import Path
@@ -201,7 +380,7 @@ def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
 
 
 def source_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
-    if hasattr(SamplesSequence, cls.name()):
+    if cls.name() in SamplesSequence._sources or cls.name() in SamplesSequence._pipes:
         logger.warning(f"Function {cls.name()} has been already registered.")
 
     setattr(SamplesSequence, cls.name(), cls)
@@ -211,7 +390,7 @@ def source_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
 
 
 def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
-    if hasattr(SamplesSequence, cls.name()):
+    if cls.name() in SamplesSequence._sources or cls.name() in SamplesSequence._pipes:
         logger.warning(f"Function {cls.name()} has been already registered.")
 
     prms_source_name = None
