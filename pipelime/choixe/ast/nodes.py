@@ -23,59 +23,62 @@ class NodeVisitor:  # pragma: no cover
     the corresponding node object, and they can return anything.
     """
 
-    def visit_dict(self, node: DictNode) -> Any:
+    def _ignore(self, node: Node) -> Any:
         return node
+
+    def visit_dict(self, node: DictNode) -> Any:
+        return self._ignore(node)
 
     def visit_list(self, node: ListNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_object(self, node: LiteralNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_dict_bundle(self, node: DictBundleNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_str_bundle(self, node: StrBundleNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_var(self, node: VarNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_import(self, node: ImportNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_sweep(self, node: SweepNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_symbol(self, node: SymbolNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_instance(self, node: InstanceNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_model(self, node: ModelNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_for(self, node: ForNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_index(self, node: IndexNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_item(self, node: ItemNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_uuid(self, node: UuidNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_date(self, node: DateNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_cmd(self, node: CmdNode) -> Any:
-        return node
+        return self._ignore(node)
 
     def visit_tmp_dir(self, node: TmpDirNode) -> Any:
-        return node
+        return self._ignore(node)
 
 
 @dataclass

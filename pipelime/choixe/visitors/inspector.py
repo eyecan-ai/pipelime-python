@@ -4,7 +4,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import pydash as py_
 
@@ -44,6 +44,9 @@ class Inspector(ast.NodeVisitor):
         super().__init__()
         self._cwd = cwd if cwd is not None else Path(os.getcwd())
         self._named_for_loops: Dict[str, str] = {}
+
+    def _ignore(self, node: ast.Node) -> Any:
+        return Inspection(processed=True)
 
     def visit_dict(self, node: ast.DictNode) -> Inspection:
         inspections = []
