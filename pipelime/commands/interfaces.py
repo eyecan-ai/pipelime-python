@@ -78,7 +78,8 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
     def pyd_field(*, description: str = "Grabber options.", **kwargs):
         return pyd.Field(
             default_factory=GrabberInterface,  # type: ignore
-            description=description + "\nCompact form: `<num_workers>[,<prefetch>]`",
+            description=description
+            + "\n-----Compact form: `<num_workers>[,<prefetch>]`",
             **kwargs,
         )
 
@@ -311,7 +312,7 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
     ):
         return pyd.Field(
             ... if is_required else None,
-            description=description + "\nCompact form: `<folder>[,<skip_empty>]`",
+            description=description + "\n-----Compact form: `<folder>[,<skip_empty>]`",
             **kwargs,
         )
 
@@ -456,7 +457,7 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
         return pyd.Field(
             ... if is_required else None,
             description=description
-            + "\nCompact form: `<folder>[,<exists_ok>[,<force_new_files>]]`",
+            + "\n-----Compact form: `<folder>[,<exists_ok>[,<force_new_files>]]`",
             **kwargs,
         )
 
@@ -557,7 +558,7 @@ class RemoteInterface(pyd.BaseModel, extra="forbid", underscore_attrs_are_privat
     ):
         return pyd.Field(
             ... if is_required else None,
-            description=description + "\nCompact form: `<url>`",
+            description=description + "\n-----Compact form: `<url>`",
             **kwargs,
         )
 

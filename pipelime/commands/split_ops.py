@@ -80,7 +80,9 @@ class SplitCommand(PipelimeCommand, title="split"):
     ] = pyd.Field(
         ...,
         alias="s",
-        description="Splits definition.\nCompact form: `<fraction|length>[,<folder>]`",
+        description=(
+            "Splits definition.\n-----Compact form: `<fraction|length>[,<folder>]`"
+        ),
         piper_port=PiperPortType.OUTPUT,
     )
 
