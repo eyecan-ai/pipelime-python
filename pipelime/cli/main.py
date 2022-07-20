@@ -46,6 +46,10 @@ class CLIParserState(ABC):
     def process_token(self, token: str) -> CLIParserState:
         pass
 
+    @abstractmethod
+    def close(self):
+        pass
+
 
 class CLIParserHoldState(CLIParserState):
     def process_token(self, token: str) -> CLIParserState:
@@ -74,6 +78,9 @@ class CLIParserHoldState(CLIParserState):
 
         print_error(f"Unexpected token: `{token}`")
         raise typer.Exit(1)
+
+    def close(self):
+        return
 
     def _process_key_arg(self, token: str):
         from pipelime.cli.pretty_print import print_error, print_warning
@@ -126,12 +133,7 @@ class CLIParserExpectingValue(CLIParserState):
         if token in CLISpecialChars.ctx_start() or token.startswith(
             CLISpecialChars.config() + CLISpecialChars.context()
         ):
-            deep_set_(
-                self.target_cfg(),
-                key_path=self.key_name,
-                value=True,
-                append=True,
-            )
+            self._set_boolean_flag()
             cli_state = CLIParserHoldState(
                 self.cfg_opts, self.ctx_opts, self.ctx_started
             )
@@ -144,6 +146,19 @@ class CLIParserExpectingValue(CLIParserState):
             append=True,
         )
         return CLIParserHoldState(self.cfg_opts, self.ctx_opts, self.ctx_started)
+
+    def close(self):
+        self._set_boolean_flag()
+
+    def _set_boolean_flag(self):
+        from pipelime.choixe.utils.common import deep_set_
+
+        deep_set_(
+            self.target_cfg(),
+            key_path=self.key_name,
+            value=True,
+            append=True,
+        )
 
     def _convert_val(self, val: str):
         if val.lower() == "true":
@@ -400,6 +415,7 @@ def pl_main(  # noqa: C901
         cli_state = CLIParserHoldState()
         for token in command_args:
             cli_state = cli_state.process_token(token)
+        cli_state.close()
         cmdline_cfg, cmdline_ctx = cli_state.cfg_opts, cli_state.ctx_opts
 
         if verbose:
