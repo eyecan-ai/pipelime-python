@@ -479,7 +479,7 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
                 if len(raw_data) > 2:
                     if raw_data[2].lower() == "true":
                         data["serialization"] = SerializationModeInterface(
-                            override={"CREATE_NEW_FILE": None}
+                            override={"DEEP_COPY": None}
                         )
                 return OutputDatasetInterface(**data)
             return val
