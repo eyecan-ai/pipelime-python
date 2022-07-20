@@ -26,9 +26,9 @@ A quick reference to the pipelime CLI.
 
 | CLI Option | Description |
 | ---- | ---- |
-| `pipelime audit ...` | Inspect the input configuration and context, showing, eg, imports, variables, symbols as well as configuration error, such as missing defitions. |
-| `-d -v` | Print the configuration and the context as loaded from files and cli, then the built command, but **skip the execution**. |
-| `-o <file>` | Save effective processed configuration to YAML/JSON. |
+| `pipelime audit ...` | Inspect the input configuration and context, showing, eg, imports, variables, symbols as well as configuration error, such as missing definitions. |
+| `-d -v` | Print the configuration and the context as loaded from files and overridden by the cli. Then show the built command, but **skip the execution**. |
+| `-o <file>` | Save the effective processed configuration to YAML/JSON. |
 
 ## Multiple Configurations
 
@@ -44,7 +44,7 @@ as specified in every command help. Here a quick reference:
 | Option Type | Usual Compact Form | Corresponding Extended Definition | Notes |
 | ---- | ---- | ---- | ---- |
 | Input Dataset | `+i <folder>[,<skip_empty>]` | `++input.folder <folder> [++input.skip_empty <skip_empty>]` | `<skip_empty>` is an optional flag to skip empty samples. |
-| Output Dataset | `+o <folder>[,<exists_ok>[,<force_new_files>]]` | `++output.folder <folder> [++output.exists_ok <exists_ok> [++output.serialization.override.DEEP_COPY null]]` | when `<force_new_files>` is TRUE the output dataset does not contain remote references nor hard/soft links. |
+| Output Dataset | `+o <folder>[,<exists_ok>[,<force_new_files>]]` | `++output.folder <folder> [++output.exists_ok <exists_ok> [++output.serialization.override.DEEP_COPY null]]` | when `<force_new_files>` is TRUE the output dataset will not contain remote references nor hard/soft links. |
 | Multiprocessing | `+g <num_workers>[,<prefetch>]` | `++grabber.num_workers <num_workers> [++grabber.prefetch <prefetch>]` | Both values should be positive integers. |
 | Dataset Splits | `+s <fraction>[,<folder>]`, `+s <length>[,<folder>]` | `++splits.fraction <fraction> [++splits.output.folder <folder>]`, `++splits.length <length> [++splits.output.folder <folder>]` | `<fraction>` must be between 0 and 1, while `<length>` is a positive integer. One split may have `null` length to get all remaining samples. |
 
