@@ -1,8 +1,63 @@
+from __future__ import annotations
 import typing as t
 from pathlib import Path
 from urllib.parse import ParseResult
 
 import pydantic as pyd
+
+
+def _iter_field(
+    model_cls, values, field_name: str, create_fn: t.Callable[[t.Any], t.Any]
+):
+    def _as_list(v):
+        if not isinstance(v, t.Sequence) or isinstance(v, (str, bytes)):
+            return [v]
+        return v
+
+    updated_values = None
+    alias = model_cls.__fields__.get(field_name).alias
+    for key in (field_name, alias):
+        if key in values:
+            raw_value = values.pop(key)
+            if isinstance(raw_value, t.Sequence) and not isinstance(
+                raw_value, (str, bytes)
+            ):
+                curr = [create_fn(val) for val in raw_value]
+            else:
+                curr = create_fn(raw_value)
+            if updated_values is None:
+                updated_values = curr
+            else:
+                updated_values = _as_list(updated_values) + _as_list(curr)
+    if updated_values is not None:
+        values[field_name] = updated_values
+    return values
+
+
+def _make_root_validator(field_name: str, create_fn: t.Callable[[t.Any], t.Any]):
+    import uuid
+
+    # we need random names and dynamic function creation
+    # to avoid reusing the same function name for validators
+    # (yes, pydantic is really pedantic...)
+    rnd_name = uuid.uuid1().hex
+
+    _validator_wrapper = (
+        "@classmethod\n"
+        + "def validate_{}_fn(cls, values):\n".format(rnd_name)
+        + "    return _iter_field(cls, values, _field_name, _create_fn)\n"
+    )
+
+    local_scope = {
+        **globals(),
+        "_field_name": field_name,
+        "_iter_field": _iter_field,
+        "_create_fn": create_fn,
+    }
+    exec(_validator_wrapper, local_scope)
+    fn_helper = local_scope[f"validate_{rnd_name}_fn"]
+
+    return pyd.root_validator(pre=True)(fn_helper)
 
 
 class GrabberInterface(pyd.BaseModel, extra="forbid"):
@@ -18,6 +73,32 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
     prefetch: pyd.PositiveInt = pyd.Field(
         2, description="The number of samples loaded in advanced by each worker."
     )
+
+    @staticmethod
+    def pyd_field(*, description: str = "Grabber options.", **kwargs):
+        return pyd.Field(
+            default_factory=GrabberInterface,  # type: ignore
+            description=description
+            + "\n-----Compact form: `<num_workers>[,<prefetch>]`",
+            **kwargs,
+        )
+
+    @staticmethod
+    def pyd_validator(field_name: str):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes, int)):
+                data = {}
+                if isinstance(val, int):
+                    data["num_workers"] = val
+                else:
+                    wrks, _, pf = str(val).partition(",")
+                    data["num_workers"] = int(wrks)
+                    if pf:
+                        data["prefetch"] = int(pf)
+                return GrabberInterface(**data)
+            return val
+
+        return _make_root_validator(field_name, _create_fn)
 
     def grab_all(
         self,
@@ -225,6 +306,36 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
         # see https://bugs.python.org/issue38671
         return v.resolve().absolute()
 
+    @staticmethod
+    def pyd_field(
+        *, is_required: bool = True, description: str = "Input dataset.", **kwargs
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=description + "\n-----Compact form: `<folder>[,<skip_empty>]`",
+            **kwargs,
+        )
+
+    @staticmethod
+    def pyd_validator(field_name: str):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes)):
+                data = {}
+                fld, _, sk_emp = str(val).partition(",")
+                data["folder"] = fld
+                if sk_emp:
+                    # NB: the value is left as-is when it is not True nor False
+                    # to raise an error on validation
+                    data["skip_empty"] = (
+                        True
+                        if sk_emp.lower() == "true"
+                        else (False if sk_emp.lower() == "false" else sk_emp)
+                    )
+                return InputDatasetInterface(**data)
+            return val
+
+        return _make_root_validator(field_name, _create_fn)
+
     def create_reader(self):
         from pipelime.sequences import SamplesSequence
 
@@ -339,6 +450,42 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
         # see https://bugs.python.org/issue38671
         return v.resolve().absolute()
 
+    @staticmethod
+    def pyd_field(
+        *, is_required: bool = True, description: str = "Output dataset.", **kwargs
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=description
+            + "\n-----Compact form: `<folder>[,<exists_ok>[,<force_new_files>]]`",
+            **kwargs,
+        )
+
+    @staticmethod
+    def pyd_validator(field_name: str):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes)):
+                data = {}
+                raw_data = str(val).split(",")
+                data["folder"] = raw_data[0]
+                if len(raw_data) > 1:
+                    # NB: the value is left as-is when it is not True nor False
+                    # to raise an error on validation
+                    data["exists_ok"] = (
+                        True
+                        if raw_data[1].lower() == "true"
+                        else (False if raw_data[1].lower() == "false" else raw_data[1])
+                    )
+                if len(raw_data) > 2:
+                    if raw_data[2].lower() == "true":
+                        data["serialization"] = SerializationModeInterface(
+                            override={"CREATE_NEW_FILE": None}
+                        )
+                return OutputDatasetInterface(**data)
+            return val
+
+        return _make_root_validator(field_name, _create_fn)
+
     def serialization_cm(self) -> t.ContextManager:
         return self.serialization
 
@@ -401,6 +548,28 @@ class RemoteInterface(pyd.BaseModel, extra="forbid", underscore_attrs_are_privat
     )
 
     _parsed_url: ParseResult
+
+    @staticmethod
+    def pyd_field(
+        *,
+        is_required: bool = True,
+        description: str = "Remote data lakes addresses.",
+        **kwargs,
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=description + "\n-----Compact form: `<url>`",
+            **kwargs,
+        )
+
+    @staticmethod
+    def pyd_validator(field_name: str):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes)):
+                return RemoteInterface(url=str(val))
+            return val
+
+        return _make_root_validator(field_name, _create_fn)
 
     def __init__(self, **data):
         from urllib.parse import urlparse

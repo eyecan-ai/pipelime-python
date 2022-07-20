@@ -22,7 +22,7 @@ class PiperInfo(BaseModel, extra="forbid"):
         return bool(self.token)
 
 
-class PipelimeCommand(BaseModel, extra="forbid"):
+class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="forbid"):
     """Base class for all pipelime commands.
     Subclasses should implement the run method.
     """

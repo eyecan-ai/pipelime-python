@@ -12,18 +12,19 @@ class RunCommand(PipelimeCommand, title="run"):
 
     nodes: t.Mapping[str, PipelimeCommand] = Field(
         ...,
+        alias="n",
         description="A DAG of commands as a `<node>: <command>` mapping.",
         piper_port=PiperPortType.INPUT,
     )
     token: t.Optional[str] = Field(
         None,
+        alias="t",
         description=(
-            "The execution token. "
-            "If not specified, a new token will be generated."
+            "The execution token. If not specified, a new token will be generated."
         ),
     )
     watch: bool = Field(
-        True, description="Monitor the execution in the current console."
+        True, alias="w", description="Monitor the execution in the current console."
     )
     successful: bool = Field(
         None,
@@ -58,21 +59,24 @@ class DrawCommand(PipelimeCommand, title="draw"):
 
     nodes: t.Mapping[str, PipelimeCommand] = Field(
         ...,
+        alias="n",
         description="A Piper DAG as a `<node>: <command>` mapping.",
         piper_port=PiperPortType.INPUT,
     )
     output: t.Optional[Path] = Field(
         None,
+        alias="o",
         description=(
             "The output file. If not specified, the graph will be shown in a window."
         ),
         piper_port=PiperPortType.OUTPUT,
     )
     backend: DrawBackendChoice = Field(
-        DrawBackendChoice.GRAPHVIZ, description="The graph backend to use."
+        DrawBackendChoice.GRAPHVIZ, alias="b", description="The graph backend to use."
     )
     open: bool = Field(
         False,
+        alias="o",
         description=(
             "If `output` has been set, open the image file in the default viewer."
         ),

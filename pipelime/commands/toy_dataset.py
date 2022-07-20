@@ -8,15 +8,20 @@ class ToyDatasetCommand(PipelimeCommand, title="toy_dataset"):
     """A generator of random data (images, masks, objects...)."""
 
     toy: pl_interfaces.ToyDatasetInterface = Field(
-        ..., description="Toy dataset creation options."
+        ..., alias="t", description="Toy dataset creation options."
     )
-    output: pl_interfaces.OutputDatasetInterface = Field(
-        ..., description="Output dataset.", piper_port=PiperPortType.OUTPUT
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
     )
-    grabber: pl_interfaces.GrabberInterface = Field(
-        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
-        description="Grabber options.",
+    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
     )
+    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         seq = self.toy.create_dataset_generator()

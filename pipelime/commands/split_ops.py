@@ -6,10 +6,15 @@ import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
-class SplitBase(pyd.BaseModel, extra="forbid"):
-    output: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
-        None, description="Output split. Set to None to not save to disk."
+class SplitBase(pyd.BaseModel, allow_population_by_field_name=True, extra="forbid"):
+    output: t.Optional[
+        pl_interfaces.OutputDatasetInterface
+    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
+        alias="o",
+        is_required=False,
+        description="Output split. Leave to None to not save to disk.",
     )
+    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
@@ -49,34 +54,81 @@ class AbsoluteSplit(SplitBase):
 class SplitCommand(PipelimeCommand, title="split"):
     """Split a dataset."""
 
-    input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
     )
+    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
+
     shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
         False,
+        alias="shf",
         description=(
             "Shuffle the dataset before subsampling and splitting. "
             "Optionally specify the random seed."
         ),
     )
     subsample: pyd.PositiveInt = pyd.Field(
-        1, description="Take 1-every-nth input sample. Applied after shuffling."
+        1,
+        alias="ss",
+        description="Take 1-every-nth input sample. Applied after shuffling.",
     )
+
     splits: t.Union[
         PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
     ] = pyd.Field(
-        ..., description="Splits definition.", piper_port=PiperPortType.OUTPUT
+        ...,
+        alias="s",
+        description=(
+            "Splits definition.\n-----Compact form: `<fraction|length>[,<folder>]`"
+        ),
+        piper_port=PiperPortType.OUTPUT,
     )
-    grabber: pl_interfaces.GrabberInterface = pyd.Field(
-        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
-        description="Grabber options.",
+
+    @pyd.root_validator(pre=True)
+    def _validate_splits(cls, values):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes, int, float)):
+                data = {}
+                if isinstance(val, int):
+                    data["length"] = val
+                elif isinstance(val, float):
+                    data["fraction"] = val
+                else:
+                    sz, _, fld = str(val).partition(",")
+                    try:
+                        data["length"] = int(sz)
+                    except ValueError:
+                        try:
+                            data["fraction"] = float(sz)
+                        except ValueError:
+                            # NB: leave size as-is if not valid, it will raise an error
+                            data["length"] = (
+                                None if sz.lower() in ("none", "null", "nul") else sz
+                            )
+
+                    if fld:
+                        data["output"] = pl_interfaces.OutputDatasetInterface(
+                            folder=fld  # type: ignore
+                        )
+                return (
+                    PercSplit(**data) if "fraction" in data else AbsoluteSplit(**data)
+                )
+            return val
+
+        return pl_interfaces._iter_field(cls, values, "splits", _create_fn)
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
     )
+    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         reader = self.input.create_reader()
         if self.shuffle:
             reader = reader.shuffle(
-                self.shuffle if not isinstance(self.shuffle, bool) else None
+                seed=self.shuffle if not isinstance(self.shuffle, bool) else None
             )
         if self.subsample != 1:
             reader = reader[:: self.subsample]
@@ -126,33 +178,53 @@ class SplitCommand(PipelimeCommand, title="split"):
 class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     """Split a dataset by query."""
 
-    input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
     )
+    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
+
     query: str = pyd.Field(
         ...,
+        alias="q",
         description=("A query to match (cfr. https://github.com/cyberlis/dictquery)."),
     )
-    output_selected: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
-        None,
+
+    output_selected: t.Optional[
+        pl_interfaces.OutputDatasetInterface
+    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
+        alias="os",
+        is_required=False,
         description=(
             "Output dataset of sample selected by the query. "
-            "Set to None to not save to disk."
+            "Leave to None to not save to disk."
         ),
         piper_port=PiperPortType.OUTPUT,
     )
-    output_discarded: t.Optional[pl_interfaces.OutputDatasetInterface] = pyd.Field(
-        None,
+    _output_selected_validator = pl_interfaces.OutputDatasetInterface.pyd_validator(
+        "output_selected"
+    )
+
+    output_discarded: t.Optional[
+        pl_interfaces.OutputDatasetInterface
+    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
+        alias="od",
+        is_required=False,
         description=(
             "Output dataset of sample discarded by the query. "
-            "Set to None to not save to disk."
+            "Leave to None to not save to disk."
         ),
         piper_port=PiperPortType.OUTPUT,
     )
-    grabber: pl_interfaces.GrabberInterface = pyd.Field(
-        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
-        description="Grabber options.",
+    _output_discarded_validator = pl_interfaces.OutputDatasetInterface.pyd_validator(
+        "output_discarded"
     )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         reader = self.input.create_reader()
@@ -188,28 +260,38 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
     """Split a dataset into multiple sequences,
     one for each unique value of a given key."""
 
-    input: pl_interfaces.InputDatasetInterface = pyd.Field(
-        ..., description="Input dataset.", piper_port=PiperPortType.INPUT
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
     )
+    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
+
     key: str = pyd.Field(
         ...,
+        alias="k",
         description=(
             "The key to use. A pydash-like dot notation "
             "can be used to access nested attributes."
         ),
     )
-    output: pl_interfaces.OutputDatasetInterface = pyd.Field(
-        None,
-        description=(
-            "Common options for the output sequences, "
-            "which will be placed in subfolders."
-        ),
-        piper_port=PiperPortType.OUTPUT,
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o",
+            description=(
+                "Common options for the output sequences, "
+                "which will be placed in subfolders."
+            ),
+            piper_port=PiperPortType.OUTPUT,
+        )
     )
-    grabber: pl_interfaces.GrabberInterface = pyd.Field(
-        default_factory=pl_interfaces.GrabberInterface,  # type: ignore
-        description="Grabber options.",
+    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
     )
+    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         import uuid
@@ -254,7 +336,9 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
                 value = x.deep_get(self._value_key)
                 if value is not None:
                     value = self._value_to_str(value)
-                    self._groups.setdefault(value, []).append(int(x[self._idx_key]()))
+                    self._groups.setdefault(value, []).append(
+                        int(x[self._idx_key]())  # type: ignore
+                    )
 
         reader = self.input.create_reader()
 

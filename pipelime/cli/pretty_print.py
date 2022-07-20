@@ -164,6 +164,11 @@ def _field_row(
         [
             (" " * indent)
             + ("[bold salmon1]" if indent == 0 else "")
+            + (
+                f"{escape(field.name)} / "
+                if field.model_config.allow_population_by_field_name and field.has_alias
+                else ""
+            )
             + f"{escape(field.alias)}"
             + ("[/]" if indent == 0 else ""),
             ("\u25B6 " + escape(field.field_info.description))
