@@ -151,15 +151,20 @@ class SlicedSequence(
         super().__init__(**data)
 
         effective_start = (
-            0 if self.start is None else max(0, min(len(self.source), self.start))
+            0
+            if self.start is None
+            else max(0, min(len(self.source), self._normalized(self.start)))
         )
         effective_stop = (
             len(self.source)
             if self.stop is None
-            else max(0, min(len(self.source), self.stop))
+            else max(0, min(len(self.source), self._normalized(self.stop)))
         )
         effective_step = 1 if self.step is None else self.step
         self._sliced_idxs = range(effective_start, effective_stop, effective_step)
+
+    def _normalized(self, idx: int) -> int:
+        return idx if idx >= 0 else len(self.source) + idx
 
     def size(self) -> int:
         return len(self._sliced_idxs)
@@ -182,6 +187,15 @@ class IndexSelectionSequence(
             "The indexes to extract. Negative values start counting from the end."
         ),
     )
+    negate: bool = pyd.Field(
+        False,
+        description=(
+            "FALSE to extract samples at `indexes`, "
+            "TRUE to get all samples but the ones at `indexes`."
+        ),
+    )
+
+    _effective_idxs: t.Sequence[int]
 
     def __init__(self, indexes: t.Sequence[int], **data):
         super().__init__(indexes=indexes, **data)  # type: ignore
@@ -193,12 +207,17 @@ class IndexSelectionSequence(
                 raise ValueError(
                     "Index {} is out of range [0, {})".format(idx, len(self.source))
                 )
+        self._effective_idxs = (
+            [idx for idx in range(len(self.source)) if idx not in self.indexes]
+            if self.negate
+            else self.indexes
+        )
 
     def size(self) -> int:
-        return len(self.indexes)
+        return len(self._effective_idxs)
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[self.indexes[idx]]
+        return self.source[self._effective_idxs[idx]]
 
 
 @pls.piped_sequence

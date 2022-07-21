@@ -20,24 +20,6 @@ class SamplesSequenceBase(t.Sequence[Sample]):
     def __len__(self) -> int:
         return self.size()
 
-    @t.overload
-    def __getitem__(self, idx: int) -> Sample:
-        ...
-
-    @t.overload
-    def __getitem__(self, idx: slice) -> SamplesSequence:
-        ...
-
-    def __getitem__(self, idx: t.Union[int, slice]) -> t.Union[Sample, SamplesSequence]:
-        return (
-            self.slice(start=idx.start, stop=idx.stop, step=idx.step)  # type: ignore
-            if isinstance(idx, slice)
-            else self.get_sample(idx if idx >= 0 else len(self) + idx)
-        )
-
-    def __add__(self, other: SamplesSequence) -> SamplesSequence:
-        return self.cat(other)  # type: ignore
-
     def is_normalized(self, max_items=-1) -> bool:
         """Checks if all samples have the same keys.
 
@@ -81,6 +63,24 @@ class SamplesSequence(
     _sources: t.ClassVar[t.Dict[str, t.Type[SamplesSequence]]] = {}
     _pipes: t.ClassVar[t.Dict[str, t.Type[SamplesSequence]]] = {}
     _operator_path: t.ClassVar[str] = ""
+
+    @t.overload
+    def __getitem__(self, idx: int) -> Sample:
+        ...
+
+    @t.overload
+    def __getitem__(self, idx: slice) -> SamplesSequence:
+        ...
+
+    def __getitem__(self, idx: t.Union[int, slice]) -> t.Union[Sample, SamplesSequence]:
+        return (
+            self.slice(start=idx.start, stop=idx.stop, step=idx.step)
+            if isinstance(idx, slice)
+            else self.get_sample(idx if idx >= 0 else len(self) + idx)
+        )
+
+    def __add__(self, other: SamplesSequence) -> SamplesSequence:
+        return self.cat(other)
 
     @classmethod
     def name(cls) -> str:
@@ -290,7 +290,9 @@ class SamplesSequence(
         """
         ...
 
-    def select(self, indexes: t.Sequence[int]) -> SamplesSequence:
+    def select(
+        self, indexes: t.Sequence[int], *, negate: bool = False
+    ) -> SamplesSequence:
         """Given a list of indexes, extracts the corresponding samples
         from the input SamplesSequence. The index sequence is not automatically sorted.
         Run `pipelime help select` to read the complete documentation.
