@@ -19,8 +19,8 @@ A quick reference to the pipelime CLI.
 | `-m` | Search for commands, operations and stages in additional module/packages. |
 | `--config` | A YAML/JSON configuration file. |
 | `--context` | A YAML/JSON context file. |
-| `+<key> <value>`, `++<key> <value>`, `+<key>=<value>`, `++<key>=<value>` | Configuration options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
-| `@<key> <value>`, `@@<key> <value>`, `@<key>=<value>`, `@@<key>=<value>` | Context options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
+| `+<key> <value>`<br>`++<key> <value>`<br>`+<key>=<value>`<br>`++<key>=<value>` | Configuration options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
+| `@<key> <value>`<br>`@@<key> <value>`<br>`@<key>=<value>`<br>`@@<key>=<value>` | Context options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
 
 ## Debugging
 
@@ -46,7 +46,7 @@ as specified in every command help. Here a quick reference:
 | Input Dataset | `+i <folder>[,<skip_empty>]` | `++input.folder <folder> [++input.skip_empty <skip_empty>]` | `<skip_empty>` is an optional flag to skip empty samples. |
 | Output Dataset | `+o <folder>[,<exists_ok>[,<force_new_files>]]` | `++output.folder <folder> [++output.exists_ok <exists_ok> [++output.serialization.override.DEEP_COPY null]]` | when `<force_new_files>` is TRUE the output dataset will not contain remote references nor hard/soft links. |
 | Multiprocessing | `+g <num_workers>[,<prefetch>]` | `++grabber.num_workers <num_workers> [++grabber.prefetch <prefetch>]` | Both values should be positive integers. |
-| Dataset Splits | `+s <fraction>[,<folder>]`, `+s <length>[,<folder>]` | `++splits.fraction <fraction> [++splits.output.folder <folder>]`, `++splits.length <length> [++splits.output.folder <folder>]` | `<fraction>` must be between 0 and 1, while `<length>` is a positive integer. One split may have `null` length to get all remaining samples. |
+| Dataset Splits | `+s <fraction>[,<folder>]`<br>`+s <length>[,<folder>]` | `++splits.fraction <fraction> [++splits.output.folder <folder>]`<br>`++splits.length <length> [++splits.output.folder <folder>]` | `<fraction>` must be between 0 and 1, while `<length>` is a positive integer. One split may have `null` length to get all remaining samples. |
 
 ## Common Tasks
 
@@ -59,4 +59,5 @@ as specified in every command help. Here a quick reference:
 | Split by query | `pipelime split-query +i <input> +q <dictquery> +os <output>` |
 | Split by value | `pipelime split-query +i <input> +k <sample_key> +o <output_base_path>` |
 | Generate a basic validation schema | `pipelime validate +i <input>` |
-| Upload to a remote storage | `pipelime remote-add +i <input> +o <output> +r s3://user:password@host:port/bucket` |
+| Upload to a S3 remote storage | `pipelime remote-add +i <input> +o <output> +r s3://user:password@host:port/bucket` |
+| Upload to a system folder remote storage | `pipelime remote-add +i <input> +o <output> +r file://localhost/path/to/folder`<br>`pipelime remote-add +i <input> +o <output> +r file://localhost/c:/path/to/folder` |
