@@ -253,7 +253,7 @@ class PipelimeSymbolsHelper:
         similar_names = get_close_matches(name, names_list, cutoff=0.3)
 
         print_error(f"{name} is not {' nor '.join(should_be)}!")
-        print_warning("Have you added the module with `--module`?")
+        print_warning("Have you added the module with `--module/-m`?")
         if similar_names:
             print_info(f"Similar entries: {', '.join(similar_names)}")
 
