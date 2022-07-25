@@ -37,6 +37,45 @@ class PercSplit(SplitBase):
     def split_size(self, n_samples: int) -> t.Optional[int]:
         return int(n_samples * self.fraction) if self.fraction is not None else None
 
+    @staticmethod
+    def pyd_field(
+        *,
+        is_required: bool = True,
+        description: str = "Percentage splits definition.",
+        **kwargs,
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=description + "\n-----Compact form: `<fraction>[,<folder>]`",
+            **kwargs,
+        )
+
+    @staticmethod
+    def pyd_validator(field_name: str):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes, float)):
+                data = {}
+                if isinstance(val, float):
+                    data["fraction"] = val
+                else:
+                    sz, _, fld = str(val).partition(",")
+                    try:
+                        data["fraction"] = float(sz)
+                    except ValueError:
+                        # NB: leave size as-is if not valid, it will raise an error
+                        data["fraction"] = (
+                            None if sz.lower() in ("none", "null", "nul") else sz
+                        )
+
+                    if fld:
+                        data["output"] = pl_interfaces.OutputDatasetInterface(
+                            folder=fld  # type: ignore
+                        )
+                return PercSplit(**data)
+            return val
+
+        return pl_interfaces._make_root_validator(field_name, _create_fn)
+
 
 class AbsoluteSplit(SplitBase):
     length: t.Optional[pyd.PositiveInt] = pyd.Field(
@@ -50,44 +89,64 @@ class AbsoluteSplit(SplitBase):
     def split_size(self, *args, **kwargs) -> t.Optional[int]:
         return self.length
 
-
-class SplitCommand(PipelimeCommand, title="split"):
-    """Split a dataset."""
-
-    input: pl_interfaces.InputDatasetInterface = (
-        pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="i", piper_port=PiperPortType.INPUT
+    @staticmethod
+    def pyd_field(
+        *,
+        is_required: bool = True,
+        description: str = "Absolute splits definition.",
+        **kwargs,
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=description + "\n-----Compact form: `<length>[,<folder>]`",
+            **kwargs,
         )
-    )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
-    shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
-        False,
-        alias="shf",
-        description=(
-            "Shuffle the dataset before subsampling and splitting. "
-            "Optionally specify the random seed."
-        ),
-    )
-    subsample: pyd.PositiveInt = pyd.Field(
-        1,
-        alias="ss",
-        description="Take 1-every-nth input sample. Applied after shuffling.",
-    )
+    @staticmethod
+    def pyd_validator(field_name: str):
+        def _create_fn(val):
+            if isinstance(val, (str, bytes, int)):
+                data = {}
+                if isinstance(val, int):
+                    data["length"] = val
+                else:
+                    sz, _, fld = str(val).partition(",")
+                    try:
+                        data["length"] = int(sz)
+                    except ValueError:
+                        # NB: leave size as-is if not valid, it will raise an error
+                        data["length"] = (
+                            None if sz.lower() in ("none", "null", "nul") else sz
+                        )
 
-    splits: t.Union[
+                    if fld:
+                        data["output"] = pl_interfaces.OutputDatasetInterface(
+                            folder=fld  # type: ignore
+                        )
+                return AbsoluteSplit(**data)
+            return val
+
+        return pl_interfaces._make_root_validator(field_name, _create_fn)
+
+
+class SplitFacade:
+    SplitType = t.Union[
         PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
-    ] = pyd.Field(
-        ...,
-        alias="s",
-        description=(
-            "Splits definition.\n-----Compact form: `<fraction|length>[,<folder>]`"
-        ),
-        piper_port=PiperPortType.OUTPUT,
-    )
+    ]
 
-    @pyd.root_validator(pre=True)
-    def _validate_splits(cls, values):
+    @staticmethod
+    def pyd_field(
+        *, is_required: bool = True, description: str = "Splits definition.", **kwargs
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=description
+            + "\n-----Compact form: `<fraction|length>[,<folder>]`",
+            **kwargs,
+        )
+
+    @staticmethod
+    def pyd_validator(field_name: str):
         def _create_fn(val):
             if isinstance(val, (str, bytes, int, float)):
                 data = {}
@@ -117,7 +176,37 @@ class SplitCommand(PipelimeCommand, title="split"):
                 )
             return val
 
-        return pl_interfaces._iter_field(cls, values, "splits", _create_fn)
+        return pl_interfaces._make_root_validator(field_name, _create_fn)
+
+
+class SplitCommand(PipelimeCommand, title="split"):
+    """Split a dataset."""
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
+
+    shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
+        False,
+        alias="shf",
+        description=(
+            "Shuffle the dataset before subsampling and splitting. "
+            "Optionally specify the random seed."
+        ),
+    )
+    subsample: pyd.PositiveInt = pyd.Field(
+        1,
+        alias="ss",
+        description="Take 1-every-nth input sample. Applied after shuffling.",
+    )
+
+    splits: SplitFacade.SplitType = SplitFacade.pyd_field(
+        alias="s", piper_port=PiperPortType.OUTPUT
+    )
+    _splits_validator = SplitFacade.pyd_validator("splits")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
