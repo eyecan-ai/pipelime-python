@@ -79,6 +79,12 @@ class SamplesSequence(
             else self.get_sample(idx if idx >= 0 else len(self) + idx)
         )
 
+    def __iter__(self) -> t.Iterator[Sample]:
+        _local_idx = 0
+        while _local_idx < len(self):
+            yield self[_local_idx]
+            _local_idx += 1
+
     def __add__(self, other: SamplesSequence) -> SamplesSequence:
         return self.cat(other)
 
