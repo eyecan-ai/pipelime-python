@@ -262,7 +262,7 @@ def _process_cfg_or_die(cfg, ctx, run_all: t.Optional[bool], output: t.Optional[
     return effective_configs
 
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_enable=False)
 
 
 @app.command(
