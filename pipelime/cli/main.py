@@ -501,6 +501,9 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     Run a pipelime command.
     """
 
+    import time
+    from datetime import timedelta
+
     from pipelime.cli.pretty_print import (
         print_info,
         print_command_outputs,
@@ -529,8 +532,11 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     if verbose:
         print_info(f"\nRunning `{command}`...")
 
+    start_time = time.monotonic()
     if not dry_run:
         cmd_obj()
+    end_time = time.monotonic()
+    print_info(f"\nCommand executed in {timedelta(seconds=end_time - start_time)}")
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)
