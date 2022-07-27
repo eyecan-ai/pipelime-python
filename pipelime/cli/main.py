@@ -540,3 +540,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)
+
+
+if __name__ == "__main__":
+    app()

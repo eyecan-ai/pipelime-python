@@ -253,10 +253,16 @@ class EnumeratedSequence(
         "~idx", description="The new key containing the index item."
     )
     item_cls_path: str = pyd.Field(
-        "pipelime.items.TxtNumpyItem", description="The item class holding the index."
+        "TxtNumpyItem", description="The item class holding the index."
     )
 
     _item_cls: t.Type[pli.Item]
+
+    @pyd.validator("item_cls_path", always=True)
+    def _validate_item_cls_path(cls, value):
+        if "." not in value:
+            return "pipelime.items." + value
+        return value
 
     def __init__(self, **data):
         from pipelime.choixe.utils.imports import import_symbol
