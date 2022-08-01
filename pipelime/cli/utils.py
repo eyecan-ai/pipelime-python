@@ -60,16 +60,15 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def _warn_double_def(cls, type_, name, first, second):
-        from pipelime.cli.pretty_print import print_error, print_warning
-
-        def get_classpath(m) -> str:
-            if hasattr(m, "_classpath") and m._classpath:
-                return m._classpath
-            return f"{m.__module__}.{m.__name__}"
+        from pipelime.cli.pretty_print import (
+            print_error,
+            print_warning,
+            get_model_classpath,
+        )
 
         print_error(f"Found duplicate {type_} `{name}`")
-        print_warning(f"Defined as `{get_classpath(first)}`")
-        print_warning(f"       and `{get_classpath(second)}`")
+        print_warning(f"Defined as `{get_model_classpath(first)}`")
+        print_warning(f"       and `{get_model_classpath(second)}`")
         raise ValueError(f"Duplicate {type_} `{name}`")
 
     @classmethod
@@ -365,22 +364,37 @@ def print_commands_ops_stages_list(
     show_stages: bool = True,
 ):
     """Print a list of all available sequence operators and pipelime commands."""
+    from pipelime.cli.pretty_print import get_model_classpath
+
+    def _filter_symbols(smbls):
+        if not PipelimeSymbolsHelper.extra_modules:
+            return smbls
+        filtered_smbls = {}
+        for k, v in smbls.items():
+            vfilt = {}
+            for sym_name, sym_cls in v.items():
+                if not get_model_classpath(sym_cls).startswith("pipelime."):
+                    vfilt[sym_name] = sym_cls
+            if vfilt:
+                filtered_smbls[k] = vfilt
+        return filtered_smbls
+
     print_fn = _print_details if show_details else _print_short_help
     if show_cmds:
         print_fn(
-            PipelimeSymbolsHelper.get_pipelime_commands(),
+            _filter_symbols(PipelimeSymbolsHelper.get_pipelime_commands()),
             show_class_path=True,
             show_piper_port=True,
         )
     if show_ops:
         print_fn(
-            PipelimeSymbolsHelper.get_sequence_operators(),
+            _filter_symbols(PipelimeSymbolsHelper.get_sequence_operators()),
             show_class_path=False,
             show_piper_port=False,
         )
     if show_stages:
         print_fn(
-            PipelimeSymbolsHelper.get_sample_stages(),
+            _filter_symbols(PipelimeSymbolsHelper.get_sample_stages()),
             show_class_path=True,
             show_piper_port=False,
         )

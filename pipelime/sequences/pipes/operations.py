@@ -87,19 +87,31 @@ class FilteredSequence(
         ..., description="A callable returning True for any valid sample."
     )
 
-    _valid_idxs: t.Sequence[int]
+    _valid_idxs: t.Optional[t.Sequence[int]] = None
 
     def __init__(self, filter_fn: t.Callable[[pls.Sample], bool], **data):
         super().__init__(filter_fn=filter_fn, **data)  # type: ignore
-        self._valid_idxs = [
-            idx for idx, sample in enumerate(self.source) if self.filter_fn(sample)
-        ]
+
+    def _get_valid_idxs(self) -> t.Sequence[int]:
+        if self._valid_idxs is None:
+            self._valid_idxs = [
+                idx for idx, sample in enumerate(self.source) if self.filter_fn(sample)
+            ]
+        return self._valid_idxs
 
     def size(self) -> int:
-        return len(self._valid_idxs)
+        return len(self._get_valid_idxs())
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[self._valid_idxs[idx]]
+        return self.source[self._get_valid_idxs()[idx]]
+
+    def __iter__(self) -> t.Iterator[pls.Sample]:
+        _src_idx = 0
+        while _src_idx < len(self.source):
+            x = self.source[_src_idx]
+            if self.filter_fn(x):
+                yield x
+            _src_idx += 1
 
 
 @pls.piped_sequence

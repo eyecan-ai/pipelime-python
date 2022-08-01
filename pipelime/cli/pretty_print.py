@@ -53,6 +53,18 @@ def print_error(val, *, pretty: bool = False):
     )
 
 
+def get_model_title(model_cls: t.Type[BaseModel]) -> str:
+    if model_cls.__config__.title:
+        return model_cls.__config__.title
+    return model_cls.__name__
+
+
+def get_model_classpath(model_cls: t.Type[BaseModel]) -> str:
+    if hasattr(model_cls, "_classpath") and model_cls._classpath:  # type: ignore
+        return model_cls._classpath  # type: ignore
+    return f"{model_cls.__module__}.{model_cls.__name__}"
+
+
 def print_model_field_values(
     model_fields: t.Mapping,
     port_values: t.Mapping[str, t.Any],
@@ -83,9 +95,9 @@ def print_models_short_help(
         padding=(0, 1),
     )
     for m in model_cls:
-        col_vals = [escape(_command_title(m))]
+        col_vals = [escape(get_model_title(m))]
         if show_class_path:
-            col_vals.append(f"[italic grey50]{escape(_command_classpath(m))}[/]")
+            col_vals.append(f"[italic grey50]{escape(get_model_classpath(m))}[/]")
         col_vals.append(escape(inspect.getdoc(m) or ""))
         grid.add_row(*col_vals)
     rprint(grid)
@@ -113,11 +125,11 @@ def print_model_info(
         ),
         box=box.SIMPLE_HEAVY,
         title=(
-            f"[bold dark_red]{escape(_command_title(model_cls))}[/]\n"
+            f"[bold dark_red]{escape(get_model_title(model_cls))}[/]\n"
             f"[blue]{escape(_get_signature(model_cls))}[/]\n"
             f"[italic grey23]{escape(inspect.getdoc(model_cls) or '')}[/]"
         ),
-        caption=escape(_command_classpath(model_cls)) if show_class_path else None,
+        caption=escape(get_model_classpath(model_cls)) if show_class_path else None,
         title_style="on white",
         expand=True,
     )
@@ -259,18 +271,6 @@ def _get_inner_args(*type_):
         for arg in t.get_args(t_)
         for a in _recursive_args_flattening(arg)
     }
-
-
-def _command_title(model_cls: t.Type[BaseModel]) -> str:
-    if model_cls.__config__.title:
-        return model_cls.__config__.title
-    return model_cls.__name__
-
-
-def _command_classpath(model_cls: t.Type[BaseModel]) -> str:
-    if hasattr(model_cls, "_classpath") and model_cls._classpath:  # type: ignore
-        return model_cls._classpath  # type: ignore
-    return f"{model_cls.__module__}.{model_cls.__name__}"
 
 
 def _iterate_field_model(
