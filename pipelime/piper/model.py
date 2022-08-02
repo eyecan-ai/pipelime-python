@@ -94,7 +94,7 @@ class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="for
             return rich.progress.track(
                 seq,
                 total=len(seq) if size is None else size,  # type: ignore
-                description=message,
+                description="\U0001F34B " + message,
             )
 
     def __call__(self) -> None:
