@@ -101,10 +101,12 @@ class DataStream(
         )
 
     @classmethod
-    def read_write_underfolder(cls, path: str) -> DataStream:
+    def read_write_underfolder(
+        cls, path: str, must_exists: bool = True, zfill: t.Optional[int] = None
+    ) -> DataStream:
         """Creates a DataStream to read and write samples from the same underfolder."""
         seq: SamplesSequence = SamplesSequence.from_underfolder(  # type: ignore
-            path, watch=True
+            path, must_exist=must_exists, watch=True
         )
         return cls(
             input_sequence=seq,  # type: ignore
@@ -112,7 +114,9 @@ class DataStream(
                 "to_underfolder": {
                     "folder": path,
                     "exists_ok": True,
-                    "zfill": seq.best_zfill(),  # to be consistent if samples are added
+                    "zfill": seq.best_zfill()
+                    if zfill is None
+                    else zfill,  # to be consistent if samples are added
                 }
             },
         )
