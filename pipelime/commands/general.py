@@ -22,10 +22,15 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         "the arguments, ie, a single value, a sequence of values or a mapping.",
     )
 
-    input: pl_interfaces.InputDatasetInterface = (
-        pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="i", piper_port=PiperPortType.INPUT
-        )
+    input: t.Optional[
+        pl_interfaces.InputDatasetInterface
+    ] = pl_interfaces.InputDatasetInterface.pyd_field(
+        alias="i",
+        is_required=False,
+        description=(
+            "The input dataset. If None, a dataset with a single empty sample will be generated."
+        ),
+        piper_port=PiperPortType.INPUT,
     )
     _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
@@ -74,9 +79,13 @@ class PipeCommand(PipelimeCommand, title="pipe"):
             raise ValueError(f"Invalid pipeline: {self.operations}")
 
     def run(self):
-        from pipelime.sequences import build_pipe
+        from pipelime.sequences import build_pipe, SamplesSequence, Sample
 
-        seq = self.input.create_reader()
+        seq = (
+            self.input.create_reader()
+            if self.input is not None
+            else SamplesSequence.from_list([Sample()])
+        )
         seq = build_pipe(self._pipe_list, seq)
         seq = self.output.append_writer(seq)
 
