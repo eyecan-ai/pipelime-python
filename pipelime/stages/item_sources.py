@@ -8,7 +8,7 @@ from pipelime.items import Item
 from pipelime.stages import SampleStage
 
 
-class StageUploadToRemote(SampleStage):
+class StageUploadToRemote(SampleStage, title="remote-upload"):
     """Uploads the sample to one or more remote servers."""
 
     remotes: t.Sequence[ParseResult] = pyd.Field(
@@ -29,7 +29,7 @@ class StageUploadToRemote(SampleStage):
         return x
 
 
-class StageForgetSource(SampleStage):
+class StageForgetSource(SampleStage, title="forget-source"):
     """Removes data sources, ie, file paths or remotes, from items."""
 
     always_remove: t.Sequence[t.Union[Path, ParseResult]] = pyd.Field(

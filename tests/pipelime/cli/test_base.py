@@ -76,14 +76,14 @@ class TestCliBase:
         gt = (
             SamplesSequence.from_underfolder(minimnist_dataset["path"])  # type: ignore
             .slice(stop=10)
-            .reversed(num=5)
+            .reversed(num=5)  # type: ignore
         )
         assert len(outreader) == len(gt)
         for o, g in zip(outreader, gt):
             assert o.keys() == g.keys()
             for k, v in o.items():
                 if isinstance(v(), np.ndarray):
-                    assert np.array_equal(v(), g[k](), equal_nan=True)
+                    assert np.array_equal(v(), g[k](), equal_nan=True)  # type: ignore
                 else:
                     assert v() == g[k]()
                 assert isinstance(v._file_sources, Sequence)

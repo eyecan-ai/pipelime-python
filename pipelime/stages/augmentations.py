@@ -6,7 +6,12 @@ import pydantic as pyd
 from pipelime.stages import SampleStage
 
 
-class StageAlbumentations(SampleStage):
+class StageAlbumentations(
+    SampleStage,
+    title="albumentations",
+    underscore_attrs_are_private=True,
+    arbitrary_types_allowed=True,
+):
     """Sample augmentation via Albumentations."""
 
     transform: t.Union[
@@ -35,17 +40,13 @@ class StageAlbumentations(SampleStage):
     _trobj: t.Union[A.BaseCompose, A.BasicTransform]
     _target_to_keys: t.MutableMapping[str, str] = {}
 
-    class Config:
-        underscore_attrs_are_private = True
-        arbitrary_types_allowed = True
-
     @pyd.validator("transform")
     def load_transform(cls, v):
         if isinstance(v, (str, Path)):
             v = str(v)
             return A.load(v, data_format="json" if v.endswith("json") else "yaml")
         elif isinstance(v, t.Mapping):
-            return A.from_dict(v)
+            return A.from_dict(v)  # type: ignore
         else:
             return v
 

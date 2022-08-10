@@ -15,7 +15,7 @@ class ItemInfo(pyd.BaseModel):
     )
 
 
-class StageItemInfo(SampleStage):
+class StageItemInfo(SampleStage, title="item-info"):
     """Collects item infos from samples.
     WARNING: this stage CANNOT be combined with MULTIPROCESSING.
     """

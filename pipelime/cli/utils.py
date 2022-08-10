@@ -52,9 +52,11 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def _symbol_name(cls, symbol):
+        from pydantic import BaseModel
+
         return (
-            symbol.command_title()
-            if hasattr(symbol, "command_title")
+            symbol.__config__.title
+            if issubclass(symbol, BaseModel) and symbol.__config__.title
             else symbol.__name__
         )
 
@@ -454,3 +456,31 @@ def pl_print(
                 else str(obj)
             )
             rprint(sobj, sep=sep, end=end, file=file, flush=flush)
+
+
+def create_stage_from_config(
+    stage_name: str, stage_args: t.Optional[t.Mapping[str, t.Any]]
+) -> "SampleStage":  # type: ignore # noqa: E602
+    """Creates a stage from a name and arguments.
+
+    :param stage_name: the name of the stage, eg, `compose`, `remap`, etc.
+    :type stage_name: str
+    :param stage_args: a mapping of the stage init arguments.
+    :type stage_args: t.Mapping[str, t.Any]]
+    :return: the stage object
+    :rtype: SampleStage
+    """
+    from pipelime.cli.utils import PipelimeSymbolsHelper
+    from pipelime.stages import SampleStage
+
+    stage_cls = PipelimeSymbolsHelper.get_stage(stage_name)
+    if stage_cls is None or not issubclass(stage_cls[1], SampleStage):
+        PipelimeSymbolsHelper.show_error_and_help(
+            stage_name,
+            should_be_cmd=False,
+            should_be_op=False,
+            should_be_stage=True,
+        )
+        raise ValueError(f"{stage_name} is not a pipelime stage.")
+    stage_cls = stage_cls[1]
+    return stage_cls() if stage_args is None else stage_cls(**stage_args)

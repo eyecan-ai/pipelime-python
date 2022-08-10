@@ -5,7 +5,7 @@ import pydantic as pyd
 from pipelime.stages import SampleStage
 
 
-class StageDuplicateKey(SampleStage):
+class StageDuplicateKey(SampleStage, title="duplicate-key"):
     source_key: str = pyd.Field(..., description="The key to duplicate.")
     copy_to: str = pyd.Field(
         ...,
@@ -19,7 +19,7 @@ class StageDuplicateKey(SampleStage):
         return x.duplicate_key(self.source_key, self.copy_to)
 
 
-class StageKeyFormat(SampleStage):
+class StageKeyFormat(SampleStage, title="format-key"):
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -50,7 +50,7 @@ class StageKeyFormat(SampleStage):
         return x
 
 
-class StageRemap(SampleStage):
+class StageRemap(SampleStage, title="remap-key"):
     """Remaps keys in sample preserving internal values."""
 
     remap: t.Mapping[str, str] = pyd.Field(
@@ -70,7 +70,7 @@ class StageRemap(SampleStage):
         return x
 
 
-class StageKeysFilter(SampleStage):
+class StageKeysFilter(SampleStage, title="filter-keys"):
     """Filter sample keys."""
 
     key_list: t.Sequence[str] = pyd.Field(..., description="List of keys to preserve.")

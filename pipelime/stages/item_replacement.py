@@ -5,7 +5,7 @@ from pipelime.items import Item
 from pipelime.stages import SampleStage
 
 
-class StageReplaceItem(SampleStage):
+class StageReplaceItem(SampleStage, title="replace-item"):
     """Replaces items in sample preserving internal values."""
 
     key_item_map: t.Mapping[str, t.Type[Item]] = pyd.Field(

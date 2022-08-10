@@ -13,13 +13,36 @@ from pipelime.sequences.pipes import PipedSequenceBase
 class MappedSequence(PipedSequenceBase, title="map"):
     """Applies a stage on all samples."""
 
-    stage: plst.SampleStage = pyd.Field(..., description="The stage to map.")
+    stage: t.Union[
+        plst.SampleStage, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]
+    ] = pyd.Field(
+        ...,
+        description=(
+            "The stage to map. The stage can be a `<name>: <args>` mapping, "
+            "where `<name>` is `compose`, `remap`, `albumentations` etc, "
+            "while `<args>` is a mapping of its arguments."
+        ),
+    )
 
-    def __init__(self, stage: plst.SampleStage, **data):
+    @pyd.validator("stage", always=True)
+    def _validate_stage(cls, v):
+        from pipelime.cli.utils import create_stage_from_config
+
+        return (
+            v
+            if isinstance(v, plst.SampleStage)
+            else create_stage_from_config(*next(iter(v.items())))
+        )
+
+    def __init__(
+        self,
+        stage: t.Union[plst.SampleStage, t.Mapping[str, t.Mapping[str, t.Any]]],
+        **data,
+    ):
         super().__init__(stage=stage, **data)  # type: ignore
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.stage(self.source[idx])
+        return self.stage(self.source[idx])  # type: ignore
 
 
 @pls.piped_sequence

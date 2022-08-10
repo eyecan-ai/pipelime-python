@@ -10,10 +10,16 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 class RunCommand(PipelimeCommand, title="run"):
     """Executes a DAG of pipelime commands."""
 
-    nodes: t.Mapping[str, PipelimeCommand] = Field(
+    nodes: t.Mapping[
+        str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
+    ] = Field(
         ...,
         alias="n",
-        description="A DAG of commands as a `<node>: <command>` mapping.",
+        description=(
+            "A DAG of commands as a `<node>: <command>` mapping. The command can be a "
+            "`<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split` etc, "
+            "while `<args>` is a mapping of its arguments."
+        ),
         piper_port=PiperPortType.INPUT,
     )
     token: t.Optional[str] = Field(
@@ -34,6 +40,23 @@ class RunCommand(PipelimeCommand, title="run"):
         piper_port=PiperPortType.OUTPUT,
     )
 
+    def _get_command(self, cmd) -> PipelimeCommand:
+        from pipelime.cli.utils import PipelimeSymbolsHelper
+
+        if isinstance(cmd, PipelimeCommand):
+            return cmd
+
+        cmd_name, cmd_args = next(iter(cmd.items()))
+
+        cmd_cls = PipelimeSymbolsHelper.get_command(cmd_name)
+        if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
+            PipelimeSymbolsHelper.show_error_and_help(
+                cmd_name, should_be_cmd=True, should_be_op=False, should_be_stage=False
+            )
+            raise ValueError(f"{cmd_name} is not a pipelime command.")
+        cmd_cls = cmd_cls[1]
+        return cmd_cls() if cmd_args is None else cmd_cls(**cmd_args)
+
     def run(self):
         import uuid
 
@@ -44,7 +67,8 @@ class RunCommand(PipelimeCommand, title="run"):
         if not self.token:
             self.token = uuid.uuid1().hex
 
-        dag = DAGModel(nodes=self.nodes)
+        nodes = {name: self._get_command(cmd) for name, cmd in self.nodes.items()}
+        dag = DAGModel(nodes=nodes)
         graph = DAGNodesGraph.build_nodes_graph(dag)
         executor = NodesGraphExecutorFactory.get_executor(watch=self.watch)
         self.successful = executor.exec(graph, token=self.token)
