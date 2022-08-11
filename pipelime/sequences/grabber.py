@@ -21,8 +21,10 @@ class Grabber(pyd.BaseModel, extra="forbid"):
         False, description="Whether to retrieve the samples in the original order."
     )
 
-    def __call__(self, sequence: pls.SamplesSequence) -> _GrabContext:
-        return _GrabContext(self, sequence)
+    def __call__(
+        self, sequence: pls.SamplesSequence, no_return: bool = False
+    ) -> _GrabContext:
+        return _GrabContext(self, sequence, no_return)
 
 
 class _GrabWorker:
@@ -32,11 +34,17 @@ class _GrabWorker:
     def _worker_fn(self, idx) -> pls.Sample:
         return self._sequence[idx]  # pragma: no cover
 
+    def _noreturn_worker_fn(self, idx) -> None:
+        _ = self._sequence[idx]  # pragma: no cover
+
 
 class _GrabContext:
-    def __init__(self, grabber: Grabber, sequence: pls.SamplesSequence):
+    def __init__(
+        self, grabber: Grabber, sequence: pls.SamplesSequence, no_return: bool
+    ):
         self._grabber = grabber
         self._sequence = sequence
+        self._no_return = no_return
         self._pool = None
 
     def __enter__(self):
@@ -50,15 +58,16 @@ class _GrabContext:
         runner = self._pool.__enter__()
 
         worker = _GrabWorker(self._sequence)
+        fn = worker._noreturn_worker_fn if self._no_return else worker._worker_fn
 
         if self._grabber.keep_order:
             return runner.imap(
-                worker._worker_fn,
+                fn,
                 range(len(self._sequence)),
                 chunksize=self._grabber.prefetch,
             )
         return runner.imap_unordered(
-            worker._worker_fn,
+            fn,
             range(len(self._sequence)),
             chunksize=self._grabber.prefetch,
         )
@@ -75,10 +84,11 @@ def grab_all(
     track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
     sample_fn: t.Optional[t.Callable[[pls.Sample], None]] = None,
 ):
+    no_return = sample_fn is None
     if track_fn is None:
         track_fn = lambda x: x  # noqa: E731
     if sample_fn is None:
         sample_fn = lambda x: None  # noqa: E731
-    with grabber(sequence) as gseq:
+    with grabber(sequence, no_return) as gseq:
         for sample in track_fn(gseq):
             sample_fn(sample)
