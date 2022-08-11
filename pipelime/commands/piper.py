@@ -7,6 +7,24 @@ from pydantic import Field
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
+def _get_command(cmd) -> PipelimeCommand:
+    from pipelime.cli.utils import PipelimeSymbolsHelper
+
+    if isinstance(cmd, PipelimeCommand):
+        return cmd
+
+    cmd_name, cmd_args = next(iter(cmd.items()))
+
+    cmd_cls = PipelimeSymbolsHelper.get_command(cmd_name)
+    if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
+        PipelimeSymbolsHelper.show_error_and_help(
+            cmd_name, should_be_cmd=True, should_be_op=False, should_be_stage=False
+        )
+        raise ValueError(f"{cmd_name} is not a pipelime command.")
+    cmd_cls = cmd_cls[1]
+    return cmd_cls() if cmd_args is None else cmd_cls(**cmd_args)
+
+
 class RunCommand(PipelimeCommand, title="run"):
     """Executes a DAG of pipelime commands."""
 
@@ -21,6 +39,12 @@ class RunCommand(PipelimeCommand, title="run"):
             "while `<args>` is a mapping of its arguments."
         ),
         piper_port=PiperPortType.INPUT,
+    )
+    include: t.Union[str, t.Sequence[str], None] = Field(
+        None, description="Nodes not in this list are not run."
+    )
+    exclude: t.Union[str, t.Sequence[str], None] = Field(
+        None, description="Nodes in this list are not run."
     )
     token: t.Optional[str] = Field(
         None,
@@ -40,23 +64,6 @@ class RunCommand(PipelimeCommand, title="run"):
         piper_port=PiperPortType.OUTPUT,
     )
 
-    def _get_command(self, cmd) -> PipelimeCommand:
-        from pipelime.cli.utils import PipelimeSymbolsHelper
-
-        if isinstance(cmd, PipelimeCommand):
-            return cmd
-
-        cmd_name, cmd_args = next(iter(cmd.items()))
-
-        cmd_cls = PipelimeSymbolsHelper.get_command(cmd_name)
-        if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
-            PipelimeSymbolsHelper.show_error_and_help(
-                cmd_name, should_be_cmd=True, should_be_op=False, should_be_stage=False
-            )
-            raise ValueError(f"{cmd_name} is not a pipelime command.")
-        cmd_cls = cmd_cls[1]
-        return cmd_cls() if cmd_args is None else cmd_cls(**cmd_args)
-
     def run(self):
         import uuid
 
@@ -67,7 +74,19 @@ class RunCommand(PipelimeCommand, title="run"):
         if not self.token:
             self.token = uuid.uuid1().hex
 
-        nodes = {name: self._get_command(cmd) for name, cmd in self.nodes.items()}
+        inc_n = [self.include] if isinstance(self.include, str) else self.include
+        exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
+
+        def _node_to_run(node: str) -> bool:
+            return (inc_n is None or node in inc_n) and (
+                exc_n is None or node not in exc_n
+            )
+
+        nodes = {
+            name: _get_command(cmd)
+            for name, cmd in self.nodes.items()
+            if _node_to_run(name)
+        }
         dag = DAGModel(nodes=nodes)
         graph = DAGNodesGraph.build_nodes_graph(dag)
         executor = NodesGraphExecutorFactory.get_executor(watch=self.watch)
@@ -81,11 +100,23 @@ class DrawCommand(PipelimeCommand, title="draw"):
         GRAPHVIZ = "graphviz"
         MERMAID = "mermaid"
 
-    nodes: t.Mapping[str, PipelimeCommand] = Field(
+    nodes: t.Mapping[
+        str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
+    ] = Field(
         ...,
         alias="n",
-        description="A Piper DAG as a `<node>: <command>` mapping.",
+        description=(
+            "A DAG of commands as a `<node>: <command>` mapping. The command can be a "
+            "`<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split` etc, "
+            "while `<args>` is a mapping of its arguments."
+        ),
         piper_port=PiperPortType.INPUT,
+    )
+    include: t.Union[str, t.Sequence[str], None] = Field(
+        None, description="Nodes not in this list are not run."
+    )
+    exclude: t.Union[str, t.Sequence[str], None] = Field(
+        None, description="Nodes in this list are not run."
     )
     output: t.Optional[Path] = Field(
         None,
@@ -123,7 +154,20 @@ class DrawCommand(PipelimeCommand, title="draw"):
             else:  # linux variants #TODO: verify!
                 subprocess.call(("xdg-open", filename))
 
-        dag = DAGModel(nodes=self.nodes)
+        inc_n = [self.include] if isinstance(self.include, str) else self.include
+        exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
+
+        def _node_to_run(node: str) -> bool:
+            return (inc_n is None or node in inc_n) and (
+                exc_n is None or node not in exc_n
+            )
+
+        nodes = {
+            name: _get_command(cmd)
+            for name, cmd in self.nodes.items()
+            if _node_to_run(name)
+        }
+        dag = DAGModel(nodes=nodes)
         graph = DAGNodesGraph.build_nodes_graph(dag)
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
 

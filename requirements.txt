@@ -16,3 +16,6 @@ pydantic
 schema
 pyzmq
 dictquery
+minio
+pygraphviz
+requests
