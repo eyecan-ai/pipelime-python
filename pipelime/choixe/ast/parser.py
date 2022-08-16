@@ -261,12 +261,15 @@ class Parser:
         if token.name == "str":
             return c_ast.LiteralNode(token.args[0])
 
-        for schema, fn in self._call_forms.items():
-            if schema.is_valid(token):
-                args = [self.parse(x) for x in token.args]
-                kwargs = {k: self.parse(v) for k, v in token.kwargs.items()}
-                node = fn(*args, **kwargs)
-                return node
+        try:
+            for schema, fn in self._call_forms.items():
+                if schema.is_valid(token):
+                    args = [self.parse(x) for x in token.args]
+                    kwargs = {k: self.parse(v) for k, v in token.kwargs.items()}
+                    node = fn(*args, **kwargs)
+                    return node
+        except TypeError:
+            raise ChoixeStructValidationError(token)
 
         raise ChoixeTokenValidationError(token)
 
