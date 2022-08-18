@@ -5,6 +5,7 @@ from pipelime.commands.general import (
     AddRemoteCommand,
     RemoveRemoteCommand,
     ValidateCommand,
+    MapCommand,
 )
 from pipelime.commands.shell import ShellCommand
 from pipelime.commands.split_ops import (
