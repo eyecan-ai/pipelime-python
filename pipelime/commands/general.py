@@ -453,3 +453,49 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         self.output_cmd_line_schema = ValidateCommand.OutputCmdLineSchema(
             schema_def=through_json
         )
+
+
+class MapCommand(PipelimeCommand, title="map"):
+    """Apply a stage on a dataset."""
+
+    stage: t.Union[str, t.Mapping[str, t.Mapping[str, t.Any]]] = pyd.Field(
+        ...,
+        description=(
+            "A stage to apply. Can be a stage name/class_path (with no arguments) or "
+            "a dictionary with the stage name/class_path as key and the arguments "
+            "passed by keywords."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
+
+    def run(self):
+        seq = self.input.create_reader()
+        seq = seq.map(
+            self.stage if isinstance(self.stage, t.Mapping) else {self.stage: {}}
+        )
+        seq = self.output.append_writer(seq)
+        with self.output.serialization_cm():
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_cmd=self,
+                track_message=f"Mapping data ({len(seq)} samples)",
+            )

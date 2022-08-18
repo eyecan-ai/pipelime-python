@@ -254,7 +254,13 @@ class SamplesSequence(
         """
         ...
 
-    def map(self, stage: "pipelime.stages.SampleStage") -> SamplesSequence:  # type: ignore # noqa: E602,F821
+    def map(
+        self,
+        stage: t.Union[
+            "pipelime.stages.SampleStage",  # type: ignore # noqa: E602,F821
+            t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]],
+        ],
+    ) -> SamplesSequence:
         """Applies a stage on all samples.
         Run `pipelime help map` to read the complete documentation.
         """
