@@ -327,3 +327,14 @@ class TestParserRaise:
         expr = {"$directive": "var", "$args": ["$var(one.two)"], "$kwargs": {}}
         with pytest.raises(ChoixeParsingError):
             parse(expr)
+
+    def test_var_inline_list_without_quotes(self):
+        from yaml import safe_load
+        from io import StringIO
+
+        # Never do this btw
+        yaml_expr = """a: [ $var(one.two.three, default=10) ]"""
+
+        loaded = safe_load(StringIO(yaml_expr))
+        with pytest.raises(ChoixeParsingError):
+            parse(loaded)
