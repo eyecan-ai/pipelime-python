@@ -72,7 +72,9 @@ class RichTableListenerCallback(ListenerCallback):
             table.add_row(
                 op.node,
                 op.message,
-                self._percentage_string(prog.progress / op.total),
+                self._percentage_string(
+                    prog.progress / op.total if op.total != 0 else 1.0
+                ),
                 datetime.fromtimestamp(est.start_time).strftime("%Y-%m-%d %H:%M:%S"),
                 str(timedelta(seconds=round(est.elapsed))),
                 "N.A." if est.speed < 0 else str(round(est.speed, 2)),
