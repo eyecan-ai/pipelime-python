@@ -83,7 +83,9 @@ class DataStream(
                 x = x.extract_keys(*self._curr_keys)
             return x
 
-    input_sequence: SamplesSequence = Field(..., description="Input data sequence.")
+    input_sequence: t.Optional[SamplesSequence] = Field(
+        None, description="Input data sequence."
+    )
     output_pipe: t.Union[
         str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
     ] = Field(..., description="Output data pipe.")

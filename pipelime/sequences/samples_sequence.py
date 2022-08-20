@@ -108,6 +108,16 @@ class SamplesSequence(
 
         return TorchDataset(self)
 
+    def batch(self, batch_size: int, drop_last: bool = False, fill: Sample = Sample()):
+        """Returns a zip-like object to get batches of samples. If the number of
+        samples is not a multiple of batch_size and `drop_last` is False,
+        the last batch will be filled with `fill`.
+        """
+        src_iters = [iter(self)] * batch_size
+        if drop_last:
+            return zip(*src_iters)
+        return itertools.zip_longest(*src_iters, fillvalue=fill)
+
     def run(
         self,
         *,

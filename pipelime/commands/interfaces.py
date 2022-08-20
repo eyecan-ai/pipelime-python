@@ -108,7 +108,26 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
         parent_cmd=None,
         track_message: str = "",
         sample_fn=None,
+        size: t.Optional[int] = None,
     ):
+        """Runs the grabber on a sequence.
+        NB: `sample_fn` always runs on the main process and may take just the sample
+        or the sample and its index.
+
+        Args:
+            sequence: the sequence to grab, usually a SamplesSequence.
+            keep_order (bool, optional): if True, `sample_fn` will always receive the
+                sample in the correct order. Defaults to False.
+            parent_cmd (_type_, optional): the pipelime command running the grabber is
+                needed to correctly setup the progress bar. Defaults to None.
+            track_message (str, optional): a message shown next to the progress bar.
+                Defaults to "".
+            sample_fn (_type_, optional): an optional function to run on each grabbed
+                element, usually a Sample. The signature may be (elem) or (elem, index).
+                Defaults to None.
+            size (t.Optional[int], optional): the size of the sequence. If not given,
+                `len(sequence)` is evaluated. Defaults to None.
+        """
         from pipelime.sequences import Grabber, grab_all
 
         grabber = Grabber(
@@ -118,10 +137,14 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
             None
             if parent_cmd is None
             else (
-                lambda x: parent_cmd.track(x, size=len(sequence), message=track_message)
+                lambda x: parent_cmd.track(
+                    x,
+                    size=len(sequence) if size is None else size,
+                    message=track_message,
+                )
             )
         )
-        grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn)
+        grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn, size=size)
 
 
 class ItemValidationModel(pyd.BaseModel, extra="forbid"):
@@ -283,6 +306,15 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
             lazy=self.lazy,
             max_samples=self.max_samples,
         )
+
+    def as_pipe(self):
+        return {
+            "validate_samples": {
+                "sample_schema": self._schema_model,
+                "lazy": self.lazy,
+                "max_samples": self.max_samples,
+            }
+        }
 
 
 class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
@@ -499,6 +531,17 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
         if self.schema_ is not None:
             writer = self.schema_.append_validator(writer)
         return writer
+
+    def as_pipe(self):
+        return {
+            "to_underfolder": {
+                "folder": self.folder,
+                "zfill": self.zfill,
+                "exists_ok": self.exists_ok,
+                "key_serialization_mode": self.serialization.keys,
+            },
+            **({} if self.schema_ is None else self.schema_.as_pipe()),
+        }
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
