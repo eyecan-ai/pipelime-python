@@ -57,7 +57,11 @@ def build_pipe(
     :return: the pipeline
     :rtype: SamplesSequence
     """
-    for op_item in pipe_list if isinstance(pipe_list, t.Sequence) else [pipe_list]:
+    for op_item in (
+        pipe_list
+        if isinstance(pipe_list, t.Sequence) and not isinstance(pipe_list, str)
+        else [pipe_list]
+    ):
         source = _build_op(source, op_item)
     return (
         source
