@@ -4,6 +4,8 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 import typer
 
+from pipelime.cli.subcommands import SubCommands as subc
+
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
     print_command_op_stage_info,
@@ -331,17 +333,25 @@ def pl_main(  # noqa: C901
             "a `package.module.ClassName` class path or "
             "a `path/to/module.py:ClassName` uri (use with care).\n\n"
             "\b\nSpecial commands:\n"
-            "- `list` shows commands and operators\n"
-            "- `audit` inspects configuration and context\n "
+            f"- `{subc.LIST.value}` shows commands and operators"
+            "\n"
+            f"- `{subc.AUDIT.value}` inspects configuration and context"
+            "\n"
+            f"- `{subc.EXEC.value}` execute a configuration "
+            "where the command is the top-level key\n "
         ),
         autocompletion=PipelimeSymbolsHelper.complete_name(
             is_cmd=True,
             is_seq_op=False,
             is_stage=False,
             additional_names=[
-                ("list", "show commands, operators and stages"),
-                ("audit", "inspect configuration and context"),
-                ("help", "show help for a command, an operator or a stage"),
+                (subc.LIST.value, "show commands, operators and stages"),
+                (subc.AUDIT.value, "inspect configuration and context"),
+                (
+                    subc.EXEC.value,
+                    ("execute a configuration where the command is the top-level key"),
+                ),
+                (subc.HELP.value, "show help for a command, an operator or a stage"),
             ],
         ),
     ),
@@ -379,19 +389,19 @@ def pl_main(  # noqa: C901
     if command_args is None:
         command_args = []
 
-    if help or command == "help" or "help" in command_args:
-        if command and command != "help":
+    if help or command == subc.HELP.value or subc.HELP.value in command_args:
+        if command and command != subc.HELP.value:
             print_command_op_stage_info(command)
         elif command_args:
             print_command_op_stage_info(command_args[0])
         else:
             print(ctx.get_help())
-    elif command == "list":
+    elif command == subc.LIST.value:
         print_commands_ops_stages_list(verbose)
     elif command:
         from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
-        from pipelime.cli.pretty_print import print_error, print_info
+        from pipelime.cli.pretty_print import print_error, print_warning, print_info
 
         if verbose:
             print_info(
@@ -438,7 +448,7 @@ def pl_main(  # noqa: C901
             data=base_ctx, cwd=Path.cwd() if context is None else context.parent
         )
 
-        if command == "audit":
+        if command == subc.AUDIT.value:
             from dataclasses import fields
 
             print_info("\n\U0001F4C4 CONFIGURATION AUDIT\n")
@@ -488,7 +498,23 @@ def pl_main(  # noqa: C901
             for idx, cfg in enumerate(effective_configs):
                 if verbose and cfg_size > 1:
                     print_info(f"*** CONFIGURATION {idx}/{cfg_size} ***")
-                run_command(command, cfg.to_dict(), verbose, dry_run)
+                cfg_dict = cfg.to_dict()
+                cmd_name = command
+
+                if cmd_name == subc.EXEC.value:
+                    if len(cfg_dict) == 0:
+                        print_error("No command specified.")
+                        raise typer.Exit(1)
+                    if len(cfg_dict) > 1:
+                        print_error("Multiple commands found.")
+                        print_warning(
+                            "You should use the `run` command to process a dag."
+                        )
+                        raise typer.Exit(1)
+                    cmd_name = next(iter(cfg_dict))
+                    cfg_dict = next(iter(cfg_dict.values()))
+
+                run_command(cmd_name, cfg_dict, verbose, dry_run)
     else:
         from pipelime.cli.pretty_print import print_error
 
