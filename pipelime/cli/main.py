@@ -238,7 +238,13 @@ def _dict_update(to_be_updated: t.MutableMapping, data: t.Mapping):
         to_be_updated[k] = v
 
 
-def _process_cfg_or_die(cfg, ctx, run_all: t.Optional[bool], output: t.Optional[Path]):
+def _process_cfg_or_die(
+    cfg,
+    ctx,
+    run_all: t.Optional[bool],
+    output: t.Optional[Path],
+    exit_on_error: bool = True,
+):
     from pipelime.cli.pretty_print import print_error
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
@@ -249,8 +255,10 @@ def _process_cfg_or_die(cfg, ctx, run_all: t.Optional[bool], output: t.Optional[
             else cfg.process_all(ctx)
         )
     except ChoixeProcessingError as e:
-        print_error(f"Invalid configuration! {e}")
-        raise typer.Exit(1)
+        if exit_on_error:
+            print_error(f"Invalid configuration! {e}")
+            raise typer.Exit(1)
+        raise e
 
     if output is not None:
         zero_fill = len(str(len(effective_configs) - 1))
@@ -450,19 +458,62 @@ def pl_main(  # noqa: C901
 
         if command == subc.AUDIT.value:
             from dataclasses import fields
+            from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
             print_info("\n\U0001F4C4 CONFIGURATION AUDIT\n")
-            data = base_cfg.inspect()
-            for field in fields(data):
-                value = getattr(data, field.name)
+            inspect_info = base_cfg.inspect()
+            for field in fields(inspect_info):
+                value = getattr(inspect_info, field.name)
                 print_info(f"\U0001F50D {field.name}:")
                 if value or isinstance(value, bool):
                     print_info(value, pretty=True)
 
             print_info("\n\U0001F4C4 CONTEXT AUDIT\n")
             print_info(base_ctx.to_dict(), pretty=True)
+            print_info("")
 
-            effective_configs = _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
+            try:
+                effective_configs = _process_cfg_or_die(
+                    base_cfg, base_ctx, run_all, output, False
+                )
+            except ChoixeProcessingError as e:
+                from rich.prompt import Prompt, Confirm
+                import yaml
+
+                print_warning("Some variables are not defined in the context.")
+                if not Confirm.ask(
+                    "Do you want to create a new context?", default=True
+                ):
+                    print_error(f"Invalid configuration! {e}")
+                    raise typer.Exit(1)
+
+                print_info("\n\U0001F4DD Please enter a value for each variable")
+
+                new_ctx = XConfig()
+                for var, val in inspect_info.variables.items():
+                    default_value = base_ctx.deep_get(var, default=...)
+                    if default_value == ...:
+                        if val is not None:
+                            default_value = str(val)
+                    else:
+                        default_value = str(default_value)
+                    val = Prompt.ask(f"{var}", default=default_value)
+                    new_ctx.deep_set(var, val, only_valid_keys=False)
+
+                print_info("\n\u2728 CONTEXT YAML")
+                print_info("---")
+                print_info(yaml.safe_dump(new_ctx.decode()))
+
+                print_info("Processing configuration and context...", end="")
+                effective_configs = _process_cfg_or_die(
+                    base_cfg, new_ctx, run_all, output
+                )
+                print_info(" OK")
+
+                outfile = Prompt.ask("\n\U0001F4BE Write to (leave empty to not skip)")
+                if outfile:
+                    new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
+
             pls = "s" if len(effective_configs) != 1 else ""
             print_info(
                 "\U0001F389 Configuration successfully processed "

@@ -23,33 +23,37 @@ def _parameter_icon():
     return "\U0001F4D0"
 
 
-def print_debug(val, *, pretty: bool = False):
+def print_debug(val, *, pretty: bool = False, end: str = "\n"):
     get_console().print(
         Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
         style="italic grey50",
+        end=end,
     )
 
 
-def print_info(val, *, pretty: bool = False):
+def print_info(val, *, pretty: bool = False, end: str = "\n"):
     get_console().print(
         Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
         style="cyan",
+        end=end,
     )
 
 
-def print_warning(val, *, pretty: bool = False):
+def print_warning(val, *, pretty: bool = False, end: str = "\n"):
     get_console().print(
         "[bold blink]WARNING:[/bold blink]",
         Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
         style="orange1",
+        end=end,
     )
 
 
-def print_error(val, *, pretty: bool = False):
+def print_error(val, *, pretty: bool = False, end: str = "\n"):
     get_console().print(
         "[bold blink]ERROR:[/bold blink]",
         Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
         style="dark_red on white",
+        end=end,
     )
 
 
