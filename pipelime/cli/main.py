@@ -579,14 +579,13 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     """
 
     import time
-    from datetime import timedelta
 
     from pipelime.cli.pretty_print import (
         print_info,
         print_command_outputs,
     )
     from pipelime.piper import PipelimeCommand
-    from pipelime.cli.utils import PipelimeSymbolsHelper
+    from pipelime.cli.utils import PipelimeSymbolsHelper, time_to_str
 
     cmd_cls = PipelimeSymbolsHelper.get_command(command)
     if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
@@ -609,11 +608,11 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     if verbose:
         print_info(f"\nRunning `{command}`...")
 
-    start_time = time.monotonic()
+    start_time = time.perf_counter_ns()
     if not dry_run:
         cmd_obj()
-    end_time = time.monotonic()
-    print_info(f"\nCommand executed in {timedelta(seconds=end_time - start_time)}")
+    end_time = time.perf_counter_ns()
+    print_info("\nCommand executed in " + time_to_str(end_time - start_time))
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)

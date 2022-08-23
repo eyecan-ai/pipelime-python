@@ -159,6 +159,11 @@ def _field_row(
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
+    has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
+    field_outer_type = field.outer_type_
+
+    if is_model and has_root_item:
+        field_outer_type = field.outer_type_.__fields__["__root__"].outer_type_
 
     if show_piper_port:
         from pipelime.piper import PiperPortType
@@ -192,8 +197,8 @@ def _field_row(
             else "",
             (
                 ""
-                if is_model
-                else display_as_type(field.outer_type_).replace("[", r"\[")
+                if is_model and not has_root_item
+                else display_as_type(field_outer_type).replace("[", r"\[")
             ),
         ]
         + ([fport] if fport else [])
@@ -206,9 +211,9 @@ def _field_row(
 
     grid.add_row(*line)
 
-    if is_model:
+    if is_model and not has_root_item:
         _iterate_field_model(
-            model_cls=field.outer_type_,
+            model_cls=field_outer_type,
             grid=grid,
             indent=indent + indent_offs,
             indent_offs=indent_offs,
@@ -216,7 +221,7 @@ def _field_row(
             add_blank_row=False,
         )
     else:
-        inner_types = _get_inner_args(field.outer_type_)
+        inner_types = _get_inner_args(field_outer_type)
         last_types = inner_types
         while last_types:
             last_types = _get_inner_args(*last_types)

@@ -1,25 +1,136 @@
 import typing as t
-from pathlib import Path
-
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
+class TimeItCommand(PipelimeCommand, title="timeit"):
+    """Measures the average time to get a sample from a sequence."""
+
+    class OutputTime(pyd.BaseModel):
+        nanosec: int
+
+        def __repr__(self) -> str:
+            return self.__piper_repr__()
+
+        def __piper_repr__(self) -> str:
+            from pipelime.cli.utils import time_to_str
+
+            return time_to_str(self.nanosec)
+
+    input: t.Optional[
+        pl_interfaces.InputDatasetInterface
+    ] = pl_interfaces.InputDatasetInterface.pyd_field(
+        alias="i",
+        is_required=False,
+        description=(
+            "The input dataset. If None, the first operation "
+            "must be a sequence generator."
+        ),
+        piper_port=PiperPortType.INPUT,
+    )
+
+    output: t.Optional[
+        pl_interfaces.OutputDatasetInterface
+    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
+        alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
+    )
+
+    operations: t.Optional[pl_interfaces.YamlInput] = pyd.Field(
+        None,
+        alias="op",
+        description=(
+            "An optional pipeline to run or a path to a YAML/JSON file as "
+            "<filepath>[:<key-path>]\n"
+            "The pipeline is defined as a mapping or a sequence of mappings where "
+            "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
+            "while the value gathers the arguments, ie, a single value, a sequence of "
+            "values or a keyword mapping."
+        ),
+    )
+
+    skip_first: pyd.NonNegativeInt = pyd.Field(
+        1, alias="s", description="Skip the first n samples."
+    )
+    max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
+        None,
+        alias="m",
+        description="Grab at most `max_samples` and take the average time.",
+    )
+    repeat: pyd.NonNegativeInt = pyd.Field(
+        0, alias="r", description="Repeat the measurement `repeat` times."
+    )
+    process: bool = pyd.Field(
+        False,
+        alias="p",
+        description=(
+            "Measure process time instead of using a performance counter clock."
+        ),
+    )
+
+    average_time: t.Optional[OutputTime] = pyd.Field(
+        None,
+        description="The average time to get a sample from the sequence.",
+        exclude=True,
+        repr=False,
+        piper_port=PiperPortType.OUTPUT,
+    )
+
+    def run(self):
+        import time
+        from pipelime.sequences import build_pipe, SamplesSequence
+
+        if self.input is None and self.operations is None:
+            raise ValueError("No input dataset or operation defined.")
+
+        clock_fn = time.process_time_ns if self.process else time.perf_counter_ns
+
+        elapsed_times = []
+        for r in range(self.repeat + 1):
+            seq = SamplesSequence if self.input is None else self.input.create_reader()
+            if self.operations is not None:
+                seq = build_pipe(self.operations.value, seq)  # type: ignore
+
+            assert isinstance(seq, SamplesSequence)
+            if self.output is not None:
+                seq = self.output.append_writer(seq)
+
+            seqit = iter(seq)
+            for s in range(self.skip_first):
+                _ = next(seqit)
+
+            if self.max_samples is None:
+                start = clock_fn()
+                for _ in seqit:
+                    pass
+                end = clock_fn()
+            else:
+                start = clock_fn()
+                for s in range(self.max_samples):
+                    _ = next(seqit)
+                end = clock_fn()
+            elapsed_times.append(end - start)
+
+        self.average_time = TimeItCommand.OutputTime(
+            nanosec=int(sum(elapsed_times) // len(elapsed_times))
+        )
+
+
 class PipeCommand(PipelimeCommand, title="pipe"):
     """A general-purpose command to build up linear pipelines."""
 
-    operations: t.Union[
-        str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
-    ] = pyd.Field(
+    operations: pl_interfaces.YamlInput = pyd.Field(
         ...,
         alias="op",
-        description="The pipeline to run or a path to a YAML/JSON file "
-        "(use <filepath>:<key-path> to load the definitions from a pydash-like path).\n"
-        "The pipeline is defined as a mapping or a sequence of mappings where "
-        "each key is a sequence operator to run, while the value gathers "
-        "the arguments, ie, a single value, a sequence of values or a mapping.",
+        description=(
+            "The pipeline to run or a path to a YAML/JSON file as "
+            "<filepath>[:<key-path>]\n"
+            "The pipeline is defined as a mapping or a sequence of mappings where "
+            "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
+            "while the value gathers the arguments, ie, a single value, a sequence of "
+            "values or a keyword mapping."
+        ),
     )
 
     input: t.Optional[
@@ -33,57 +144,27 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         ),
         piper_port=PiperPortType.INPUT,
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     output: pl_interfaces.OutputDatasetInterface = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
             alias="o", piper_port=PiperPortType.OUTPUT
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
-
-    _pipe_list: t.Union[
-        str, t.Mapping[str, t.Any], t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]
-    ] = pyd.PrivateAttr()
 
     def __init__(self, **data):
-        import pydash as py_
-        import yaml
-
         super().__init__(**data)
-
-        if isinstance(self.operations, str):
-            filepath, _, root_key = (
-                self.operations.rpartition(":")
-                if ":" in self.operations
-                else (self.operations, None, None)
-            )
-            filepath = Path(filepath)
-            if filepath.exists():
-                with filepath.open() as f:
-                    self._pipe_list = yaml.safe_load(f)
-                    if root_key is not None:
-                        self._pipe_list = py_.get(  # type: ignore
-                            self._pipe_list, root_key, default=None
-                        )
-            else:
-                self._pipe_list = yaml.safe_load(str(self.operations))
-        else:
-            self._pipe_list = self.operations
-
-        if not self._pipe_list:
+        if not self.operations:
             raise ValueError(f"Invalid pipeline: {self.operations}")
 
     def run(self):
         from pipelime.sequences import build_pipe, SamplesSequence
 
-        seq = self.input.create_reader() if self.input is not None else SamplesSequence
-        seq = build_pipe(self._pipe_list, seq)
+        seq = SamplesSequence if self.input is None else self.input.create_reader()
+        seq = build_pipe(self.operations.value, seq)  # type: ignore
         seq = self.output.append_writer(seq)
 
         with self.output.serialization_cm():
@@ -104,19 +185,16 @@ class CloneCommand(PipelimeCommand, title="clone"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     output: pl_interfaces.OutputDatasetInterface = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
             alias="o", piper_port=PiperPortType.OUTPUT
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         seq = self.input.create_reader()
@@ -138,19 +216,16 @@ class ConcatCommand(PipelimeCommand, title="cat"):
     ] = pl_interfaces.InputDatasetInterface.pyd_field(
         alias="i", piper_port=PiperPortType.INPUT
     )
-    _inputs_validator = pl_interfaces.InputDatasetInterface.pyd_validator("inputs")
 
     output: pl_interfaces.OutputDatasetInterface = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
             alias="o", piper_port=PiperPortType.OUTPUT
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     @pyd.validator("inputs")
     def check_inputs(cls, v):
@@ -181,12 +256,10 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     remotes: t.Union[
         pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
     ] = pl_interfaces.RemoteInterface.pyd_field(alias="r")
-    _remotes_validator = pl_interfaces.RemoteInterface.pyd_validator("remotes")
 
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         default_factory=list,
@@ -202,12 +275,10 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
         description="Optional output dataset with remote items.",
         piper_port=PiperPortType.OUTPUT,
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     @pyd.validator("remotes", "keys")
     def validate_remotes(cls, v):
@@ -250,12 +321,10 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     remotes: t.Union[
         pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
     ] = pl_interfaces.RemoteInterface.pyd_field(alias="r")
-    _remotes_validator = pl_interfaces.RemoteInterface.pyd_validator("remotes")
 
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         default_factory=list,
@@ -270,12 +339,10 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
             alias="o", piper_port=PiperPortType.OUTPUT
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     @pyd.validator("remotes", "keys")
     def validate_remotes(cls, v):
@@ -373,7 +440,6 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     max_samples: int = pyd.Field(
         0,
@@ -390,7 +456,6 @@ class ValidateCommand(PipelimeCommand, title="validate"):
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
         None,
@@ -472,19 +537,16 @@ class MapCommand(PipelimeCommand, title="map"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     output: pl_interfaces.OutputDatasetInterface = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
             alias="o", piper_port=PiperPortType.OUTPUT
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         seq = self.input.create_reader()

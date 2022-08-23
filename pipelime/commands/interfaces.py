@@ -6,62 +6,52 @@ from urllib.parse import ParseResult
 import pydantic as pyd
 
 
-def _iter_field(
-    model_cls, values, field_name: str, create_fn: t.Callable[[t.Any], t.Any]
-):
-    def _as_list(v):
-        if not isinstance(v, t.Sequence) or isinstance(v, (str, bytes)):
-            return [v]
-        return v
+class PydanticFieldMixinBase:
+    # override in derived clasess
+    _default_type_description: t.ClassVar[t.Optional[str]] = None
+    _compact_form: t.ClassVar[t.Optional[str]] = None
 
-    updated_values = None
-    alias = model_cls.__fields__.get(field_name).alias
-    for key in (field_name, alias):
-        if key in values:
-            raw_value = values.pop(key)
-            if isinstance(raw_value, t.Sequence) and not isinstance(
-                raw_value, (str, bytes)
-            ):
-                curr = [create_fn(val) for val in raw_value]
-            else:
-                curr = create_fn(raw_value)
-            if updated_values is None:
-                updated_values = curr
-            else:
-                updated_values = _as_list(updated_values) + _as_list(curr)
-    if updated_values is not None:
-        values[field_name] = updated_values
-    return values
+    @classmethod
+    def _description(cls, user_desc: t.Optional[str]) -> t.Optional[str]:
+        desc_list = []
+        if user_desc is None:
+            user_desc = cls._default_type_description
+            if user_desc is not None:
+                desc_list.append(user_desc)
+            elif cls._compact_form is None:
+                return None
+        if cls._compact_form is not None:
+            desc_list.append(f"-----Compact form: `{cls._compact_form}`")
+        return "\n".join(desc_list)
 
 
-def _make_root_validator(field_name: str, create_fn: t.Callable[[t.Any], t.Any]):
-    import uuid
-
-    # we need random names and dynamic function creation
-    # to avoid reusing the same function name for validators
-    # (yes, pydantic is really pedantic...)
-    rnd_name = uuid.uuid1().hex
-
-    _validator_wrapper = (
-        "@classmethod\n"
-        + "def validate_{}_fn(cls, values):\n".format(rnd_name)
-        + "    return _iter_field(cls, values, _field_name, _create_fn)\n"
-    )
-
-    local_scope = {
-        **globals(),
-        "_field_name": field_name,
-        "_iter_field": _iter_field,
-        "_create_fn": create_fn,
-    }
-    exec(_validator_wrapper, local_scope)
-    fn_helper = local_scope[f"validate_{rnd_name}_fn"]
-
-    return pyd.root_validator(pre=True)(fn_helper)
+class PydanticFieldWithDefaultMixin(PydanticFieldMixinBase):
+    @classmethod
+    def pyd_field(cls, *, description: t.Optional[str] = None, **kwargs):
+        return pyd.Field(
+            default_factory=cls,  # type: ignore
+            description=cls._description(description),  # type: ignore
+            **kwargs,
+        )
 
 
-class GrabberInterface(pyd.BaseModel, extra="forbid"):
+class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
+    @classmethod
+    def pyd_field(
+        cls, *, is_required: bool = True, description: t.Optional[str] = None, **kwargs
+    ):
+        return pyd.Field(
+            ... if is_required else None,
+            description=cls._description(description),  # type: ignore
+            **kwargs,
+        )
+
+
+class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
     """Multiprocessing grabbing options."""
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "Grabber options."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<num_workers>[,<prefetch>]"
 
     num_workers: int = pyd.Field(
         0,
@@ -74,31 +64,29 @@ class GrabberInterface(pyd.BaseModel, extra="forbid"):
         2, description="The number of samples loaded in advanced by each worker."
     )
 
-    @staticmethod
-    def pyd_field(*, description: str = "Grabber options.", **kwargs):
-        return pyd.Field(
-            default_factory=GrabberInterface,  # type: ignore
-            description=description
-            + "\n-----Compact form: `<num_workers>[,<prefetch>]`",
-            **kwargs,
-        )
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes, int)):
-                data = {}
-                if isinstance(val, int):
-                    data["num_workers"] = val
-                else:
-                    wrks, _, pf = str(val).partition(",")
-                    data["num_workers"] = int(wrks)
-                    if pf:
-                        data["prefetch"] = int(pf)
-                return GrabberInterface(**data)
-            return val
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, GrabberInterface):
+            return value
 
-        return _make_root_validator(field_name, _create_fn)
+        if isinstance(value, (str, bytes, int)):
+            data = {}
+            if isinstance(value, int):
+                data["num_workers"] = value
+            else:
+                wrks, _, pf = str(value).partition(",")
+                data["num_workers"] = int(wrks)
+                if pf:
+                    data["prefetch"] = int(pf)
+            value = data
+
+        if isinstance(value, t.Mapping):
+            return GrabberInterface(**value)
+        raise ValueError("Invalid grabber definition.")
 
     def grab_all(
         self,
@@ -317,8 +305,11 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
         }
 
 
-class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
+class InputDatasetInterface(PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="forbid"):
     """Input dataset options."""
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "Input dataset."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<folder>[,<skip_empty>]"
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
     merge_root_items: bool = pyd.Field(
@@ -338,35 +329,31 @@ class InputDatasetInterface(pyd.BaseModel, extra="forbid"):
         # see https://bugs.python.org/issue38671
         return v.resolve().absolute()
 
-    @staticmethod
-    def pyd_field(
-        *, is_required: bool = True, description: str = "Input dataset.", **kwargs
-    ):
-        return pyd.Field(
-            ... if is_required else None,
-            description=description + "\n-----Compact form: `<folder>[,<skip_empty>]`",
-            **kwargs,
-        )
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes)):
-                data = {}
-                fld, _, sk_emp = str(val).partition(",")
-                data["folder"] = fld
-                if sk_emp:
-                    # NB: the value is left as-is when it is not True nor False
-                    # to raise an error on validation
-                    data["skip_empty"] = (
-                        True
-                        if sk_emp.lower() == "true"
-                        else (False if sk_emp.lower() == "false" else sk_emp)
-                    )
-                return InputDatasetInterface(**data)
-            return val
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, InputDatasetInterface):
+            return value
 
-        return _make_root_validator(field_name, _create_fn)
+        if isinstance(value, (str, bytes)):
+            fld, _, sk_emp = str(value).partition(",")
+            data: t.Mapping[str, t.Any] = {"folder": fld}
+            if sk_emp:
+                # NB: the value is left as-is when it is not True nor False
+                # to raise an error on validation
+                data["skip_empty"] = (  # type: ignore
+                    True
+                    if sk_emp.lower() == "true"
+                    else (False if sk_emp.lower() == "false" else sk_emp)
+                )
+            value = data
+
+        if isinstance(value, t.Mapping):
+            return InputDatasetInterface(**value)
+        raise ValueError("Invalid input dataset definition.")
 
     def create_reader(self):
         from pipelime.sequences import SamplesSequence
@@ -461,8 +448,15 @@ class SerializationModeInterface(
             cm.__exit__(exc_type, exc_value, traceback)
 
 
-class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
+class OutputDatasetInterface(
+    PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="forbid"
+):
     """Output dataset options."""
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "Output dataset."
+    _compact_form: t.ClassVar[
+        t.Optional[str]
+    ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
     zfill: t.Optional[int] = pyd.Field(None, description="Custom index zero-filling.")
@@ -482,41 +476,37 @@ class OutputDatasetInterface(pyd.BaseModel, extra="forbid"):
         # see https://bugs.python.org/issue38671
         return v.resolve().absolute()
 
-    @staticmethod
-    def pyd_field(
-        *, is_required: bool = True, description: str = "Output dataset.", **kwargs
-    ):
-        return pyd.Field(
-            ... if is_required else None,
-            description=description
-            + "\n-----Compact form: `<folder>[,<exists_ok>[,<force_new_files>]]`",
-            **kwargs,
-        )
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes)):
-                data = {}
-                raw_data = str(val).split(",")
-                data["folder"] = raw_data[0]
-                if len(raw_data) > 1:
-                    # NB: the value is left as-is when it is not True nor False
-                    # to raise an error on validation
-                    data["exists_ok"] = (
-                        True
-                        if raw_data[1].lower() == "true"
-                        else (False if raw_data[1].lower() == "false" else raw_data[1])
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, OutputDatasetInterface):
+            return value
+
+        if isinstance(value, (str, bytes)):
+            data = {}
+            raw_data = str(value).split(",")
+            data["folder"] = raw_data[0]
+            if len(raw_data) > 1:
+                # NB: the value is left as-is when it is not True nor False
+                # to raise an error on validation
+                data["exists_ok"] = (
+                    True
+                    if raw_data[1].lower() == "true"
+                    else (False if raw_data[1].lower() == "false" else raw_data[1])
+                )
+            if len(raw_data) > 2:
+                if raw_data[2].lower() == "true":
+                    data["serialization"] = SerializationModeInterface(
+                        override={"DEEP_COPY": None}
                     )
-                if len(raw_data) > 2:
-                    if raw_data[2].lower() == "true":
-                        data["serialization"] = SerializationModeInterface(
-                            override={"DEEP_COPY": None}
-                        )
-                return OutputDatasetInterface(**data)
-            return val
+            value = data
 
-        return _make_root_validator(field_name, _create_fn)
+        if isinstance(value, t.Mapping):
+            return OutputDatasetInterface(**value)
+        raise ValueError("Invalid output dataset definition.")
 
     def serialization_cm(self) -> t.ContextManager:
         return self.serialization
@@ -579,8 +569,18 @@ class UrlDataModel(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=T
         )
 
 
-class RemoteInterface(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True):
+class RemoteInterface(
+    PydanticFieldNoDefaultMixin,
+    pyd.BaseModel,
+    extra="forbid",
+    underscore_attrs_are_private=True,
+):
     """Remote data lake options."""
+
+    _default_type_description: t.ClassVar[
+        t.Optional[str]
+    ] = "Remote data lakes addresses."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<url>"
 
     url: t.Union[str, UrlDataModel] = pyd.Field(
         ...,
@@ -592,27 +592,19 @@ class RemoteInterface(pyd.BaseModel, extra="forbid", underscore_attrs_are_privat
 
     _parsed_url: ParseResult
 
-    @staticmethod
-    def pyd_field(
-        *,
-        is_required: bool = True,
-        description: str = "Remote data lakes addresses.",
-        **kwargs,
-    ):
-        return pyd.Field(
-            ... if is_required else None,
-            description=description + "\n-----Compact form: `<url>`",
-            **kwargs,
-        )
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes)):
-                return RemoteInterface(url=str(val))
-            return val
-
-        return _make_root_validator(field_name, _create_fn)
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, RemoteInterface):
+            return value
+        if isinstance(value, (str, bytes)):
+            return RemoteInterface(url=str(value))
+        if isinstance(value, t.Mapping):
+            return RemoteInterface(**value)
+        raise ValueError("Invalid remote definition.")
 
     def __init__(self, **data):
         from urllib.parse import urlparse
@@ -686,3 +678,85 @@ class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
             max_labels=self.max_labels,
             objects_range=self.objects_range,
         )
+
+
+# cannot make recursion work with pydantic... 😭
+_yaml_base_types = t.Union[str, int, float, bool, None]
+# _yaml_mapping = t.Mapping[
+#     str, t.Union[_yaml_base_types, "_yaml_list", "_yaml_mapping"]
+# ]
+# _yaml_list = t.List[t.Union[_yaml_base_types, "_yaml_list", "_yaml_mapping"]]
+_yaml_mapping = t.Mapping[
+    str, t.Union[_yaml_base_types, t.Mapping[str, t.Any], t.Sequence]
+]
+_yaml_list = t.List[t.Union[_yaml_base_types, t.Mapping[str, t.Any], t.Sequence]]
+yaml_any_type = t.Union[_yaml_base_types, _yaml_list, _yaml_mapping]
+
+
+class YamlInput(pyd.BaseModel, extra="forbid"):
+    """General yaml/json data (str, number, mapping, list...) optionally loaded from
+    a yaml/json file, possibly with key path (format <filepath>[:<key>])."""
+
+    __root__: yaml_any_type
+
+    @property
+    def value(self):
+        return self.__root__
+
+    def __str__(self) -> yaml_any_type:
+        return str(self.__root__)
+
+    def __repr__(self) -> yaml_any_type:
+        return repr(self.__root__)
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, YamlInput):
+            return value
+        if isinstance(value, (str, bytes)):
+            value = str(value)
+            filepath, _, root_key = (
+                value.rpartition(":") if ":" in value else (value, None, None)
+            )
+            filepath = Path(filepath)
+            if filepath.exists():
+                import yaml
+                import pydash as py_
+
+                with filepath.open() as f:
+                    value = yaml.safe_load(f)
+                    if root_key is not None:
+                        value = py_.get(value, root_key, default=None)
+            return YamlInput(__root__=value)  # type: ignore
+        if cls._check_any_type(value):
+            return YamlInput(__root__=value)
+        raise ValueError(f"Invalid yaml data input: {value}")
+
+    @classmethod
+    def _check_mapping(cls, value):
+        for k, v in value.items():
+            if not isinstance(k, str):
+                return False
+            if not cls._check_any_type(v):
+                return False
+        return True
+
+    @classmethod
+    def _check_sequence(cls, value):
+        for v in value:
+            if not cls._check_any_type(v):
+                return False
+        return True
+
+    @classmethod
+    def _check_any_type(cls, value):
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return True
+        if isinstance(value, t.Mapping):
+            return cls._check_mapping(value)
+        if isinstance(value, t.Sequence):
+            return cls._check_sequence(value)

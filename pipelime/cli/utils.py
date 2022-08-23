@@ -484,3 +484,15 @@ def create_stage_from_config(
         raise ValueError(f"{stage_name} is not a pipelime stage.")
     stage_cls = stage_cls[1]
     return stage_cls() if stage_args is None else stage_cls(**stage_args)
+
+
+def time_to_str(nanosec: int) -> str:
+    from datetime import timedelta
+
+    if nanosec < 1000000000:
+        millisec = int(nanosec // 1000000)
+        nanosec -= millisec * 1000000
+        microsec = int(nanosec // 1000)
+        nanosec -= microsec * 1000
+        return f"{millisec}ms {microsec}us {nanosec}ns"
+    return str(timedelta(microseconds=nanosec / 1000))

@@ -1,4 +1,5 @@
 from pipelime.commands.general import (
+    TimeItCommand,
     PipeCommand,
     CloneCommand,
     ConcatCommand,

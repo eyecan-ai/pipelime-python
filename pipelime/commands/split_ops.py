@@ -6,7 +6,12 @@ import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
-class SplitBase(pyd.BaseModel, allow_population_by_field_name=True, extra="forbid"):
+class SplitBase(
+    pl_interfaces.PydanticFieldNoDefaultMixin,
+    pyd.BaseModel,
+    allow_population_by_field_name=True,
+    extra="forbid",
+):
     output: t.Optional[
         pl_interfaces.OutputDatasetInterface
     ] = pl_interfaces.OutputDatasetInterface.pyd_field(
@@ -14,7 +19,6 @@ class SplitBase(pyd.BaseModel, allow_population_by_field_name=True, extra="forbi
         is_required=False,
         description="Output split. Leave to None to not save to disk.",
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
@@ -24,6 +28,11 @@ class SplitBase(pyd.BaseModel, allow_population_by_field_name=True, extra="forbi
 
 
 class PercSplit(SplitBase):
+    _default_type_description: t.ClassVar[
+        t.Optional[str]
+    ] = "Percentage splits definition."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<fraction>[,<folder>]"
+
     fraction: t.Optional[float] = pyd.Field(
         ...,
         gt=0.0,
@@ -37,47 +46,43 @@ class PercSplit(SplitBase):
     def split_size(self, n_samples: int) -> t.Optional[int]:
         return int(n_samples * self.fraction) if self.fraction is not None else None
 
-    @staticmethod
-    def pyd_field(
-        *,
-        is_required: bool = True,
-        description: str = "Percentage splits definition.",
-        **kwargs,
-    ):
-        return pyd.Field(
-            ... if is_required else None,
-            description=description + "\n-----Compact form: `<fraction>[,<folder>]`",
-            **kwargs,
-        )
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes, float)):
-                data = {}
-                if isinstance(val, float):
-                    data["fraction"] = val
-                else:
-                    sz, _, fld = str(val).partition(",")
-                    try:
-                        data["fraction"] = float(sz)
-                    except ValueError:
-                        # NB: leave size as-is if not valid, it will raise an error
-                        data["fraction"] = (
-                            None if sz.lower() in ("none", "null", "nul") else sz
-                        )
-
-                    if fld:
-                        data["output"] = pl_interfaces.OutputDatasetInterface(
-                            folder=fld  # type: ignore
-                        )
-                return PercSplit(**data)
-            return val
-
-        return pl_interfaces._make_root_validator(field_name, _create_fn)
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, PercSplit):
+            return value
+        if isinstance(value, (str, bytes, float)):
+            data = {}
+            if isinstance(value, float):
+                data["fraction"] = value
+            else:
+                sz, _, fld = str(value).partition(",")
+                try:
+                    data["fraction"] = float(sz)
+                except ValueError:
+                    # NB: leave size as-is if not valid, it will raise an error
+                    data["fraction"] = (
+                        None if sz.lower() in ("none", "null", "nul") else sz
+                    )
+                if fld:
+                    data["output"] = pl_interfaces.OutputDatasetInterface(
+                        folder=fld  # type: ignore
+                    )
+            value = data
+        if isinstance(value, t.Mapping):
+            return PercSplit(**value)
+        raise ValueError("Invalid perc split definition.")
 
 
 class AbsoluteSplit(SplitBase):
+    _default_type_description: t.ClassVar[
+        t.Optional[str]
+    ] = "Absolute splits definition."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<length>[,<folder>]"
+
     length: t.Optional[pyd.PositiveInt] = pyd.Field(
         ...,
         description=(
@@ -89,94 +94,45 @@ class AbsoluteSplit(SplitBase):
     def split_size(self, *args, **kwargs) -> t.Optional[int]:
         return self.length
 
-    @staticmethod
-    def pyd_field(
-        *,
-        is_required: bool = True,
-        description: str = "Absolute splits definition.",
-        **kwargs,
-    ):
-        return pyd.Field(
-            ... if is_required else None,
-            description=description + "\n-----Compact form: `<length>[,<folder>]`",
-            **kwargs,
-        )
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes, int)):
-                data = {}
-                if isinstance(val, int):
-                    data["length"] = val
-                else:
-                    sz, _, fld = str(val).partition(",")
-                    try:
-                        data["length"] = int(sz)
-                    except ValueError:
-                        # NB: leave size as-is if not valid, it will raise an error
-                        data["length"] = (
-                            None if sz.lower() in ("none", "null", "nul") else sz
-                        )
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, AbsoluteSplit):
+            return value
+        if isinstance(value, (str, bytes, int)):
+            data = {}
+            if isinstance(value, int):
+                data["length"] = value
+            else:
+                sz, _, fld = str(value).partition(",")
+                try:
+                    data["length"] = int(sz)
+                except ValueError:
+                    # NB: leave size as-is if not valid, it will raise an error
+                    data["length"] = (
+                        None if sz.lower() in ("none", "null", "nul") else sz
+                    )
 
-                    if fld:
-                        data["output"] = pl_interfaces.OutputDatasetInterface(
-                            folder=fld  # type: ignore
-                        )
-                return AbsoluteSplit(**data)
-            return val
-
-        return pl_interfaces._make_root_validator(field_name, _create_fn)
+                if fld:
+                    data["output"] = pl_interfaces.OutputDatasetInterface(
+                        folder=fld  # type: ignore
+                    )
+            value = data
+        if isinstance(value, t.Mapping):
+            return AbsoluteSplit(**value)
+        raise ValueError("Invalid absolute split definition.")
 
 
-class SplitFacade:
-    SplitType = t.Union[
+class Splits(pl_interfaces.PydanticFieldNoDefaultMixin):
+    _default_type_description: t.ClassVar[t.Optional[str]] = "Splits definition."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<fraction|length>[,<folder>]"
+
+    any_split = t.Union[
         PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
     ]
-
-    @staticmethod
-    def pyd_field(
-        *, is_required: bool = True, description: str = "Splits definition.", **kwargs
-    ):
-        return pyd.Field(
-            ... if is_required else None,
-            description=description
-            + "\n-----Compact form: `<fraction|length>[,<folder>]`",
-            **kwargs,
-        )
-
-    @staticmethod
-    def pyd_validator(field_name: str):
-        def _create_fn(val):
-            if isinstance(val, (str, bytes, int, float)):
-                data = {}
-                if isinstance(val, int):
-                    data["length"] = val
-                elif isinstance(val, float):
-                    data["fraction"] = val
-                else:
-                    sz, _, fld = str(val).partition(",")
-                    try:
-                        data["length"] = int(sz)
-                    except ValueError:
-                        try:
-                            data["fraction"] = float(sz)
-                        except ValueError:
-                            # NB: leave size as-is if not valid, it will raise an error
-                            data["length"] = (
-                                None if sz.lower() in ("none", "null", "nul") else sz
-                            )
-
-                    if fld:
-                        data["output"] = pl_interfaces.OutputDatasetInterface(
-                            folder=fld  # type: ignore
-                        )
-                return (
-                    PercSplit(**data) if "fraction" in data else AbsoluteSplit(**data)
-                )
-            return val
-
-        return pl_interfaces._make_root_validator(field_name, _create_fn)
 
 
 class SplitCommand(PipelimeCommand, title="split"):
@@ -187,7 +143,6 @@ class SplitCommand(PipelimeCommand, title="split"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
         False,
@@ -203,15 +158,13 @@ class SplitCommand(PipelimeCommand, title="split"):
         description="Take 1-every-nth input sample. Applied after shuffling.",
     )
 
-    splits: SplitFacade.SplitType = SplitFacade.pyd_field(
+    splits: Splits.any_split = Splits.pyd_field(
         alias="s", piper_port=PiperPortType.OUTPUT
     )
-    _splits_validator = SplitFacade.pyd_validator("splits")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         reader = self.input.create_reader()
@@ -272,7 +225,6 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     query: str = pyd.Field(
         ...,
@@ -291,9 +243,6 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
         ),
         piper_port=PiperPortType.OUTPUT,
     )
-    _output_selected_validator = pl_interfaces.OutputDatasetInterface.pyd_validator(
-        "output_selected"
-    )
 
     output_discarded: t.Optional[
         pl_interfaces.OutputDatasetInterface
@@ -306,14 +255,10 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
         ),
         piper_port=PiperPortType.OUTPUT,
     )
-    _output_discarded_validator = pl_interfaces.OutputDatasetInterface.pyd_validator(
-        "output_discarded"
-    )
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         reader = self.input.create_reader()
@@ -354,7 +299,6 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
             alias="i", piper_port=PiperPortType.INPUT
         )
     )
-    _input_validator = pl_interfaces.InputDatasetInterface.pyd_validator("input")
 
     key: str = pyd.Field(
         ...,
@@ -375,12 +319,10 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
             piper_port=PiperPortType.OUTPUT,
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         import uuid

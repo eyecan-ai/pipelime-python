@@ -145,9 +145,12 @@ class DataStream(
         )
 
     def __len__(self) -> int:
-        return len(self.input_sequence)
+        return 0 if self.input_sequence is None else len(self.input_sequence)
 
     def __getitem__(self, idx: int) -> Sample:
+        if self.input_sequence is None:
+            raise IndexError("No input sequence.")
+
         x = self.input_sequence[idx]
         for v in x.values():
             v.cache_data = False  # always watch for changes

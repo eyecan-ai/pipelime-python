@@ -16,12 +16,10 @@ class ToyDatasetCommand(PipelimeCommand, title="toy_dataset"):
             alias="o", piper_port=PiperPortType.OUTPUT
         )
     )
-    _output_validator = pl_interfaces.OutputDatasetInterface.pyd_validator("output")
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    _grabber_validator = pl_interfaces.GrabberInterface.pyd_validator("grabber")
 
     def run(self):
         seq = self.toy.create_dataset_generator()
