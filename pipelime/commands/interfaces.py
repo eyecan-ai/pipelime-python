@@ -703,10 +703,10 @@ class YamlInput(pyd.BaseModel, extra="forbid"):
     def value(self):
         return self.__root__
 
-    def __str__(self) -> yaml_any_type:
+    def __str__(self) -> str:
         return str(self.__root__)
 
-    def __repr__(self) -> yaml_any_type:
+    def __repr__(self) -> str:
         return repr(self.__root__)
 
     @classmethod
