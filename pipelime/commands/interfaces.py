@@ -680,17 +680,7 @@ class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
         )
 
 
-# cannot make recursion work with pydantic... 😭
-_yaml_base_types = t.Union[str, int, float, bool, None]
-# _yaml_mapping = t.Mapping[
-#     str, t.Union[_yaml_base_types, "_yaml_list", "_yaml_mapping"]
-# ]
-# _yaml_list = t.List[t.Union[_yaml_base_types, "_yaml_list", "_yaml_mapping"]]
-_yaml_mapping = t.Mapping[
-    str, t.Union[_yaml_base_types, t.Mapping[str, t.Any], t.Sequence]
-]
-_yaml_list = t.List[t.Union[_yaml_base_types, t.Mapping[str, t.Any], t.Sequence]]
-yaml_any_type = t.Union[_yaml_base_types, _yaml_list, _yaml_mapping]
+yaml_any_type = t.Union[None, str, int, float, bool, t.Mapping[str, t.Any], t.Sequence]
 
 
 class YamlInput(pyd.BaseModel, extra="forbid"):
@@ -715,6 +705,7 @@ class YamlInput(pyd.BaseModel, extra="forbid"):
 
     @classmethod
     def validate(cls, value):
+        print(type(value))
         if isinstance(value, YamlInput):
             return value
         if isinstance(value, (str, bytes)):
@@ -736,27 +727,25 @@ class YamlInput(pyd.BaseModel, extra="forbid"):
             return YamlInput(__root__=value)
         raise ValueError(f"Invalid yaml data input: {value}")
 
-    @classmethod
-    def _check_mapping(cls, value):
-        for k, v in value.items():
-            if not isinstance(k, str):
-                return False
-            if not cls._check_any_type(v):
-                return False
-        return True
-
-    @classmethod
-    def _check_sequence(cls, value):
-        for v in value:
-            if not cls._check_any_type(v):
-                return False
-        return True
+    # @classmethod
+    # def _check_mapping(cls, value):
+    #     for k, v in value.items():
+    #         if not isinstance(k, str):
+    #             return False
+    #         if not cls._check_any_type(v):
+    #             return False
+    #     return True
+    #
+    # @classmethod
+    # def _check_sequence(cls, value):
+    #     for v in value:
+    #         if not cls._check_any_type(v):
+    #             return False
+    #     return True
 
     @classmethod
     def _check_any_type(cls, value):
-        if isinstance(value, (str, int, float, bool)) or value is None:
+        if isinstance(value, (str, int, float, bool, t.Sequence)) or value is None:
             return True
         if isinstance(value, t.Mapping):
-            return cls._check_mapping(value)
-        if isinstance(value, t.Sequence):
-            return cls._check_sequence(value)
+            return all(isinstance(k, str) for k in value)
