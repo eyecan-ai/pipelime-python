@@ -705,7 +705,6 @@ class YamlInput(pyd.BaseModel, extra="forbid"):
 
     @classmethod
     def validate(cls, value):
-        print(type(value))
         if isinstance(value, YamlInput):
             return value
         if isinstance(value, (str, bytes)):
