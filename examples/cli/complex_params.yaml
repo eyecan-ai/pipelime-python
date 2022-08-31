@@ -1,0 +1,6 @@
+params:
+  toy:
+    - name: toy1
+      length: 10
+    - name: toy2
+      length: 20

@@ -1,14 +1,14 @@
-from urllib.parse import ParseResult
-from pathlib import Path
 import typing as t
+from pathlib import Path
+from urllib.parse import ParseResult
+
 import pydantic as pyd
 
-from pipelime.sequences import Sample
-from pipelime.stages import SampleStage
 from pipelime.items import Item
+from pipelime.stages import SampleStage
 
 
-class StageUploadToRemote(SampleStage):
+class StageUploadToRemote(SampleStage, title="remote-upload"):
     """Uploads the sample to one or more remote servers."""
 
     remotes: t.Sequence[ParseResult] = pyd.Field(
@@ -22,21 +22,22 @@ class StageUploadToRemote(SampleStage):
     def unique_remotes(cls, v):
         return tuple(set(v))
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         for k, v in x.items():
             if not self.keys_to_upload or k in self.keys_to_upload:
                 v.serialize(*self.remotes)  # type: ignore
         return x
 
 
-class StageForgetSource(SampleStage):
+class StageForgetSource(SampleStage, title="forget-source"):
     """Removes data sources, ie, file paths or remotes, from items."""
 
     always_remove: t.Sequence[t.Union[Path, ParseResult]] = pyd.Field(
-        [], description="This sources will be removed from any item."
+        default_factory=list, description="This sources will be removed from any item."
     )
     remove_by_key: t.Mapping[str, t.Sequence[t.Union[Path, ParseResult]]] = pyd.Field(
-        {}, description="Sources to be removed from specific sample keys."
+        default_factory=dict,
+        description="Sources to be removed from specific sample keys.",
     )
 
     def __init__(
@@ -54,7 +55,9 @@ class StageForgetSource(SampleStage):
             always_remove=always_remove, remove_by_key=remove_by_key  # type: ignore
         )
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+        from pipelime.sequences import Sample
+
         new_data: t.Dict[str, Item] = {}
         for k, v in x.items():
             rm = self.always_remove + self.remove_by_key.get(k, tuple())  # type: ignore

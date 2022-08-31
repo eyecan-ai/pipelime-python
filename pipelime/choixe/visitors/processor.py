@@ -6,35 +6,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import pydash as py_
 
-from pipelime.choixe.ast.nodes import (
-    CmdNode,
-    DateNode,
-    DictBundleNode,
-    DictNode,
-    ForNode,
-    ImportNode,
-    IndexNode,
-    InstanceNode,
-    ItemNode,
-    ListNode,
-    LiteralNode,
-    ModelNode,
-    Node,
-    NodeVisitor,
-    StrBundleNode,
-    SweepNode,
-    TmpDirNode,
-    UuidNode,
-    VarNode,
-)
+import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
 from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors.unparser import unparse
+
+
+class ChoixeProcessingError(Exception):
+    pass
 
 
 @dataclass
@@ -43,7 +27,7 @@ class LoopInfo:
     item: Any
 
 
-class Processor(NodeVisitor):
+class Processor(ast.NodeVisitor):
     """`NodeVisitor` that implements the processing logic of Choixe."""
 
     def __init__(
@@ -70,9 +54,9 @@ class Processor(NodeVisitor):
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
-        self._tmp_name = str(uuid.uuid4())
+        self._tmp_name = uuid.uuid1().hex
 
-    def visit_dict(self, node: DictNode) -> List[Dict]:
+    def visit_dict(self, node: ast.DictNode) -> List[Dict]:
         data = [{}]
         for k, v in node.nodes.items():
             branches = list(product(k.accept(self), v.accept(self)))
@@ -84,7 +68,7 @@ class Processor(NodeVisitor):
             data = new_data
         return data
 
-    def visit_list(self, node: ListNode) -> List[List]:
+    def visit_list(self, node: ast.ListNode) -> List[List]:
         data = [[]]
         for x in node.nodes:
             branches = x.accept(self)
@@ -96,10 +80,10 @@ class Processor(NodeVisitor):
             data = new_data
         return data
 
-    def visit_object(self, node: LiteralNode) -> List[Any]:
+    def visit_object(self, node: ast.LiteralNode) -> List[Any]:
         return [node.data]
 
-    def visit_dict_bundle(self, node: DictBundleNode) -> List[Dict]:
+    def visit_dict_bundle(self, node: ast.DictBundleNode) -> List[Dict]:
         data = [{}]
         for x in node.nodes:
             branches = x.accept(self)
@@ -109,7 +93,7 @@ class Processor(NodeVisitor):
                 data[i].update(branches[i // N])
         return data
 
-    def visit_str_bundle(self, node: StrBundleNode) -> List[str]:
+    def visit_str_bundle(self, node: ast.StrBundleNode) -> List[str]:
         data = [""]
         for x in node.nodes:
             branches = x.accept(self)
@@ -119,17 +103,21 @@ class Processor(NodeVisitor):
                 data[i] += str(branches[i // N])
         return data
 
-    def visit_var(self, node: VarNode) -> List[Any]:
-        default = None
-        if node.default is not None:
-            default = node.default.data
+    def visit_var(self, node: ast.VarNode) -> List[Any]:
+        if py_.has(self._context, node.identifier.data):
+            return [py_.get(self._context, node.identifier.data)]
 
         if node.env is not None and node.env.data:
-            default = os.getenv(node.identifier.data, default=default)
+            value = os.getenv(node.identifier.data)
+            if value is not None:
+                return [value]
 
-        return [py_.get(self._context, node.identifier.data, default)]
+        if node.default is not None:
+            return [node.default.data]
 
-    def visit_import(self, node: ImportNode) -> List[Any]:
+        raise ChoixeProcessingError(f"Variable not found: `{node.identifier.data}`")
+
+    def visit_import(self, node: ast.ImportNode) -> List[Any]:
         path = Path(node.path.data)
         if not path.is_absolute():
             path = self._cwd / path
@@ -144,7 +132,7 @@ class Processor(NodeVisitor):
 
         return nested
 
-    def visit_sweep(self, node: SweepNode) -> List[Any]:
+    def visit_sweep(self, node: ast.SweepNode) -> List[Any]:
         if self._allow_branching:
             cases = []
             for x in node.cases:
@@ -153,19 +141,33 @@ class Processor(NodeVisitor):
         else:
             return [unparse(node)]
 
-    def visit_instance(self, node: InstanceNode) -> List[Any]:
-        symbol = node.symbol.data
-        branches = node.args.accept(self)
-        return [import_symbol(symbol, cwd=self._cwd)(**x) for x in branches]
+    def visit_symbol(self, node: ast.SymbolNode) -> List[Any]:
+        branches = node.symbol.accept(self)
+        return [import_symbol(s, cwd=self._cwd) for s in branches]
 
-    def visit_model(self, node: ModelNode) -> Any:
-        symbol = node.symbol.data
-        branches = node.args.accept(self)
-        return [import_symbol(symbol, cwd=self._cwd).parse_obj(x) for x in branches]
+    def visit_instance(self, node: ast.InstanceNode) -> List[Any]:
+        symbol_branches = node.symbol.accept(self)
+        args_branches = node.args.accept(self)
+        branches = list(product(symbol_branches, args_branches))
+        return [import_symbol(s, cwd=self._cwd)(**a) for s, a in branches]
 
-    def visit_for(self, node: ForNode) -> List[Any]:
+    def visit_model(self, node: ast.ModelNode) -> Any:
+        symbol_branches = node.symbol.accept(self)
+        args_branches = node.args.accept(self)
+        branches = list(product(symbol_branches, args_branches))
+        return [import_symbol(s, cwd=self._cwd).parse_obj(a) for s, a in branches]
+
+    def visit_for(self, node: ast.ForNode) -> List[Any]:
         iterable = py_.get(self._context, node.iterable.data)
-        id_ = uuid.uuid4().hex if node.identifier is None else str(node.identifier.data)
+        if not isinstance(iterable, Iterable):
+            if not py_.has(self._context, node.iterable.data):
+                raise ChoixeProcessingError(
+                    f"Loop variable `{node.iterable.data}` not found in context"
+                )
+            raise ChoixeProcessingError(
+                f"Loop variable `{node.iterable.data}` is not iterable"
+            )
+        id_ = uuid.uuid1().hex if node.identifier is None else str(node.identifier.data)
         prev_loop = self._current_loop
         self._current_loop = id_
 
@@ -178,10 +180,10 @@ class Processor(NodeVisitor):
 
         branches = list(product(*branches))
         for i, branch in enumerate(branches):
-            if isinstance(node.body, DictNode):
+            if isinstance(node.body, ast.DictNode):
                 res = {}
                 [res.update(item) for item in branch]
-            elif isinstance(node.body, ListNode):
+            elif isinstance(node.body, ast.ListNode):
                 res = []
                 [res.extend(item) for item in branch]
             else:
@@ -190,13 +192,13 @@ class Processor(NodeVisitor):
 
         return branches
 
-    def visit_index(self, node: IndexNode) -> List[Any]:
+    def visit_index(self, node: ast.IndexNode) -> List[Any]:
         id_ = (
             self._current_loop if node.identifier is None else str(node.identifier.data)
         )
         return [self._loop_data[id_].index]  # type: ignore
 
-    def visit_item(self, node: ItemNode) -> List[Any]:
+    def visit_item(self, node: ast.ItemNode) -> List[Any]:
         key = (
             self._current_loop if node.identifier is None else str(node.identifier.data)
         )
@@ -204,10 +206,10 @@ class Processor(NodeVisitor):
         loop_id, _, key = key.partition(sep)  # type: ignore
         return [py_.get(self._loop_data[loop_id].item, f"{sep}{key}")]
 
-    def visit_uuid(self, node: UuidNode) -> List[str]:
-        return [str(uuid.uuid4())]
+    def visit_uuid(self, node: ast.UuidNode) -> List[str]:
+        return [uuid.uuid1().hex]
 
-    def visit_date(self, node: DateNode) -> List[str]:
+    def visit_date(self, node: ast.DateNode) -> List[str]:
         format_ = node.format
         ts = datetime.now()
         if format_ is None:
@@ -215,11 +217,11 @@ class Processor(NodeVisitor):
         else:
             return [ts.strftime(format_.data)]
 
-    def visit_cmd(self, node: CmdNode) -> List[str]:
+    def visit_cmd(self, node: ast.CmdNode) -> List[str]:
         subp = os.popen(node.command.data)
         return [subp.read()]
 
-    def visit_tmp_dir(self, node: TmpDirNode) -> Any:
+    def visit_tmp_dir(self, node: ast.TmpDirNode) -> Any:
         name = self._tmp_name if node.name is None else node.name.data
         path = Path(tempfile.gettempdir()) / name
         path.parent.mkdir(exist_ok=True, parents=True)
@@ -227,7 +229,7 @@ class Processor(NodeVisitor):
 
 
 def process(
-    node: Node,
+    node: ast.Node,
     context: Optional[Dict[str, Any]] = None,
     cwd: Optional[Path] = None,
     allow_branching: bool = True,

@@ -49,6 +49,19 @@ class TestRemotes:
         for _ in out_seq:
             pass
 
+        # remove user:password from netloc
+        remote_urls = [
+            ParseResult(
+                scheme=r.scheme,
+                netloc=r.netloc.rpartition("@")[2],
+                path=r.path,
+                params=r.params,
+                query=r.query,
+                fragment=r.fragment,
+            )
+            for r in remote_urls
+        ]
+
         # high-level check
         if check_data:
             org_seq = SamplesSequence.from_underfolder(  # type: ignore
@@ -71,6 +84,8 @@ class TestRemotes:
 
                         assert len(out_item._file_sources) == 0
                         assert len(out_item._remote_sources) == len(actual_remotes)
+                        print(out_item._remote_sources)
+                        print(actual_remotes)
                         for rm_src in out_item._remote_sources:
                             for rm_trg in actual_remotes:
                                 if self._normalized_url(rm_src) == self._normalized_url(
@@ -97,8 +112,8 @@ class TestRemotes:
         # data lake
         remote_url = make_remote_url(
             scheme="file",
-            netloc="localhost",
-            path=(tmp_path / "rmbucket"),
+            host="localhost",
+            bucket=(tmp_path / "rmbucket"),
         )
 
         self._upload_to_remote(
@@ -119,11 +134,12 @@ class TestRemotes:
 
         remote_url = make_remote_url(
             scheme="s3",
-            netloc="localhost:9000",
-            path="rmbucket",
-            access_key=f"{minio}",
-            secret_key=f"{minio}",
-            secure_connection=False,
+            user=f"{minio}",
+            password=f"{minio}",
+            host="localhost",
+            port=9000,
+            bucket="rmbucket",
+            secure=False,
         )
 
         self._upload_to_remote(
@@ -146,7 +162,7 @@ class TestRemotes:
         remote_root = tmp_path / "file_remote"
         remote_root.mkdir()
         remote_url = make_remote_url(
-            scheme="file", netloc="localhost", path=remote_root / "rmbucket"
+            scheme="file", host="localhost", bucket=remote_root / "rmbucket"
         )
 
         # upload even samples
@@ -155,7 +171,7 @@ class TestRemotes:
             minimnist_private_dataset["path"],
             even_output,
             remote_url,
-            lambda x: int(x["label"]()) % 2 == 0,
+            lambda x: int(x["label"]()) % 2 == 0,  # type: ignore
             minimnist_private_dataset["image_keys"],
             True,
         )
@@ -248,13 +264,13 @@ class TestRemotes:
         remote_a_root = tmp_path / "remote_a"
         remote_a_root.mkdir()
         remote_a_url = make_remote_url(
-            scheme="file", netloc="localhost", path=remote_a_root / "rmbucketa"
+            scheme="file", host="localhost", bucket=remote_a_root / "rmbucketa"
         )
 
         remote_b_root = tmp_path / "remote_b"
         remote_b_root.mkdir()
         remote_b_url = make_remote_url(
-            scheme="file", netloc="localhost", path=remote_b_root / "rmbucketb"
+            scheme="file", host="localhost", bucket=remote_b_root / "rmbucketb"
         )
 
         # upload to both remotes
@@ -289,7 +305,7 @@ class TestRemotes:
         remote_c_root = tmp_path / "remote_c"
         remote_c_root.mkdir()
         remote_c_url = make_remote_url(
-            scheme="file", netloc="localhost", path=remote_c_root / "rmbucketc"
+            scheme="file", host="localhost", bucket=remote_c_root / "rmbucketc"
         )
 
         output_c_from_b = tmp_path / "output_c_from_b"
@@ -311,13 +327,13 @@ class TestRemotes:
         remote_a_root = tmp_path / "remote_a"
         remote_a_root.mkdir()
         remote_a_url = make_remote_url(
-            scheme="file", netloc="localhost", path=remote_a_root / "rmbucketa"
+            scheme="file", host="localhost", bucket=remote_a_root / "rmbucketa"
         )
 
         remote_b_root = tmp_path / "remote_b"
         remote_b_root.mkdir()
         remote_b_url = make_remote_url(
-            scheme="file", netloc="localhost", path=remote_b_root / "rmbucketb"
+            scheme="file", host="localhost", bucket=remote_b_root / "rmbucketb"
         )
 
         # upload to both remotes

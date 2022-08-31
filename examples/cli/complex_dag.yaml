@@ -1,0 +1,62 @@
+nodes:
+  $for(params.toy, x):
+    ## Create some toy datasets
+    generator_$index:
+      $model: pipelime.commands.ToyDatasetCommand
+      $args:
+        toy:
+          length: $item(x.length)
+        output:
+          folder: $var(params.root_folder)/$item(x.name)
+          exists_ok: True
+
+    random_sampling_$index:
+      # shuffle and sample each dataset
+      $model: pipelime.commands.PipeCommand
+      $args:
+        input:
+          folder: $var(params.root_folder)/$item(x.name)
+        output:
+          folder: $var(params.root_folder)/random_sampling_$item(x.name)
+          exists_ok: True
+        operations:
+          - shuffle
+          - slice:
+              step: 2
+
+    split_each_dataset_$index:
+      # split each dataset
+      $model: pipelime.commands.SplitCommand
+      $args:
+        input:
+          folder: $var(params.root_folder)/random_sampling_$item(x.name)
+        splits:
+          - output:
+              folder: $var(params.root_folder)/split0_$item(x.name)
+              exists_ok: True
+            fraction: 0.5
+          - output:
+              folder: $var(params.root_folder)/split1_$item(x.name)
+              exists_ok: True
+            fraction: 0.5
+
+  sum_0:
+    # sum up
+    $model: pipelime.commands.ConcatCommand
+    $args:
+      inputs:
+        $for(params.toy, x):
+          - folder: $var(params.root_folder)/split0_$item(x.name)
+      output:
+        folder: $var(params.root_folder)/summed_0
+        exists_ok: True
+
+  sum_1:
+    # sum up
+    $model: pipelime.commands.ConcatCommand
+    $args:
+      inputs:
+        $for(params.toy, x):
+          - folder: $var(params.root_folder)/split1_$item(x.name)
+      output:
+        folder: $var(params.root_folder)/summed_1

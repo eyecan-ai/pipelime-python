@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import copy
 import re
 import typing as t
@@ -25,9 +26,12 @@ class Sample(t.Mapping[str, Item]):
 
     _data: t.Mapping[str, Item]
 
-    def __init__(self, data: t.Optional[t.Mapping[str, Item]]):
+    def __init__(self, data: t.Optional[t.Mapping[str, Item]] = None):
         super().__init__()
         self._data = data if data is not None else {}
+
+    def to_schema(self) -> t.Mapping[str, t.Type[Item]]:
+        return {k: type(v) for k, v in self._data.items()}
 
     def to_dict(self) -> t.Dict[str, t.Any]:
         return {k: v() for k, v in self.items()}
@@ -92,14 +96,37 @@ class Sample(t.Mapping[str, Item]):
         """
         import pydash as py_
 
-        key, path = SamplePathRegex.split(key_path)
-        if key not in self._data:
-            return default
+        return py_.get(self.direct_access(), key_path, default)
 
-        value = self._data[key]()
-        if path:
-            value = py_.get(value, path, default)
-        return value
+    def match(self, query: str) -> bool:
+        """Match the Sample against a query.
+        (cfr. https://github.com/cyberlis/dictquery).
+        """
+        import dictquery as dq
+
+        return dq.match(self.direct_access(), query)
+
+    def direct_access(self) -> t.Mapping[str, t.Any]:
+        """Returns a mapping of the keys to the item values, ie, you directly get the
+        value of the items without having to `__call__()` them."""
+
+        class _DirectAccess(t.Mapping[str, t.Any]):
+            def __init__(self, data: t.Mapping[str, Item]):
+                self._data = data
+
+            def __getitem__(self, key: str) -> t.Any:
+                return self._data[key]()
+
+            def __iter__(self) -> t.Iterator[str]:
+                return iter(self._data)
+
+            def __len__(self) -> int:
+                return len(self._data)
+
+            def __contains__(self, key: str) -> bool:
+                return key in self._data
+
+        return _DirectAccess(self._data)
 
     def change_key(self, old_key: str, new_key: str, delete_old_key: bool) -> Sample:
         if new_key not in self._data and old_key in self._data:
@@ -122,10 +149,10 @@ class Sample(t.Mapping[str, Item]):
     def extract_keys(self, *keys_to_keep: str) -> Sample:
         return Sample({k: v for k, v in self._data.items() if k in keys_to_keep})
 
-    def merge(self, other: "Sample") -> Sample:
+    def merge(self, other: Sample) -> Sample:
         return Sample({**self._data, **other._data})
 
-    def update(self, other: "Sample") -> Sample:
+    def update(self, other: Sample) -> Sample:
         return self.merge(other)
 
     def __getitem__(self, key: str) -> Item:
@@ -144,5 +171,17 @@ class Sample(t.Mapping[str, Item]):
         return f"{self.__class__}{repr(self._data)}"
 
     def __str__(self) -> str:
-        data_str = [f"  [{k}] {str(v)}" for k, v in self._data.items()]
-        return "\n".join([f"{self.__class__.__name__}"] + data_str)
+        return "\n".join([f"[{k}] {str(v)}" for k, v in self._data.items()])
+
+    def __pl_pretty__(self) -> t.Any:
+        from rich.panel import Panel
+        from rich.columns import Columns
+        from rich import box
+
+        panels = [
+            Panel.fit(v.__pl_pretty__(), title=k, title_align="left")
+            for k, v in self._data.items()
+        ]
+        return Panel.fit(
+            Columns(panels), title="Sample", title_align="center", box=box.HORIZONTALS
+        )

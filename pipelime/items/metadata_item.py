@@ -24,6 +24,12 @@ class MetadataItem(Item[_metadata_type]):
             )
         return raw_data
 
+    @classmethod
+    def pl_pretty_data(cls, value: _metadata_type) -> t.Any:
+        from rich.pretty import Pretty
+
+        return Pretty(value, indent_guides=True, expand_all=True)
+
 
 class JsonMetadataItem(MetadataItem):
     @classmethod

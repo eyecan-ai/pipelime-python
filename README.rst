@@ -8,6 +8,18 @@ Slice your lime with this italian army knife.
 Installation
 ============
 
+.. warning::
+   You need `Graphviz <https://www.graphviz.org/>`_ installed on your system.
+   On Linux ``Ubuntu/Debian``, you can install it with::
+
+       sudo apt-get install graphviz graphviz-dev
+
+   Alternatively you can use ``conda``::
+
+        conda install --channel conda-forge pygraphviz
+
+   Please see the full options at https://github.com/pygraphviz/pygraphviz/blob/main/INSTALL.txt
+
 .. code-block:: bash
 
         pip install pipelime-python
@@ -18,20 +30,20 @@ Basic Usage
 Underfolder Format
 ------------------
 
-The **Underfolder** format is one of the pipelime dataset formats, i.e., a flexible way to 
-model and store a generic dataset through **filesystem**. 
+The **Underfolder** format is one of the pipelime dataset formats, i.e., a flexible way to
+model and store a generic dataset through **filesystem**.
 
 .. image:: docs/images/underfolder.png
   :width: 400
   :align: center
   :alt: underfolder structure
 
-An Underfolder **dataset** is a collection of samples. A **sample** is a collection of items. 
-An **item** is a unitary block of data, it can be a generic tensor (e.g. a multi-channel image 
+An Underfolder **dataset** is a collection of samples. A **sample** is a collection of items.
+An **item** is a unitary block of data, it can be a generic tensor (e.g. a multi-channel image
 or a plain matrix), a dictionary and more.
 
-Underfolder datasets must contain a subfolder named ``data`` that will actually contain the 
-samples and items. Optionally you can store the items in the root folder directly, they 
+Underfolder datasets must contain a subfolder named ``data`` that will actually contain the
+samples and items. Optionally you can store the items in the root folder directly, they
 will act as “global” items injected into each sample.
 
 .. image:: docs/images/naming.png
@@ -47,10 +59,10 @@ Items are named using the following naming convention:
 
 Where:
 
-* ``$ID`` is the sample identifier, must be a unique string for each sample. 
+* ``$ID`` is the sample identifier, must be a unique string for each sample.
 * ``ITEM`` is the item name.
 * ``EXT`` is the item extension. Currently supported extensions are:
-  
+
   * The most common image formats: PNG, JPEG, BMP, TIFF (multi-page);
   * YAML, JSON and TOML for dictionary-like objects;
   * TXT for numpy 2D matrix notation;
@@ -69,7 +81,7 @@ Reading an Underfolder Dataset
 
 Pipelime provides an intuitive interface to read, manipulate and write Underfolder Datasets.
 You don't have to memorize complex signatures, instantiate weird object iterators, or write
-tens of lines of boilerplate code. It all boils down to a **reader**, a **writer** and objects that 
+tens of lines of boilerplate code. It all boils down to a **reader**, a **writer** and objects that
 behave like built-in python types such as **lists** and **dictionaries**.
 
 .. code-block:: python
@@ -111,7 +123,7 @@ If for any reason it is unable to retrieve the original extension, it will use *
 serialize the object.
 
 If you don't want to use pickle, you can choose a **custom extension** for each item name.
-You can also choose which items are going to be saved as **root files** (if the contained data 
+You can also choose which items are going to be saved as **root files** (if the contained data
 is the same for all samples).
 
 .. code-block:: python

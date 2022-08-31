@@ -1,6 +1,7 @@
-import pytest
-import pipelime.sequences as pls
 import numpy as np
+import pytest
+
+import pipelime.sequences as pls
 
 
 def _np_eq(x, y) -> bool:
@@ -31,6 +32,68 @@ class TestSample:
         assert all(k in sample for k in data)
         assert all(_np_eq(sample[k](), v()) for k, v in data.items())
         assert sample.to_dict() == {k: v() for k, v in data.items()}
+
+    def test_to_schema(self):
+        from pydantic import BaseConfig, Extra, create_model
+        from typing import Optional
+
+        import pipelime.items as pli
+
+        class SampleConfig(BaseConfig):
+            arbitrary_types_allowed = True
+            extra = Extra.forbid
+
+        sample, _ = self._mixed_sample()
+        sample_schema = create_model(
+            "SampleSchema",
+            __config__=SampleConfig,
+            **{k: (v, ...) for k, v in sample.to_schema().items()},
+        )
+
+        try:
+            sample_schema(**sample)
+        except Exception:
+            assert False
+
+        sample_schema = create_model(
+            "SampleSchema",
+            __config__=SampleConfig,
+            c=(pli.MetadataItem, ...),
+            d=(pli.NumpyItem, ...),
+            e=(pli.Item, ...),
+        )
+
+        try:
+            sample_schema(**sample)
+        except Exception:
+            assert False
+
+        sample_schema = create_model(
+            "SampleSchema",
+            __config__=SampleConfig,
+            c=(pli.MetadataItem, ...),
+            d=(pli.NumpyItem, ...),
+            e=(pli.ImageItem, ...),
+        )
+
+        with pytest.raises(Exception):
+            sample_schema(**sample)
+
+        class SampleConfig2(BaseConfig):
+            arbitrary_types_allowed = True
+
+        sample_schema = create_model(
+            "SampleSchema",
+            __config__=SampleConfig2,
+            c=(pli.MetadataItem, ...),
+            d=(pli.NumpyItem, ...),
+            e_other=(Optional[pli.Item], None),
+        )
+
+        try:
+            sample_schema(**sample)
+        except Exception:
+            assert False
 
     def test_shallow_copy(self):
         sample, _ = self._np_sample()
@@ -145,6 +208,10 @@ class TestSample:
         assert sample.deep_get(r"sec\ond[2].c") == 36
         assert sample.deep_get("not.there", "default") == "default"
         assert sample.deep_get("notthere", "default") == "default"
+
+    def test_match(self):
+        sample, data = self._mixed_sample()
+        assert sample.match(f"`c.foo` == '{data['c']()['foo']}'")
 
     def test_change_key_invalid(self):
         sample, _ = self._np_sample()

@@ -1,11 +1,13 @@
-from pathlib import Path
-from filelock import FileLock, Timeout
 import typing as t
+from pathlib import Path
+
 import pydantic as pyd
+from filelock import FileLock, Timeout
+from tempfile import TemporaryDirectory
 
 import pipelime.sequences as pls
-from pipelime.sequences.pipes.base import PipedSequenceBase
-from pipelime.items import SerializationMode, Item
+from pipelime.items import Item, SerializationMode
+from pipelime.sequences.pipes import PipedSequenceBase
 
 
 class _serialization_mode_override:
@@ -25,17 +27,14 @@ class _serialization_mode_override:
             self._item.serialization_mode = self._prev_mode
 
 
-@pls.piped_sequence("to_underfolder")
-class UnderfolderWriter(PipedSequenceBase):
-    """Writes samples to an underfolder dataset while iterating over them. Usage::
-
-        sseq = sseq.to_underfolder("out_path")
-
-    :raises FileExistsError: if `exists_ok` is False and `folder` exists.
-    """
+@pls.piped_sequence
+class UnderfolderWriter(
+    PipedSequenceBase, title="to_underfolder", underscore_attrs_are_private=True
+):
+    """Writes samples to an underfolder dataset while iterating over them."""
 
     folder: Path = pyd.Field(..., description="The output folder.")
-    zfill: t.Optional[int] = pyd.Field(None, description="Custom zero-filling.")
+    zfill: t.Optional[int] = pyd.Field(None, description="Custom index zero-filling.")
     key_serialization_mode: t.Optional[
         t.Mapping[str, t.Union[SerializationMode, str]]
     ] = pyd.Field(None, description="Forced serialization mode for each key.")
@@ -45,9 +44,7 @@ class UnderfolderWriter(PipedSequenceBase):
 
     _data_folder: Path
     _effective_zfill: int
-
-    class Config:
-        underscore_attrs_are_private = True
+    _temp_folder: TemporaryDirectory
 
     def __init__(self, folder: Path, **data):
         super().__init__(folder=folder, **data)  # type: ignore
@@ -60,9 +57,13 @@ class UnderfolderWriter(PipedSequenceBase):
             self.key_serialization_mode = {}
 
         if not self.exists_ok and (self.folder.exists() or self._data_folder.exists()):
-            raise FileExistsError("Trying to overwrite an existing dataset.")
+            raise FileExistsError(
+                "Trying to overwrite an existing dataset. "
+                "Please use `exists_ok=True` to overwrite."
+            )
 
         self._data_folder.mkdir(parents=True, exist_ok=True)
+        self._temp_folder = TemporaryDirectory()  # will be automatically deleted
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self.source[idx]
@@ -77,10 +78,9 @@ class UnderfolderWriter(PipedSequenceBase):
                 if v.is_shared:
                     filepath = self.folder / k
                     if not any(f.exists() for f in v.get_all_names(filepath)):
-                        lock_filepath = filepath.with_suffix(".~lock")
-                        lock = FileLock(str(lock_filepath))
-
-                        delete_lockfile = False
+                        lock = FileLock(
+                            str(Path(self._temp_folder.name) / (k + ".~lock"))
+                        )
                         try:
                             with lock.acquire(timeout=1):
                                 # check again to avoid races
@@ -88,18 +88,8 @@ class UnderfolderWriter(PipedSequenceBase):
                                     f.exists() for f in v.get_all_names(filepath)
                                 ):
                                     v.serialize(filepath)
-                                    # on Unix we must manually delete the lock file
-                                    # NB: only the thread/process which has serialized
-                                    # the file should delete the the lock file, ie, the
-                                    # link to the inode, while other threads/processes
-                                    # may still have a valid reference to the inode
-                                    # itself.
-                                    delete_lockfile = True
                         except Timeout:  # pragma: no cover
                             pass
-
-                        if delete_lockfile:
-                            lock_filepath.unlink(missing_ok=True)
                 else:
                     v.serialize(self._data_folder / f"{id_str}_{k}")
 

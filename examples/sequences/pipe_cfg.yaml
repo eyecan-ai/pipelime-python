@@ -1,0 +1,12 @@
+operations:
+  - shuffle:
+      seed: 42
+  - slice:
+      start: 2
+      stop: 6
+input:
+  folder: ../../tests/sample_data/datasets/underfolder_minimnist
+  merge_root_items: true
+output:
+  folder: writer_output_piped
+  exists_ok: true

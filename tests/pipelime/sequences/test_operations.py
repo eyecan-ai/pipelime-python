@@ -1,5 +1,6 @@
-import pipelime.sequences as pls
 import typing as t
+
+import pipelime.sequences as pls
 
 
 class TestSamplesSequenceOperations:
@@ -42,7 +43,8 @@ class TestSamplesSequenceOperations:
             [sample.extract_keys(*keys2) for sample in source]
         )
 
-        zipped = seq1.zip(seq2)
+        prefix = "prefix*"
+        zipped = seq1.zip(seq2, key_format=prefix)
         assert len(zipped) == len(seq1)
         assert len(zipped) == len(seq2)
         for sample_m, sample_1, sample_2, sample_s in zip(zipped, seq1, seq2, source):
@@ -50,13 +52,35 @@ class TestSamplesSequenceOperations:
             assert len(sample_1.keys() | sample_2.keys()) == len(sample_s.keys())
             assert len(sample_s.keys()) == len(sample_m.keys())
             assert all(k in sample_m for k in sample_1)
-            assert all(k in sample_m for k in sample_2)
-            assert all(k in sample_m for k in sample_s)
-            assert all(k in sample_s for k in sample_m)
+            assert all(prefix.replace("*", k) in sample_m for k in sample_2)
+            assert all(
+                (prefix.replace("*", k) if k in sample_2 else k) in sample_m
+                for k in sample_s
+            )
+            assert all(
+                (k[len(prefix) - 1 :] if k.startswith(prefix[:-1]) else k)  # noqa: E203
+                in sample_s
+                for k in sample_m
+            )
             assert all(v is sample_m[k] for k, v in sample_1.items())
-            assert all(v is sample_m[k] for k, v in sample_2.items())
-            assert all(v is sample_m[k] for k, v in sample_s.items())
-            assert all(v is sample_s[k] for k, v in sample_m.items())
+            assert all(
+                v is sample_m[prefix.replace("*", k)] for k, v in sample_2.items()
+            )
+            assert all(
+                v is sample_m[(prefix.replace("*", k) if k in sample_2 else k)]
+                for k, v in sample_s.items()
+            )
+            assert all(
+                v
+                is sample_s[
+                    (
+                        k[len(prefix) - 1 :]  # noqa: E203
+                        if k.startswith(prefix[:-1])
+                        else k
+                    )
+                ]
+                for k, v in sample_m.items()
+            )
 
     def _cat_test(self, minimnist_dataset: dict, fn):
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
@@ -169,3 +193,49 @@ class TestSamplesSequenceOperations:
         for i in range(3):
             for s in source:
                 assert next(riter) is s
+
+    def test_select(self, minimnist_dataset: dict):
+        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+            folder=minimnist_dataset["path"], merge_root_items=False
+        )
+        idxs = [1, 2, 5, 9]
+        select_seq = source.select(idxs)
+
+        assert len(select_seq) == len(idxs)
+
+        for i, s in zip(idxs, select_seq):
+            assert s is source[i]
+
+    def test_cache(self, minimnist_dataset: dict):
+        import numpy as np
+
+        from pipelime.stages import SampleStage
+
+        class LocalStage(SampleStage):
+            counter: int = 0
+
+            def __call__(self, x):
+                print("counter", self.counter)
+                self.counter += 1
+                x = x.duplicate_key("image", "img2")
+                _ = x["img2"]()
+                return x
+
+        local_stage = LocalStage()
+        source = (
+            pls.SamplesSequence.from_underfolder(  # type: ignore
+                folder=minimnist_dataset["path"], merge_root_items=False
+            )
+            .map(local_stage)
+            .cache()
+        )
+
+        saved_samples = [x for x in source]
+        for idx, x in enumerate(source):
+            s = saved_samples[idx]
+            assert x is not s
+            assert x["image"]().size != 0
+            assert x["img2"]().size != 0
+            assert np.array_equal(x["image"](), s["image"](), equal_nan=True)
+            assert np.array_equal(x["img2"](), s["img2"](), equal_nan=True)
+        assert local_stage.counter == len(source)

@@ -1,0 +1,34 @@
+nodes:
+  $for(params.flags):
+    ## GENERATE SAMPLES
+    generator_$index:
+      $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:MyUselessCommand"
+      $args:
+        input_folder: $var(params.output_folder)/input_$item
+        output_folder: $var(params.output_folder)/generated_$item
+        n: 10
+
+    ## SUBSAMPLE EACH DATASET
+    subsample_$index:
+      $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:MyUselessCommand"
+      $args:
+        input_folder: $var(params.output_folder)/generated_$item
+        output_folder: $var(params.output_folder)/subsampled_$item
+        n: 10
+
+    ## EXECUTE CUSTOM NODE ON EACH DATASET
+    detection_$index:
+      $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:MyUselessCommand"
+      $args:
+        input_folder: $var(params.output_folder)/subsampled_$item
+        output_folder: $var(params.output_folder)/detected_$item
+        n: 10
+
+  ## SUM UP RESULTS
+  summation:
+    $model: "/home/luca/repos/pipelime-python/examples/piper/fakecli.py:FakeSum"
+    $args:
+      input_folders:
+        $for(params.flags):
+          - $var(params.output_folder)/detected_$item
+      output_folder: $var(params.output_folder)/summed

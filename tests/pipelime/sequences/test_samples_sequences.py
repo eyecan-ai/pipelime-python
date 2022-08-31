@@ -27,11 +27,12 @@ class TestSamplesSequences:
 
         assert isinstance(sseq, pls.SamplesSequence)
         assert minimnist_dataset["len"] == len(sseq)
+        assert isinstance(sseq[0], pls.Sample)
 
         root_sample = sseq.root_sample  # type: ignore
         assert isinstance(root_sample, pls.Sample)
 
-        sample_list = sseq.samples  # type: ignore
+        sample_list = sseq._samples  # type: ignore
         assert isinstance(sample_list, t.Sequence)
         assert minimnist_dataset["len"] == len(sample_list)
         assert isinstance(sample_list[0], pls.Sample)
@@ -55,8 +56,8 @@ class TestSamplesSequences:
         sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder="no-path", must_exist=False
         )
-        assert str(sseq.folder) == "no-path"
-        assert not sseq.must_exist
+        assert str(sseq.folder) == "no-path"  # type: ignore
+        assert not sseq.must_exist  # type: ignore
 
         with pytest.raises(ValueError):
             sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
@@ -67,10 +68,10 @@ class TestSamplesSequences:
         source = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        sseq = pls.SamplesSequence.from_list(source.samples)  # type: ignore
+        sseq = pls.SamplesSequence.from_list([s for s in source])  # type: ignore
 
         assert len(source) == len(sseq)
-        assert source.samples == sseq.samples
+        assert all(s1 is s2 for s1, s2 in zip(source, sseq))
 
     def test_to_pipe(self):
         from pipelime.stages import StageIdentity
@@ -94,6 +95,7 @@ class TestSamplesSequences:
                     "folder": Path("no-path"),
                     "merge_root_items": True,
                     "must_exist": False,
+                    "watch": False,
                 }
             },
             {"map": {"stage": StageIdentity()}},
@@ -101,7 +103,7 @@ class TestSamplesSequences:
             {"cat": {"to_cat": b}},
         ]
 
-        assert a.pipe(recursive=False) == expected_pipe
+        assert a.to_pipe(recursive=False, objs_to_str=False) == expected_pipe
 
         expected_pipe[3]["cat"]["to_cat"] = [
             {
@@ -109,12 +111,13 @@ class TestSamplesSequences:
                     "folder": Path("no-path-2"),
                     "merge_root_items": True,
                     "must_exist": False,
+                    "watch": False,
                 }
             },
             {"shuffle": {"seed": None}},
         ]
 
-        assert a.pipe(recursive=True) == expected_pipe
+        assert a.to_pipe(recursive=True, objs_to_str=False) == expected_pipe
 
     def test_build_pipe(self):
         from pipelime.stages import StageIdentity
@@ -129,7 +132,7 @@ class TestSamplesSequences:
             },
             {
                 "slice": {"start": 10, "stop": None, "step": None},
-                "map": {"stage": StageIdentity()},
+                "map": {"stage": {"identity": None}},
             },
         ]
 
@@ -150,10 +153,10 @@ class TestSamplesSequences:
                 "must_exist": False,
             },
             "slice": {"start": 10, "stop": None, "step": None},
-            "map": StageIdentity(),
+            "map": {"stage": StageIdentity()},
         }
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(TypeError):
             pls.build_pipe("shuffle")

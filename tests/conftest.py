@@ -1,5 +1,7 @@
-from pathlib import Path
 import os
+import typing as t
+from pathlib import Path
+
 import pytest
 
 
@@ -26,6 +28,22 @@ def augmentations_folder(data_folder: Path) -> Path:
 @pytest.fixture(scope="session")
 def choixe_folder(data_folder: Path) -> Path:
     return data_folder / "choixe"
+
+
+@pytest.fixture(scope="session")
+def extra_modules(data_folder: Path) -> t.List[t.Dict[str, t.Any]]:
+    return [
+        {
+            "filepath": (data_folder / "cli" / "extra_commands.py"),
+            "operators": [],
+            "commands": ["randrange"],
+        },
+        {
+            "filepath": (data_folder / "cli" / "extra_operators.py"),
+            "operators": ["reversed"],
+            "commands": [],
+        },
+    ]
 
 
 @pytest.fixture(scope="session")

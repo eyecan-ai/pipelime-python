@@ -1,12 +1,11 @@
 import typing as t
 import pydantic as pyd
 
-from pipelime.sequences import Sample
 from pipelime.items import Item
 from pipelime.stages import SampleStage
 
 
-class StageReplaceItem(SampleStage):
+class StageReplaceItem(SampleStage, title="replace-item"):
     """Replaces items in sample preserving internal values."""
 
     key_item_map: t.Mapping[str, t.Type[Item]] = pyd.Field(
@@ -16,7 +15,7 @@ class StageReplaceItem(SampleStage):
         ),
     )
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         for key, item_cls in self.key_item_map.items():
             if key in x:
                 old_item = x[key]

@@ -26,7 +26,7 @@ class TestItems:
                 for other in items_folder.glob(fp.stem + ".*"):
                     if other not in checked_items:
                         checked_items.add(other)
-                        trg_item = ItemFactory.get_instance(fp)()
+                        trg_item = ItemFactory.get_instance(other)()
 
                         if isinstance(ref_item, np.ndarray):
                             assert _np_eq(ref_item, trg_item)
@@ -199,12 +199,12 @@ class TestItems:
         # data lake
         remote_url = make_remote_url(
             scheme="file",
-            netloc="localhost",
-            path=(tmp_path / "rmbucket"),
+            host="localhost",
+            bucket=(tmp_path / "rmbucket"),
         )
 
         input_seq = SamplesSequence.from_underfolder(  # type: ignore
-            minimnist_private_dataset["path"], merge_root_items=False
+            minimnist_private_dataset["path"], merge_root_items=True
         )
 
         # upload to remote (remote source is added to the items)
@@ -246,8 +246,12 @@ class TestItems:
                         elif p.suffix == pli.PngImageItem.file_extensions()[0]:
                             assert p.stat().st_nlink == 1
                         else:
+                            format_suffix = (
+                                pli.JsonMetadataItem.file_extensions()[0]
+                                if ".json" in p.suffixes
+                                else pli.YamlMetadataItem.file_extensions()[0]
+                            )
                             assert (
                                 "".join(p.suffixes)
-                                == pli.JsonMetadataItem.file_extensions()[0]
-                                + pli.Item.REMOTE_FILE_EXT
+                                == format_suffix + pli.Item.REMOTE_FILE_EXT
                             )

@@ -3,52 +3,78 @@ import albumentations as A
 import typing as t
 import pydantic as pyd
 
-from pipelime.sequences import Sample
 from pipelime.stages import SampleStage
 
 
-class StageAlbumentations(SampleStage):
+class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation=False):
+    __root__: t.Dict[str, t.Any]
+    _value: t.Union[A.BaseCompose, A.BasicTransform] = pyd.PrivateAttr(None)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._value = A.from_dict(self.__root__)  # type: ignore
+
+    @property
+    def value(self):
+        return self._value
+
+    def __str__(self) -> str:
+        return str(self.__root__)
+
+    def __repr__(self) -> str:
+        return repr(self.__root__)
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, Transformation):
+            return value
+        if isinstance(value, (A.BaseCompose, A.BasicTransform)):
+            return Transformation(__root__=A.to_dict(value))
+        if isinstance(value, (str, Path)):
+            import yaml
+
+            with open(str(value)) as f:
+                value = yaml.safe_load(f)
+        if isinstance(value, t.Mapping):
+            return Transformation(__root__=value)
+        raise ValueError(f"{value} is not a valid transformation")
+
+
+class StageAlbumentations(SampleStage, title="albumentations"):
     """Sample augmentation via Albumentations."""
 
-    transform: t.Union[
-        t.Mapping[str, t.Any], str, Path, A.BaseCompose, A.BasicTransform
-    ] = pyd.Field(
+    transform: Transformation = pyd.Field(
         ...,
         description=(
-            "The albumentations transform as well as its "
-            "serialized version as dict or JSON/YAML file."
+            "The albumentations transformation defined as python object, "
+            "serialized dict or yaml/json file."
         ),
     )
     keys_to_targets: t.Mapping[str, str] = pyd.Field(
-        ..., description="A mapping from key names to albumentation targets' names."
+        ...,
+        description=(
+            "A mapping from key names to albumentation targets' names. "
+            "NB: key names will be replaced with the target name possibly followed "
+            "by an index, ie, `image`, `image_0`, `image_1` etc, "
+            "`mask`, `mask_0`, `mask_1` etc."
+        ),
     )
     output_key_format: str = pyd.Field(
-        "",
+        "*",
         description=(
             "How to format the output keys. Any `*` will be replaced with the "
             "source key, eg, `aug_*_out` on [`image`, `mask`] generates "
             "`aug_image_out` and `aug_mask_out`. If no `*` is found, the string is "
             "suffixed to the source key, ie, `OutName` on `image` gives "
-            "`imageOutName`. If empty, the source key will be used."
+            "`imageOutName`. If empty, the source key will be used as-is."
         ),
     )
 
-    _trobj: t.Union[A.BaseCompose, A.BasicTransform]
-    _target_to_keys: t.MutableMapping[str, str] = {}
-
-    class Config:
-        underscore_attrs_are_private = True
-        arbitrary_types_allowed = True
-
-    @pyd.validator("transform")
-    def load_transform(cls, v):
-        if isinstance(v, (str, Path)):
-            v = str(v)
-            return A.load(v, data_format="json" if v.endswith("json") else "yaml")
-        elif isinstance(v, t.Mapping):
-            return A.from_dict(v)
-        else:
-            return v
+    _target_to_keys: t.Dict[str, str] = pyd.PrivateAttr(default_factory=dict)
 
     @pyd.validator("output_key_format")
     def validate_output_key_format(cls, v):
@@ -58,10 +84,6 @@ class StageAlbumentations(SampleStage):
 
     def __init__(self, **data):
         super().__init__(**data)
-        assert isinstance(self.transform, (A.BaseCompose, A.BasicTransform))
-
-        self._trobj = self.transform
-        self.transform = A.to_dict(self._trobj)
 
         target_counter: t.Mapping[str, int] = {}
         target_types: t.Mapping[str, str] = {}
@@ -73,11 +95,11 @@ class StageAlbumentations(SampleStage):
             target_types[trg_name] = trg
             self._target_to_keys[trg_name] = key
 
-        self._trobj.add_targets(target_types)
+        self.transform.value.add_targets(target_types)
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         to_transform = {k: x[v]() for k, v in self._target_to_keys.items() if v in x}
-        transformed = self._trobj(**to_transform)  # type: ignore
+        transformed = self.transform.value(**to_transform)
         for k, v in transformed.items():
             x_key = self._target_to_keys[k]
             x = x.set_value_as(self.output_key_format.replace("*", x_key), x_key, v)

@@ -22,12 +22,47 @@ class ImageItem(NumpyItem):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> np.ndarray:
-        return np.array(iio.imread(fp, format_hint=cls.file_extensions()[0]))
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action="ignore", message=".*format_hint.*")
+            return np.array(iio.imread(fp, format_hint=cls.file_extensions()[0]))
 
     @classmethod
     def encode(cls, value: np.ndarray, fp: t.BinaryIO):
-        iio.imwrite(
-            fp, value, format_hint=cls.file_extensions()[0], **cls.save_options()
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action="ignore", message=".*format_hint.*")
+            iio.imwrite(
+                fp, value, format_hint=cls.file_extensions()[0], **cls.save_options()
+            )
+
+    @classmethod
+    def pl_pretty_data(cls, value: np.ndarray) -> t.Any:
+        IMAGE_SIZE = 32
+        if value.shape[0] > IMAGE_SIZE or value.shape[1] > IMAGE_SIZE:
+            import albumentations as A
+
+            value = A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True)(
+                image=value
+            )["image"]
+
+        def _get_color_str(v) -> str:
+            return (
+                f"{v[0]},{v[1]},{v[2]}" if isinstance(v, np.ndarray) else f"{v},{v},{v}"
+            )
+
+        return "\n".join(
+            [
+                "".join(
+                    [
+                        f"[rgb({_get_color_str(value[v, u])})]\u2588[/]"
+                        for u in range(value.shape[1])
+                    ]
+                )
+                for v in range(value.shape[0])
+            ]
         )
 
 

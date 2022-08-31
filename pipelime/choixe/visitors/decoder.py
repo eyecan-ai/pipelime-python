@@ -1,9 +1,12 @@
+import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pipelime.choixe.ast.nodes import Node, LiteralNode
-from pipelime.choixe.visitors.unparser import Unparser
 from pydantic import BaseModel
+
+from pipelime.choixe.ast.nodes import LiteralNode, Node
+from pipelime.choixe.visitors.unparser import Unparser
 
 
 class Decoder(Unparser):
@@ -17,7 +20,9 @@ class Decoder(Unparser):
             return data.item()
         elif isinstance(data, BaseModel):
             symbol = f"{data.__module__}.{data.__class__.__qualname__}"
-            return {"$model": symbol, "$args": data.dict()}
+            return {"$model": symbol, "$args": json.loads(data.json(by_alias=True))}
+        elif isinstance(data, Path):
+            return str(data)
         else:
             return data
 

@@ -1,30 +1,12 @@
 import ast
-import astunparse
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
 
-from pipelime.choixe.ast.nodes import (
-    CmdNode,
-    DateNode,
-    DictBundleNode,
-    DictNode,
-    ForNode,
-    ImportNode,
-    IndexNode,
-    InstanceNode,
-    ItemNode,
-    ListNode,
-    LiteralNode,
-    ModelNode,
-    Node,
-    StrBundleNode,
-    SweepNode,
-    TmpDirNode,
-    UuidNode,
-    VarNode,
-)
-from schema import Schema
+import astunparse
+import schema as S
+
+import pipelime.choixe.ast.nodes as c_ast
 
 DIRECTIVE_PREFIX = "$"
 """Prefix used at the start of all Choixe directives."""
@@ -56,9 +38,7 @@ class Token:
 class Scanner:
     """Choixe Scanner of python str objects."""
 
-    DIRECTIVE_RE = (
-        rf"(?:\$[^\)\( \.\,\$]+\([^\(\)]*\))|(?:\$[^\)\( \.\,\$]+)|(?:[^\$]*)"
-    )
+    DIRECTIVE_RE = r"(?:\$[^\)\( \.\,\$]+\([^\(\)]*\))|(?:\$[^\)\( \.\,\$]+)|(?:[^\$]*)"
     """Regex used to check if a string is a Choixe directive."""
 
     def _scan_argument(
@@ -79,7 +59,7 @@ class Scanner:
     def _scan_directive(self, code: str) -> Token:
         try:
             py_ast = ast.parse(f"_{code}")  # Add "_" to avoid conflicts with python
-        except SyntaxError as e:
+        except SyntaxError:
             raise ChoixeSyntaxError(code)
 
         assert isinstance(py_ast, ast.Module)
@@ -144,35 +124,42 @@ class Parser:
         }
 
         self._call_forms = {
-            self._token_schema("var"): VarNode,
-            self._token_schema("import"): ImportNode,
-            self._token_schema("sweep"): SweepNode,
-            self._token_schema("index"): IndexNode,
-            self._token_schema("item"): ItemNode,
-            self._token_schema("uuid"): UuidNode,
-            self._token_schema("date"): DateNode,
-            self._token_schema("cmd"): CmdNode,
-            self._token_schema("tmp"): TmpDirNode,
+            self._token_schema("var"): c_ast.VarNode,
+            self._token_schema("import"): c_ast.ImportNode,
+            self._token_schema("sweep"): c_ast.SweepNode,
+            self._token_schema("index"): c_ast.IndexNode,
+            self._token_schema("item"): c_ast.ItemNode,
+            self._token_schema("uuid"): c_ast.UuidNode,
+            self._token_schema("date"): c_ast.DateNode,
+            self._token_schema("cmd"): c_ast.CmdNode,
+            self._token_schema("tmp"): c_ast.TmpDirNode,
+            self._token_schema("symbol"): c_ast.SymbolNode,
         }
 
         self._extended_and_special_forms = {
-            Schema(
+            S.Schema(
                 {
                     self._token_schema("directive"): str,
                     self._token_schema("args"): list,
                     self._token_schema("kwargs"): dict,
                 }
             ): self._parse_extended_form,
-            Schema(
-                {self._token_schema("call"): str, self._token_schema("args"): dict}
+            S.Schema(
+                {
+                    self._token_schema("call"): str,
+                    S.Optional(self._token_schema("args")): S.Optional(dict),
+                }
             ): self._parse_instance,
-            Schema(
-                {self._token_schema("model"): str, self._token_schema("args"): dict}
+            S.Schema(
+                {
+                    self._token_schema("model"): str,
+                    S.Optional(self._token_schema("args")): dict,
+                }
             ): self._parse_model,
         }
 
         self._key_value_forms = {
-            Schema({self._token_schema("for"): object}): self._parse_for
+            S.Schema({self._token_schema("for"): object}): self._parse_for
         }
 
     def _token_schema(
@@ -180,7 +167,7 @@ class Parser:
         name: str,
         args: Optional[OrderedDict[str, Type]] = None,
         kwargs: Optional[OrderedDict[str, Type]] = None,
-    ) -> Schema:
+    ) -> S.Schema:
         args = OrderedDict() if args is None else args
         kwargs = OrderedDict() if kwargs is None else kwargs
 
@@ -196,7 +183,7 @@ class Parser:
 
             return True
 
-        return Schema(_validator)
+        return S.Schema(_validator)
 
     def _key_value_pairs_by_token_name(
         self, data: Dict[str, Any]
@@ -207,41 +194,41 @@ class Parser:
             res[token.name] = (token, v)
         return res
 
-    def _parse_extended_form(self, data: dict) -> Node:
+    def _parse_extended_form(self, data: dict) -> c_ast.Node:
         pairs = self._key_value_pairs_by_token_name(data)
         token = Token(pairs["directive"][1], pairs["args"][1], pairs["kwargs"][1])
         return self._parse_token(token)
 
-    def _parse_instance(self, data: dict) -> InstanceNode:
+    def _parse_instance(self, data: dict) -> c_ast.InstanceNode:
         pairs = self._key_value_pairs_by_token_name(data)
-        symbol = LiteralNode(pairs["call"][1])
-        args = self.parse(pairs["args"][1])
-        return InstanceNode(symbol, args)
+        symbol = c_ast.LiteralNode(pairs["call"][1])
+        args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
+        return c_ast.InstanceNode(symbol, args)
 
-    def _parse_model(self, data: dict) -> ModelNode:
+    def _parse_model(self, data: dict) -> c_ast.ModelNode:
         pairs = self._key_value_pairs_by_token_name(data)
-        symbol = LiteralNode(pairs["model"][1])
-        args = self.parse(pairs["args"][1])
-        return ModelNode(symbol, args)
+        symbol = c_ast.LiteralNode(pairs["model"][1])
+        args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
+        return c_ast.ModelNode(symbol, args)
 
-    def _parse_for(self, loop: str, body: Any) -> ForNode:
+    def _parse_for(self, loop: str, body: Any) -> c_ast.ForNode:
         loop = self._scanner.scan(loop)[0]
-        iterable = LiteralNode(loop.args[0])
+        iterable = c_ast.LiteralNode(loop.args[0])
         identifier = (
             loop.args[1] if len(loop.args) > 1 else loop.kwargs.get("identifier")
         )
-        identifier = LiteralNode(identifier) if identifier else None
-        return ForNode(iterable, self.parse(body), identifier=identifier)
+        identifier = c_ast.LiteralNode(identifier) if identifier else None
+        return c_ast.ForNode(iterable, self.parse(body), identifier=identifier)
 
-    def _parse_dict(self, data: dict) -> DictNode:
+    def _parse_dict(self, data: dict) -> c_ast.DictNode:
         # Check if the dict is an extended or special form, in that case parse it and
         # return the result, no further checks are needed.
         for schema, fn in self._extended_and_special_forms.items():
             if schema.is_valid(data):
                 try:
                     return fn(data)
-                except:
-                    raise ChoixeStructValidationError(data)
+                except Exception as e:
+                    raise ChoixeStructValidationError(data) from e
 
         # Check for each entry if it is a key_value form, in that case parse it and add
         # it to the bundle. Keep track of what is left to parse.
@@ -255,7 +242,7 @@ class Parser:
                     parsed_other[self._parse_str(k)] = self.parse(v)
 
         # Parse the remaining entries as a DictNode.
-        parsed_other = DictNode(parsed_other)
+        parsed_other = c_ast.DictNode(parsed_other)
 
         # If no key_value form was found, return the DictNode.
         if len(parsed_keyvalues) == 0:
@@ -265,25 +252,28 @@ class Parser:
             return parsed_keyvalues[0]
         # If there is more than one key_value form, return a DictBundleNode.
         else:
-            return DictBundleNode(*parsed_keyvalues, parsed_other)
+            return c_ast.DictBundleNode(*parsed_keyvalues, parsed_other)
 
-    def _parse_list(self, data: list) -> ListNode:
-        return ListNode(*[self.parse(x) for x in data])
+    def _parse_list(self, data: list) -> c_ast.ListNode:
+        return c_ast.ListNode(*[self.parse(x) for x in data])
 
-    def _parse_token(self, token: Token) -> Node:
+    def _parse_token(self, token: Token) -> c_ast.Node:
         if token.name == "str":
-            return LiteralNode(token.args[0])
+            return c_ast.LiteralNode(token.args[0])
 
-        for schema, fn in self._call_forms.items():
-            if schema.is_valid(token):
-                args = [self.parse(x) for x in token.args]
-                kwargs = {k: self.parse(v) for k, v in token.kwargs.items()}
-                node = fn(*args, **kwargs)
-                return node
+        try:
+            for schema, fn in self._call_forms.items():
+                if schema.is_valid(token):
+                    args = [self.parse(x) for x in token.args]
+                    kwargs = {k: self.parse(v) for k, v in token.kwargs.items()}
+                    node = fn(*args, **kwargs)
+                    return node
+        except TypeError:
+            raise ChoixeStructValidationError(token)
 
         raise ChoixeTokenValidationError(token)
 
-    def _parse_str(self, data: str) -> Node:
+    def _parse_str(self, data: str) -> c_ast.Node:
         nodes = []
         for token in self._scanner.scan(data):
             nodes.append(self._parse_token(token))
@@ -291,9 +281,9 @@ class Parser:
         if len(nodes) == 1:
             return nodes[0]
         else:
-            return StrBundleNode(*nodes)
+            return c_ast.StrBundleNode(*nodes)
 
-    def parse(self, data: Any) -> Node:
+    def parse(self, data: Any) -> c_ast.Node:
         """Recursively transforms an object into a visitable AST node.
 
         Args:
@@ -303,7 +293,7 @@ class Parser:
             Node: The parsed Choixe AST node.
         """
         try:
-            fn = LiteralNode
+            fn = c_ast.LiteralNode
             for type_, parse_fn in self._type_map.items():
                 if isinstance(data, type_):
                     fn = parse_fn
@@ -336,7 +326,7 @@ class Parser:
             )
 
 
-def parse(data: Any) -> Node:
+def parse(data: Any) -> c_ast.Node:
     """Recursively transforms an object into a visitable AST node.
 
     Args:

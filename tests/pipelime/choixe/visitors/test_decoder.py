@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -65,6 +66,7 @@ class Cat(BaseModel):
                 },
             },
         ],
+        [LiteralNode(Path("/tmp/foo.txt")), str(Path("/tmp/foo.txt"))],
     ],
 )
 def test_decode(node: Node, expected: Any):

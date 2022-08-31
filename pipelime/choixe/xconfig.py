@@ -10,6 +10,7 @@ from schema import Schema
 from pipelime.choixe.ast.nodes import Node
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import dump, load
+from pipelime.choixe.utils.common import deep_set_
 from pipelime.choixe.visitors import Inspection, decode, inspect, process, walk
 
 
@@ -21,14 +22,14 @@ class XConfig(Box):
 
     def __init__(
         self,
-        data: Optional[Dict] = None,
+        data: Optional[Mapping] = None,
         cwd: Optional[Path] = None,
         schema: Optional[Schema] = None,
     ):
         """Constructor for `XConfig`
 
         Args:
-            data (Optional[Dict], optional): Optional dictionary containing
+            data (Optional[Mapping], optional): Optional dictionary containing
             initial data. Defaults to None.
             cwd (Optional[Path], optional): An optional path with the current working
             directory to use when resolving relative imports. If set to None, the
@@ -90,9 +91,7 @@ class XConfig(Box):
         Returns:
             XConfig: A deepcopy of this `XConfig`.
         """
-        return XConfig(
-            data=self.to_dict(), cwd=self.get_cwd(), schema=self.get_schema()
-        )
+        return XConfig(data=self.decode(), cwd=self.get_cwd(), schema=self.get_schema())
 
     def validate(self, replace: bool = True):
         """Validate internal schema if any
@@ -125,7 +124,7 @@ class XConfig(Box):
         Args:
             filename (str): output filename
         """
-        dump(self.to_dict(), Path(filename))
+        dump(self.decode(), Path(filename))
 
     def deep_get(
         self, full_key: Union[str, list], default: Optional[Any] = None
@@ -154,11 +153,8 @@ class XConfig(Box):
             Defaults to True.
         """
 
-        if only_valid_keys:
-            if py_.has(self, full_key):
-                py_.set_(self, full_key, value)
-        else:
-            py_.set_(self, full_key, value)
+        if not only_valid_keys or py_.has(self, full_key):
+            deep_set_(self, key_path=full_key, value=value, append=False)
 
     def deep_update(self, data: Dict, full_merge: bool = False):
         """Updates current confing in depth, based on keys of other input dictionary.
@@ -185,14 +181,24 @@ class XConfig(Box):
         [sanitized.pop(x) for x in self.PRIVATE_KEYS]
         return parse(sanitized)
 
-    def to_dict(self) -> Dict:
+    def decode(self) -> Dict:
         """Convert this XConfig to a plain python dictionary. Also converts some nodes
-        like numpy arrays into plain lists.
+        like numpy arrays into plain lists and restores some directives, eg, `$model`.
 
         Returns:
             Dict: The decoded dictionary.
         """
         return decode(self.parse())
+
+    def to_dict(self) -> Dict:
+        """Convert this XConfig to a plain python dictionary with no value decoding.
+
+        Returns:
+            Dict: The plain dictionary.
+        """
+        return {
+            k: v for k, v in super().to_dict().items() if k not in self.PRIVATE_KEYS
+        }
 
     def walk(self) -> List[Tuple[List[Union[str, int]], Any]]:
         """Perform the walk operation on this XConfig.

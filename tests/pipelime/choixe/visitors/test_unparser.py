@@ -3,78 +3,64 @@ from typing import Any
 import pytest
 from deepdiff import DeepDiff
 
-from pipelime.choixe.ast.nodes import (
-    CmdNode,
-    DateNode,
-    DictBundleNode,
-    DictNode,
-    ForNode,
-    ImportNode,
-    IndexNode,
-    InstanceNode,
-    ItemNode,
-    ListNode,
-    LiteralNode,
-    ModelNode,
-    Node,
-    StrBundleNode,
-    SweepNode,
-    TmpDirNode,
-    UuidNode,
-    VarNode,
-)
+import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.visitors import unparse
 
 
 @pytest.mark.parametrize(
     ["node", "expected"],
     [
-        [LiteralNode(10), 10],
-        [LiteralNode(0.124), 0.124],
-        [LiteralNode("hello"), "hello"],
-        [LiteralNode("my_var"), "my_var"],
+        [ast.LiteralNode(10), 10],
+        [ast.LiteralNode(0.124), 0.124],
+        [ast.LiteralNode("hello"), "hello"],
+        [ast.LiteralNode("my_var"), "my_var"],
         [
-            VarNode(LiteralNode("variable.one")),
+            ast.VarNode(ast.LiteralNode("variable.one")),
             "$var(variable.one)",
         ],
         [
-            VarNode(LiteralNode("variable.one"), env=LiteralNode(True)),
+            ast.VarNode(ast.LiteralNode("variable.one"), env=ast.LiteralNode(True)),
             "$var(variable.one, env=True)",
         ],
         [
-            VarNode(LiteralNode("variable.one"), default=LiteralNode(-24)),
+            ast.VarNode(ast.LiteralNode("variable.one"), default=ast.LiteralNode(-24)),
             "$var(variable.one, default=-24)",
         ],
         [
-            VarNode(
-                LiteralNode("variable.one"),
-                default=LiteralNode(-24),
-                env=LiteralNode(True),
+            ast.VarNode(
+                ast.LiteralNode("variable.one"),
+                default=ast.LiteralNode(-24),
+                env=ast.LiteralNode(True),
             ),
             "$var(variable.one, default=-24, env=True)",
         ],
-        [ImportNode(LiteralNode("path/to/file.yaml")), '$import("path/to/file.yaml")'],
         [
-            SweepNode(LiteralNode("a"), LiteralNode("variable"), LiteralNode(10)),
+            ast.ImportNode(ast.LiteralNode("path/to/file.yaml")),
+            '$import("path/to/file.yaml")',
+        ],
+        [
+            ast.SweepNode(
+                ast.LiteralNode("a"), ast.LiteralNode("variable"), ast.LiteralNode(10)
+            ),
             "$sweep(a, variable, 10)",
         ],
-        [StrBundleNode(LiteralNode("alice")), "alice"],
+        [ast.StrBundleNode(ast.LiteralNode("alice")), "alice"],
         [
-            StrBundleNode(
-                LiteralNode("alice "),
-                VarNode(LiteralNode("foo"), default=LiteralNode("loves")),
-                LiteralNode(" bob"),
+            ast.StrBundleNode(
+                ast.LiteralNode("alice "),
+                ast.VarNode(ast.LiteralNode("foo"), default=ast.LiteralNode("loves")),
+                ast.LiteralNode(" bob"),
             ),
             "alice $var(foo, default=loves) bob",
         ],
         [
-            DictNode(
+            ast.DictNode(
                 {
-                    LiteralNode("key1"): LiteralNode(10),
-                    LiteralNode("key2"): DictNode(
+                    ast.LiteralNode("key1"): ast.LiteralNode(10),
+                    ast.LiteralNode("key2"): ast.DictNode(
                         {
-                            LiteralNode("key1"): LiteralNode(10.2),
-                            LiteralNode("key2"): LiteralNode("hello"),
+                            ast.LiteralNode("key1"): ast.LiteralNode(10.2),
+                            ast.LiteralNode("key2"): ast.LiteralNode("hello"),
                         }
                     ),
                 }
@@ -82,32 +68,37 @@ from pipelime.choixe.visitors import unparse
             {"key1": 10, "key2": {"key1": 10.2, "key2": "hello"}},
         ],
         [
-            DictNode(
+            ast.DictNode(
                 {
-                    StrBundleNode(
-                        VarNode(LiteralNode("var")), LiteralNode("foo")
-                    ): LiteralNode("bar")
+                    ast.StrBundleNode(
+                        ast.VarNode(ast.LiteralNode("var")), ast.LiteralNode("foo")
+                    ): ast.LiteralNode("bar")
                 }
             ),
             {"$var(var)foo": "bar"},
         ],
         [
-            ListNode(LiteralNode(10), LiteralNode(-0.25), ListNode(LiteralNode("aa"))),
+            ast.ListNode(
+                ast.LiteralNode(10),
+                ast.LiteralNode(-0.25),
+                ast.ListNode(ast.LiteralNode("aa")),
+            ),
             [10, -0.25, ["aa"]],
         ],
+        [ast.SymbolNode(ast.LiteralNode("numpy.zeros")), "$symbol(numpy.zeros)"],
         [
-            InstanceNode(
-                LiteralNode("path/to_my/file.py:MyClass"),
-                DictNode(
+            ast.InstanceNode(
+                ast.LiteralNode("path/to_my/file.py:MyClass"),
+                ast.DictNode(
                     {
-                        LiteralNode("arg1"): InstanceNode(
-                            LiteralNode("module.submodule.function"),
-                            DictNode(
+                        ast.LiteralNode("arg1"): ast.InstanceNode(
+                            ast.LiteralNode("module.submodule.function"),
+                            ast.DictNode(
                                 {
-                                    LiteralNode("a"): ListNode(
-                                        LiteralNode(1), LiteralNode(2)
+                                    ast.LiteralNode("a"): ast.ListNode(
+                                        ast.LiteralNode(1), ast.LiteralNode(2)
                                     ),
-                                    LiteralNode("b"): LiteralNode(100),
+                                    ast.LiteralNode("b"): ast.LiteralNode(100),
                                 }
                             ),
                         )
@@ -125,16 +116,16 @@ from pipelime.choixe.visitors import unparse
             },
         ],
         [
-            ModelNode(
-                LiteralNode("path/to_my/file.py:MyModel"),
-                DictNode(
+            ast.ModelNode(
+                ast.LiteralNode("path/to_my/file.py:MyModel"),
+                ast.DictNode(
                     {
-                        LiteralNode("arg1"): DictNode(
+                        ast.LiteralNode("arg1"): ast.DictNode(
                             {
-                                LiteralNode("a"): ListNode(
-                                    LiteralNode(1), LiteralNode(2)
+                                ast.LiteralNode("a"): ast.ListNode(
+                                    ast.LiteralNode(1), ast.LiteralNode(2)
                                 ),
-                                LiteralNode("b"): LiteralNode(100),
+                                ast.LiteralNode("b"): ast.LiteralNode(100),
                             }
                         ),
                     }
@@ -146,67 +137,74 @@ from pipelime.choixe.visitors import unparse
             },
         ],
         [
-            ForNode(
-                LiteralNode("my.var"),
-                DictNode(
+            ast.ForNode(
+                ast.LiteralNode("my.var"),
+                ast.DictNode(
                     {
-                        LiteralNode("Hello"): LiteralNode("World"),
-                        StrBundleNode(
-                            LiteralNode("Number_"), IndexNode(LiteralNode("x"))
-                        ): ItemNode(LiteralNode("x")),
+                        ast.LiteralNode("Hello"): ast.LiteralNode("World"),
+                        ast.StrBundleNode(
+                            ast.LiteralNode("Number_"),
+                            ast.IndexNode(ast.LiteralNode("x")),
+                        ): ast.ItemNode(ast.LiteralNode("x")),
                     }
                 ),
-                LiteralNode("x"),
+                ast.LiteralNode("x"),
             ),
             {"$for(my.var, x)": {"Hello": "World", "Number_$index(x)": "$item(x)"}},
         ],
         [
-            ForNode(
-                LiteralNode("my.var"),
-                DictNode(
+            ast.ForNode(
+                ast.LiteralNode("my.var"),
+                ast.DictNode(
                     {
-                        LiteralNode("Hello"): LiteralNode("World"),
-                        StrBundleNode(LiteralNode("Number_"), IndexNode()): ItemNode(),
+                        ast.LiteralNode("Hello"): ast.LiteralNode("World"),
+                        ast.StrBundleNode(
+                            ast.LiteralNode("Number_"), ast.IndexNode()
+                        ): ast.ItemNode(),
                     }
                 ),
             ),
             {"$for(my.var)": {"Hello": "World", "Number_$index": "$item"}},
         ],
-        [UuidNode(), "$uuid"],
-        [DateNode(), "$date"],
-        [DateNode(LiteralNode("%Y%m%d")), '$date("%Y%m%d")'],
-        [CmdNode(LiteralNode("ls -lha")), '$cmd("ls -lha")'],
-        [TmpDirNode(), "$tmp"],
-        [TmpDirNode(LiteralNode("my_tmp")), "$tmp(my_tmp)"],
+        [ast.UuidNode(), "$uuid"],
+        [ast.DateNode(), "$date"],
+        [ast.DateNode(ast.LiteralNode("%Y%m%d")), '$date("%Y%m%d")'],
+        [ast.CmdNode(ast.LiteralNode("ls -lha")), '$cmd("ls -lha")'],
+        [ast.TmpDirNode(), "$tmp"],
+        [ast.TmpDirNode(ast.LiteralNode("my_tmp")), "$tmp(my_tmp)"],
         [
-            DictBundleNode(
-                ForNode(
-                    LiteralNode("alpha"),
-                    DictNode(
+            ast.DictBundleNode(
+                ast.ForNode(
+                    ast.LiteralNode("alpha"),
+                    ast.DictNode(
                         {
-                            StrBundleNode(
-                                LiteralNode("node_"), IndexNode()
-                            ): StrBundleNode(LiteralNode("Hello_"), ItemNode())
+                            ast.StrBundleNode(
+                                ast.LiteralNode("node_"), ast.IndexNode()
+                            ): ast.StrBundleNode(
+                                ast.LiteralNode("Hello_"), ast.ItemNode()
+                            )
                         }
                     ),
                 ),
-                ForNode(
-                    LiteralNode("beta"),
-                    DictNode(
+                ast.ForNode(
+                    ast.LiteralNode("beta"),
+                    ast.DictNode(
                         {
-                            StrBundleNode(
-                                LiteralNode("node_"), IndexNode()
-                            ): StrBundleNode(LiteralNode("Ciao_"), ItemNode())
+                            ast.StrBundleNode(
+                                ast.LiteralNode("node_"), ast.IndexNode()
+                            ): ast.StrBundleNode(
+                                ast.LiteralNode("Ciao_"), ast.ItemNode()
+                            )
                         }
                     ),
                 ),
-                DictNode(
+                ast.DictNode(
                     {
-                        LiteralNode("a"): LiteralNode(10),
-                        LiteralNode("b"): DictNode(
+                        ast.LiteralNode("a"): ast.LiteralNode(10),
+                        ast.LiteralNode("b"): ast.DictNode(
                             {
-                                LiteralNode("c"): LiteralNode(10.0),
-                                LiteralNode("d"): LiteralNode("hello"),
+                                ast.LiteralNode("c"): ast.LiteralNode(10.0),
+                                ast.LiteralNode("d"): ast.LiteralNode("hello"),
                             }
                         ),
                     }
@@ -221,5 +219,5 @@ from pipelime.choixe.visitors import unparse
         ],
     ],
 )
-def test_unparse(node: Node, expected: Any):
+def test_unparse(node: ast.Node, expected: Any):
     assert not DeepDiff(unparse(node), expected)

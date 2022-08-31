@@ -25,7 +25,7 @@ class TestRemotes:
 
         # upload
         source_to_remote: t.Mapping[Path, ParseResult] = {}
-        reader: pls.SamplesSequence = pls.SamplesSequence.from_underfolder(  # type: ignore
+        reader = pls.SamplesSequence.from_underfolder(  # type: ignore
             source, merge_root_items=False
         )
         for sample in reader:
@@ -56,7 +56,7 @@ class TestRemotes:
 
     def test_shared_folder_remote(self, minimnist_dataset: dict, tmp_path: Path):
         remote_url = plr.make_remote_url(
-            scheme="file", netloc="localhost", path=(tmp_path / "rmbucket")
+            scheme="file", host="localhost", bucket=(tmp_path / "rmbucket")
         )
 
         self._upload_download(tmp_path, minimnist_dataset["path"], remote_url)
@@ -67,11 +67,12 @@ class TestRemotes:
 
         remote_url = plr.make_remote_url(
             scheme="s3",
-            netloc="localhost:9000",
-            path="rmbucket",
-            access_key=f"{minio}",
-            secret_key=f"{minio}",
-            secure_connection=False,
+            user=f"{minio}",
+            password=f"{minio}",
+            host="localhost",
+            port=9000,
+            bucket="rmbucket",
+            secure=False,
         )
 
         self._upload_download(tmp_path, minimnist_dataset["path"], remote_url)

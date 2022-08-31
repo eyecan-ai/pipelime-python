@@ -117,7 +117,8 @@ class ItemFactory(ABCMeta):
 
 
 def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item"]):
-    """Sets serialization mode for some or all items."""
+    """Sets serialization mode for some or all items.
+    Applies to all items if no item class is given."""
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_serialization_mode(itc, mode)
 
@@ -125,20 +126,23 @@ def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item
 def set_item_disabled_serialization_modes(
     modes: t.List[SerializationMode], *item_cls: t.Type["Item"]
 ):
-    """Disables serialization modes on selected item classes."""
+    """Disables serialization modes on selected item classes.
+    Applies to all items if no item class is given."""
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_disabled_serialization_modes(itc, modes)
 
 
 def disable_item_data_cache(*item_cls: t.Type["Item"]):
-    """Disables data cache on selected item classes."""
-    for itc in item_cls:
+    """Disables data cache on selected item classes.
+    Applies to all items if no item class is given."""
+    for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, False)
 
 
 def enable_item_data_cache(*item_cls: t.Type["Item"]):
-    """Enables data cache on selected item classes."""
-    for itc in item_cls:
+    """Enables data cache on selected item classes.
+    Applies to all items if no item class is given."""
+    for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, True)
 
 
@@ -251,8 +255,8 @@ class no_data_cache(ContextDecorator):
         with no_data_cache():
             ...
 
-        # disable only for ImageItem and NumpyItem
-        with no_data_cache(ImageItem, NumpyItem):
+        # disable only for BinaryItem and NumpyItem
+        with no_data_cache(BinaryItem, NumpyItem):
             ...
 
         # apply at function invocation
@@ -435,8 +439,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 with path.open("w") as fp:
                     json.dump([rm.geturl() for rm in self._remote_sources], fp)
                 return None  # do not save remote file among file sources!
-            except Exception:
-                logger.exception(f"{self.__class__}: remote file serialization error.")
+            except Exception as exc:
+                logger.warning(  # logger.exception(
+                    f"{self.__class__}: remote file serialization error `{exc}`."
+                )
                 path.unlink(missing_ok=True)
                 path = (
                     self.as_default_name(target_path)
@@ -480,8 +486,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                     with path.open("wb") as fp:
                         self.encode(data, fp)
                     smode = None
-                except Exception:
-                    # logger.exception(f"{self.__class__}: data serialization error.")
+                except Exception as exc:
+                    logger.warning(  # logger.exception(
+                        f"{self.__class__}: new file serialization error `{exc}`."
+                    )
                     pass
 
         if smode is None:
@@ -571,8 +579,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             try:
                 with open(fsrc, "rb") as fp:
                     return self._decode_and_store(fp)
-            except Exception:
-                logger.exception(f"{self.__class__}: file source error.")
+            except Exception as exc:
+                logger.warning(  # logger.exception(
+                    f"{self.__class__}: file source error `{exc}`."
+                )
         for rmsrc in self._remote_sources:
             remote, rm_paths = plr.create_remote(rmsrc), plr.paths_from_url(rmsrc)
             if (
@@ -587,8 +597,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                         ):
                             data_stream.seek(0)
                             return self._decode_and_store(data_stream)
-                except Exception:
-                    logger.exception(f"{self.__class__}: remote source error.")
+                except Exception as exc:
+                    logger.warning(  # logger.exception(
+                        f"{self.__class__}: remote source error `{exc}`."
+                    )
         return None
 
     def _decode_and_store(self, fp: t.BinaryIO) -> T:
@@ -649,8 +661,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__}(data={repr(self._data_cache)},"
-            f" sources={self._file_sources}, remotes={self._remote_sources})"
+            f"{self.__class__}(data={repr(self._data_cache)}, "
+            f"sources={self._file_sources}, remotes={self._remote_sources}) "
+            f"shared={self.is_shared}, cache={self.cache_data}"
+            f"serialization={self.serialization_mode})"
         )
 
     def __str__(self) -> str:
@@ -659,13 +673,50 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return "\n".join(
             [
                 f"{self.__class__.__name__}:",
-                f"    data: {str(self._data_cache)}",
-                "    sources:",
+                f"  data: {str(self._data_cache)}",
+                "  sources:",
             ]
             + str_srcs
-            + ["    remotes:"]
+            + ["  remotes:"]
             + str_rmts
+            + [
+                f"  shared: {self.is_shared}",
+                f"  cache: {self.cache_data}",
+                f"  serialization: {self.serialization_mode}",
+            ]
         )
+
+    def __pl_pretty__(self) -> t.Any:
+        from rich.tree import Tree
+        from rich.panel import Panel
+        from rich import box
+
+        item_tree = Tree(f"{self.__class__.__name__}")
+        if self._data_cache is None:
+            item_tree.add("data")
+        else:
+            item_tree.add(
+                Panel.fit(
+                    self.pl_pretty_data(self._data_cache),
+                    title="data",
+                    title_align="left",
+                    box=box.HORIZONTALS,
+                )
+            )
+        branch = item_tree.add("sources")
+        for fs in self._file_sources:
+            branch.add(str(fs))
+        branch = item_tree.add("remotes")
+        for pr in self._remote_sources:
+            branch.add(pr.geturl())
+        item_tree.add(f"shared: {self.is_shared}")
+        item_tree.add(f"cache: {self.cache_data}")
+        item_tree.add(f"serialization: {self.serialization_mode}")
+        return item_tree
+
+    @classmethod
+    def pl_pretty_data(cls, value: T) -> t.Any:
+        return str(value)
 
 
 class UnknownItem(Item[t.Any]):
@@ -675,8 +726,8 @@ class UnknownItem(Item[t.Any]):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
-        raise NotImplemented(f"{cls.__name__}: cannot decode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot decode.")  # pragma: no cover
 
     @classmethod
     def encode(cls, value: t.Any, fp: t.BinaryIO):
-        raise NotImplemented(f"{cls.__name__}: cannot encode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot encode.")  # pragma: no cover

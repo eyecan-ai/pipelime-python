@@ -1,0 +1,2 @@
+input_path: ../../tests/sample_data/datasets/underfolder_minimnist
+output_path: split_out
