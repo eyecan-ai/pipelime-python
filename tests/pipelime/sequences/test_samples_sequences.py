@@ -132,7 +132,7 @@ class TestSamplesSequences:
             },
             {
                 "slice": {"start": 10, "stop": None, "step": None},
-                "map": {"stage": StageIdentity()},
+                "map": {"stage": {"identity": None}},
             },
         ]
 
@@ -153,10 +153,10 @@ class TestSamplesSequences:
                 "must_exist": False,
             },
             "slice": {"start": 10, "stop": None, "step": None},
-            "map": StageIdentity(),
+            "map": {"stage": StageIdentity()},
         }
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(TypeError):
             pls.build_pipe("shuffle")
