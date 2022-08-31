@@ -460,7 +460,7 @@ def pl_print(
 
 def create_stage_from_config(
     stage_name: str, stage_args: t.Optional[t.Mapping[str, t.Any]]
-) -> "SampleStage":  # type: ignore # noqa: E602, # noqa: F821
+) -> "SampleStage":  # type: ignore # noqa: E602,F821
     """Creates a stage from a name and arguments.
 
     :param stage_name: the name of the stage, eg, `compose`, `remap`, etc.
