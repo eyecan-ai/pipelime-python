@@ -1,4 +1,4 @@
-# Choixe - Configurations With Superpowers!
+# Choixe
 
 ## Introduction
 
@@ -19,7 +19,7 @@ Note that any markup format that can be deserialized into python built-ins can w
 
 All that **Choixe** does is the following:
 
-```mermaid
+```{mermaid}
 flowchart LR
 A[File]
 B[Python\nStructure]
@@ -402,7 +402,7 @@ Will produce the following **six** outputs, the cartesian product of `{a, b}` an
      beta: hello
    ```
 
-```mermaid
+```{mermaid}
 flowchart TD
 root -->|Sweep 1| a
 root -->|Sweep 1| b
@@ -445,7 +445,7 @@ Will produce the following **three** outputs:
      gamma: hello
    ```
 
-```mermaid
+```{mermaid}
 flowchart TD
 root -->|Sweep 1| a["{alpha: $sweep(foo, bar), beta: 10}"]
 root -->|Sweep 1| b["gamma: hello"]

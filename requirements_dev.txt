@@ -1,12 +1,24 @@
+# To avoid inconsistencies, we should keep the docs packages versions pinned.
+
+# Sphinx documentation
+Sphinx==5.1.1
+
+# Read the docs theme
+sphinx_rtd_theme==1.0.0
+
+# Needed to be able to write documentation in markdown
+myst-parser==0.18.0
+
+# Mermaid extention for Sphinx - Needed to render graphs in markdown
+sphinxcontrib-mermaid==0.7.1
+
 bump2version
 wheel
 watchdog
 flake8
 tox
 coverage
-Sphinx
 twine
 pytest
 pytest-runner
-sphinx_rtd_theme
 black
