@@ -43,7 +43,7 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic",
+    "pydantic<1.10",
     "schema",
     "pyzmq",
     "dictquery",

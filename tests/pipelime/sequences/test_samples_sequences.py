@@ -56,8 +56,8 @@ class TestSamplesSequences:
         sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder="no-path", must_exist=False
         )
-        assert str(sseq.folder) == "no-path"
-        assert not sseq.must_exist
+        assert str(sseq.folder) == "no-path"  # type: ignore
+        assert not sseq.must_exist  # type: ignore
 
         with pytest.raises(ValueError):
             sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
