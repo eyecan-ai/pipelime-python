@@ -56,8 +56,8 @@ class TestSamplesSequences:
         sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
             folder="no-path", must_exist=False
         )
-        assert str(sseq.folder) == "no-path"
-        assert not sseq.must_exist
+        assert str(sseq.folder) == "no-path"  # type: ignore
+        assert not sseq.must_exist  # type: ignore
 
         with pytest.raises(ValueError):
             sseq = pls.SamplesSequence.from_underfolder(  # type: ignore
@@ -132,7 +132,7 @@ class TestSamplesSequences:
             },
             {
                 "slice": {"start": 10, "stop": None, "step": None},
-                "map": {"stage": StageIdentity()},
+                "map": {"stage": {"identity": None}},
             },
         ]
 
@@ -153,10 +153,10 @@ class TestSamplesSequences:
                 "must_exist": False,
             },
             "slice": {"start": 10, "stop": None, "step": None},
-            "map": StageIdentity(),
+            "map": {"stage": StageIdentity()},
         }
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(TypeError):
             pls.build_pipe("shuffle")

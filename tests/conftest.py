@@ -35,13 +35,13 @@ def extra_modules(data_folder: Path) -> t.List[t.Dict[str, t.Any]]:
     return [
         {
             "filepath": (data_folder / "cli" / "extra_commands.py"),
-            "operators": ["slice"],
-            "commands": ["randrange", "shell"],
+            "operators": [],
+            "commands": ["randrange"],
         },
         {
             "filepath": (data_folder / "cli" / "extra_operators.py"),
-            "operators": ["reversed", "slice"],
-            "commands": ["shell"],
+            "operators": ["reversed"],
+            "commands": [],
         },
     ]
 

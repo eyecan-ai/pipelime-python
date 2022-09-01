@@ -64,10 +64,8 @@ class TestCliBase:
             str(outpath),
             "+output.serialization.override.DEEP_COPY",
             "NpyNumpyItem",
-            "+operations",
-            r"{slice: {stop: 10}, '"
-            + str(data_folder / "cli" / "extra_operators.py")
-            + r":reversed': {num: 5} }",
+            "+operations.slice.stop",
+            "10",
         ]
 
         self._base_launch(args)
@@ -76,7 +74,6 @@ class TestCliBase:
         gt = (
             SamplesSequence.from_underfolder(minimnist_dataset["path"])  # type: ignore
             .slice(stop=10)
-            .reversed(num=5)  # type: ignore
         )
         assert len(outreader) == len(gt)
         for o, g in zip(outreader, gt):
