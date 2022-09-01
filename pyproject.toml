@@ -53,6 +53,27 @@ dependencies = [
 ]
 dynamic = [ "version" ]
 
+[project.optional-dependencies]
+tests = [
+    "pytest",
+    "pytest-cov",
+]
+dev = [
+    "pylama",
+    "black",
+    "flake8",
+]
+build = [
+    "hatch",
+    "build",
+]
+docs = [
+    "Sphinx==5.1.1",
+    "sphinx_rtd_theme==1.0.0",
+    "myst-parser==0.18.0",
+    "sphinxcontrib-mermaid==0.7.1",
+]
+
 [project.urls]
 "Source" = "https://github.com/eyecan-ai/pipelime-python"
 "Issues" = "https://github.com/eyecan-ai/pipelime-python/issues"
