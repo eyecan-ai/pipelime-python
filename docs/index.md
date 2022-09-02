@@ -26,10 +26,12 @@ sequences/*
 
 ```{toctree}
 :maxdepth: 4
-:glob:
 :caption: "Operations: "
 
-operations/*
+operations/intro.md
+operations/stages.md
+operations/pipes.md
+operations/commands.md
 ```
 
 ```{toctree}
@@ -50,8 +52,11 @@ cli/*
 
 ```{toctree}
 :maxdepth: 4
-:glob:
 :caption: "Choixe:"
 
-choixe/*
+choixe/intro.md
+choixe/syntax.md
+choixe/directives.md
+choixe/xconfig.md
+
 ```
