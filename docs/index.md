@@ -26,10 +26,12 @@ sequences/*
 
 ```{toctree}
 :maxdepth: 4
-:glob:
 :caption: "Operations: "
 
-operations/*
+operations/intro.md
+operations/stages.md
+operations/pipes.md
+operations/commands.md
 ```
 
 ```{toctree}
