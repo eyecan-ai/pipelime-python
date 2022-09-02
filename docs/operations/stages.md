@@ -89,7 +89,7 @@ class AverageColor(plst.SampleStage, title="avg_color"):
 
 Point 4 (removing the "maskinv" item), can really just be done with pipelime built-in stages, so, no need to implement anything.
 
-Supposing 
+We can apply all stages at once by using a `StageCompose` object:
 ```python
 
 all_in_one_stage = plst.StageCompose(
