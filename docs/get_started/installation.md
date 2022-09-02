@@ -2,11 +2,11 @@
 
 ```{warning}
 You need `Graphviz` <https://www.graphviz.org/> installed on your system.
-On Linux Ubuntu/Debian, you can install it with::
+On Linux Ubuntu/Debian, you can install it with:
 
     sudo apt-get install graphviz graphviz-dev
 
-Alternatively you can use `conda`::
+Alternatively you can use `conda`:
 
     conda install --channel conda-forge pygraphviz
 
