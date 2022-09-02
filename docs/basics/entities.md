@@ -19,26 +19,28 @@ Currently, pipelime supports the following types of item:
 
 - Images, supporting some of the most commonly used formats: `BmpImageItem`, `PngImageItem`, `JpegImageItem`, `TiffImageItem`
 - Structured metadata: `JsonMetadataItem`, `YamlMetadataItem`, `TomlMetadataItem`
-- Numpy tensors: `NpyNumpyItem`, `TxtNumpyItem` 
+- Numpy tensors: `NpyNumpyItem`, `TxtNumpyItem`
 - Generic pickle encoded python objects: `PickleItem`
-- Non-structured binary data: `BinaryItem` 
+- Non-structured binary data: `BinaryItem`
 
-We plan to extend the list of all supported item types and formats in the future.
+Note that `TiffImageItem` may indeed manage any kind of multi-dimensional numpy array.
+We plan to extend the list of all supported item types and formats in the future, but in the meantime you are free to create and register your own items.
 
 ## Samples
 
-Most commonly, a dataset is contrived of multiple types of items for each observation, for example, consider a visual segmentation dataset with rgb images, ground-truth binary masks and classification labels. When you access an rgb image, you may also need to access its corresponding binary mask or its classification label, so it makes sense to consider that triplet as a single entity, which we call "Sample", containing the three items.
+Usually, a dataset comprises multiple types of items for each observation. For example, consider a visual segmentation dataset with rgb images, ground-truth binary masks and classification labels. When you access an rgb image, you may also need to access its corresponding binary mask or its classification label, so it makes sense to consider that triplet as a single entity, which we call *Sample*, containing the three items.
 
-Samples are a collection of items, they behave as a python dictionary, mapping string keys to their corresponding item. Beside the plain mapping methods, they provide some utilities for:
+Samples are collections of items, they behave as a python dictionary, mapping string keys to their corresponding items. Beside the plain mapping methods, they provide some utilities for, e.g.:
 
 - Validation
-- Deep access (in pydash fashion)
-- Key manipulation (key change / renaming / duplication)
+- Deep access (in [pydash](https://pydash.readthedocs.io/en/latest/deeppath.html) fashion)
+- Key manipulation (change / rename / duplicate)
 
 ## Samples Sequences
  
-A sample sequence is the entity representing a full dataset, consisting of an ordered sequence of samples. It behaves as a plain python sequence, plus some utility methods for:
+A sample sequence is the entity representing a full dataset, consisting of an ordered sequence of samples. It behaves as a python list, plus some utility methods for, e.g.:
 
 - Validation
 - Disk or Remote I/O
 - Manipulation
+- Data pipelining
