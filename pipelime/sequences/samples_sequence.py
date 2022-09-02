@@ -237,7 +237,11 @@ class SamplesSequence(
                     elif isinstance(field_value, pyd.BaseModel):
                         field_value = field_value.dict()
                 arg_dict[field_alias] = (
-                    (list(field_value) if isinstance(field_value, tuple) else field_value)
+                    (
+                        list(field_value)
+                        if isinstance(field_value, tuple)
+                        else field_value
+                    )
                     if not objs_to_str
                     or isinstance(
                         field_value,
