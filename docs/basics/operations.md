@@ -14,7 +14,7 @@ If possible, you should prefer this kind of operation to the others because it i
 
 Stages are applied through the `map` method and multiple stages can be applied sequentially with a `StageCompose`:
 
-```{python}
+```python
 from pipelime.sequences import SamplesSequence
 from pipelime.stages import StageKeysFilter
 
@@ -32,7 +32,7 @@ dataset = dataset.apply(num_workers=4)
 
 If stages are too limited to implement your custom operation, you should consider piped sequences. Piped sequences follow the decorator pattern, i.e. they wrap another sample sequence (the source) and provide an alterated view of the source sequence. This way, from the outside they look like a modified version of the original sequence, but in reality no data is actually modified. Also, despite being subclasses of `SamplesSequence`, they can be created just by calling a method on the base class, so that multiple operations are easily chained together:
 
-```{python}
+```python
 from pipelime.sequences import SamplesSequence
 
 # Create a dataset of 10 samples
@@ -47,7 +47,7 @@ dataset = dataset[20:40:2]
 
 What if you want to load/dump your sequence from/to yaml/json? Just call `to_pipe` and `build_pipe` functions:
 
-```{python}
+```python
 from pipelime.sequences import SamplesSequence, build_pipe
 import yaml
 
