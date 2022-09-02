@@ -1,7 +1,13 @@
 # 🍋 Pipelime
 
-Data workflows, command line utilities, advanced project configuration, dataflow automation.
-Slice your lime with this italian army knife.
+*If life gives you lemons, use Pipelime.*
+
+Pipelime is a full-fledge framework for **data science**. Read your datasets, manipulate them,
+write back to disk or upload to a remote data lake. Then build up your dataflow with Piper
+and manage the configuration with Choixe. Finally, embed your custom commands into the
+Pipelime workspace, to act both as dataflow nodes and advanced command line interface.
+
+---
 
 ## Installation
 
