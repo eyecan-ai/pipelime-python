@@ -30,9 +30,9 @@ class SequenceFromImageList(pls.SamplesSequence, title="from_image_list"):
 
     folder: DirectoryPath = Field(..., description="The folder to read.")
     ext: str = Field(".png", description="The image file extension.")
-    
+
     _samples: List[Path] = PrivateAttr()
-    
+
     def __init__(self, **data):
         super().__init__(**data)
         self._samples = [
@@ -64,7 +64,7 @@ dataset = dataset.repeat(100).shuffle()
 
 These are the most common operations:
 - `to_underfolder`: writes sample to disk in underfolder format
-- `map`: applies a [Stage](#stages)
+- `map`: applies a [stage](#stages) to each sample (see below)
 - `zip`: merges samples from two sequences
 - `cat`: concatenates samples
 - `filter`: applies a filter on samples, possibly reducing the length
@@ -79,7 +79,7 @@ Moreover, to filter the indexes you can pass a list to `dataset.select([2,9,14])
 To create your own piped operation just derive from `PipedSequenceBase`, then:
 1. apply the decorator `@piped_sequence` to your class
 2. set a `title`: this will be the name of the associated method (see the example below)
-3. provide a class help: it will be used for automatic help generation (see [Cli](../cli/cli.md))
+3. provide a class help: it will be used for automatic help generation (see [CLI](../cli/cli.md))
 4. define your parameters as [`pydantic.Field`](https://pydantic-docs.helpmanual.io/) (Field's description will be used for automatic help generation)
 5. implement `def get_sample(self, idx: int) -> Sample` and, possibly, `def size(self) -> int`
 
@@ -103,12 +103,12 @@ class ReverseSequence(PipedSequenceBase, title="reversed"):
 
 Once the module has been imported, the operation above registers themself as `reversed` on `SamplesSequence`, so that you can simply do `dataset.reversed(20)`.
 
-## <a name="stages"></a>Stages
+## Stages
 
 A special piped operation is `map`. Every time you get a sample from a mapped sequence, such sample is passed to a **stage** for further processing.
 Stages are classes derived from `SampleStage` and are built to process samples independently. Therefore, they have some limitations:
 
-- They are applied only to a single sequence (but you can easily merge or concatenate them if needed!). 
+- They are applied only to a single sequence (but you can easily merge or concatenate them if needed!).
 - The input and output sequences have the same length (use `filter/select/[start:stop:step]` to remove samples).
 - Each sample of the output sequence should depend solely on the corresponding sample of the input sequence.
 

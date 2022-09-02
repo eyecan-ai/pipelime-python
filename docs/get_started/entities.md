@@ -1,14 +1,14 @@
-# Entities
+# Main Entities
 
 All of Pipelime functionalities are built on top of three basic concepts:
 
-- Items 
+- Items
 - Samples
 - Samples Sequences
 
 ## Items
 
-An item is basically a container for a single, generic data unit. It can contain whatever type of data you need and automatically handles some things for you, namely: 
+An item is basically a container for a single, generic data unit. It can contain whatever type of data you need and automatically handles some things for you, namely:
 
 - Validation
 - Serialization
@@ -37,7 +37,7 @@ Samples are collections of items, they behave as a python dictionary, mapping st
 - Key manipulation (change / rename / duplicate)
 
 ## Samples Sequences
- 
+
 A sample sequence is the entity representing a full dataset, consisting of an ordered sequence of samples. It behaves as a python list, plus some utility methods for, e.g.:
 
 - Validation

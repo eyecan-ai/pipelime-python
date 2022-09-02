@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "🍋 Pipelime"
-copyright = "2022, Eyecan.ai"
+copyright = "2022, Eyecan.ai https://www.eyecan.ai/"
 author = "Eyecan.ai"
 
 # -- General configuration ---------------------------------------------------
@@ -27,7 +27,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_short_title = "Pipelime Documentation"
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
+# html_static_path = ["_static"]
 # html_logo = "images/logo.png"
 # html_favicon = "images/favicon.ico"
 
@@ -35,5 +35,7 @@ html_theme_options = {
     "sticky_navigation": False,
     "prev_next_buttons_location": "both",
     "style_external_links": True,
+    "navigation_depth": -1,
+    "titles_only": False,
     # "style_nav_header_background": "#ace600",
 }

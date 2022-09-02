@@ -5,15 +5,10 @@
 :glob:
 :caption: "Get Started:"
 
-get_started/*
-```
-
-```{toctree}
-:maxdepth: 4
-:glob:
-:caption: "Basics: "
-
-basics/*
+get_started/installation.md
+get_started/entities.md
+get_started/operations.md
+get_started/underfolder.md
 ```
 
 ```{toctree}
@@ -21,7 +16,7 @@ basics/*
 :glob:
 :caption: "Sequences: "
 
-sequences/*
+sequences/sequences.md
 ```
 
 ```{toctree}
@@ -39,7 +34,7 @@ operations/commands.md
 :glob:
 :caption: "Piper: "
 
-piper/*
+piper/dags.md
 ```
 
 ```{toctree}
@@ -47,7 +42,7 @@ piper/*
 :glob:
 :caption: "Cli: "
 
-cli/*
+cli/cli.md
 ```
 
 ```{toctree}
@@ -58,5 +53,4 @@ choixe/intro.md
 choixe/syntax.md
 choixe/directives.md
 choixe/xconfig.md
-
 ```
