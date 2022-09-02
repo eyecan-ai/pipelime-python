@@ -50,6 +50,13 @@ Another thing is that along the `SampleStage` superclass, there is a `title` par
 
 ## Usage - API
 
+Suppose you want to apply the `Invert` stage to a sequence of your choice, then you simply need to create the stage object and call the `map` method:
 
+```python
+stage = Invert()
+new_seq = seq.map(stage)
+```
+
+TODO
 
 ## Usage - CLI
