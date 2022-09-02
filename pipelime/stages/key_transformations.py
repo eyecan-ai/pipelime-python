@@ -6,6 +6,8 @@ from pipelime.stages import SampleStage
 
 
 class StageDuplicateKey(SampleStage, title="duplicate-key"):
+    """Duplicate an item."""
+
     source_key: str = pyd.Field(..., description="The key to duplicate.")
     copy_to: str = pyd.Field(
         ...,
@@ -20,6 +22,8 @@ class StageDuplicateKey(SampleStage, title="duplicate-key"):
 
 
 class StageKeyFormat(SampleStage, title="format-key"):
+    """Changes key names following a format string."""
+
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -71,7 +75,7 @@ class StageRemap(SampleStage, title="remap-key"):
 
 
 class StageKeysFilter(SampleStage, title="filter-keys"):
-    """Filter sample keys."""
+    """Filters sample keys."""
 
     key_list: t.Sequence[str] = pyd.Field(..., description="List of keys to preserve.")
     negate: bool = pyd.Field(

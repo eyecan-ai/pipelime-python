@@ -118,16 +118,57 @@ class SamplesSequence(
             return zip(*src_iters)
         return itertools.zip_longest(*src_iters, fillvalue=fill)
 
+    def apply(
+        self,
+        *,
+        num_workers: int = 0,
+        prefetch: int = 2,
+        track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
+    ):
+        """Goes through all the samples of the sequence, optionally using multiple
+        processes and returns a new sequence holding the processed samples.
+        Also, a `track_fn` can be defined, eg, to show the progress.
+
+        :param num_workers: The number of processes to spawn. If negative,
+            the number of (logical) cpu cores is used, defaults to 0
+        :type num_workers: int, optional
+        :param prefetch: The number of samples loaded in advanced by each worker,
+            defaults to 2
+        :type prefetch: int, optional
+        :param sample_fn: a callable to run on each sample, defaults to None
+        :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
+        :param track_fn: a callable to track the progress, defaults to None
+        :type track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]], optional
+        """
+        samples: t.List[Sample] = []
+
+        def _store_sample(x: Sample, idx: int):
+            if len(samples) <= idx:
+                samples.extend([Sample() for _ in range(idx - len(samples) + 1)])
+            samples[idx] = x
+
+        self.run(
+            num_workers=num_workers,
+            prefetch=prefetch,
+            keep_order=False,
+            sample_fn=_store_sample,
+            track_fn=track_fn,
+        )
+
+        return SamplesSequence.from_list(samples)
+
     def run(
         self,
         *,
         num_workers: int = 0,
         prefetch: int = 2,
         keep_order: bool = False,
-        sample_fn: t.Optional[t.Callable[[Sample], None]] = None,
+        sample_fn: t.Union[
+            t.Callable[[Sample], None], t.Callable[[Sample, int], None], None
+        ] = None,
         track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
     ):
-        """Go through all the samples of the sequence, optionally using multiple
+        """Goes through all the samples of the sequence, optionally using multiple
         processes and applying `sample_fn` to each sample. Also, a `track_fn` can be
         defined, eg, to show the progress.
 
@@ -196,12 +237,17 @@ class SamplesSequence(
                     elif isinstance(field_value, pyd.BaseModel):
                         field_value = field_value.dict()
                 arg_dict[field_alias] = (
-                    field_value
+                    (
+                        list(field_value)
+                        if isinstance(field_value, tuple)
+                        else field_value
+                    )
                     if not objs_to_str
                     or isinstance(
                         field_value,
                         (str, bytes, int, float, bool, t.Mapping, t.Sequence),
                     )
+                    or field_value is None
                     else str(field_value)
                 )
         return source_list + [{self._operator_path: arg_dict}]
