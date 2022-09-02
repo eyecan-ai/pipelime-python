@@ -2,27 +2,30 @@
 
 *If life gives you lemons, use Pipelime.*
 
-Data workflows, command line utilities, advanced project configuration, dataflow automation.
+Pipelime is a full-fledge framework for **data science**. Read your datasets, manipulate them,
+write back to disk or upload to a remote data lake. Then build up your dataflow with Piper
+and manage the configuration with Choixe. Finally, embed your custom commands into the
+Pipelime workspace, to act both as dataflow nodes and advanced command line interface.
 
 ---
 
 ## Installation
 
 > **WARNING**
->
+> 
 > You need `Graphviz` <https://www.graphviz.org/> installed on your system.
 > On Linux Ubuntu/Debian, you can install it with:
->
+> 
 > ```
 > sudo apt-get install graphviz graphviz-dev
 > ```
->
+> 
 > Alternatively you can use `conda`
->
+> 
 > ```
 > conda install --channel conda-forge pygraphviz
 > ```
->
+> 
 > Please see the full options at https://github.com/pygraphviz/pygraphviz/blob/main/INSTALL.txt
 
 Install Pipelime using pip:
@@ -75,18 +78,18 @@ No complex signatures, weird object iterators, or boilerplate code, you just nee
 
 ```{python}
     from pipelime.sequences import SamplesSequence
-
+    
     # Read an underfolder dataset with a single line of code
     dataset = SamplesSequence.from_underfolder('tests/sample_data/datasets/underfolder_minimnist')
-
+    
     # A dataset behaves like a Sequence
     print(len(dataset))             # the number of samples
     sample = dataset[4]             # get the fifth sample
-
+    
     # A sample is a mapping
     print(len(sample))              # the number of items
     print(set(sample.keys()))       # the items' keys
-
+    
     # An item is an object wrapping the actual data
     image_item = sample["image"]    # get the "image" item from the sample
     print(type(image_item))         # <class 'pipelime.items.image_item.PngImageItem'>
@@ -101,10 +104,10 @@ You can **write** a dataset by calling the associated operation:
 ```{python}
     # Attach a "write" operation to the dataset
     dataset = dataset.to_underfolder('/tmp/my_output_dataset')
-
+    
     # Now run over all the samples
     dataset.run()
-
+    
     # You can easily spawn multiple processes if needed
     dataset.run(num_workers=4)
 ```

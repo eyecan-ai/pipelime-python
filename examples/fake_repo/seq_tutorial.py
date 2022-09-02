@@ -1,27 +1,54 @@
-import pipelime.sequences as pls
-import pipelime.items as pli
+from pathlib import Path
 
+import numpy as np
+
+import pipelime.items as pli
+import pipelime.sequences as pls
+
+# Let's modify the "mini mnist" dataset by:
+# 1. Keeping only the samples with even index.
+# 2. Inverting the color of the images.
+# 3. Adding a new item called "color" with the average image color.
+# 4. Deleting the "maskinv" item.
 
 # Create a sequence from an underfolder
-seq = pls.SamplesSequence.from_underfolder("datasets/mini_mnist")
+this_folder = Path(__file__).parent
+seq = pls.SamplesSequence.from_underfolder(this_folder / "datasets/mini_mnist")
 
-# Get the length of the sequence
-print(len(seq))
-# >>> 20
+# Keep only the even samples (POINT 1)
+even_samples = seq[::2]
 
-# Slice a sequence to get a new subsequence
-subseq = seq[4:10:2]
-print(len(subseq))
-# >>> 3
+# Initialize an empty list of samples
+new_samples = []
 
-# Access a specific sample
-sample_7 = seq[7]
-print(len(sample_7))
-# >>> 8
+# Iterate on the sequence
+for sample in even_samples:
 
-print(list(sample_7.keys()))
-# >>> ['common', 'numbers', 'label', 'maskinv', 'metadata', 'points', 'mask', 'image']
+    # Get the image item
+    image: np.ndarray = sample["image"]()  # type: ignore
 
-# Access a specific item
-image_item = sample_7["image"]
-print(image_item)
+    # Invert the colors
+    invimage = 255 - image
+
+    # Replace the value of "image" with the inverted image (POINT 2)
+    sample = sample.set_value("image", invimage)
+
+    # Get the average image color
+    avg_color = np.mean(invimage, axis=(0, 1))
+
+    # Create a numpy item with the average color and add it to the sample (POINT 3)
+    avg_color_item = pli.NpyNumpyItem(avg_color)
+    sample = sample.set_item("avg_color", avg_color_item)
+
+    # Delete the maskinv item (POINT 4)
+    sample = sample.remove_keys("maskinv")
+
+    # After the sample has been modified, add it to the sequence
+    new_samples.append(sample)
+
+# Create a new sequence from the list of samples
+new_seq = pls.SamplesSequence.from_list(new_samples)
+
+# Save the new sequence to an underfolder
+new_seq = new_seq.to_underfolder(this_folder / "datasets/mini_mnist_inv")
+new_seq.run()

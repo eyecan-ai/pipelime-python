@@ -1,26 +1,69 @@
 # Operations
 
-Pipelime offers different tools to process datasets in many different ways. This is very useful to create custom automated data pipelines. 
+Pipelime offers many tools to process datasets in many different ways. This is very useful to create custom automated data pipelines.
 
 ## Stages
 
 Stages (subclasses of `SampleStage`) are the simplest form of dataset processing. They are applied independently to all samples of a sample sequence. The following constraints apply:
 
-- They accept and return a single sequence. 
-- The input and output have the same length.
-- Each sample of the output sequence depends uniquely on the corresponding sample of the input sequence.
+- They are applied only to a single sequence (but you can easily merge or concatenate them if needed!). 
+- The input and output sequences have the same length.
+- Each sample of the output sequence should depend uniquely on the corresponding sample of the input sequence.
 
 If possible, you should prefer this kind of operation to the others because it is much easier to implement and it is automatically parallelized.
 
-Multiple stages can be applied sequentally with a `StageCompose`.
+Stages are applied through the `map` method and multiple stages can be applied sequentially with a `StageCompose`:
+
+```python
+from pipelime.sequences import SamplesSequence
+from pipelime.stages import StageKeysFilter
+
+# Create a dataset of 10 samples
+dataset = SamplesSequence.toy_dataset(10)
+
+# Attach the stage
+dataset = dataset.map(StageKeysFilter(key_list=["image", "mask"]))
+
+# Apply to all the samples, possibly using multiple processes
+dataset = dataset.apply(num_workers=4)
+```
 
 ## Pipes
 
-If stages are too limited to implement your custom operation, you should consider piped sequences. Piped sequences follow the decorator pattern, i.e. they wrap another sample sequence (the source) and provide an alterated view of the source sequence. This way, from the outside they look like a modified version of the original sequence, but in reality no data is actually modified.
+If stages are too limited to implement your custom operation, you should consider piped sequences. Piped sequences follow the decorator pattern, i.e. they wrap another sample sequence (the source) and provide an alterated view of the source sequence. This way, from the outside they look like a modified version of the original sequence, but in reality no data is actually modified. Also, despite being subclasses of `SamplesSequence`, they can be created just by calling a method on the base class, so that multiple operations are easily chained together:
 
-Like stages, `PipedSequences` can be composed sequentially by calling the `build_pipe` function. 
+```python
+from pipelime.sequences import SamplesSequence
 
-Unlike stages, parallelization for PipedSequences is only partially automatic. You may need to manually parallelize some parts of your code.
+# Create a dataset of 10 samples
+dataset = SamplesSequence.toy_dataset(10)
+
+# Chain multiple operations
+dataset = dataset.repeat(100).shuffle()
+
+# Slicing is another useful operation
+dataset = dataset[20:40:2]
+```
+
+What if you want to load/dump your sequence from/to yaml/json? Just call `to_pipe` and `build_pipe` functions:
+
+```python
+from pipelime.sequences import SamplesSequence, build_pipe
+import yaml
+
+# Create a dataset
+dataset = SamplesSequence.toy_dataset(10).repeat(100).shuffle()
+
+# Serialize
+pipe = dataset.to_pipe()
+pipe_str = yaml.dump(pipe)
+
+# De-serialize
+pipe = yaml.safe_load(pipe_str)
+dataset = build_pipe(pipe)
+```
+
+Unlike stages, parallelization for PipedSequences is only partially automatic, i.e., it is limited to the data access. You may want to parallelize other methods, e.g., the `__init__()` call.
 
 ## Commands
 
