@@ -44,8 +44,8 @@ model and store a generic dataset through **filesystem**.
 ![underfolder structure](docs/images/underfolder.png "underfolder structure")
 
 An Underfolder **dataset** is a collection of samples. A **sample** is a collection of items.
-An **item** is a unitary block of data, it can be a generic tensor (e.g., a multi-channel image
-or a plain matrix), a dictionary and more.
+An **item** is a unitary block of data, i.e., a multi-channel image, a python object,
+a dictionary and more.
 Any valid underfolder dataset must contain a subfolder named `data` with samples
 and items. Also, *global shared* items can be stored in the root folder.
 
