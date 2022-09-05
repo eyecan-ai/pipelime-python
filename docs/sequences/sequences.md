@@ -1,20 +1,20 @@
 # Sequences
 
-Sample Sequences are at the core of all pipelime features. When writing custom operators like stages, pipes and commands, you will often need to access individual samples and items and manipulate them. 
+Sample Sequences are at the core of all pipelime features. When writing custom operators like stages, pipes and commands, you will often need to access individual samples and items and manipulate them.
 
-In this tutorial we will se how to interact with sample sequences and samples, their basic methods and their behaviour. Keep in mind that, yes, you could implement a data pipeline by just accessing and modifying individual samples and items, but that is strongly discouraged: you would either have to write a lot of boilerplate code, or miss out on a lot of features that pipelime provides automatically if you choose to follow the general framework of stages/pipes/commands.
+In this tutorial we will se how to interact with sample sequences and samples, their basic methods and their behaviour. Keep in mind that you could implement a data pipeline by just accessing and modifying individual samples and items, but that is strongly discouraged: you would either have to write a lot of boilerplate code, or miss out on a lot of features that pipelime provides automatically if you choose to follow the general framework of stages/pipes/commands.
 
 ## Necessary Modules
 
 First you should import the `pipelime.sequences` module, we suggest to alias it as `pls`. Inside it you will find core pipelime classes like `SampleSequence` and `Sample` and some useful functions to manipulate them.
 
-We suggest to also import `pipelime.items` aliased as `pli`. Here you will find all built-in item specializations and some useful lower-level utilities. 
+We suggest to also import `pipelime.items` aliased as `pli`. Here you will find all built-in item specializations and some useful lower-level utilities.
 
 ```python
 import pipelime.sequences as pls
 import pipelime.items as pli
 ```
- 
+
 ## Reading Data
 
 In the example project we provide a demonstration dataset named "mini_mnist", which contains 20 samples of the MNIST dataset, randomly colorized, with some metadata.
@@ -23,7 +23,7 @@ Let's create a sample sequence pointing to that dataset:
 
 ```python
 seq = pls.SamplesSequence.from_underfolder("datasets/mini_mnist")
-``` 
+```
 
 As you may notice, the creation of a sample sequence is almost instantaneous. In fact, the sample sequence object is lazy, and does not read anything from disk until it is explicitly requested.
 
@@ -76,11 +76,12 @@ print(image_item)
 #       shared: False
 #       cache: True
 #       serialization: None
-``` 
+```
 
-As you can see, the item is a `JpegImageItem`, referencing to a file named `000007_image.jpg`, it is not shared (as "common" and "numbers" should be), and has caching enabled.
+As you can see, the item is a `JpegImageItem`, referencing to a file named `000007_image.jpg`, it is not shared (as "common" and "numbers" are), and it has caching enabled, that is, the item will be loaded from disk only once and then cached in memory.
 
-So far, **no** data loading has actually been performed, to do so, we need to explicitly tell pipelime to do so, by **calling** the item:
+So far, **no** data loading has actually been performed.
+To do so, we need to explicitly tell pipelime to get the data, by **calling** the item:
 
 ```python
 image = image_item()
@@ -104,14 +105,15 @@ with pli.no_data_cache():
 ```
 
 Generally, caching data can drastically speedup a pipeline in which you need to access the same data multiple times, but with the major drawback of increasing the memory usage.
+However, you should also consider **when** data caching happens: if you are amidst of a complex processing, the item object you are loading may be a shallow copy of the original one, so the cached data will be lost when the item is destroyed.
 
 ## Modifying Data
 
 In this section, we will write our first and very simple data pipeline. Please keep in mind that **there are far better ways to do this**, the example here is simply to make you familiar with the core pipelime functionalities.
 
-Pipelime objects should be treated as immutable: i.e. you should not directly modify them, but only create altered copies of them. By "modifying" a sequence we really mean to create a new sequence, new samples and new items that contain altered versions of the original data, without never modifying anything in-place: the old sequence still remains untouched.
+Pipelime objects should be treated as immutable: i.e. you should not directly modify them, but only create altered copies of them. By "modifying" a sequence we really mean to create a new sequence, new samples and new items that contain altered versions of the original data, without never modifying anything in-place: the old sequence still remains untouched. Be aware, however, that pipelime usually shares any data that is not modified, so the memory footprint of chained operations is usually very low.
 
-Why did we just say that pipelime objects *should be treated as* immutable and not that they simply *are* immutable? Well, this is python and there is no actual way to prevent you from, let's say, modifying a numpy array within an item inplace and pretend nothing has happened. We can simply consider this a bad practice, and ask you to avoid it, like you would avoid accessing a field that starts with "_".
+Why did we just say that pipelime objects *should be treated as* immutable and not that they simply *are* immutable? Well, this is python and there is no actual way to prevent you from, let's say, modifying a numpy array within an item inplace and pretend nothing has happened. We can simply consider this a **bad practice**, and ask you to avoid it, like you would avoid accessing a field that starts with "_".
 
 Let's modify the "mini mnist" dataset by:
 1. Keeping only the samples with even index.
@@ -126,7 +128,7 @@ We assume you already have a sequence from the previous example. If so, start by
 even_samples = seq[::2]
 ```
 
-Then, we need to modify the remaining samples individually, thus we iterate over the `even_samples` in a for loop. Before doing that, since the `SampleSequence` is an immutable object, we need to initialize a new list that will contain the new samples. 
+Then, we need to modify the remaining samples individually, thus we iterate over the `even_samples` in a for loop. Before doing that, since the `SampleSequence` is an immutable object, we need to initialize a new list that will contain the new samples.
 
 ```python
 # Initialize an empty list of samples
@@ -146,73 +148,113 @@ Let's then procede to invert the image item:
     # Invert the colors
     invimage = 255 - image
 
-    # Replace the value of "image" with the inverted image (POINT 2)
+    # Replace the value of "image" with the inverted image
     sample = sample.set_value("image", invimage)
 ```
 
-First we explicitly avoided in-place changes to the image array, despite it being mutable.
-
-Then, to replace the previous image with the inverted one we used the method `set_value`. This method, under the hood does the following:
+First, we explicitly avoided in-place changes to the image array by computing the inverse as `invimage = 255 - image`.
+Then, to replace the previous image with the inverted one we used the method `set_value`. This method, under the hood, follows these steps:
 1. Retrieves the "image" item from the sample.
-2. Creates a copy of the item with the new data
+2. Creates a new item of the same type, but with the new data.
 3. Creates a copy of the sample with the new item and returns it.
 
-Note that simply calling the `set_value` method alone is completely useless, you need to store the returned object in a variable. For simplicity we save the new sample object in the same variable named `sample`, but they are two completely unrelated objects.
+It is important to note that what we get from `sample.set_value` is actually a **new sample** where all the item objects are shallow copied from the original sample, except for the "image" item, which is a new object of the same type. Therefore, simply calling the `set_value` method alone is completely useless, since you need to store the returned object in a variable. For simplicity, we save the new sample object in the same variable named `sample`, but they are two completely unrelated objects.
 
-We proceed then to adding a new item with the image average color:
+We proceed by adding a new item with the image average color:
 
 ```python
     # Get the average image color
     avg_color = np.mean(invimage, axis=(0, 1))
 
-    # Create a numpy item with the average color and add it to the sample (POINT 3)
+    # Create a numpy item with the average color and add it to the sample
     avg_color_item = pli.NpyNumpyItem(avg_color)
     sample = sample.set_item("avg_color", avg_color_item)
 ```
 
-In this case, we don't have a previously existing item whose value we need to modify, so, we need to create a new item from scratch. 
-
-The `pli` module contains all sorts of built-in item types that you can use, here we choose `NpyNumpyItem` i.e. a generic item that stores numpy array in the npy format. To create it, we simply pass the data to the item constructor.
+In this case, we don't have a previously existing item whose value we need to modify, so, we need to create a new item from scratch. The `pli` module contains all sorts of built-in item types that you can use, here we choose `NpyNumpyItem`, i.e., a generic item storing numpy arrays in the npy format. To create it, we simply pass the data to the item constructor.
+Item `__init__` method usually tries to convert and validate whatever you pass to it, so, for example, a `NpyNumpyItem` can accept anything you would pass to `numpy.array`.
 
 To add the item to the sample, we do something similar to what we did in the previous step, but in this case, we have to call the `set_item` method, which returns a copy of the sample with the new item.
 
-To add items you have the following options:
-- `set_item` - When you have a new item already created, and you simply wish to set it as is. You control every aspect of the item you set, but the item creation is left to you: one more statement to your code.
-- `set_value` - When you want to replace the value (the content) of an existing item, without any knowledge of what type of item it is. You have no control over the item creation, and you want to leave that to pipelime.
-- `set_value_as` - When you want to set/replace a value with the same item type of another (possibly unrelated) item. Suppose you want to add a binary mask in a sample that already contains a png image item, and you wish that the mask item has the same settings - but different content - as the image, then you can use `set_value_as`. Basically create a new item as the copy of another one, but with different value.
-  
+Going deeper, to add items you have the following options:
+- `set_item`: when you have a new item already created, and you simply wish to set it as is. You control every aspect of the item you set, but the item creation is left to you: one more statement to your code.
+- `set_value`: when you want to replace the value (the content) of an existing item, without any knowledge of what type of item it is. You have no control over the item creation, and you want to leave that to pipelime.
+- `set_value_as`: when you want to set/replace a value with the same item type of another (possibly unrelated) item. Suppose you want to add a binary mask in a sample that already contains a png image item, and you wish that the mask item has the same type - but different content - as the image, then you can use `set_value_as`.
+
 Back to our example, we then procede to remove the "maskinv" item.
 
 ```python
-    # Delete the maskinv item (POINT 4)
+    # Delete the maskinv item
     sample = sample.remove_keys("maskinv")
 
     # After the sample has been modified, add it to the sequence
     new_samples.append(sample)
 ```
 
-We then need to transform the list of new samples into a real `SamplesSequence`, by doing: 
+To modify keys, the following methods are available:
+- `remove_keys`: removes one or more keys from the sample.
+- `extract_keys`: removes all keys except the ones specified.
+- `rename_key`: renames a key, keeping the same item.
+- `duplicate_key`: duplicates a key, shallow-copying the item.
+
+Finally, we then need to transform the list of new samples into a real `SamplesSequence`, by doing:
 
 ```python
 new_seq = pls.SamplesSequence.from_list(new_samples)
 ```
 
+To wrap-up:
+
+```python
+import pipelime.sequences as pls
+import pipelime.items as pli
+
+seq = pls.SamplesSequence.from_underfolder("datasets/mini_mnist")
+
+new_samples = []
+for sample in even_samples:
+    # Get the image item
+    image: np.ndarray = sample["image"]()  # type: ignore
+
+    # Invert the colors
+    invimage = 255 - image
+
+    # Replace the value of "image" with the inverted image
+    sample = sample.set_value("image", invimage)
+
+    # Get the average image color
+    avg_color = np.mean(invimage, axis=(0, 1))
+
+    # Create a numpy item with the average color and add it to the sample
+    avg_color_item = pli.NpyNumpyItem(avg_color)
+    sample = sample.set_item("avg_color", avg_color_item)
+
+    # Delete the maskinv item
+    sample = sample.remove_keys("maskinv")
+
+    # After the sample has been modified, add it to the sequence
+    new_samples.append(sample)
+
+# Create a new sequence from the list of samples
+new_seq = pls.SamplesSequence.from_list(new_samples)
+```
+
 ## Writing Data
 
-After you modify a sample sequence, you might want to write it back to disk. Doing this is very simple, you just need to transform the sequence into a writer, and then iterate over it:
-
+After you modify a sample sequence, you might want to write it back to disk.
+This is very simple, since you just need to attach a writer to the sequence, and then iterate over it (or let pipelime do it for you by calling `run`):
 
 ```python
 # Save the new sequence to an underfolder
-new_seq = new_seq.to_underfolder(this_folder / "datasets/mini_mnist_inv")
+new_seq = new_seq.to_underfolder("datasets/mini_mnist_inv")
 new_seq.run()
 ```
 
 Notice two things:
-- `to_underfolder` does not write anything on its own. Really it just creates another sequence that is written on disk upon iteration.
-- in order to actually write it to disk we use the `run` method, that simply iterates over the sequence.
+- `to_underfolder` does not write anything on its own. In fact, it just chains an operation that writes a sample to disk every time you *get* it.
+- in order to actually write it to disk we use the `run` method, that simply iterates over the sequence, possibly using multiple processes.
 
-We could replace the `run` call with something like: 
+We could replace the `run` call with something like:
 
 ```python
 for x in new_seq:

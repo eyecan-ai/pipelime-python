@@ -663,7 +663,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return (
             f"{self.__class__}(data={repr(self._data_cache)}, "
             f"sources={self._file_sources}, remotes={self._remote_sources}) "
-            f"shared={self.is_shared}, cache={self.cache_data}"
+            f"shared={self.is_shared}, cache={self.cache_data}, "
             f"serialization={self.serialization_mode})"
         )
 

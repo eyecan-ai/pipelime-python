@@ -13,7 +13,7 @@ First, a sequence must be generated calling a static method on `SamplesSequence`
 If you want to provide access to your own data, you should consider to use `SamplesSequence.from_callable()`, so that you just have to provide a function `(idx: int) -> Sample`. However, implementing a new generator is not too difficult. First, derive from `SamplesSequence`, then:
 1. apply the decorator `@source_sequence` to your class
 2. set a `title`: this will be the name of the associated method (see the example below)
-3. provide a class help: it will be used for automatic help generation (see [Cli](../cli/cli.md))
+3. provide a class help: it will be used for automatic help generation (see [CLI](../cli/cli.md))
 4. define your parameters as [`pydantic.Field`](https://pydantic-docs.helpmanual.io/) (Field's description will be used for automatic help generation)
 5. implement `def get_sample(self, idx: int) -> Sample` and `def size(self) -> int`
 
@@ -50,7 +50,7 @@ class SequenceFromImageList(pls.SamplesSequence, title="from_image_list"):
 ## Pipes
 
 Piped sequences follow the decorator pattern, i.e., they wrap another sample sequence (the source) and provide an alterated view of the source sequence.
-You can attach and chain multiple operations following a functional pattern:
+You can attach and chain multiple operations following the functional pattern:
 
 ```python
 from pipelime.sequences import SamplesSequence
