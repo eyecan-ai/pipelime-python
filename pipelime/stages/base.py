@@ -49,7 +49,7 @@ class StageInput(pyd.BaseModel, extra="forbid"):
 
     __root__: SampleStage
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore
+    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
         return self.__root__(x)
 
     def __str__(self) -> str:
