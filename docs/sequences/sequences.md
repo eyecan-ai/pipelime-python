@@ -78,6 +78,15 @@ print(image_item)
 #       serialization: None
 ```
 
+Note that you can easily get a *rich* printing as well:
+
+```python
+from pipelime.cli import pl_print
+
+# pl_print can print anything in pipelime: items, samples, sequences, commands, stages...
+pl_print(sample_7["image"])
+```
+
 As you can see, the item is a `JpegImageItem`, referencing to a file named `000007_image.jpg`, it is not shared (as "common" and "numbers" are), and it has caching enabled, that is, the item will be loaded from disk only once and then cached in memory.
 
 So far, **no** data loading has actually been performed.
@@ -124,7 +133,7 @@ Let's modify the "mini mnist" dataset by:
 We assume you already have a sequence from the previous example. If so, start by slicing the sequence to keep only the even samples:
 
 ```python
-# Keep only the even samples (POINT 1)
+# Keep only the even samples
 even_samples = seq[::2]
 ```
 

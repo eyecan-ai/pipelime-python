@@ -5,7 +5,8 @@ import pydantic as pyd
 
 import pipelime.items as pli
 import pipelime.sequences as pls
-import pipelime.stages as plst
+from pipelime.stages.base import SampleStage, StageInput
+from pipelime.stages import StageKeyFormat
 from pipelime.sequences.pipes import PipedSequenceBase
 
 
@@ -13,36 +14,17 @@ from pipelime.sequences.pipes import PipedSequenceBase
 class MappedSequence(PipedSequenceBase, title="map"):
     """Applies a stage on all samples."""
 
-    stage: t.Union[
-        plst.SampleStage, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]
-    ] = pyd.Field(
-        ...,
-        description=(
-            "The stage to map. The stage can be a `<name>: <args>` mapping, "
-            "where `<name>` is `compose`, `remap`, `albumentations` etc, "
-            "while `<args>` is a mapping of its arguments."
-        ),
-    )
-
-    @pyd.validator("stage", always=True)
-    def _validate_stage(cls, v):
-        from pipelime.cli.utils import create_stage_from_config
-
-        return (
-            v
-            if isinstance(v, plst.SampleStage)
-            else create_stage_from_config(*next(iter(v.items())))
-        )
+    stage: StageInput = pyd.Field(..., description=StageInput.__doc__)  # type: ignore
 
     def __init__(
         self,
-        stage: t.Union[plst.SampleStage, t.Mapping[str, t.Mapping[str, t.Any]]],
+        stage: t.Union[SampleStage, str, t.Mapping[str, t.Mapping[str, t.Any]]],
         **data,
     ):
         super().__init__(stage=stage, **data)  # type: ignore
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.stage(self.source[idx])  # type: ignore
+        return self.stage(self.source[idx])
 
 
 @pls.piped_sequence
@@ -61,7 +43,7 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
         ),
     )
 
-    _key_formatting_stage: plst.StageKeyFormat = pyd.PrivateAttr()
+    _key_formatting_stage: StageKeyFormat = pyd.PrivateAttr()
 
     @pyd.validator("key_format")
     def validate_key_format(cls, v):
@@ -71,7 +53,7 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
 
     def __init__(self, to_zip: pls.SamplesSequence, **data):
         super().__init__(to_zip=to_zip, **data)  # type: ignore
-        self._key_formatting_stage = plst.StageKeyFormat(key_format=self.key_format)
+        self._key_formatting_stage = StageKeyFormat(key_format=self.key_format)
 
     def size(self) -> int:
         return min(len(self.source), len(self.to_zip))

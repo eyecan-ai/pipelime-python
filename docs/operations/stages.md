@@ -1,6 +1,6 @@
 # Stages
 
-Let's focus some more on pipelime stages. As you may know from the "Basics" section of this tutorial, stages are a special kind of operation that transforms individual samples of a sequence. When a stage is applied on a sequence, all of its samples are transformed independently.
+Let's focus some more on pipelime stages. [As you may already know](../get_started/entities.md), stages are a special kind of operation that transforms individual samples of a sequence. When a stage is applied on a sequence, all of its samples are transformed independently.
 
 If possible, you should always implement your operations as a stage, for the following reasons:
 
@@ -31,13 +31,19 @@ Let's modify the "mini mnist" dataset by:
 4. Deleting the "maskinv" item.
 ```
 
-Some of these operations (2, 3 and 4) can be implemented as stages. Point 1 requires to remove samples from a sequence, violating one of the conditions to be a stage (input and outputs should have the same length).
+Points 2, 3 and 4 can be implemented as **stages**, while point 1 requires to remove samples from a sequence, thus violating one of the conditions to be a stage, i.e., input and outputs should have the same length.
 
-We will detail the implementation of the point 2.
+We will detail the implementation of point 2 "inverting the color of the images".
 
-Stages are subclasses of `plst.SampleStage`, which in turn are pydantic models. If you are not familiar with pydantic, you should take a look at it. TL;DR: pydantic models are dataclasses on steroids, they provide automatic de/serialization, validation, constructor and property-like fields generation and tons of interesting features aimed at reducing the amount of boilerplate code for plain python classes.
+Stages are subclasses of `plst.SampleStage`, which in turn is a [pydantic](https://pydantic-docs.helpmanual.io/) model. If you are not familiar with pydantic, you should take a look at it
 
-This is the full code of the `Invert` stage:
+```{admonition} TL;DR
+:class: note
+
+Pydantic models are dataclasses on steroids, they provide automatic de/serialization, validation, constructor, property-like fields generation and tons of interesting features aimed at reducing the amount of boilerplate code for plain python classes.
+```
+
+This is the full code of the `InvertStage` class:
 
 ```python
 from pydantic import Field
@@ -46,8 +52,8 @@ import pipelime.sequences as pls
 import pipelime.stages as plst
 
 
-class Invert(plst.SampleStage, title="invert"):
-    """Invert the colors of an image."""
+class InvertStage(plst.SampleStage, title="invert"):
+    """Inverts the colors of an image."""
 
     key: str = Field("image", description="The key of the image to invert.")
 
@@ -56,29 +62,33 @@ class Invert(plst.SampleStage, title="invert"):
 ```
 
 All stages must implement the `__call__` method, accepting and returning a single sample. The call method here simply reads the image item, inverts the colors and returns the new sample.
+You may notice that the class has a `key` field, that defaults to the string "image", and includes a `description`. Though not essential, you should always set fields' descriptions because they are automatically used by pipelime to display a help message in the [CLI](../cli/cli.md).
+Also, you may notice a `title` field in the class definition. Again, this is not mandatory, but it serves as a user-friendly alias to the full class name whenever you need to refer to that stage in a pipeline.
 
-You may notice that the class has a `key` field, that defaults to the string "image". Fields descriptions are automatically used by pipelime to display a help message in the CLI, although not necessary, you should always add them. 
+## Applying a Stage
 
-Another thing is that along the `SampleStage` superclass, there is a `title` parameter in the class definition. This is also not necessary, it serves as a user-friendly alias to the full class name in case you want to use this stage from the CLI.
-
-## Usage - API
-
-Suppose you want to apply the `Invert` stage to a sequence of your choice, then you simply need to create the stage object and call the `map` method:
+To apply `InvertStage` to a sequence, you have to call the `map` method:
 
 ```python
-stage = Invert()
+stage = InvertStage()
 new_seq = seq.map(stage)
 ```
 
-The sequence returned by `map` is another sequence on which the invert stage is applied. As many other operators, `map` transforms the data **lazily**: the stage is only executed when accessing individual samples.
+The sequence returned by `map` is a **new** sequence on which the invert stage is applied. As many other operators, `map` transforms the data **lazily**: the stage is only executed when accessing individual samples.
 
-Pipelime provides a special stage called `StageCompose` that is a sequential composition of other stages, useful to apply many stages at once.
+Note that instead of explicitly creating a new stage, you can use its title, possibly with parameters passed as a dictionary:
 
-Suppose we also want to reimplement points 3 and 4 from the previous tutorial, this is the code for point 3 (adding an item with the image average color):
+```python
+new_seq = seq.map("invert")
+...
+new_seq = seq.map({"invert": {"key": "image"}})
+```
 
-```python 
+Implementing point 3 is now pretty easy:
+
+```python
 class AverageColor(plst.SampleStage, title="avg_color"):
-    """Average the color of an image."""
+    """Averages the color of an image."""
 
     image_key: str = Field("image", description="The key of the image to average.")
     avg_key: str = Field("avg_color", description="The key of the average color.")
@@ -87,19 +97,21 @@ class AverageColor(plst.SampleStage, title="avg_color"):
         return x.set_value(self.avg_key, np.mean(x[self.image_key](), axis=(0, 1)))  # type: ignore
 ```
 
-Point 4 (removing the "maskinv" item), can really just be done with pipelime built-in stages, so, no need to implement anything.
+While point 4 is achieved with the built-in `StageKeysFilter`.
+To sequentially apply all three stages, you can just combine them with the `>>` and `<<` operators:
 
-We can apply all stages at once by using a `StageCompose` object:
 ```python
+new_seq = seq.map(InvertStage() >> AverageColor() >> plst.StageKeysFilter(key_list=["maskinv"], negate=True))
 
-all_in_one_stage = plst.StageCompose(
-    Invert(),
-    AverageColor(),
-    plst.StageKeysFilter(key_list=["maskinv"], negate=True),
-)
-new_seq = seq.map(all_in_one_stage)
-``` 
+# or equivalently
+new_seq = seq.map(plst.StageKeysFilter(key_list=["maskinv"], negate=True) << AverageColor() << InvertStage())
+```
 
-## Usage - CLI
+Indeed, the left/right shift operators are just shorcuts for the `StageCompose` stage:
 
-TODO
+```python
+new_seq = seq.map(plst.StageCompose([InvertStage(), AverageColor(), plst.StageKeysFilter(key_list=["maskinv"], negate=True)]))
+
+# or equivalently
+new_seq = seq.map(plst.StageCompose(["invert", "avg_color", {"filter-keys": {"key_list": ["maskinv"], "negate": True}}]))
+```
