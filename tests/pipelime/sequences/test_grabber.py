@@ -36,7 +36,14 @@ def test_grabber(
     )
 
     with pli.item_serialization_mode(pli.SerializationMode.CREATE_NEW_FILE):
-        pls.grab_all(grabber, proc)
+        itm_sm = pli.item_serialization_mode(
+            pli.SerializationMode.CREATE_NEW_FILE,
+        )
+        pls.grab_all(grabber, proc, worker_init_fn=itm_sm.__enter__)
+
+    for f in tmp_path.glob("output/**/*"):
+        assert not f.is_symlink()
+        assert f.stat().st_nlink == 1
 
     dest = pls.SamplesSequence.from_underfolder(  # type: ignore
         folder=tmp_path / "output", merge_root_items=True
