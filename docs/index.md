@@ -17,6 +17,7 @@ get_started/underfolder.md
 :caption: "Sequences: "
 
 sequences/sequences.md
+sequences/items.md
 ```
 
 ```{toctree}
@@ -32,6 +33,14 @@ operations/commands.md
 ```{toctree}
 :maxdepth: 4
 :glob:
+:caption: "Remotes: "
+
+piper/remotes.md
+```
+
+```{toctree}
+:maxdepth: 4
+:glob:
 :caption: "Piper: "
 
 piper/dags.md
@@ -40,7 +49,7 @@ piper/dags.md
 ```{toctree}
 :maxdepth: 4
 :glob:
-:caption: "Cli: "
+:caption: "Command Line Usage: "
 
 cli/cli.md
 ```

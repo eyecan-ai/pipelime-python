@@ -1,4 +1,4 @@
-# Sequences
+# Samples Sequences
 
 Sample Sequences are at the core of all pipelime features. When writing custom operators like stages, pipes and commands, you will often need to access individual samples and items and manipulate them.
 
