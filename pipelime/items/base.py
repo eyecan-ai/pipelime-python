@@ -35,7 +35,7 @@ class ItemFactory(ABCMeta):
 
     ITEM_CLASSES: t.Dict[str, t.Type["Item"]] = {}
     REMOTE_FILE_EXT = ".remote"
-    ITEM_DATA_CACHE_MODE: t.Dict[t.Type["Item"], bool] = {}
+    ITEM_DATA_CACHE_MODE: t.Dict[t.Type["Item"], t.Optional[bool]] = {}
     ITEM_SERIALIZATION_MODE: t.Dict[t.Type["Item"], SerializationMode] = {}
     ITEM_DISABLED_SERIALIZATION_MODES: t.Dict[
         t.Type["Item"], t.Set[SerializationMode]
@@ -47,7 +47,7 @@ class ItemFactory(ABCMeta):
             if ext == cls.REMOTE_FILE_EXT:
                 raise ValueError(f"{cls.REMOTE_FILE_EXT} file extension is reserved")
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
-        cls.ITEM_DATA_CACHE_MODE[cls] = True  # type: ignore
+        cls.ITEM_DATA_CACHE_MODE[cls] = None  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
         cls.ITEM_DISABLED_SERIALIZATION_MODES[cls] = set()  # type: ignore
         super().__init__(name, bases, dct)
@@ -73,14 +73,16 @@ class ItemFactory(ABCMeta):
         return item_cls(*path_or_urls, shared=shared_item)
 
     @classmethod
-    def set_data_cache_mode(cls, item_cls: t.Type["Item"], enable_data_cache: bool):
+    def set_data_cache_mode(cls, item_cls: t.Type["Item"], enable_data_cache: t.Optional[bool]):
         cls.ITEM_DATA_CACHE_MODE[item_cls] = enable_data_cache
 
     @classmethod
     def is_cache_enabled(cls, item_cls: t.Type["Item"]) -> bool:
         for base_cls in item_cls.mro():
-            if issubclass(base_cls, Item) and not cls.ITEM_DATA_CACHE_MODE[base_cls]:
-                return False
+            if issubclass(base_cls, Item):
+                value = cls.ITEM_DATA_CACHE_MODE.get(base_cls, None)
+                if value is not None:
+                    return value
         return True
 
     @classmethod
@@ -273,6 +275,34 @@ class no_data_cache(ContextDecorator):
             itc: ItemFactory.ITEM_DATA_CACHE_MODE[itc] for itc in self._items
         }
         disable_item_data_cache(*self._items)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for itc, val in self._prev_state.items():
+            ItemFactory.set_data_cache_mode(itc, val)
+
+
+class data_cache(ContextDecorator):
+    """Use this class as context manager or function decorator to enable data caching
+    on some or all item types. Useful when nested with `no_data_cache`.
+
+    .. code-block::
+    :caption: Example
+
+        # disable data cache for all items, then re-enable it
+        with no_data_cache(...):
+            with data_cache(...):
+                ...
+            ...
+    """
+
+    def __init__(self, *item_cls: t.Type["Item"]):
+        self._items = item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys()
+
+    def __enter__(self):
+        self._prev_state = {
+            itc: ItemFactory.ITEM_DATA_CACHE_MODE[itc] for itc in self._items
+        }
+        enable_item_data_cache(*self._items)
 
     def __exit__(self, exc_type, exc_value, traceback):
         for itc, val in self._prev_state.items():

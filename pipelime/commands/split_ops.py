@@ -11,6 +11,7 @@ class SplitBase(
     pyd.BaseModel,
     allow_population_by_field_name=True,
     extra="forbid",
+    copy_on_model_validation="none",
 ):
     output: t.Optional[
         pl_interfaces.OutputDatasetInterface

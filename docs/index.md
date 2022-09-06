@@ -35,7 +35,7 @@ operations/commands.md
 :glob:
 :caption: "Remotes: "
 
-piper/remotes.md
+remotes/remotes.md
 ```
 
 ```{toctree}

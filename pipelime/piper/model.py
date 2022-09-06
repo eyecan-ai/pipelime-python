@@ -13,7 +13,7 @@ class PiperPortType(Enum):
     PARAMETER = "parameter"
 
 
-class PiperInfo(BaseModel, extra="forbid"):
+class PiperInfo(BaseModel, extra="forbid", copy_on_model_validation="none"):
     token: str = Field("", description="The piper execution token.")
     node: str = Field("", description="The piper dag's node name.")
 
@@ -22,7 +22,7 @@ class PiperInfo(BaseModel, extra="forbid"):
         return bool(self.token)
 
 
-class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="forbid"):
+class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="forbid", copy_on_model_validation="none"):
     """Base class for all pipelime commands.
     Subclasses should implement the run method.
     """
@@ -101,7 +101,7 @@ class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="for
         self.run()
 
 
-class DAGModel(BaseModel, extra="forbid"):
+class DAGModel(BaseModel, extra="forbid", copy_on_model_validation="none"):
     """A Piper DAG as a `<node>: <command>` mapping."""
 
     nodes: t.Mapping[str, PipelimeCommand]

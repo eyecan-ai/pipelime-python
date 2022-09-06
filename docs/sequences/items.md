@@ -40,7 +40,7 @@ When an item is saved to disk, pipelime uses the `serialization_mode` property t
 2. `DEEP_COPY`: if the source is file, such file is deep copied; otherwise, `CREATE_NEW_FILE` applies.
 3. `SYM_LINK`: if the source is a file, a [symbolic link](https://en.wikipedia.org/wiki/Symbolic_link) is created; otherwise, `DEEP_COPY` applies.
 4. `HARD_LINK`: is the source is a file, a [hard link](https://en.wikipedia.org/wiki/Hard_link) is created; otherwise, `DEEP_COPY` applies.
-5. `REMOTE_FILE`: if the data comes from a remote data lake, a special `.remote` file is saved with a reference to the data lake; otherwise, `HARD_LINK` applies.
+5. `REMOTE_FILE`: if the data comes from a [remote data lake](../remotes/remotes.md), a special `.remote` file is saved with a reference to the data lake; otherwise, `HARD_LINK` applies.
 
 If you are not familiar with symbolic and hard links, these are the main differences:
 - hard links are the usual "data" pointer you find in your filesystem, while symbolic links are "pointers" to other files;
@@ -49,14 +49,25 @@ If you are not familiar with symbolic and hard links, these are the main differe
 - on the other hand, a symbolic link and its target file do not talk to each other, so deleting a symbolic link does not affect the pointed file, while deleting the file makes the link invalid;
 - therefore, hard links always refer to an existing file, whereas symbolic links may be broken.
 
-Clearly, hard links are the most efficient way to manipulate a huge datasets, since when saving a sequence to disk, only the new data is actually written, while the rest is just *hard*-linked. Hence, the default serialization mode is set to `REMOTE_FILE`, which fall backs to `HARD_LINK` when a remote data lake is not given.
+Clearly, hard links are the most efficient way to manipulate a huge datasets, since when saving a sequence to disk, only the new data are actually written, while the rest is just *hard*-linked, which usually lightning-fast. Hence, the default serialization mode is set to `REMOTE_FILE`, which fall backs to `HARD_LINK` when a remote data lake is not given.
 
 In order to change the default serialization mode, you have several options:
 - set the `serialization_mode` property on each item;
 - set a `key_serialization_mode` on the writer;
-- use a context manager or a decorator to set the serialization mode for a specific block of code.
+- use a built-in context manager or decorator to set the serialization mode for a specific block of code.
 
-The first approach is usually unsuitable, while the second one is easy to implement: just pass a `<key>: <mode>` dictionary to `to_underfolder`. The last one is the most flexible, since you can use `pli.item_serialization_mode` and `pli.item_disabled_serialization_modes` both as context managers or function decorators to temporarily change the serialization mode for all items or specific classes. For example:
+The first approach is usually unsuitable, while the second one is easy to implement: just pass a `<key>: <mode>` dictionary to `to_underfolder`:
+
+```python
+from pipelime.sequences import SamplesSequence
+
+# saving "image" items as new files, while hard-linking the others
+seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
+seq = seq.to_underfolder("datasets/mini_mnist_copy", key_serialization_mode={"image": "CREATE_NEW_FILE"})
+seq.run()
+```
+
+The last option is the most flexible, since you can use `pli.item_serialization_mode` and `pli.item_disabled_serialization_modes` as context managers or function decorators to temporarily change the serialization mode for all items or specific item classes. For example:
 
 ```python
 from pipelime.sequences import SamplesSequence
@@ -82,6 +93,21 @@ with pli.item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
     seq.to_underfolder("datasets/mini_mnist_allnew").run()
 ```
 
+```{admonition} Note
+:class: note
+
+When serializing an item, either to disk or to a remote data lake, the content does not change,
+so it is safely added a new *source* to the same item object. Then, subsequent serializations
+might take advantage of that, e.g., by hard-linking the existing file instead of creating
+again a new one.
+```
+
 ## Data Caching
+
+The first time you get the data from an item, such raw data is internally saved.
+This way, subsequent calls to `__call__` will return the cached data, instead of loading
+again from disk or from a remote data lake. Moreover, even if the samples are processed
+through a long sequence of stages and pipes, as long as an item does not change, i.e.,
+it is shallow copied, its cached data is always returned.
 
 ## Custom Items

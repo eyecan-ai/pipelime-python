@@ -3,6 +3,7 @@ import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
+import pipelime.utils.pydantic_types as pl_types
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -37,7 +38,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
     )
 
-    operations: t.Optional[pl_interfaces.YamlInput] = pyd.Field(
+    operations: t.Optional[pl_types.YamlInput] = pyd.Field(
         None,
         alias="op",
         description=(
@@ -120,7 +121,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
 class PipeCommand(PipelimeCommand, title="pipe"):
     """A general-purpose command to build up linear pipelines."""
 
-    operations: pl_interfaces.YamlInput = pyd.Field(
+    operations: pl_types.YamlInput = pyd.Field(
         ...,
         alias="op",
         description=(

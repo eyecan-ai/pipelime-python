@@ -42,7 +42,7 @@ class StageLambda(SampleStage, title="lambda"):
         return self.func(x)
 
 
-class StageInput(pyd.BaseModel, extra="forbid"):
+class StageInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     """A stage is SampleStage object, `<name>` or `<name>: <args>` mapping,
     where `<name>` is `compose`, `remap`, `albumentations` etc,
     while `<args>` is a mapping of its arguments."""

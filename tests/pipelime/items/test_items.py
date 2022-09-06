@@ -103,7 +103,7 @@ class TestItems:
         from pipelime.items.base import ItemFactory
 
         for v in ItemFactory.ITEM_DATA_CACHE_MODE.values():
-            assert v is True
+            assert v is None
 
         def _reload() -> t.Tuple[pli.Item, pli.Item]:
             bmp_item = ItemFactory.get_instance(items_folder / "0.bmp")

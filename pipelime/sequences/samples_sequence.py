@@ -377,7 +377,7 @@ class SamplesSequence(
         self,
         *,
         idx_key: str = "~idx",
-        item_cls_path: str = "pipelime.items.TxtNumpyItem",
+        item_cls: str = "pipelime.items.TxtNumpyItem",
     ) -> SamplesSequence:
         """Add a new index item to each Sample in the input SamplesSequence.
         Run `pipelime help enumerate` to read the complete documentation.
@@ -399,6 +399,18 @@ class SamplesSequence(
         """Cache the input Samples the first time they are accessed.
         Run `pipelime help cache` to read the complete documentation.
         """
+        ...
+
+    def data_cache(
+        self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
+    ) -> SamplesSequence:
+        """Enables item data caching on previous pipeline steps."""
+        ...
+
+    def no_data_cache(
+        self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
+    ) -> SamplesSequence:
+        """Disables item data caching on previous pipeline steps."""
         ...
 
     def to_underfolder(
