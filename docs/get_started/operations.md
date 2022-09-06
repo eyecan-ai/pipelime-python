@@ -73,6 +73,8 @@ These are the most common operations:
 - `enumerate`: adds an item to each sample with the sample index
 - `repeat`
 - `cache`: the first time a sample is accessed, it's value is written to a cache folder
+- `no_data_cache`: disables item data caching on previous steps
+- `data_cache`: enables item data caching on previous steps
 
 Moreover, to filter the indexes you can pass a list to `dataset.select([2,9,14])` or simply extract a slice as `dataset[start:stop:step]`.
 

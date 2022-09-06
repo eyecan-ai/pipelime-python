@@ -73,7 +73,9 @@ class ItemFactory(ABCMeta):
         return item_cls(*path_or_urls, shared=shared_item)
 
     @classmethod
-    def set_data_cache_mode(cls, item_cls: t.Type["Item"], enable_data_cache: t.Optional[bool]):
+    def set_data_cache_mode(
+        cls, item_cls: t.Type["Item"], enable_data_cache: t.Optional[bool]
+    ):
         cls.ITEM_DATA_CACHE_MODE[item_cls] = enable_data_cache
 
     @classmethod
@@ -333,7 +335,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     _data_cache: t.Optional[T]
     _file_sources: t.List[Path]
     _remote_sources: t.List[ParseResult]
-    _cache_data: bool
+    _cache_data: t.Optional[bool]
     _shared: bool
     _serialization_mode: t.Optional[SerializationMode]
 
@@ -342,7 +344,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         self._data_cache = None
         self._file_sources = []
         self._remote_sources = []
-        self._cache_data = True
+        self._cache_data = None
         self._shared = shared
         self._serialization_mode = None
 
@@ -363,11 +365,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 self._data_cache = self.validate(src)
 
     @property
-    def cache_data(self) -> bool:
+    def cache_data(self) -> t.Optional[bool]:
         return self._cache_data
 
     @cache_data.setter
-    def cache_data(self, enabled: bool):
+    def cache_data(self, enabled: t.Optional[bool]):
         self._cache_data = enabled
 
     @property
@@ -635,7 +637,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
 
     def _decode_and_store(self, fp: t.BinaryIO) -> T:
         v = self.decode(fp)
-        if self.cache_data and Item.is_cache_enabled(self.__class__):
+        if (
+            self.cache_data is None
+            and Item.is_cache_enabled(self.__class__)
+            or self.cache_data
+        ):
             self._data_cache = v
         return v
 

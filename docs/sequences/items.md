@@ -93,7 +93,15 @@ with pli.item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
     seq.to_underfolder("datasets/mini_mnist_allnew").run()
 ```
 
-```{admonition} Note
+```{admonition} TIP
+:class: tip
+
+When you set the serialization mode on a base class, such as `NumpyItem`, it will affect
+derive classes too. Indeed, pipelime goes through all base classes of an item and chooses
+the *lowest* mode according to this order: `REMOTE_FILE` > `HARD_LINK` > `SYM_LINK` > `DEEP_COPY` > `CREATE_NEW_FILE`.
+```
+
+```{admonition} NOTE
 :class: note
 
 When serializing an item, either to disk or to a remote data lake, the content does not change,
@@ -109,5 +117,83 @@ This way, subsequent calls to `__call__` will return the cached data, instead of
 again from disk or from a remote data lake. Moreover, even if the samples are processed
 through a long sequence of stages and pipes, as long as an item does not change, i.e.,
 it is shallow copied, its cached data is always returned.
+
+You can alter this behavior in the following ways:
+- by setting the `cache_data` on each item
+- by using the built-in context managers and decorators `data_cache` and `no_data_cache`
+- by adding `data_cache` and `no_data_cache` steps into the pipeline
+
+Again, the first option is usually awkward, though it may have some use cases.
+The second approach is useful when you want to disable the caching for a specific block of code,
+e.g., in a custom stage you know it will load a lot of data:
+
+```python
+from pipelime.sequences import Sample
+from pipelime.stages import SampleStage
+from pipelime.items import no_data_cache
+
+
+class HeavyStage(SampleStage):
+    """This stage loads a lot of data."""
+
+    @no_data_cache()
+    def __call__(self, x: Sample) -> Sample:
+        ...
+        return x
+```
+
+Finally, using pipeline steps is the most flexible way to control the caching behavior.
+Each time you add a `no_/data_cache`, it applies to all the previous steps:
+
+```python
+from pipelime.sequences import SamplesSequence
+from pipelime.stages import StageLambda
+
+def get_data(x, k):
+    """A simple function to force data loading."""
+    _ = x[k]()
+    return x
+
+seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
+
+# force loading "label", which is a TxtNumpyItem
+seq = seq.map(StageLambda(lambda x: get_data(x, "label")))
+
+# enable caching of TxtNumpyItem (you can use `pipeline.items.TxtNumpyItem` as well)
+seq = seq.data_cache("TxtNumpyItem")
+
+# force loading "metadata", which is a JsonMetadataItem
+seq = seq.map(StageLambda(lambda x: get_data(x, "metadata")))
+
+# disable caching for all item types
+seq = seq.no_data_cache()
+
+print(seq[0])  # you should see a value for "label", but not for "metadata"
+```
+
+```{admonition} TIP
+:class: tip
+
+The `cache_data` attribute always takes precedence over the global configuration, which
+is taken into account only if `cache_data` is `None`. In such cases, the cache settings
+for all base classes are considered and the first one not set to `None` is applied.
+
+Initially, data caching is set to `None` both on the item objects and in the global configuration,
+so the default behavior is to cache the data.
+```
+
+```{admonition} WARNING
+:class: warning
+Calling `no_/data_cache` with no arguments will disable/enable the caching
+for **all** item types, so, for example, the following pipeline would cache no data:
+
+```python
+seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
+seq = seq.map(StageLambda(lambda x: get_data(x, "label")))  # "label" is a TxtNumpyItem
+seq = seq.data_cache("NumpyItem")
+seq = seq.map(StageLambda(lambda x: get_data(x, "metadata")))
+seq = seq.no_data_cache()
+```
+```
 
 ## Custom Items

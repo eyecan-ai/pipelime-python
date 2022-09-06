@@ -127,12 +127,15 @@ class TestItems:
         _check((False, False), (False, False))
 
         with pli.no_data_cache(pli.NumpyItem):
-            _check((True, True), (False, True))
+            _check((True, True), (True, True))
+            _check((None, None), (False, True))
 
         with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
             pli.enable_item_data_cache(pli.NumpyItem)
-            _check((True, True), (True, False))
-            _check((False, True), (False, False))
+            _check((True, True), (True, True))
+            _check((False, True), (False, True))
+            _check((None, None), (True, False))
+            _check((None, None), (True, False))
 
     def test_set_data_twice(self):
         with pytest.raises(ValueError):
