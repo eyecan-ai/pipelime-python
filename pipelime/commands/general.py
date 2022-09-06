@@ -566,6 +566,7 @@ class SortCommand(PipelimeCommand, title="sort"):
 
     key_path: str = pyd.Field(
         ...,
+        alias="k",
         description=(
             "A pydash-like key path. The path is built by splitting the mapping "
             "keys by `.` and enclosing list indexes within `[]`. "
