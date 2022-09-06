@@ -194,6 +194,5 @@ seq = seq.data_cache("NumpyItem")
 seq = seq.map(StageLambda(lambda x: get_data(x, "metadata")))
 seq = seq.no_data_cache()
 ```
-```
 
 ## Custom Items
