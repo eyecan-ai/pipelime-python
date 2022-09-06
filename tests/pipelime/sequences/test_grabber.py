@@ -49,7 +49,7 @@ def test_grabber(
 
     for f in tmp_path.glob("output/**/*"):
         assert not f.is_symlink()
-        assert f.stat().st_nlink == 1
+        assert not f.is_file() or f.stat().st_nlink == 1
 
     dest = pls.SamplesSequence.from_underfolder(  # type: ignore
         folder=tmp_path / "output", merge_root_items=True
