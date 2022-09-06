@@ -48,7 +48,7 @@ class SamplesSequenceBase(t.Sequence[Sample]):
 
 
 class SamplesSequence(
-    SamplesSequenceBase, pyd.BaseModel, extra="forbid", copy_on_model_validation=False
+    SamplesSequenceBase, pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
 ):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`.

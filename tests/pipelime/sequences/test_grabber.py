@@ -22,6 +22,8 @@ def test_grabber(
     minimnist_dataset: dict,
     tmp_path: Path,
 ):
+    from copy import deepcopy
+
     source = pls.SamplesSequence.from_underfolder(  # type: ignore
         folder=minimnist_dataset["path"], merge_root_items=True
     )
@@ -39,7 +41,10 @@ def test_grabber(
         pli.SerializationMode.CREATE_NEW_FILE,
     )
     pls.grab_all(
-        grabber, proc, grab_context_manager=itm_sm, worker_init_fn=itm_sm.__enter__
+        grabber,
+        proc,
+        grab_context_manager=deepcopy(itm_sm),
+        worker_init_fn=itm_sm.__enter__,
     )
 
     for f in tmp_path.glob("output/**/*"):

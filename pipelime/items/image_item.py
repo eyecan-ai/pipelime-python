@@ -22,21 +22,11 @@ class ImageItem(NumpyItem):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> np.ndarray:
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(action="ignore", message=".*format_hint.*")
-            return np.array(iio.imread(fp, format_hint=cls.file_extensions()[0]))
+        return np.array(iio.imread(fp, extension=cls.file_extensions()[0]))
 
     @classmethod
     def encode(cls, value: np.ndarray, fp: t.BinaryIO):
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(action="ignore", message=".*format_hint.*")
-            iio.imwrite(
-                fp, value, format_hint=cls.file_extensions()[0], **cls.save_options()
-            )
+        iio.imwrite(fp, value, extension=cls.file_extensions()[0], **cls.save_options())
 
     @classmethod
     def pl_pretty_data(cls, value: np.ndarray) -> t.Any:

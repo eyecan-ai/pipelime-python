@@ -123,6 +123,8 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
                 `grab_context_manager.__enter__` will be used as `worker_init_fn`.
                 Defaults to None.
         """
+        from copy import deepcopy
+
         return self.grab_all_ext(
             sequence=sequence,
             keep_order=keep_order,
@@ -133,7 +135,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             grab_context_manager=grab_context_manager,
             worker_init_fn=None
             if grab_context_manager is None
-            else grab_context_manager.__enter__,
+            else deepcopy(grab_context_manager).__enter__,
         )
 
     def grab_all_ext(
@@ -436,7 +438,7 @@ class InputDatasetInterface(PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="f
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return str(self.folder)
+        return self.folder.as_posix()
 
 
 class SerializationModeInterface(
@@ -500,17 +502,12 @@ class SerializationModeInterface(
             for c, m in self.disable.items()
         ]
 
-    def __enter__(self):
-        for cm in self._overridden_modes_cms:
-            cm.__enter__()
-        for cm in self._disabled_modes_cms:
-            cm.__enter__()
+    def get_context_manager(self) -> t.ContextManager:
+        from pipelime.utils.context_manager_list import ContextManagerList
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        for cm in self._disabled_modes_cms:
-            cm.__exit__(exc_type, exc_value, traceback)
-        for cm in self._overridden_modes_cms:
-            cm.__exit__(exc_type, exc_value, traceback)
+        return ContextManagerList(
+            *self._overridden_modes_cms, *self._disabled_modes_cms
+        )
 
 
 class OutputDatasetInterface(
@@ -574,7 +571,7 @@ class OutputDatasetInterface(
         raise ValueError("Invalid output dataset definition.")
 
     def serialization_cm(self) -> t.ContextManager:
-        return self.serialization
+        return self.serialization.get_context_manager()
 
     def append_writer(self, sequence):
         writer = sequence.to_underfolder(
@@ -602,7 +599,7 @@ class OutputDatasetInterface(
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return str(self.folder)
+        return self.folder.as_posix()
 
 
 class UrlDataModel(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True):
@@ -762,6 +759,9 @@ class YamlInput(pyd.BaseModel, extra="forbid"):
         return str(self.__root__)
 
     def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
         return repr(self.__root__)
 
     @classmethod

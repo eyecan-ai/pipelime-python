@@ -6,7 +6,7 @@ import pydantic as pyd
 from pipelime.stages import SampleStage
 
 
-class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation=False):
+class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     __root__: t.Dict[str, t.Any]
     _value: t.Union[A.BaseCompose, A.BasicTransform] = pyd.PrivateAttr(None)
 

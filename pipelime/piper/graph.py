@@ -240,7 +240,7 @@ class DAGNodesGraph:
         def _to_str(x):
             if hasattr(x, "__piper_repr__"):
                 return x.__piper_repr__()
-            return str(x)
+            return repr(x)
 
         if io_map is not None:
             for name, value in io_map.items():
