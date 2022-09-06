@@ -97,6 +97,60 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         track_message: str = "",
         sample_fn=None,
         size: t.Optional[int] = None,
+        grab_context_manager: t.Optional[t.ContextManager] = None,
+    ):
+        """Runs the grabber on a sequence.
+        NB: `sample_fn` always runs on the main process and may take just the sample
+        or the sample and its index.
+        NB: `grab_context_manager.__enter__` will be used as `worker_init_fn`, please
+        use `GrabberInterface.grab_all_ext` if you want to specify your `worker_init_fn`
+
+        Args:
+            sequence: the sequence to grab, usually a SamplesSequence.
+            keep_order (bool, optional): if True, `sample_fn` will always receive the
+                sample in the correct order. Defaults to False.
+            parent_cmd (_type_, optional): the pipelime command running the grabber is
+                needed to correctly setup the progress bar. Defaults to None.
+            track_message (str, optional): a message shown next to the progress bar.
+                Defaults to "".
+            sample_fn (_type_, optional): an optional function to run on each grabbed
+                element, usually a Sample. The signature may be (elem) or (elem, index).
+                Defaults to None.
+            size (t.Optional[int], optional): the size of the sequence. If not given,
+                `len(sequence)` is evaluated. Defaults to None.
+            grab_context_manager (ContextManager, optional): a context manager wrapping
+                the whole grabbing operation on the main process. Also,
+                `grab_context_manager.__enter__` will be used as `worker_init_fn`.
+                Defaults to None.
+        """
+        from copy import deepcopy
+
+        return self.grab_all_ext(
+            sequence=sequence,
+            keep_order=keep_order,
+            parent_cmd=parent_cmd,
+            track_message=track_message,
+            sample_fn=sample_fn,
+            size=size,
+            grab_context_manager=grab_context_manager,
+            worker_init_fn=None
+            if grab_context_manager is None
+            else deepcopy(grab_context_manager).__enter__,
+        )
+
+    def grab_all_ext(
+        self,
+        sequence,
+        *,
+        keep_order: bool = False,
+        parent_cmd=None,
+        track_message: str = "",
+        sample_fn=None,
+        size: t.Optional[int] = None,
+        grab_context_manager: t.Optional[t.ContextManager] = None,
+        worker_init_fn: t.Union[
+            t.Callable, t.Tuple[t.Callable, t.Sequence], None
+        ] = None,
     ):
         """Runs the grabber on a sequence.
         NB: `sample_fn` always runs on the main process and may take just the sample
@@ -115,6 +169,11 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
                 Defaults to None.
             size (t.Optional[int], optional): the size of the sequence. If not given,
                 `len(sequence)` is evaluated. Defaults to None.
+            grab_context_manager (ContextManager, optional): a context manager wrapping
+                the whole grabbing operation on the main process. Defaults to None.
+            worker_init_fn (optional): a callable or a tuple (callable, args) to run
+                before starting the grabbing loop on each worker. If no process is
+                spawn, it will be run on the main process. Defaults to None.
         """
         from pipelime.sequences import Grabber, grab_all
 
@@ -132,7 +191,15 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
                 )
             )
         )
-        grab_all(grabber, sequence, track_fn=track_fn, sample_fn=sample_fn, size=size)
+        grab_all(
+            grabber,
+            sequence,
+            track_fn=track_fn,
+            sample_fn=sample_fn,
+            size=size,
+            grab_context_manager=grab_context_manager,
+            worker_init_fn=worker_init_fn,
+        )
 
 
 class ItemValidationModel(pyd.BaseModel, extra="forbid"):
@@ -371,7 +438,7 @@ class InputDatasetInterface(PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="f
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return str(self.folder)
+        return self.folder.as_posix()
 
 
 class SerializationModeInterface(
@@ -435,17 +502,12 @@ class SerializationModeInterface(
             for c, m in self.disable.items()
         ]
 
-    def __enter__(self):
-        for cm in self._overridden_modes_cms:
-            cm.__enter__()
-        for cm in self._disabled_modes_cms:
-            cm.__enter__()
+    def get_context_manager(self) -> t.ContextManager:
+        from pipelime.utils.context_manager_list import ContextManagerList
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        for cm in self._disabled_modes_cms:
-            cm.__exit__(exc_type, exc_value, traceback)
-        for cm in self._overridden_modes_cms:
-            cm.__exit__(exc_type, exc_value, traceback)
+        return ContextManagerList(
+            *self._overridden_modes_cms, *self._disabled_modes_cms
+        )
 
 
 class OutputDatasetInterface(
@@ -509,7 +571,7 @@ class OutputDatasetInterface(
         raise ValueError("Invalid output dataset definition.")
 
     def serialization_cm(self) -> t.ContextManager:
-        return self.serialization
+        return self.serialization.get_context_manager()
 
     def append_writer(self, sequence):
         writer = sequence.to_underfolder(
@@ -537,7 +599,7 @@ class OutputDatasetInterface(
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return str(self.folder)
+        return self.folder.as_posix()
 
 
 class UrlDataModel(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True):
@@ -697,6 +759,9 @@ class YamlInput(pyd.BaseModel, extra="forbid"):
         return str(self.__root__)
 
     def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
         return repr(self.__root__)
 
     @classmethod

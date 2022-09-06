@@ -4,7 +4,7 @@ import pydantic as pyd
 import typing as t
 
 
-class SampleStage(pyd.BaseModel, ABC, extra="forbid", copy_on_model_validation=False):
+class SampleStage(pyd.BaseModel, ABC, extra="forbid", copy_on_model_validation="none"):
     """Base class for all sample stages."""
 
     @abstractmethod
