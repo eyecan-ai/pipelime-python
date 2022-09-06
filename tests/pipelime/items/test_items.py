@@ -92,10 +92,10 @@ class TestItems:
 
         encoded = BytesIO()
         iio.imwrite(
-            encoded, data, format_hint=jpeg_suffix, **pli.JpegImageItem.save_options()
+            encoded, data, extension=jpeg_suffix, **pli.JpegImageItem.save_options()
         )
         encoded.seek(0)
-        decoded = np.array(iio.imread(encoded, format_hint=jpeg_suffix))
+        decoded = np.array(iio.imread(encoded, extension=jpeg_suffix))
 
         assert _np_eq(r_item(), decoded)
 

@@ -22,6 +22,8 @@ def test_grabber(
     minimnist_dataset: dict,
     tmp_path: Path,
 ):
+    from copy import deepcopy
+
     source = pls.SamplesSequence.from_underfolder(  # type: ignore
         folder=minimnist_dataset["path"], merge_root_items=True
     )
@@ -35,8 +37,19 @@ def test_grabber(
         num_workers=num_workers, keep_order=keep_order, prefetch=prefetch
     )
 
-    with pli.item_serialization_mode(pli.SerializationMode.CREATE_NEW_FILE):
-        pls.grab_all(grabber, proc)
+    itm_sm = pli.item_serialization_mode(
+        pli.SerializationMode.CREATE_NEW_FILE,
+    )
+    pls.grab_all(
+        grabber,
+        proc,
+        grab_context_manager=deepcopy(itm_sm),
+        worker_init_fn=itm_sm.__enter__,
+    )
+
+    for f in tmp_path.glob("output/**/*"):
+        assert not f.is_symlink()
+        assert not f.is_file() or f.stat().st_nlink == 1
 
     dest = pls.SamplesSequence.from_underfolder(  # type: ignore
         folder=tmp_path / "output", merge_root_items=True

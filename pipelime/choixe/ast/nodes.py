@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
@@ -126,7 +126,7 @@ class DictNode(Node):
 class ListNode(Node):
     """AST node for List-like structures. Contains a list of `Node` objects."""
 
-    nodes: Tuple[Node]
+    nodes: Sequence[Node]
 
     def __init__(self, *nodes: Node) -> None:
         self.nodes = nodes
@@ -150,7 +150,7 @@ class LiteralNode(HashNode):
 class DictBundleNode(Node):
     """An `DictBundleNode` represents a dictionary union of a nodes collection."""
 
-    nodes: Tuple[Node]
+    nodes: Sequence[Node]
 
     def __init__(self, *nodes: Node) -> None:
         self.nodes = nodes
@@ -163,7 +163,7 @@ class DictBundleNode(Node):
 class StrBundleNode(HashNode):
     """A `StrBundleNode` represents a concatenation of a sequence of strings."""
 
-    nodes: Tuple[HashNode]
+    nodes: Sequence[HashNode]
 
     def __init__(self, *nodes: HashNode) -> None:
         self.nodes = nodes
@@ -198,7 +198,7 @@ class ImportNode(Node):
 class SweepNode(HashNode):
     """A `SweepNode` represents a Choixe sweep directive from multiple branching options."""
 
-    cases: Tuple[Node]
+    cases: Sequence[Node]
 
     def __init__(self, *cases: Node) -> None:
         self.cases = cases

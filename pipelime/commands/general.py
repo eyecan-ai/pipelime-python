@@ -167,13 +167,13 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         seq = build_pipe(self.operations.value, seq)  # type: ignore
         seq = self.output.append_writer(seq)
 
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Writing results ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing results ({len(seq)} samples)",
+        )
 
 
 class CloneCommand(PipelimeCommand, title="clone"):
@@ -199,13 +199,13 @@ class CloneCommand(PipelimeCommand, title="clone"):
     def run(self):
         seq = self.input.create_reader()
         seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Cloning data ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Cloning data ({len(seq)} samples)",
+        )
 
 
 class ConcatCommand(PipelimeCommand, title="cat"):
@@ -238,14 +238,13 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         seq = next(input_it).create_reader()
         for input_ in input_it:
             seq = seq.cat(input_.create_reader())
-        seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Writing data ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing data ({len(seq)} samples)",
+        )
 
 
 class AddRemoteCommand(PipelimeCommand, title="remote-add"):
@@ -297,15 +296,16 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
         )
 
         if self.output is not None:
-            seq = self.output.append_writer(seq)
-            with self.output.serialization_cm():
-                self._grab_all(seq)
+            self._grab_all(
+                self.output.append_writer(seq), self.output.serialization_cm()
+            )
         else:
-            self._grab_all(seq)
+            self._grab_all(seq, None)
 
-    def _grab_all(self, seq):
+    def _grab_all(self, seq, sm):
         self.grabber.grab_all(
             seq,
+            grab_context_manager=sm,
             keep_order=False,
             parent_cmd=self,
             track_message=f"Uploading data ({len(seq)} samples)",
@@ -360,14 +360,13 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
         seq = self.input.create_reader().map(
             StageForgetSource(*remove_all, **remove_by_key)
         )
-        seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Removing remotes ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Removing remotes ({len(seq)} samples)",
+        )
 
 
 class ValidateCommand(PipelimeCommand, title="validate"):
@@ -553,11 +552,54 @@ class MapCommand(PipelimeCommand, title="map"):
         seq = seq.map(
             self.stage if isinstance(self.stage, t.Mapping) else {self.stage: {}}
         )
-        seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Mapping data ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Mapping data ({len(seq)} samples)",
+        )
+
+
+class SortCommand(PipelimeCommand, title="sort"):
+    """Sort a dataset based on metadata values."""
+
+    key_path: str = pyd.Field(
+        ...,
+        alias="k",
+        description=(
+            "A pydash-like key path. The path is built by splitting the mapping "
+            "keys by `.` and enclosing list indexes within `[]`. "
+            "Use `\\` to escape the `.` character."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def run(self):
+        def _sort_key_fn(x):
+            return x.deep_get(self.key_path)
+
+        seq = self.input.create_reader()
+        seq = seq.sort(_sort_key_fn)
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Sorting data ({len(seq)} samples)",
+        )

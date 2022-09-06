@@ -24,10 +24,10 @@ class ToyDatasetCommand(PipelimeCommand, title="toy_dataset"):
     def run(self):
         seq = self.toy.create_dataset_generator()
         seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Writing toy dataset ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing toy dataset ({len(seq)} samples)",
+        )
