@@ -559,3 +559,46 @@ class MapCommand(PipelimeCommand, title="map"):
             parent_cmd=self,
             track_message=f"Mapping data ({len(seq)} samples)",
         )
+
+
+class SortCommand(PipelimeCommand, title="sort"):
+    """Sort a dataset based on metadata values."""
+
+    key_path: str = pyd.Field(
+        ...,
+        description=(
+            "A pydash-like key path. The path is built by splitting the mapping "
+            "keys by `.` and enclosing list indexes within `[]`. "
+            "Use `\\` to escape the `.` character."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def run(self):
+        def _sort_key_fn(x):
+            return x.deep_get(self.key_path)
+
+        seq = self.input.create_reader()
+        seq = seq.sort(_sort_key_fn)
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Sorting data ({len(seq)} samples)",
+        )
