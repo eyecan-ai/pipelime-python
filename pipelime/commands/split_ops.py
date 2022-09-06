@@ -204,16 +204,16 @@ class SplitCommand(PipelimeCommand, title="split"):
             if split.output is not None:
                 seq = reader[split_start:split_stop]
                 seq = split.output.append_writer(seq)
-                with split.output.serialization_cm():
-                    self.grabber.grab_all(
-                        seq,
-                        keep_order=False,
-                        parent_cmd=self,
-                        track_message=(
-                            f"Writing split {idx + 1}/{len(split_sizes)} "
-                            f"({split_length} samples)"
-                        ),
-                    )
+                self.grabber.grab_all(
+                    seq,
+                    grab_context_manager=split.output.serialization_cm(),
+                    keep_order=False,
+                    parent_cmd=self,
+                    track_message=(
+                        f"Writing split {idx + 1}/{len(split_sizes)} "
+                        f"({split_length} samples)"
+                    ),
+                )
             split_start = split_stop
 
 
@@ -280,14 +280,13 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     def _filter(self, reader, output, fn, message):
         seq = reader.filter(fn)
         seq = output.append_writer(seq)
-
-        with output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Writing {message} ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing {message} ({len(seq)} samples)",
+        )
 
 
 class SplitByValueCommand(PipelimeCommand, title="split-value"):
@@ -391,13 +390,13 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
 
             split_name = f"{split_name} " if len(split_name) < 20 else ""
             split_seq = split_output.append_writer(reader.select(group_idxs))
-            with split_output.serialization_cm():
-                self.grabber.grab_all(
-                    split_seq,
-                    keep_order=False,
-                    parent_cmd=self,
-                    track_message=(
-                        f"Writing split {idx + 1}/{len(worker._groups)} "
-                        f"{split_name}({len(split_seq)} samples)"
-                    ),
-                )
+            self.grabber.grab_all(
+                split_seq,
+                grab_context_manager=split_output.serialization_cm(),
+                keep_order=False,
+                parent_cmd=self,
+                track_message=(
+                    f"Writing split {idx + 1}/{len(worker._groups)} "
+                    f"{split_name}({len(split_seq)} samples)"
+                ),
+            )

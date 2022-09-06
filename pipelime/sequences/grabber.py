@@ -34,8 +34,6 @@ class Grabber(pyd.BaseModel, extra="forbid"):
         return_type: ReturnType = ReturnType.SAMPLE,
         size: t.Optional[int] = None,
         *,
-        grab_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
-        grab_exit_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
         worker_init_fn: t.Union[
             t.Callable, t.Tuple[t.Callable, t.Sequence], None
         ] = None,
@@ -45,8 +43,6 @@ class Grabber(pyd.BaseModel, extra="forbid"):
             sequence,
             return_type=return_type,
             size=size,
-            grab_init_fn=grab_init_fn,
-            grab_exit_fn=grab_exit_fn,
             worker_init_fn=worker_init_fn,
         )
 
@@ -72,9 +68,6 @@ class _GrabContext:
         sequence: pls.SamplesSequence,
         return_type: ReturnType,
         size: t.Optional[int],
-        *,
-        grab_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None],
-        grab_exit_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None],
         worker_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None],
     ):
         self._grabber = grabber
@@ -82,12 +75,6 @@ class _GrabContext:
         self._return_type = return_type
         self._size = size
         self._pool = None
-        self._grab_init_fn = (
-            grab_init_fn if isinstance(grab_init_fn, tuple) else (grab_init_fn, ())
-        )
-        self._grab_exit_fn = (
-            grab_exit_fn if isinstance(grab_exit_fn, tuple) else (grab_exit_fn, ())
-        )
         self._worker_init_fn = (
             worker_init_fn
             if isinstance(worker_init_fn, tuple)
@@ -95,9 +82,6 @@ class _GrabContext:
         )
 
     def __enter__(self):
-        if self._grab_init_fn[0] is not None:
-            self._grab_init_fn[0](*self._grab_init_fn[1])
-
         if self._grabber.num_workers == 0:
             self._pool = None
             it = iter(self._sequence)
@@ -137,8 +121,6 @@ class _GrabContext:
     def __exit__(self, exc_type, exc_value, traceback):
         if self._pool is not None:
             self._pool.__exit__(exc_type, exc_value, traceback)  # type: ignore
-        if self._grab_exit_fn[0] is not None:
-            self._grab_exit_fn[0](*self._grab_exit_fn[1])
 
 
 def grab_all(
@@ -150,11 +132,11 @@ def grab_all(
         t.Callable[[pls.Sample], None], t.Callable[[pls.Sample, int], None], None
     ] = None,
     size: t.Optional[int] = None,
-    grab_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
-    grab_exit_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
+    grab_context_manager: t.Optional[t.ContextManager] = None,
     worker_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
 ):
     from inspect import signature, Parameter
+    import contextlib
 
     if track_fn is None:
         track_fn = lambda x: x  # noqa: E731
@@ -171,20 +153,21 @@ def grab_all(
             )
             else ReturnType.SAMPLE
         )
+    if grab_context_manager is None:
+        grab_context_manager = contextlib.nullcontext()
 
-    ctx = grabber(
-        sequence,
-        return_type=return_type,
-        size=size,
-        grab_init_fn=grab_init_fn,
-        grab_exit_fn=grab_exit_fn,
-        worker_init_fn=worker_init_fn,
-    )
-    if return_type == ReturnType.SAMPLE_AND_INDEX:
-        with ctx as gseq:
-            for idx, sample in track_fn(gseq):
-                sample_fn(sample, idx)  # type: ignore
-    else:
-        with ctx as gseq:
-            for sample in track_fn(gseq):
-                sample_fn(sample)  # type: ignore
+    with grab_context_manager:
+        ctx = grabber(
+            sequence,
+            return_type=return_type,
+            size=size,
+            worker_init_fn=worker_init_fn,
+        )
+        if return_type == ReturnType.SAMPLE_AND_INDEX:
+            with ctx as gseq:
+                for idx, sample in track_fn(gseq):
+                    sample_fn(sample, idx)  # type: ignore
+        else:
+            with ctx as gseq:
+                for sample in track_fn(gseq):
+                    sample_fn(sample)  # type: ignore
