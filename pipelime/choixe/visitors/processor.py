@@ -187,14 +187,14 @@ class Processor(ast.NodeVisitor):
 
         branches = list(product(*branches))
         for i, branch in enumerate(branches):
-            if isinstance(node.body, ast.DictNode):
-                res = {}
-                [res.update(item) for item in branch]
+            if isinstance(node.body, ast.LiteralNode):
+                res = "".join([str(item) for item in branch])
             elif isinstance(node.body, ast.ListNode):
                 res = []
                 [res.extend(item) for item in branch]
             else:
-                res = "".join([str(item) for item in branch])
+                res = {}
+                [res.update(item) for item in branch]
             branches[i] = res
 
         return branches
