@@ -10,5 +10,5 @@ class TorchDataset(Dataset[t.Mapping[str, t.Any]]):
     def __len__(self) -> int:
         return len(self._sequence)
 
-    def __getitem__(self, idx: t.Union[int, slice]) -> t.Mapping[str, t.Any]:
+    def __getitem__(self, idx: int) -> t.Mapping[str, t.Any]:
         return self._sequence[idx].to_dict()

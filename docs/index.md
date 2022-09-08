@@ -63,3 +63,12 @@ choixe/syntax.md
 choixe/directives.md
 choixe/xconfig.md
 ```
+
+```{toctree}
+:maxdepth: 4
+:caption: "API Reference:"
+
+api/stages.md
+api/operations.md
+api/commands.md
+```

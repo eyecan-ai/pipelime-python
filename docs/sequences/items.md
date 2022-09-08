@@ -196,3 +196,91 @@ seq = seq.no_data_cache()
 ```
 
 ## Custom Items
+
+To support your custom data format you can create a new item class and implement a few
+core methods. Though your base class must be `pipelime.items.Item`, it is advisable to
+derive from existing item classes if they share the same data type or format.
+For instance, all image items (`PngImageItem`, `BmpImageItem` etc.) derive from
+`ImageItem` which is a child of `NumpyItem` which derive from `Item`.
+
+To write your own item you must provide the implementation of the following class methods:
+- **file_extensions**: returning a list of recognized file extension
+- **decode**: returning the data read from an input stream
+- **encode**: writing the data into a given output stream
+- **validate** *(optional)*: parsing and validating general raw data
+- **pl_pretty_data** *(optional)*: returning a representation of the data ready to be printed on a [rich](https://rich.readthedocs.io/en/stable/index.html)-like console
+
+A simple demonstration is given below:
+
+```python
+import typing as t
+from scipy.io import wavfile
+import numpy as np
+
+from pipelime.items import Item
+
+class WavItem(Item[np.ndarray]):
+    _sample_rate: int
+
+    def __init__(self, *args, sample_rate: int = 44100, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._sample_rate = sample_rate
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    @sample_rate.setter
+    def sample_rate(self, value: int):
+        self._sample_rate = value
+
+    @classmethod
+    def file_extensions(cls) -> t.Sequence[str]:
+        return (".wav",)
+
+    @classmethod
+    def decode(cls, fp: t.BinaryIO) -> np.ndarray:
+        sample_rate, data = wavfile.read(fp)
+        self.sample_rate = sample_rate
+        return data
+
+    @classmethod
+    def encode(cls, value: np.ndarray, fp: t.BinaryIO):
+        wavfile.write(fp, self.sample_rate, value)
+
+    @classmethod
+    def validate(cls, raw_data: t.Any) -> np.ndarray:
+        data = np.array(raw_data)
+        if data.dtype == np.float32:
+            assert data.min() >= -1 and data.max() <= 1, "Float32 WAV must be in [-1,1]"
+        else:
+            assert (
+                data.dtype in (np.int32, np.int16, np.uint8),
+                "WAV data type must be one of float32, int32, int16 or uint8",
+            )
+        return data
+```
+
+This new `WavItem` loads a WAV audio file and exposes the sample rate as property.
+Being the data a numpy array, we can improve the integration with the built-in types
+by deriving from `NumpyItem` instead of simply `Item`:
+
+```python
+from pipelime.items import NumpyItem
+
+class WavItem(NumpyItem):
+    ...
+
+    @classmethod
+    def validate(cls, raw_data: t.Any) -> np.ndarray:
+        data = super().validate(raw_data)
+
+        if data.dtype == np.float32:
+            assert data.min() >= -1 and data.max() <= 1, "Float32 WAV must be in [-1,1]"
+        else:
+            assert (
+                data.dtype in (np.int32, np.int16, np.uint8),
+                "WAV data type must be one of float32, int32, int16 or uint8",
+            )
+        return data
+```

@@ -454,7 +454,13 @@ def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     if cls.__module__.startswith("pipelime"):
         cls._operator_path = cls.name()
     else:
-        module_path = Path(inspect.getfile(cls)).resolve().as_posix()
+        try:
+            source_path = inspect.getfile(cls)
+            module_path = Path(source_path).resolve().as_posix()
+        except TypeError:
+            # this happens when the class does not come from a file
+            module_path = "__main__"
+
         if (cls.__module__.replace(".", "/") + ".py") in module_path:
             module_path = cls.__module__
         cls._operator_path = module_path + ":" + cls.name()

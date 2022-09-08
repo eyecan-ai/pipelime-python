@@ -1,4 +1,4 @@
-# Samples Sequences
+# Samples And Sequences
 
 Sample Sequences are at the core of all pipelime features. When writing custom operators like stages, pipes and commands, you will often need to access individual samples and items and manipulate them.
 
@@ -6,9 +6,7 @@ In this tutorial we will se how to interact with sample sequences and samples, t
 
 ## Necessary Modules
 
-First you should import the `pipelime.sequences` module, we suggest to alias it as `pls`. Inside it you will find core pipelime classes like `SampleSequence` and `Sample` and some useful functions to manipulate them.
-
-We suggest to also import `pipelime.items` aliased as `pli`. Here you will find all built-in item specializations and some useful lower-level utilities.
+First you should import the `pipelime.sequences` module, we suggest to alias it as `pls`. Inside it you will find core pipelime classes like `SampleSequence` and `Sample` and some useful functions to manipulate them. We suggest to also import `pipelime.items` aliased as `pli`. Here you will find all built-in item specializations and some useful lower-level utilities.
 
 ```python
 import pipelime.sequences as pls
@@ -260,7 +258,7 @@ new_seq.run()
 ```
 
 Notice two things:
-- `to_underfolder` does not write anything on its own. In fact, it just chains an operation that writes a sample to disk every time you *get* it.
+- `to_underfolder` does not write anything on its own. In fact, it just chains a pipe that writes a sample to disk every time you *get* it.
 - in order to actually write it to disk we use the `run` method, that simply iterates over the sequence, possibly using multiple processes.
 
 We could replace the `run` call with something like:
@@ -277,3 +275,42 @@ or
 ```
 
 but why would you do that?
+
+## Advanced API
+
+Beside the mehods above, `Sample` includes an advanced API to access and process the data.
+
+Serialization:
+- `to_schema`: returns a `{<key>: <item-type>}` dictionary.
+- `to_dict`: returns a `{<key>: <item-value>}` dictionary.
+
+Copy:
+- `shallow_copy`: returns a new sample where the internal data dictionary is shallowed copied.
+- `deep_copy`: returns a new sample where the all the data is deep copied.
+
+Advanced access:
+- `deep_get`: returns an internal value through a key path similar to [`pydash.get`](https://pydash.readthedocs.io/en/latest/api.html#pydash.objects.get); of course, the item's data should be a suitable data structure, such as a mapping or a sequence.
+- `deep_set`: sets an internal value through a key path similar to [`pydash.set_`](https://pydash.readthedocs.io/en/latest/api.html#pydash.objects.set_); as usual, the item is cloned before setting the new value and a new sample is returned.
+- `direct_access`: returns a special object with a mapping-like interface that directly returns the item values when accessing a key, instead of the item objects themselves.
+
+Querying:
+- `match`: applies a [`dictquery`](https://github.com/cyberlis/dictquery) query to the sample and returns the result.
+
+Combining samples:
+- `update`: returns a new sample with all the items of the current sample *updated* with the ones of the other sample, i.e., items with the same key are replaced with the ones of the other sample.
+- `merge`: same as `update`
+
+Likewise, `SamplesSequence` includes the some advanced methods as well:
+- `__add__`: you can concatenate two sequences with the `+` operator.
+- `is_normalized`: check if all samples have the same keys.
+- `direct_access`: returns a new object with a sequence-like interface that directly returns `{<key>: <item-value>}` dictionaries when accessing a sample, instead of the sample objects themselves.
+- `torch_dataset`: returns a new object derived from `torch.utils.data.Dataset` that can be used to load data into [PyTorch](https://pytorch.org/), e.g., through a `torch.utils.data.DataLoader`.
+- `batch`: returns a zip-like object to get batches of samples.
+
+As for the batching, here is an example:
+
+```python
+for batch in seq.batch(32):
+    for sample in batch:
+        print(sample)
+```
