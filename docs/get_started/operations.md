@@ -1,7 +1,8 @@
 # Operations
 
-Pipelime offers many tools to process datasets in many different ways.
-This way it's easy to create custom automated data pipelines.
+Pipelime offers many tools to process datasets in different ways and to create custom automated data pipelines.
+In this walkthrough, first we will see how to generate a new sequence, then how to chain operations together to create a pipeline.
+Also, we will quickly cover some advanced topic, such as execution graphs and command line interface.
 
 ## Generators
 
@@ -197,17 +198,17 @@ pipe = yaml.safe_load(pipe_str)
 dataset = build_pipe(pipe)
 ```
 
-## Piper
+## Commands
 
 Complex operations, which may include some sort of data processing, may be easily linked in a
 [Directed Acyclic Graph (DAG)](../piper/dags.md)
-and executed with the help of Piper, a Pipelime's core component.
-Using Piper and [Choixe](../choixe/intro.md), another Pipelime's core component,
+and executed with the help of **Piper**, a Pipelime's core component.
+Using Piper and [**Choixe**](../choixe/intro.md), another Pipelime's core component,
 you can create a graph of commands to execute with an associated user-defined configuration.
 Such commands are classes derived from `PipelimeCommand` and they include a simple way to track the progress either
 through a progress bar or sending updates over a socket.
 
-Here a list of most common commands available:
+Here a list of the most common commands available:
 - `run`: executes a DAG
 - `draw`: draws a DAG
 - `pipe`: applies a sequence of operations to a dataset
@@ -218,8 +219,17 @@ Here a list of most common commands available:
 - `shell`: run any shell command
 - `timeit`: measure the time to get a sample from a sequence
 
-Though commands are usually meant to be used through the [command line](../cli/cli.md),
-you can also create and run them programmatically:
+Commands are executed from the shell with the `pipelime` command, e.g.,
+
+```bash
+$ pipelime clone +i path/to/input +o path/to/output,false,true +g 4
+```
+
+Using the command line interface is straighforward once you know the rationale behind it,
+which is described in section [CLI](../cli/cli.md).
+
+Commands are just classes ([pydantic](https://pydantic-docs.helpmanual.io) models, specifically),
+so you can also create and run them programmatically:
 
 ```python
 from pipelime.commands import ConcatCommand
@@ -231,7 +241,7 @@ cmd = ConcatCommand(
 cmd()
 ```
 
-Beware that `inputs` and `output` here are *interfaces* to command options, so they have to be defined in a special way (see section about [CLI](../cli/cli.md) for more details).
+Beware that `inputs` and `output` here are *interfaces* to command options, so they have to be defined in a special way (see section [CLI](../cli/cli.md) for more details).
 
 ```{admonition} TIP
 :class: tip

@@ -276,6 +276,17 @@ or
 
 but why would you do that?
 
+## Pipe Caching
+
+When you build a complex pipeline and repeatedly extract samples from it, you might want to cache the results of some steps, so that you don't have to recompute them every time. To this end, you can use the `cache` method, which takes a `cache_dir` argument and returns a new sequence that *pickles* the samples of the previous one the first time they are extracted. Then, only the pickle will be loaded the next time.
+
+```python
+seq = seq.cache("cache_dir")
+```
+
+Notice that if no `cache_dir` is specified, it will use a temporary directory.
+This pipe is designed to be used with multiple processes, so it safe to share the same cache folder while accessing the same samples.
+
 ## Advanced API
 
 Beside the mehods above, `Sample` includes an advanced API to access and process the data.
@@ -300,7 +311,7 @@ Combining samples:
 - `update`: returns a new sample with all the items of the current sample *updated* with the ones of the other sample, i.e., items with the same key are replaced with the ones of the other sample.
 - `merge`: same as `update`
 
-Likewise, `SamplesSequence` includes the some advanced methods as well:
+Likewise, `SamplesSequence` includes some advanced methods as well:
 - `__add__`: you can concatenate two sequences with the `+` operator.
 - `is_normalized`: check if all samples have the same keys.
 - `direct_access`: returns a new object with a sequence-like interface that directly returns `{<key>: <item-value>}` dictionaries when accessing a sample, instead of the sample objects themselves.
