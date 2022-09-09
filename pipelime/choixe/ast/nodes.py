@@ -211,7 +211,7 @@ class SweepNode(HashNode):
 class SymbolNode(Node):
     """A `SymbolNode` represents a Choixe instance block to import a generic python object."""
 
-    symbol: LiteralNode
+    symbol: HashNode
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_symbol(self)
@@ -222,7 +222,7 @@ class InstanceNode(Node):
     """An `InstanceNode` represents a Choixe instance block to get the result of a
     generic python callable object."""
 
-    symbol: LiteralNode
+    symbol: HashNode
     args: DictNode
 
     def accept(self, visitor: NodeVisitor) -> Any:

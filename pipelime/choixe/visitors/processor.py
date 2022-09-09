@@ -146,6 +146,7 @@ class Processor(ast.NodeVisitor):
         return [import_symbol(s, cwd=self._cwd) for s in branches]
 
     def visit_instance(self, node: ast.InstanceNode) -> List[Any]:
+        # print(node)
         symbol_branches = node.symbol.accept(self)
         args_branches = node.args.accept(self)
         branches = list(product(symbol_branches, args_branches))
