@@ -30,13 +30,6 @@ operations/commands.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Remote Data Lakes: "
-
-remotes/remotes.md
-```
-
-```{toctree}
-:maxdepth: 4
 :caption: "Piper: "
 
 piper/dags.md
@@ -44,7 +37,7 @@ piper/dags.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Choixe:"
+:caption: "Choixe: "
 
 choixe/intro.md
 choixe/syntax.md
@@ -57,6 +50,14 @@ choixe/xconfig.md
 :caption: "Command Line Usage: "
 
 cli/cli.md
+```
+
+```{toctree}
+:maxdepth: 4
+:caption: "Advanced Topics: "
+
+advanced/remotes.md
+advanced/validation.md
 ```
 
 ```{toctree}
