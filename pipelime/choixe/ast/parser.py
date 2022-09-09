@@ -201,13 +201,13 @@ class Parser:
 
     def _parse_instance(self, data: dict) -> c_ast.InstanceNode:
         pairs = self._key_value_pairs_by_token_name(data)
-        symbol = c_ast.LiteralNode(pairs["call"][1])
+        symbol = self.parse(pairs["call"][1])
         args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
         return c_ast.InstanceNode(symbol, args)
 
     def _parse_model(self, data: dict) -> c_ast.ModelNode:
         pairs = self._key_value_pairs_by_token_name(data)
-        symbol = c_ast.LiteralNode(pairs["model"][1])
+        symbol = self.parse(pairs["model"][1])
         args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
         return c_ast.ModelNode(symbol, args)
 
