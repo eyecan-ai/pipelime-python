@@ -39,5 +39,6 @@ html_theme_options = {
     "style_external_links": True,
     "navigation_depth": -1,
     "titles_only": False,
+    "collapse_navigation" : False
     # "style_nav_header_background": "#ace600",
 }
