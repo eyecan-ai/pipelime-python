@@ -146,6 +146,7 @@ class Processor(ast.NodeVisitor):
         return [import_symbol(s, cwd=self._cwd) for s in branches]
 
     def visit_instance(self, node: ast.InstanceNode) -> List[Any]:
+        # print(node)
         symbol_branches = node.symbol.accept(self)
         args_branches = node.args.accept(self)
         branches = list(product(symbol_branches, args_branches))
@@ -158,7 +159,14 @@ class Processor(ast.NodeVisitor):
         return [import_symbol(s, cwd=self._cwd).parse_obj(a) for s, a in branches]
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
-        iterable = py_.get(self._context, node.iterable.data)
+        if isinstance(node.iterable.data, int):
+            iterable = list(range(node.iterable.data))
+        else:
+            iterable = py_.get(self._context, node.iterable.data)
+
+        if isinstance(iterable, int):
+            iterable = list(range(iterable))
+
         if not isinstance(iterable, Iterable):
             if not py_.has(self._context, node.iterable.data):
                 raise ChoixeProcessingError(
@@ -180,14 +188,16 @@ class Processor(ast.NodeVisitor):
 
         branches = list(product(*branches))
         for i, branch in enumerate(branches):
-            if isinstance(node.body, ast.DictNode):
-                res = {}
-                [res.update(item) for item in branch]
+            if isinstance(node.body, ast.LiteralNode) or isinstance(
+                node.body, ast.StrBundleNode
+            ):
+                res = "".join([str(item) for item in branch])
             elif isinstance(node.body, ast.ListNode):
                 res = []
                 [res.extend(item) for item in branch]
             else:
-                res = "".join([str(item) for item in branch])
+                res = {}
+                [res.update(item) for item in branch]
             branches[i] = res
 
         return branches

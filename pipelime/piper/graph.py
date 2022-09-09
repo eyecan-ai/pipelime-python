@@ -12,8 +12,8 @@ class GraphNode:
     GRAPH_NODE_TYPE_DATA = "data"
 
     def __init__(self, name: str, type: str):
-        self.name = name
-        self.type = type
+        self.name = str(name)
+        self.type = str(type)
 
     @property
     def id(self):
@@ -42,7 +42,7 @@ class GraphNodeOperation(GraphNode):
 class GraphNodeData(GraphNode):
     def __init__(self, name: str, path: str):
         super().__init__(name, GraphNode.GRAPH_NODE_TYPE_DATA)
-        self._path = path
+        self._path = str(path)
 
     @property
     def path(self) -> str:
@@ -238,6 +238,8 @@ class DAGNodesGraph:
         is_input: bool,
     ):
         def _to_str(x):
+            if isinstance(x, (str, bytes)):
+                return str(x)
             if hasattr(x, "__piper_repr__"):
                 return x.__piper_repr__()
             return repr(x)
