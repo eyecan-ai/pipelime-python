@@ -211,9 +211,9 @@ class CloneCommand(PipelimeCommand, title="clone"):
 class ConcatCommand(PipelimeCommand, title="cat"):
     """Concatenate two or more datasets."""
 
-    inputs: t.Sequence[
+    inputs: t.Union[pl_interfaces.InputDatasetInterface, t.Sequence[
         pl_interfaces.InputDatasetInterface
-    ] = pl_interfaces.InputDatasetInterface.pyd_field(
+    ]] = pl_interfaces.InputDatasetInterface.pyd_field(
         alias="i", piper_port=PiperPortType.INPUT
     )
 
@@ -227,14 +227,9 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         alias="g"
     )
 
-    @pyd.validator("inputs")
-    def check_inputs(cls, v):
-        if len(v) < 2:
-            raise ValueError("You need at least two inputs.")
-        return v
-
     def run(self):
-        input_it = iter(self.inputs)
+        inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
+        input_it = iter(inputs)
         seq = next(input_it).create_reader()
         for input_ in input_it:
             seq = seq.cat(input_.create_reader())
