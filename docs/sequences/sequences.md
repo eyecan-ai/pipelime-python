@@ -4,12 +4,15 @@ Sample Sequences are at the core of all pipelime features. When writing custom o
 
 In this tutorial we will se how to interact with sample sequences and samples, their basic methods and their behaviour. Keep in mind that you could implement a data pipeline by just accessing and modifying individual samples and items, but that is strongly discouraged: you would either have to write a lot of boilerplate code, or miss out on a lot of features that pipelime provides automatically if you choose to follow the general framework of stages/pipes/commands.
 
-## Necessary Modules
+## Relevant Modules
 
-First you should import the `pipelime.sequences` module, we suggest to alias it as `pls`. Inside it you will find core pipelime classes like `SampleSequence` and `Sample` and some useful functions to manipulate them. We suggest to also import `pipelime.items` aliased as `pli`. Here you will find all built-in item specializations and some useful lower-level utilities.
+`SampleSequence` and `Sample` are defined in the `pipelime.sequences` subpackage.
+If you want to import everything, we suggest to alias it as `pls`.
+We suggest to also import `pipelime.items` aliased as `pli`.
+Here you will find all built-in item specializations and some useful lower-level utilities.
 
 ```python
-import pipelime.sequences as pls
+from pipelime.sequences import SampleSequence
 import pipelime.items as pli
 ```
 
@@ -20,7 +23,7 @@ In the example project we provide a demonstration dataset named "mini_mnist", wh
 Let's create a sample sequence pointing to that dataset:
 
 ```python
-seq = pls.SamplesSequence.from_underfolder("datasets/mini_mnist")
+seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
 ```
 
 As you may notice, the creation of a sample sequence is almost instantaneous. In fact, the sample sequence object is lazy, and does not read anything from disk until it is explicitly requested.
@@ -207,16 +210,16 @@ To modify keys, the following methods are available:
 Finally, we then need to transform the list of new samples into a real `SamplesSequence`, by doing:
 
 ```python
-new_seq = pls.SamplesSequence.from_list(new_samples)
+new_seq = SamplesSequence.from_list(new_samples)
 ```
 
 To wrap-up:
 
 ```python
-import pipelime.sequences as pls
+from pipelime.sequences import SamplesSequence
 import pipelime.items as pli
 
-seq = pls.SamplesSequence.from_underfolder("datasets/mini_mnist")
+seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
 
 new_samples = []
 for sample in even_samples:
@@ -243,7 +246,7 @@ for sample in even_samples:
     new_samples.append(sample)
 
 # Create a new sequence from the list of samples
-new_seq = pls.SamplesSequence.from_list(new_samples)
+new_seq = SamplesSequence.from_list(new_samples)
 ```
 
 ## Writing Data
@@ -314,6 +317,7 @@ Combining samples:
 Likewise, `SamplesSequence` includes some advanced methods as well:
 - `__add__`: you can concatenate two sequences with the `+` operator.
 - `is_normalized`: check if all samples have the same keys.
+- `to_pipe`: serialize the sequence to a list that can be saved to disk as yaml/json and later deserialized with `build_pipe`.
 - `direct_access`: returns a new object with a sequence-like interface that directly returns `{<key>: <item-value>}` dictionaries when accessing a sample, instead of the sample objects themselves.
 - `torch_dataset`: returns a new object derived from `torch.utils.data.Dataset` that can be used to load data into [PyTorch](https://pytorch.org/), e.g., through a `torch.utils.data.DataLoader`.
 - `batch`: returns a zip-like object to get batches of samples.

@@ -9,12 +9,13 @@ If possible, you should always implement your operations as a stage, for the fol
 - Your operation will become a reusable node for many different pipelines.
 - You will be able to manually run your operation from a command line iterface.
 
-## Necessary Modules
+## Relevant Modules
 
-Firstly, you should import the following modules:
+When writing stages we deal with samples, which are defined in `pipelime.sequences`.
+Also, we suggest to import `pipelime.stages` as `plst` for convenience.
 
 ```python
-import pipelime.sequences as pls
+from pipelime.sequences import Sample
 import pipelime.stages as plst
 ```
 
@@ -48,16 +49,15 @@ This is the full code of the `InvertStage` class:
 ```python
 from pydantic import Field
 
-import pipelime.sequences as pls
-import pipelime.stages as plst
+from pipelime.sequences import Sample
+from pipelime.stages import SampleStage
 
-
-class InvertStage(plst.SampleStage, title="invert"):
+class InvertStage(SampleStage, title="invert"):
     """Inverts the colors of an image."""
 
     key: str = Field("image", description="The key of the image to invert.")
 
-    def __call__(self, x: pls.Sample) -> pls.Sample:
+    def __call__(self, x: Sample) -> Sample:
         return x.set_value(self.key, 255 - x[self.key]())  # type: ignore
 ```
 
@@ -87,13 +87,18 @@ new_seq = seq.map({"invert": {"key": "image"}})
 Implementing point 3 is now pretty easy:
 
 ```python
-class AverageColor(plst.SampleStage, title="avg_color"):
+from pydantic import Field
+
+from pipelime.sequences import Sample
+from pipelime.stages import SampleStage
+
+class AverageColor(SampleStage, title="avg_color"):
     """Averages the color of an image."""
 
     image_key: str = Field("image", description="The key of the image to average.")
     avg_key: str = Field("avg_color", description="The key of the average color.")
 
-    def __call__(self, x: pls.Sample) -> pls.Sample:
+    def __call__(self, x: Sample) -> Sample:
         return x.set_value(self.avg_key, np.mean(x[self.image_key](), axis=(0, 1)))  # type: ignore
 ```
 
@@ -102,8 +107,11 @@ To sequentially apply all three stages, you can just combine them with the `>>` 
 
 ```python
 new_seq = seq.map(InvertStage() >> AverageColor() >> plst.StageKeysFilter(key_list=["maskinv"], negate=True))
+```
 
-# or equivalently
+or, equivalently, flippling the shift operator:
+
+```python
 new_seq = seq.map(plst.StageKeysFilter(key_list=["maskinv"], negate=True) << AverageColor() << InvertStage())
 ```
 
@@ -111,7 +119,10 @@ Indeed, the left/right shift operators are just shorcuts for the `StageCompose` 
 
 ```python
 new_seq = seq.map(plst.StageCompose([InvertStage(), AverageColor(), plst.StageKeysFilter(key_list=["maskinv"], negate=True)]))
+```
 
-# or equivalently
+or, equivalently, using the stages' titles:
+
+```python
 new_seq = seq.map(plst.StageCompose(["invert", "avg_color", {"filter-keys": {"key_list": ["maskinv"], "negate": True}}]))
 ```

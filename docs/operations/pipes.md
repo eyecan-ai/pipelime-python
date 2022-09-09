@@ -1,7 +1,7 @@
 # Pipes And Generator
 
 [We already saw](../get_started/entities.md) how to generate a sample sequence and chain pipes to it.
-We will now detailed how you can extend the built-in types with you own generators and pipes.
+We will now detailed how you can extend the built-in types with your own generators and pipes.
 
 ## Custom Generators
 
