@@ -9,7 +9,7 @@
 - **Loops**: foreach-like control that iterates over a collection of elements.
 - **Utilities**: like generating a random uuid or getting the current datetime.
 
-Currently supported formats include: 
+Currently supported formats include:
 - YAML
 - JSON
 
@@ -32,9 +32,9 @@ D -.->|Writing| E
 
 1. Optionally **load** a **structure** from a markup file. The structure usually consists of
    nested python **dictionaries** or **lists**, containing built-in types like integers,
-   floats, booleans, strings. 
-2. **Parse** the structure into an **AST**, looking for a special syntactic pattern - 
-   called **"directive"** - in every string that is found. 
+   floats, booleans, strings.
+2. **Parse** the structure into an **AST**, looking for a special syntactic pattern -
+   called **"directive"** - in every string that is found.
 3. **Process** the **AST** by visiting it recursively, resulting in a another python
    structure.
 4. Optionally **write** the new structure to a markup file.

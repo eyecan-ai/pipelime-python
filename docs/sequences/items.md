@@ -40,7 +40,7 @@ When an item is saved to disk, pipelime uses the `serialization_mode` property t
 2. `DEEP_COPY`: if the source is file, such file is deep copied; otherwise, `CREATE_NEW_FILE` applies.
 3. `SYM_LINK`: if the source is a file, a [symbolic link](https://en.wikipedia.org/wiki/Symbolic_link) is created; otherwise, `DEEP_COPY` applies.
 4. `HARD_LINK`: is the source is a file, a [hard link](https://en.wikipedia.org/wiki/Hard_link) is created; otherwise, `DEEP_COPY` applies.
-5. `REMOTE_FILE`: if the data comes from a [remote data lake](../remotes/remotes.md), a special `.remote` file is saved with a reference to the data lake; otherwise, `HARD_LINK` applies.
+5. `REMOTE_FILE`: if the data comes from a [remote data lake](../advanced/remotes.md), a special `.remote` file is saved with a reference to the data lake; otherwise, `HARD_LINK` applies.
 
 If you are not familiar with symbolic and hard links, these are the main differences:
 - hard links are the usual "data" pointer you find in your filesystem, while symbolic links are "pointers" to other files;

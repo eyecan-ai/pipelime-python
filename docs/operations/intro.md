@@ -1,6 +1,6 @@
 # Introduction
 
-In this tutorial you will learn how to take advantage of pipelime to automate your data pipeline by means of stages, pipes and commands, which will constitute the three main building blocks of your pipeline.
+In this section you will learn how to take advantage of pipelime to automate your data pipeline by means of stages, pipes and commands, which will constitute the three main building blocks of your pipeline.
 
 Think back at the [previous tutorial](../sequences/sequences.md): the operations were all written explicitly in an imperative, unstructured fashion. While it is useful to know how to manipulate a dataset by individual low-level operators, writing your processing pipelines that way has some serious flaws:
 - **No parallelization**: low efficiency resulting from executing the code sequentially on the main process.

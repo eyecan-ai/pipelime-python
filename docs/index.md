@@ -37,7 +37,6 @@ Table of Contents
 ===============
 ```{toctree}
 :maxdepth: 4
-:glob:
 :caption: "Get Started:"
 
 get_started/installation.md
@@ -48,8 +47,7 @@ get_started/underfolder.md
 
 ```{toctree}
 :maxdepth: 4
-:glob:
-:caption: "Sequences: "
+:caption: "Core Components: "
 
 sequences/sequences.md
 sequences/items.md
@@ -57,7 +55,7 @@ sequences/items.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Operations: "
+:caption: "Extending Pipelime: "
 
 operations/intro.md
 operations/stages.md
@@ -67,15 +65,6 @@ operations/commands.md
 
 ```{toctree}
 :maxdepth: 4
-:glob:
-:caption: "Remotes: "
-
-remotes/remotes.md
-```
-
-```{toctree}
-:maxdepth: 4
-:glob:
 :caption: "Piper: "
 
 piper/dags.md
@@ -83,7 +72,16 @@ piper/dags.md
 
 ```{toctree}
 :maxdepth: 4
-:glob:
+:caption: "Choixe: "
+
+choixe/intro.md
+choixe/syntax.md
+choixe/directives.md
+choixe/xconfig.md
+```
+
+```{toctree}
+:maxdepth: 4
 :caption: "Command Line Usage: "
 
 cli/cli.md
@@ -91,12 +89,10 @@ cli/cli.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Choixe:"
+:caption: "Advanced Topics: "
 
-choixe/intro.md
-choixe/syntax.md
-choixe/directives.md
-choixe/xconfig.md
+advanced/remotes.md
+advanced/validation.md
 ```
 
 ```{toctree}
