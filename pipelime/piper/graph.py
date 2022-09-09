@@ -238,6 +238,8 @@ class DAGNodesGraph:
         is_input: bool,
     ):
         def _to_str(x):
+            if isinstance(x, (str, bytes)):
+                return str(x)
             if hasattr(x, "__piper_repr__"):
                 return x.__piper_repr__()
             return repr(x)
