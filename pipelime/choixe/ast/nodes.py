@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
@@ -60,6 +60,9 @@ class NodeVisitor:  # pragma: no cover
         return self._ignore(node)
 
     def visit_for(self, node: ForNode) -> Any:
+        return self._ignore(node)
+
+    def visit_switch(self, node: SwitchNode) -> Any:
         return self._ignore(node)
 
     def visit_index(self, node: IndexNode) -> Any:
@@ -247,6 +250,16 @@ class ForNode(Node):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_for(self)
+
+
+@dataclass
+class SwitchNode(Node):
+
+    value: HashNode
+    cases: Sequence[Tuple[Node, Node]]
+
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit_switch(self)
 
 
 @dataclass(eq=False)

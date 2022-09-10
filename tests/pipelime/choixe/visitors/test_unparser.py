@@ -10,57 +10,68 @@ from pipelime.choixe.visitors import unparse
 @pytest.mark.parametrize(
     ["node", "expected"],
     [
-        [ast.LiteralNode(10), 10],
-        [ast.LiteralNode(0.124), 0.124],
-        [ast.LiteralNode("hello"), "hello"],
-        [ast.LiteralNode("my_var"), "my_var"],
+        [ast.LiteralNode(data=10), 10],
+        [ast.LiteralNode(data=0.124), 0.124],
+        [ast.LiteralNode(data="hello"), "hello"],
+        [ast.LiteralNode(data="my_var"), "my_var"],
         [
-            ast.VarNode(ast.LiteralNode("variable.one")),
+            ast.VarNode(identifier=ast.LiteralNode(data="variable.one")),
             "$var(variable.one)",
         ],
         [
-            ast.VarNode(ast.LiteralNode("variable.one"), env=ast.LiteralNode(True)),
+            ast.VarNode(
+                identifier=ast.LiteralNode(data="variable.one"),
+                env=ast.LiteralNode(data=True),
+            ),
             "$var(variable.one, env=True)",
         ],
         [
-            ast.VarNode(ast.LiteralNode("variable.one"), default=ast.LiteralNode(-24)),
+            ast.VarNode(
+                identifier=ast.LiteralNode(data="variable.one"),
+                default=ast.LiteralNode(data=-24),
+            ),
             "$var(variable.one, default=-24)",
         ],
         [
             ast.VarNode(
-                ast.LiteralNode("variable.one"),
-                default=ast.LiteralNode(-24),
-                env=ast.LiteralNode(True),
+                identifier=ast.LiteralNode(data="variable.one"),
+                default=ast.LiteralNode(data=-24),
+                env=ast.LiteralNode(data=True),
             ),
             "$var(variable.one, default=-24, env=True)",
         ],
         [
-            ast.ImportNode(ast.LiteralNode("path/to/file.yaml")),
+            ast.ImportNode(path=ast.LiteralNode(data="path/to/file.yaml")),
             '$import("path/to/file.yaml")',
         ],
         [
             ast.SweepNode(
-                ast.LiteralNode("a"), ast.LiteralNode("variable"), ast.LiteralNode(10)
+                ast.LiteralNode(data="a"),
+                ast.LiteralNode(data="variable"),
+                ast.LiteralNode(data=10),
             ),
             "$sweep(a, variable, 10)",
         ],
-        [ast.StrBundleNode(ast.LiteralNode("alice")), "alice"],
+        [ast.StrBundleNode(ast.LiteralNode(data="alice")), "alice"],
         [
             ast.StrBundleNode(
-                ast.LiteralNode("alice "),
-                ast.VarNode(ast.LiteralNode("foo"), default=ast.LiteralNode("loves")),
-                ast.LiteralNode(" bob"),
+                ast.LiteralNode(data="alice "),
+                ast.VarNode(
+                    identifier=ast.LiteralNode(data="foo"),
+                    default=ast.LiteralNode(data="loves"),
+                ),
+                ast.LiteralNode(data=" bob"),
             ),
             "alice $var(foo, default=loves) bob",
         ],
         [
             ast.DictNode(
-                {
-                    ast.LiteralNode("key1"): ast.LiteralNode(10),
-                    ast.LiteralNode("key2"): ast.DictNode(
-                        {
-                            ast.LiteralNode("key1"): ast.LiteralNode(10.2),
-                            ast.LiteralNode("key2"): ast.LiteralNode("hello"),
+                nodes={
+                    ast.LiteralNode(data="key1"): ast.LiteralNode(data=10),
+                    ast.LiteralNode(data="key2"): ast.DictNode(
+                        nodes={
+                            ast.LiteralNode(data="key1"): ast.LiteralNode(data=10.2),
+                            ast.LiteralNode(data="key2"): ast.LiteralNode(data="hello"),
                         }
                     ),
                 }
@@ -69,36 +80,42 @@ from pipelime.choixe.visitors import unparse
         ],
         [
             ast.DictNode(
-                {
+                nodes={
                     ast.StrBundleNode(
-                        ast.VarNode(ast.LiteralNode("var")), ast.LiteralNode("foo")
-                    ): ast.LiteralNode("bar")
+                        ast.VarNode(identifier=ast.LiteralNode(data="var")),
+                        ast.LiteralNode(data="foo"),
+                    ): ast.LiteralNode(data="bar")
                 }
             ),
             {"$var(var)foo": "bar"},
         ],
         [
             ast.ListNode(
-                ast.LiteralNode(10),
-                ast.LiteralNode(-0.25),
-                ast.ListNode(ast.LiteralNode("aa")),
+                ast.LiteralNode(data=10),
+                ast.LiteralNode(data=-0.25),
+                ast.ListNode(ast.LiteralNode(data="aa")),
             ),
             [10, -0.25, ["aa"]],
         ],
-        [ast.SymbolNode(ast.LiteralNode("numpy.zeros")), "$symbol(numpy.zeros)"],
+        [
+            ast.SymbolNode(symbol=ast.LiteralNode(data="numpy.zeros")),
+            "$symbol(numpy.zeros)",
+        ],
         [
             ast.InstanceNode(
-                ast.LiteralNode("path/to_my/file.py:MyClass"),
-                ast.DictNode(
-                    {
-                        ast.LiteralNode("arg1"): ast.InstanceNode(
-                            ast.LiteralNode("module.submodule.function"),
-                            ast.DictNode(
-                                {
-                                    ast.LiteralNode("a"): ast.ListNode(
-                                        ast.LiteralNode(1), ast.LiteralNode(2)
+                symbol=ast.LiteralNode(data="path/to_my/file.py:MyClass"),
+                args=ast.DictNode(
+                    nodes={
+                        ast.LiteralNode(data="arg1"): ast.InstanceNode(
+                            symbol=ast.LiteralNode(data="module.submodule.function"),
+                            args=ast.DictNode(
+                                nodes={
+                                    ast.LiteralNode(data="a"): ast.ListNode(
+                                        ast.LiteralNode(data=1), ast.LiteralNode(data=2)
                                     ),
-                                    ast.LiteralNode("b"): ast.LiteralNode(100),
+                                    ast.LiteralNode(data="b"): ast.LiteralNode(
+                                        data=100
+                                    ),
                                 }
                             ),
                         )
@@ -117,15 +134,15 @@ from pipelime.choixe.visitors import unparse
         ],
         [
             ast.ModelNode(
-                ast.LiteralNode("path/to_my/file.py:MyModel"),
-                ast.DictNode(
-                    {
-                        ast.LiteralNode("arg1"): ast.DictNode(
-                            {
-                                ast.LiteralNode("a"): ast.ListNode(
-                                    ast.LiteralNode(1), ast.LiteralNode(2)
+                symbol=ast.LiteralNode(data="path/to_my/file.py:MyModel"),
+                args=ast.DictNode(
+                    nodes={
+                        ast.LiteralNode(data="arg1"): ast.DictNode(
+                            nodes={
+                                ast.LiteralNode(data="a"): ast.ListNode(
+                                    ast.LiteralNode(data=1), ast.LiteralNode(data=2)
                                 ),
-                                ast.LiteralNode("b"): ast.LiteralNode(100),
+                                ast.LiteralNode(data="b"): ast.LiteralNode(data=100),
                             }
                         ),
                     }
@@ -138,28 +155,28 @@ from pipelime.choixe.visitors import unparse
         ],
         [
             ast.ForNode(
-                ast.LiteralNode("my.var"),
-                ast.DictNode(
-                    {
-                        ast.LiteralNode("Hello"): ast.LiteralNode("World"),
+                iterable=ast.LiteralNode(data="my.var"),
+                body=ast.DictNode(
+                    nodes={
+                        ast.LiteralNode(data="Hello"): ast.LiteralNode(data="World"),
                         ast.StrBundleNode(
-                            ast.LiteralNode("Number_"),
-                            ast.IndexNode(ast.LiteralNode("x")),
-                        ): ast.ItemNode(ast.LiteralNode("x")),
+                            ast.LiteralNode(data="Number_"),
+                            ast.IndexNode(identifier=ast.LiteralNode(data="x")),
+                        ): ast.ItemNode(identifier=ast.LiteralNode(data="x")),
                     }
                 ),
-                ast.LiteralNode("x"),
+                identifier=ast.LiteralNode(data="x"),
             ),
             {"$for(my.var, x)": {"Hello": "World", "Number_$index(x)": "$item(x)"}},
         ],
         [
             ast.ForNode(
-                ast.LiteralNode("my.var"),
-                ast.DictNode(
-                    {
-                        ast.LiteralNode("Hello"): ast.LiteralNode("World"),
+                iterable=ast.LiteralNode(data="my.var"),
+                body=ast.DictNode(
+                    nodes={
+                        ast.LiteralNode(data="Hello"): ast.LiteralNode(data="World"),
                         ast.StrBundleNode(
-                            ast.LiteralNode("Number_"), ast.IndexNode()
+                            ast.LiteralNode(data="Number_"), ast.IndexNode()
                         ): ast.ItemNode(),
                     }
                 ),
@@ -168,43 +185,45 @@ from pipelime.choixe.visitors import unparse
         ],
         [ast.UuidNode(), "$uuid"],
         [ast.DateNode(), "$date"],
-        [ast.DateNode(ast.LiteralNode("%Y%m%d")), '$date("%Y%m%d")'],
-        [ast.CmdNode(ast.LiteralNode("ls -lha")), '$cmd("ls -lha")'],
+        [ast.DateNode(format=ast.LiteralNode(data="%Y%m%d")), '$date("%Y%m%d")'],
+        [ast.CmdNode(command=ast.LiteralNode(data="ls -lha")), '$cmd("ls -lha")'],
         [ast.TmpDirNode(), "$tmp"],
-        [ast.TmpDirNode(ast.LiteralNode("my_tmp")), "$tmp(my_tmp)"],
+        [ast.TmpDirNode(name=ast.LiteralNode(data="my_tmp")), "$tmp(my_tmp)"],
         [
             ast.DictBundleNode(
                 ast.ForNode(
-                    ast.LiteralNode("alpha"),
-                    ast.DictNode(
-                        {
+                    iterable=ast.LiteralNode(data="alpha"),
+                    body=ast.DictNode(
+                        nodes={
                             ast.StrBundleNode(
-                                ast.LiteralNode("node_"), ast.IndexNode()
+                                ast.LiteralNode(data="node_"), ast.IndexNode()
                             ): ast.StrBundleNode(
-                                ast.LiteralNode("Hello_"), ast.ItemNode()
+                                ast.LiteralNode(data="Hello_"), ast.ItemNode()
                             )
                         }
                     ),
                 ),
                 ast.ForNode(
-                    ast.LiteralNode("beta"),
-                    ast.DictNode(
-                        {
+                    iterable=ast.LiteralNode(data="beta"),
+                    body=ast.DictNode(
+                        nodes={
                             ast.StrBundleNode(
-                                ast.LiteralNode("node_"), ast.IndexNode()
+                                ast.LiteralNode(data="node_"), ast.IndexNode()
                             ): ast.StrBundleNode(
-                                ast.LiteralNode("Ciao_"), ast.ItemNode()
+                                ast.LiteralNode(data="Ciao_"), ast.ItemNode()
                             )
                         }
                     ),
                 ),
                 ast.DictNode(
-                    {
-                        ast.LiteralNode("a"): ast.LiteralNode(10),
-                        ast.LiteralNode("b"): ast.DictNode(
-                            {
-                                ast.LiteralNode("c"): ast.LiteralNode(10.0),
-                                ast.LiteralNode("d"): ast.LiteralNode("hello"),
+                    nodes={
+                        ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                        ast.LiteralNode(data="b"): ast.DictNode(
+                            nodes={
+                                ast.LiteralNode(data="c"): ast.LiteralNode(data=10.0),
+                                ast.LiteralNode(data="d"): ast.LiteralNode(
+                                    data="hello"
+                                ),
                             }
                         ),
                     }

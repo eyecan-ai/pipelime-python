@@ -16,23 +16,26 @@ from deepdiff import DeepDiff
 @pytest.mark.parametrize(
     ["node", "expected"],
     [
-        [LiteralNode(10), [([], 10)]],
+        [LiteralNode(data=10), [([], 10)]],
         [
             StrBundleNode(
-                LiteralNode("alice "),
-                VarNode(LiteralNode("foo"), default=LiteralNode("loves")),
-                LiteralNode(" bob"),
+                LiteralNode(data="alice "),
+                VarNode(
+                    identifier=LiteralNode(data="foo"),
+                    default=LiteralNode(data="loves"),
+                ),
+                LiteralNode(data=" bob"),
             ),
             [([], "alice $var(foo, default=loves) bob")],
         ],
         [
             DictNode(
-                {
-                    LiteralNode("key1"): LiteralNode(10),
-                    LiteralNode("key2"): DictNode(
-                        {
-                            LiteralNode("key1"): LiteralNode(10.2),
-                            LiteralNode("key2"): LiteralNode("hello"),
+                nodes={
+                    LiteralNode(data="key1"): LiteralNode(data=10),
+                    LiteralNode(data="key2"): DictNode(
+                        nodes={
+                            LiteralNode(data="key1"): LiteralNode(data=10.2),
+                            LiteralNode(data="key2"): LiteralNode(data="hello"),
                         }
                     ),
                 }
@@ -40,7 +43,11 @@ from deepdiff import DeepDiff
             [(["key1"], 10), (["key2", "key1"], 10.2), (["key2", "key2"], "hello")],
         ],
         [
-            ListNode(LiteralNode(10), LiteralNode(-0.25), ListNode(LiteralNode("aa"))),
+            ListNode(
+                LiteralNode(data=10),
+                LiteralNode(data=-0.25),
+                ListNode(LiteralNode(data="aa")),
+            ),
             [([0], 10), ([1], -0.25), ([2, 0], "aa")],
         ],
     ],

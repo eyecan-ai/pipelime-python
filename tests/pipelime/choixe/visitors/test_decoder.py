@@ -25,7 +25,9 @@ class Cat(BaseModel):
     ["node", "expected"],
     [
         [
-            DictNode({LiteralNode("foo"): LiteralNode(np.zeros((2, 3, 2)))}),
+            DictNode(
+                nodes={LiteralNode(data="foo"): LiteralNode(data=np.zeros((2, 3, 2)))}
+            ),
             {
                 "foo": [
                     [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
@@ -34,7 +36,7 @@ class Cat(BaseModel):
             },
         ],
         [
-            ListNode(LiteralNode(np.zeros((2, 3, 2)))),
+            ListNode(LiteralNode(data=np.zeros((2, 3, 2)))),
             [
                 [
                     [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
@@ -42,11 +44,11 @@ class Cat(BaseModel):
                 ]
             ],
         ],
-        [LiteralNode(np.uint8(24)), 24],
-        [LiteralNode(np.float64(0.125)), 0.125],
+        [LiteralNode(data=np.uint8(24)), 24],
+        [LiteralNode(data=np.float64(0.125)), 0.125],
         [
             LiteralNode(
-                Cat(
+                data=Cat(
                     age=10,
                     weight=5.23,
                     name="Oliver",
@@ -66,7 +68,7 @@ class Cat(BaseModel):
                 },
             },
         ],
-        [LiteralNode(Path("/tmp/foo.txt")), str(Path("/tmp/foo.txt"))],
+        [LiteralNode(data=Path("/tmp/foo.txt")), str(Path("/tmp/foo.txt"))],
     ],
 )
 def test_decode(node: Node, expected: Any):
