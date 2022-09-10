@@ -84,7 +84,7 @@ class Scanner:
         kwargs = {}
         for py_kwarg in py_kwargs:
             key, value = py_kwarg.arg, py_kwarg.value
-            kwargs[key] = self._scan_argument(value)
+            kwargs[key] = self._scan_argument(value)  # type: ignore
 
         return Token(token_name, args, kwargs)
 
@@ -202,25 +202,35 @@ class Parser:
     def _parse_instance(self, data: dict) -> c_ast.InstanceNode:
         pairs = self._key_value_pairs_by_token_name(data)
         symbol = self.parse(pairs["call"][1])
-        args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
-        return c_ast.InstanceNode(symbol, args)
+        args = (
+            self.parse(pairs["args"][1])
+            if "args" in pairs
+            else c_ast.DictNode(nodes={})
+        )
+        return c_ast.InstanceNode(symbol=symbol, args=args)  # type: ignore
 
     def _parse_model(self, data: dict) -> c_ast.ModelNode:
         pairs = self._key_value_pairs_by_token_name(data)
         symbol = self.parse(pairs["model"][1])
-        args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
-        return c_ast.ModelNode(symbol, args)
+        args = (
+            self.parse(pairs["args"][1])
+            if "args" in pairs
+            else c_ast.DictNode(nodes={})
+        )
+        return c_ast.ModelNode(symbol, args)  # type: ignore
 
     def _parse_for(self, loop: str, body: Any) -> c_ast.ForNode:
-        loop = self._scanner.scan(loop)[0]
-        iterable = c_ast.LiteralNode(loop.args[0])
+        token = self._scanner.scan(loop)[0]
+        iterable = c_ast.LiteralNode(data=token.args[0])
         identifier = (
-            loop.args[1] if len(loop.args) > 1 else loop.kwargs.get("identifier")
+            token.args[1] if len(token.args) > 1 else token.kwargs.get("identifier")
         )
-        identifier = c_ast.LiteralNode(identifier) if identifier else None
-        return c_ast.ForNode(iterable, self.parse(body), identifier=identifier)
+        identifier = c_ast.LiteralNode(data=identifier) if identifier else None
+        return c_ast.ForNode(
+            iterable=iterable, body=self.parse(body), identifier=identifier
+        )
 
-    def _parse_dict(self, data: dict) -> c_ast.DictNode:
+    def _parse_dict(self, data: dict) -> Union[c_ast.DictNode, c_ast.DictBundleNode]:
         # Check if the dict is an extended or special form, in that case parse it and
         # return the result, no further checks are needed.
         for schema, fn in self._extended_and_special_forms.items():
@@ -242,7 +252,7 @@ class Parser:
                     parsed_other[self._parse_str(k)] = self.parse(v)
 
         # Parse the remaining entries as a DictNode.
-        parsed_other = c_ast.DictNode(parsed_other)
+        parsed_other = c_ast.DictNode(nodes=parsed_other)
 
         # If no key_value form was found, return the DictNode.
         if len(parsed_keyvalues) == 0:
@@ -259,7 +269,7 @@ class Parser:
 
     def _parse_token(self, token: Token) -> c_ast.Node:
         if token.name == "str":
-            return c_ast.LiteralNode(token.args[0])
+            return c_ast.LiteralNode(data=token.args[0])
 
         try:
             for schema, fn in self._call_forms.items():
@@ -298,7 +308,7 @@ class Parser:
                 if isinstance(data, type_):
                     fn = parse_fn
                     break
-            res = fn(data)
+            res = fn(data)  # type: ignore
             return res
 
         except (ChoixeSyntaxError, SyntaxError) as e:
