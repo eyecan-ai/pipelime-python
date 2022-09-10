@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Union
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
@@ -32,7 +32,7 @@ class NodeVisitor:  # pragma: no cover
     def visit_list(self, node: ListNode) -> Any:
         return self._ignore(node)
 
-    def visit_object(self, node: LiteralNode) -> Any:
+    def visit_literal(self, node: LiteralNode) -> Any:
         return self._ignore(node)
 
     def visit_dict_bundle(self, node: DictBundleNode) -> Any:
@@ -143,7 +143,7 @@ class LiteralNode(HashNode):
     data: Any
 
     def accept(self, visitor: NodeVisitor) -> Any:
-        return visitor.visit_object(self)
+        return visitor.visit_literal(self)
 
 
 @dataclass(init=False, eq=False)
@@ -176,9 +176,9 @@ class StrBundleNode(HashNode):
 class VarNode(HashNode):
     """A `VarNode` represents a Choixe variable. It has an id and a default value."""
 
-    identifier: LiteralNode
-    default: Optional[LiteralNode] = None
-    env: Optional[LiteralNode] = None
+    identifier: HashNode
+    default: Optional[HashNode] = None
+    env: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_var(self)
@@ -188,7 +188,7 @@ class VarNode(HashNode):
 class ImportNode(Node):
     """An `ImportNode` represents a Choixe import directive from a filesystem path."""
 
-    path: LiteralNode
+    path: HashNode
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_import(self)
@@ -223,7 +223,7 @@ class InstanceNode(Node):
     generic python callable object."""
 
     symbol: HashNode
-    args: DictNode
+    args: Union[DictNode, DictBundleNode]
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_instance(self)
@@ -253,7 +253,7 @@ class ForNode(Node):
 class IndexNode(HashNode):
     """An `IndexNode` represents the index of the current iteration of a for loop."""
 
-    identifier: Optional[LiteralNode] = None
+    identifier: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_index(self)
@@ -263,7 +263,7 @@ class IndexNode(HashNode):
 class ItemNode(HashNode):
     """An `ItemNode` represents the item of the current iteration of a for loop."""
 
-    identifier: Optional[LiteralNode] = None
+    identifier: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_item(self)
@@ -281,7 +281,7 @@ class UuidNode(HashNode):
 class DateNode(HashNode):
     """A `DateNode` represents the current datetime with an optional custom format."""
 
-    format: Optional[LiteralNode] = None
+    format: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_date(self)
@@ -291,7 +291,7 @@ class DateNode(HashNode):
 class CmdNode(HashNode):
     """A `CmdNode` represents the calling of a system command."""
 
-    command: LiteralNode
+    command: HashNode
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_cmd(self)
@@ -301,7 +301,7 @@ class CmdNode(HashNode):
 class TmpDirNode(HashNode):
     """A `TmpDirNode` represents the creation of a temporary directory."""
 
-    name: Optional[LiteralNode] = None
+    name: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_tmp_dir(self)

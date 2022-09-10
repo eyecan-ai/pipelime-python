@@ -32,7 +32,7 @@ class Inspection:
             imports={*self.imports, *other.imports},
             variables=py_.merge_with(
                 self.variables, other.variables, iteratee=self._iteratee
-            ),
+            ),  # type: ignore
             environ={**self.environ, **other.environ},
             symbols={*self.symbols, *other.symbols},
             processed=self.processed and other.processed,
@@ -59,7 +59,7 @@ class Inspector(ast.NodeVisitor):
         start = Inspection(processed=True)
         return sum([x.accept(self) for x in node.nodes], start=start)
 
-    def visit_object(self, node: ast.LiteralNode) -> Inspection:
+    def visit_literal(self, node: ast.LiteralNode) -> Inspection:
         return Inspection(processed=True)
 
     def visit_dict_bundle(self, node: ast.DictBundleNode) -> Any:
@@ -71,43 +71,65 @@ class Inspector(ast.NodeVisitor):
         return sum([x.accept(self) for x in node.nodes], start=start)
 
     def visit_var(self, node: ast.VarNode) -> Inspection:
-        default = None if node.default is None else node.default.data
-        variables = py_.set_({}, node.identifier.data, default)
+        id_insp = node.identifier.accept(self)
+        default_insp = (
+            node.default.accept(self) if node.default else Inspection(processed=True)
+        )
+        env_insp = node.env.accept(self) if node.env else Inspection(processed=True)
+        insp = id_insp + default_insp + env_insp
 
-        environ = {}
-        if node.env is not None and node.env.data:
-            environ[node.identifier.data] = default
+        if insp.processed:
+            id_ = node.identifier.data  # type: ignore
+            default = None if node.default is None else node.default.data  # type: ignore
+            variables = py_.set_({}, id_, default)
 
-        return Inspection(variables=variables, environ=environ)
+            environ = {}
+            if node.env is not None and node.env.data:  # type: ignore
+                environ[id_] = default
+
+            insp = insp + Inspection(variables=variables, environ=environ)
+
+        return insp
 
     def visit_import(self, node: ast.ImportNode) -> Inspection:
-        path = Path(node.path.data)
-        if not path.is_absolute():
-            path = self._cwd / path
+        insp = node.path.accept(self)
 
-        if path.exists():
-            subdata = load(path)
-            parsed = parse(subdata)
+        if insp.processed:
+            path = Path(node.path.data)  # type: ignore
+            if not path.is_absolute():
+                path = self._cwd / path
 
-            old_cwd = self._cwd
-            self._cwd = path.parent
-            nested = parsed.accept(self)
-            self._cwd = old_cwd
-        else:
-            warnings.warn(f"Cannot complete inspection: file {path} is missing.")
-            nested = Inspection()
+            if path.exists():
+                subdata = load(path)
+                parsed = parse(subdata)
 
-        return Inspection(imports={Path(path).resolve()}) + nested
+                old_cwd = self._cwd
+                self._cwd = path.parent
+                nested = parsed.accept(self)
+                self._cwd = old_cwd
+            else:
+                warnings.warn(f"Cannot complete inspection: file {path} is missing.")
+                nested = Inspection()
+
+            insp = Inspection(imports={Path(path).resolve()}) + nested + insp
+
+        return insp
 
     def visit_sweep(self, node: ast.SweepNode) -> Inspection:
-        start = Inspection(processed=True)
+        start = Inspection()
         return sum([x.accept(self) for x in node.cases], start=start)
 
     def visit_symbol(self, node: ast.SymbolNode) -> Any:
-        return Inspection(symbols={str(node.symbol.data)})
+        insp = node.symbol.accept(self)
+        if insp.processed:
+            insp = insp + Inspection(symbols={str(node.symbol.data)})  # type: ignore
+        return insp
 
     def visit_instance(self, node: ast.InstanceNode) -> Inspection:
-        return Inspection(symbols={str(node.symbol.data)}) + node.args.accept(self)
+        insp = node.symbol.accept(self)
+        if insp.processed:
+            insp = insp + Inspection(symbols={str(node.symbol.data)})  # type: ignore
+        return insp + node.args.accept(self)
 
     def visit_model(self, node: ast.ModelNode) -> Inspection:
         return self.visit_instance(node)
@@ -120,16 +142,23 @@ class Inspector(ast.NodeVisitor):
         return iterable_insp + body_insp
 
     def visit_index(self, node: ast.IndexNode) -> Inspection:
-        return Inspection()
+        insp = Inspection()
+        if node.identifier is not None:
+            insp = insp + node.identifier.accept(self)
+        return insp
 
     def visit_item(self, node: ast.ItemNode) -> Inspection:
+        insp = Inspection()
         variables = {}
         if node.identifier is not None:
-            loop_id, _, key = node.identifier.data.partition(".")
-            iterable_name = self._named_for_loops[loop_id]
-            full_path = f"{iterable_name}.{key}"
-            py_.set_(variables, full_path, None)
-        return Inspection(variables=variables)
+            sub_insp = node.identifier.accept(self)
+            if sub_insp.processed:
+                loop_id, _, key = node.identifier.data.partition(".")  # type: ignore
+                iterable_name = self._named_for_loops[loop_id]
+                full_path = f"{iterable_name}.{key}"
+                py_.set_(variables, full_path, None)
+            insp = insp + sub_insp + Inspection(variables=variables)
+        return insp
 
 
 def inspect(node: ast.Node, cwd: Optional[Path] = None) -> Inspection:

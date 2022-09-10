@@ -12,8 +12,8 @@ from pipelime.choixe.visitors.unparser import Unparser
 class Decoder(Unparser):
     """Specialization of the `Unparser` for the decode operation."""
 
-    def visit_object(self, node: LiteralNode) -> Any:
-        data = super().visit_object(node)
+    def visit_literal(self, node: LiteralNode) -> Any:
+        data = super().visit_literal(node)
         if isinstance(data, np.ndarray):
             return data.tolist()
         elif "numpy" in str(type(data)):

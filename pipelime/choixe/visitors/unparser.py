@@ -19,7 +19,7 @@ class Unparser(ast.NodeVisitor):
             data.append(x.accept(self))
         return data
 
-    def visit_object(self, node: ast.LiteralNode) -> Any:
+    def visit_literal(self, node: ast.LiteralNode) -> Any:
         return node.data
 
     def visit_dict_bundle(self, node: ast.DictBundleNode) -> Any:
