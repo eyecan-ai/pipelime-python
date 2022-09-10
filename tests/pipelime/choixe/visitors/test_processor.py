@@ -387,6 +387,23 @@ class TestProcessor:
         ]
         self._expectation_test(data, expected)
 
+    def test_switch_base(self):
+        data = {
+            "$switch(animal)": [
+                {
+                    "$case": ["cat", "dog", "hamster"],
+                    "$then": 10,
+                },
+                {
+                    "$case": ["cow"],
+                    "$then": 20,
+                },
+            ]
+        }
+        expected = [20]
+        print(process(parse(data)))
+        self._expectation_test(data, expected)
+
     def test_uuid(self):
         data = "$uuid"
         processed = process(parse(data))

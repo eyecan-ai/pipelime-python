@@ -159,7 +159,8 @@ class Parser:
         }
 
         self._key_value_forms = {
-            S.Schema({self._token_schema("for"): object}): self._parse_for
+            S.Schema({self._token_schema("for"): object}): self._parse_for,
+            S.Schema({self._token_schema("switch"): list}): self._parse_switch,
         }
 
     def _token_schema(
@@ -230,6 +231,21 @@ class Parser:
             iterable=iterable, body=self.parse(body), identifier=identifier
         )
 
+    def _parse_switch(self, switch: str, body: Any) -> c_ast.SwitchNode:
+        token = self._scanner.scan(switch)[0]
+        value = c_ast.LiteralNode(data=token.args[0])
+        cases = []
+        default = None
+        for entry in body:
+            pairs = self._key_value_pairs_by_token_name(entry)
+            if "default" in pairs:
+                default = self.parse(pairs["default"][1])
+            elif "case" in pairs:
+                case_set = self.parse(pairs["case"][1])
+                case_body = self.parse(pairs["then"][1])
+                cases.append((case_set, case_body))
+        return c_ast.SwitchNode(value=value, cases=cases, default=default)
+
     def _parse_dict(self, data: dict) -> Union[c_ast.DictNode, c_ast.DictBundleNode]:
         # Check if the dict is an extended or special form, in that case parse it and
         # return the result, no further checks are needed.
@@ -244,12 +260,17 @@ class Parser:
         # it to the bundle. Keep track of what is left to parse.
         parsed_keyvalues = []
         parsed_other = {}
-        for schema, fn in self._key_value_forms.items():
-            for k, v in data.items():
+        for k, v in data.items():
+            any_valid = False
+
+            for schema, fn in self._key_value_forms.items():
                 if schema.is_valid({k: v}):
                     parsed_keyvalues.append(fn(k, v))
-                else:
-                    parsed_other[self._parse_str(k)] = self.parse(v)
+                    any_valid = True
+                    break
+
+            if not any_valid:
+                parsed_other[self._parse_str(k)] = self.parse(v)
 
         # Parse the remaining entries as a DictNode.
         parsed_other = c_ast.DictNode(nodes=parsed_other)

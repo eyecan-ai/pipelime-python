@@ -257,6 +257,7 @@ class SwitchNode(Node):
 
     value: HashNode
     cases: Sequence[Tuple[Node, Node]]
+    default: Optional[Node] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_switch(self)

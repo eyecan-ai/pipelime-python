@@ -141,6 +141,19 @@ class Inspector(ast.NodeVisitor):
         body_insp = node.body.accept(self)
         return iterable_insp + body_insp
 
+    def visit_switch(self, node: ast.SwitchNode) -> Inspection:
+        insp = node.value.accept(self)
+        if insp.processed:
+            insp = Inspection(variables=py_.set_({}, node.value.data, None))  # type: ignore
+        cases_insp = sum(
+            [x.accept(self) + y.accept(self) for x, y in node.cases],
+            start=Inspection(processed=True),
+        )
+        default_insp = (
+            node.default.accept(self) if node.default else Inspection(processed=True)
+        )
+        return insp + cases_insp + default_insp
+
     def visit_index(self, node: ast.IndexNode) -> Inspection:
         insp = Inspection()
         if node.identifier is not None:

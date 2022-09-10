@@ -183,6 +183,41 @@ from pipelime.choixe.visitors import unparse
             ),
             {"$for(my.var)": {"Hello": "World", "Number_$index": "$item"}},
         ],
+        [
+            ast.SwitchNode(
+                value=ast.LiteralNode(data="nation"),
+                cases=[
+                    (
+                        ast.ListNode(
+                            ast.LiteralNode(data="UK"),
+                            ast.LiteralNode(data="USA"),
+                            ast.LiteralNode(data="Australia"),
+                        ),
+                        ast.LiteralNode(data="hello"),
+                    ),
+                    (
+                        ast.LiteralNode(data="Italy"),
+                        ast.LiteralNode(data="ciao"),
+                    ),
+                ],
+                default=ast.LiteralNode(data="*raise your hand*"),
+            ),
+            {
+                "$switch(nation)": [
+                    {
+                        "$case": ["UK", "USA", "Australia"],
+                        "$then": "hello",
+                    },
+                    {
+                        "$case": "Italy",
+                        "$then": "ciao",
+                    },
+                    {
+                        "$default": "*raise your hand*",
+                    },
+                ]
+            },
+        ],
         [ast.UuidNode(), "$uuid"],
         [ast.DateNode(), "$date"],
         [ast.DateNode(format=ast.LiteralNode(data="%Y%m%d")), '$date("%Y%m%d")'],

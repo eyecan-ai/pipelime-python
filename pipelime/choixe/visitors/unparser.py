@@ -68,6 +68,23 @@ class Unparser(ast.NodeVisitor):
         value = node.body.accept(self)
         return {key: value}
 
+    def visit_switch(self, node: ast.SwitchNode) -> Dict[str, Any]:
+        key = self._unparse_call("switch", node.value)
+
+        value = []
+        for case in node.cases:
+            entry = {}
+            entry[self._unparse_compact("case")] = case[0].accept(self)
+            entry[self._unparse_compact("then")] = case[1].accept(self)
+            value.append(entry)
+
+        if node.default is not None:
+            entry = {}
+            entry[self._unparse_compact("default")] = node.default.accept(self)
+            value.append(entry)
+
+        return {key: value}
+
     def visit_item(self, node: ast.ItemNode) -> Union[Dict, str]:
         args = []
         if node.identifier is not None:

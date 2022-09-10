@@ -226,6 +226,34 @@ class Processor(ast.NodeVisitor):
 
         return branches
 
+    def visit_switch(self, node: ast.SwitchNode) -> List[Any]:
+        value_branches = node.value.accept(self)
+        set_branches = [x[0].accept(self) for x in node.cases]
+        body_branches = [x[1].accept(self) for x in node.cases]
+        default_branches = node.default.accept(self) if node.default else [None]
+
+        all_branches = self._branches(
+            value_branches, *set_branches, *body_branches, default_branches
+        )
+
+        branches = []
+        for branch in all_branches:
+            value = py_.get(self._context, branch[0])
+            found = False
+            for i in range(len(node.cases)):
+                set_ = branch[i + 1]
+                if not isinstance(set_, Iterable) or isinstance(set_, str):
+                    set_ = [set_]
+
+                if value in set_:
+                    branches.append(branch[i + 1 + len(node.cases)])
+                    found = True
+                    break
+            if not found and branch[-1] is not None:
+                branches.append(branch[-1])
+
+        return branches
+
     def visit_index(self, node: ast.IndexNode) -> List[Any]:
         branches = (
             node.identifier.accept(self) if node.identifier else [self._current_loop]

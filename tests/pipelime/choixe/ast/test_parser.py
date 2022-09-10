@@ -241,6 +241,43 @@ class TestParse:
         )
         assert parse(expr) == expected
 
+    def test_parse_switch_base(self):
+        expr = {
+            "$switch(nation)": [
+                {
+                    "$case": ["UK", "USA", "Australia"],
+                    "$then": "hello",
+                },
+                {
+                    "$case": "Italy",
+                    "$then": "ciao",
+                },
+                {
+                    "$default": "*raise your hand*",
+                },
+            ]
+        }
+        expected = ast.SwitchNode(
+            value=ast.LiteralNode(data="nation"),
+            cases=[
+                (
+                    ast.ListNode(
+                        ast.LiteralNode(data="UK"),
+                        ast.LiteralNode(data="USA"),
+                        ast.LiteralNode(data="Australia"),
+                    ),
+                    ast.LiteralNode(data="hello"),
+                ),
+                (
+                    ast.LiteralNode(data="Italy"),
+                    ast.LiteralNode(data="ciao"),
+                ),
+            ],
+            default=ast.LiteralNode(data="*raise your hand*"),
+        )
+        print(parse(expr))
+        assert parse(expr) == expected
+
 
 class TestStringParse:
     def test_simple(self):
