@@ -23,35 +23,43 @@ def _parameter_icon():
     return "\U0001F4D0"
 
 
-def print_debug(val, *, pretty: bool = False, end: str = "\n"):
+def print_debug(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="italic grey50",
         end=end,
     )
 
 
-def print_info(val, *, pretty: bool = False, end: str = "\n"):
+def print_info(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="cyan",
         end=end,
     )
 
 
-def print_warning(val, *, pretty: bool = False, end: str = "\n"):
+def print_warning(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
         "[bold blink]WARNING:[/bold blink]",
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="orange1",
         end=end,
     )
 
 
-def print_error(val, *, pretty: bool = False, end: str = "\n"):
+def print_error(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
         "[bold blink]ERROR:[/bold blink]",
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="dark_red on white",
         end=end,
     )
@@ -138,7 +146,7 @@ def print_model_info(
         expand=True,
     )
 
-    _iterate_field_model(
+    _iterate_model_fields(
         model_cls=model_cls,
         grid=grid,
         indent=0,
@@ -162,7 +170,7 @@ def _field_row(
     has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
     field_outer_type = field.outer_type_
 
-    if is_model and has_root_item:
+    if has_root_item:
         field_outer_type = field.outer_type_.__fields__["__root__"].outer_type_
 
     if show_piper_port:
@@ -212,7 +220,7 @@ def _field_row(
     grid.add_row(*line)
 
     if is_model and not has_root_item:
-        _iterate_field_model(
+        _iterate_model_fields(
             model_cls=field_outer_type,
             grid=grid,
             indent=indent + indent_offs,
@@ -231,8 +239,8 @@ def _field_row(
         }
 
         for arg in inner_types:
-            grid.add_row((" " * indent) + f"[grey50]-----{arg.__name__}[/]")
-            _iterate_field_model(
+            grid.add_row((" " * indent) + f"[grey50]----{arg.__name__}[/]")
+            _iterate_model_fields(
                 model_cls=arg,
                 grid=grid,
                 indent=indent + indent_offs,
@@ -282,7 +290,7 @@ def _get_inner_args(*type_):
     }
 
 
-def _iterate_field_model(
+def _iterate_model_fields(
     model_cls, grid, indent, indent_offs, show_piper_port, add_blank_row
 ):
     for field in model_cls.__fields__.values():  # type: ignore

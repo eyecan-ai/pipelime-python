@@ -102,7 +102,13 @@ class StandardizationCommand(PipelimeCommand, title="std-img"):
         seq.run()
 ```
 
-This is a working implementation, but it has some drawbacks, e.g.:
+First, note that all parameters are defined as pydantic `Field`s with a `description` and, optionally, a default value. Moreover, the `input` and `output` fields are marked as `PiperPortType.INPUT` and `PiperPortType.OUTPUT`, respectively: this is needed to find dependencies between commands when building an [execution graph](../piper/dags.md).
+
+Though this is a working implementation, it has some drawbacks, namely:
 - there is no option to run the command in parallel
 - there is no progress bar
 - input and output cannot be [validated](../advanced/validation.md)
+
+All these issues can be addressed by using built-in interfaces from pipelime.
+
+## Using Interfaces

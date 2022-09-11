@@ -337,30 +337,18 @@ def pl_main(  # noqa: C901
         "",
         show_default=False,
         help=(
-            "A pipelime command, ie, a `command-name`, "
-            "a `package.module.ClassName` class path or "
-            "a `path/to/module.py:ClassName` uri (use with care).\n\n"
-            "\b\nSpecial commands:\n"
-            f"- `{subc.LIST.value}` shows commands and operators"
-            "\n"
-            f"- `{subc.AUDIT.value}` inspects configuration and context"
-            "\n"
-            f"- `{subc.EXEC.value}` execute a configuration "
-            "where the command is the top-level key\n "
+            (
+                "A pipelime command, ie, a `command-name`, "
+                "a `package.module.ClassName` class path or "
+                "a `path/to/module.py:ClassName` uri (use with care).\n\n"
+            )
+            + subc.get_help()
         ),
         autocompletion=PipelimeSymbolsHelper.complete_name(
             is_cmd=True,
             is_seq_op=False,
             is_stage=False,
-            additional_names=[
-                (subc.LIST.value, "show commands, operators and stages"),
-                (subc.AUDIT.value, "inspect configuration and context"),
-                (
-                    subc.EXEC.value,
-                    ("execute a configuration where the command is the top-level key"),
-                ),
-                (subc.HELP.value, "show help for a command, an operator or a stage"),
-            ],
+            additional_names=subc.get_autocompletions(),
         ),
     ),
     command_args: t.Optional[t.List[str]] = typer.Argument(
@@ -397,15 +385,39 @@ def pl_main(  # noqa: C901
     if command_args is None:
         command_args = []
 
-    if help or command == subc.HELP.value or subc.HELP.value in command_args:
-        if command and command != subc.HELP.value:
+    if (
+        help
+        or command in subc.HELP[0]
+        or any([h in command_args for h in subc.HELP[0]])
+    ):
+        if command and command not in subc.HELP[0]:
             print_command_op_stage_info(command)
         elif command_args:
             print_command_op_stage_info(command_args[0])
         else:
             print(ctx.get_help())
-    elif command == subc.LIST.value:
-        print_commands_ops_stages_list(verbose)
+    elif command in subc.WIZARD[0] or any([w in command_args for w in subc.WIZARD[0]]):
+        from pipelime.cli.wizard import model_cfg_wizard
+
+        if command and command not in subc.WIZARD[0]:
+            model_cfg_wizard(command)
+        model_cfg_wizard(command_args[0])
+    elif command in subc.LIST[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=True, show_ops=True, show_stages=True
+        )
+    elif command in subc.LIST_CMDS[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=True, show_ops=False, show_stages=False
+        )
+    elif command in subc.LIST_OPS[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=False, show_ops=True, show_stages=False
+        )
+    elif command in subc.LIST_STGS[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=False, show_ops=False, show_stages=True
+        )
     elif command:
         from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
@@ -456,7 +468,7 @@ def pl_main(  # noqa: C901
             data=base_ctx, cwd=Path.cwd() if context is None else context.parent
         )
 
-        if command == subc.AUDIT.value:
+        if command in subc.AUDIT[0]:
             from dataclasses import fields
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
@@ -501,7 +513,7 @@ def pl_main(  # noqa: C901
                     new_ctx.deep_set(var, val, only_valid_keys=False)
 
                 print_info("\n\u2728 CONTEXT YAML")
-                print_info("---")
+                print_info("==============")
                 print_info(yaml.safe_dump(new_ctx.decode()))
 
                 print_info("Processing configuration and context...", end="")
@@ -552,7 +564,7 @@ def pl_main(  # noqa: C901
                 cfg_dict = cfg.to_dict()
                 cmd_name = command
 
-                if cmd_name == subc.EXEC.value:
+                if cmd_name in subc.EXEC[0]:
                     if len(cfg_dict) == 0:
                         print_error("No command specified.")
                         raise typer.Exit(1)
