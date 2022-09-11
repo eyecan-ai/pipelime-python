@@ -60,7 +60,7 @@ coverage: ## check code coverage quickly with the default Python
 	$(BROWSER) htmlcov/index.html
 
 docs: ## generate Sphinx HTML documentation, including API docs
-## rm -r docs/_static/generated
+	rm -rf docs/_static/generated
 ## sphinx-apidoc -o docs/api/generated pipelime
 	python docs/pl_help.py
 	$(MAKE) -C docs clean

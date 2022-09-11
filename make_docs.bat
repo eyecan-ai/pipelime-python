@@ -1,4 +1,4 @@
-del /s /f /q docs\_static\generated\*.*
+del /s /f /q docs\_static\generated\*.* >nul 2>&1
 rem sphinx-apidoc -o docs\api\generated pipelime
 python docs\pl_help.py
 call docs\make.bat clean

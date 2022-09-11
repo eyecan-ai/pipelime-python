@@ -20,7 +20,7 @@ extensions = [
     "sphinx.ext.napoleon",
 ]
 
-templates_path = ["_templates"]
+# templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 autosummary_generate = True
 
@@ -31,7 +31,7 @@ autosummary_generate = True
 #
 html_theme = "sphinx_material"
 html_logo = "pipelime_logo.svg"
-html_static_path = ["_static"]
+# html_static_path = ["_static"]
 html_sidebars = {
     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
 }
