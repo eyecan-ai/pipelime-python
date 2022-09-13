@@ -3,7 +3,7 @@ from pipelime.piper.progress.estimator.naive import NaiveEstimator
 
 
 class EstimatorFactory:
-    """Factory for `Estimator`s"""
+    """Factory for ``Estimator`` s"""
 
     DEFAULT_ESTIMATOR_TYPE = "NAIVE"
 

@@ -155,20 +155,20 @@ class item_serialization_mode(ContextDecorator):
     the items' serialization mode.
 
     .. code-block::
-    :caption: Example
+       :caption: Example
 
-        # set the serialization mode for all items
-        with item_serialization_mode("HARD_LINK"):
-            ...
+       # set the serialization mode for all items
+       with item_serialization_mode("HARD_LINK"):
+           ...
 
-        # set the serialization mode only for ImageItem and NumpyItem
-        with item_serialization_mode(SerializationMode.HARD_LINK, ImageItem, NumpyItem):
-            ...
+       # set the serialization mode only for ImageItem and NumpyItem
+       with item_serialization_mode(SerializationMode.HARD_LINK, ImageItem, NumpyItem):
+           ...
 
-        # apply at function invocation
-        @item_serialization_mode(SerializationMode.HARD_LINK, ImageItem)
-        def my_fn():
-            ...
+       # apply at function invocation
+       @item_serialization_mode(SerializationMode.HARD_LINK, ImageItem)
+       def my_fn():
+           ...
     """
 
     def __init__(
@@ -197,24 +197,24 @@ class item_disabled_serialization_modes(ContextDecorator):
     the items' disabled serialization modes.
 
     .. code-block::
-    :caption: Example
+       :caption: Example
 
-        # disabled serialization modes for all items
-        with item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
-            ...
+       # disabled serialization modes for all items
+       with item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
+           ...
 
-        # disabled serialization modes only for ImageItem and NumpyItem
-        with item_disabled_serialization_modes(
-            SerializationMode.HARD_LINK, ImageItem, NumpyItem
-        ):
-            ...
+       # disabled serialization modes only for ImageItem and NumpyItem
+       with item_disabled_serialization_modes(
+           SerializationMode.HARD_LINK, ImageItem, NumpyItem
+       ):
+           ...
 
-        # apply at function invocation
-        @item_disabled_serialization_modes(
-            ["REMOTE_FILE", SerializationMode.SYM_LINK], ImageItem
-        )
-        def my_fn():
-            ...
+       # apply at function invocation
+       @item_disabled_serialization_modes(
+           ["REMOTE_FILE", SerializationMode.SYM_LINK], ImageItem
+       )
+       def my_fn():
+           ...
     """
 
     def __init__(
@@ -253,20 +253,20 @@ class no_data_cache(ContextDecorator):
     on some or all item types.
 
     .. code-block::
-    :caption: Example
+       :caption: Example
 
-        # disable data cache for all items
-        with no_data_cache():
-            ...
+       # disable data cache for all items
+       with no_data_cache():
+           ...
 
-        # disable only for BinaryItem and NumpyItem
-        with no_data_cache(BinaryItem, NumpyItem):
-            ...
+       # disable only for BinaryItem and NumpyItem
+       with no_data_cache(BinaryItem, NumpyItem):
+           ...
 
-        # apply at function invocation
-        @no_data_cache(ImageItem)
-        def my_fn():
-            ...
+       # apply at function invocation
+       @no_data_cache(ImageItem)
+       def my_fn():
+           ...
     """
 
     def __init__(self, *item_cls: t.Type["Item"]):
@@ -285,16 +285,16 @@ class no_data_cache(ContextDecorator):
 
 class data_cache(ContextDecorator):
     """Use this class as context manager or function decorator to enable data caching
-    on some or all item types. Useful when nested with `no_data_cache`.
+    on some or all item types. Useful when nested with ``no_data_cache``.
 
     .. code-block::
-    :caption: Example
+       :caption: Example
 
-        # disable data cache for all items, then re-enable it
-        with no_data_cache(...):
-            with data_cache(...):
-                ...
-            ...
+       # disable data cache for all items, then re-enable it
+       with no_data_cache(...):
+           with data_cache(...):
+               ...
+           ...
     """
 
     def __init__(self, *item_cls: t.Type["Item"]):
@@ -329,7 +329,7 @@ _item_init_types = t.Union["Item", Path, ParseResult, t.BinaryIO, t.Any]
 
 class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     """Base class for any supported Item. Concrete classes should ideally implement just
-    the abstract methods, leaving `__init__` as is.
+    the abstract methods, leaving ``__init__`` as is.
     """
 
     _data_cache: t.Optional[T]

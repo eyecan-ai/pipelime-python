@@ -150,7 +150,6 @@ def print_model_info(
             ]
             + ([Column("Piper Port", overflow="fold")] if show_piper_port else [])
             + [
-                Column("Required", overflow="fold"),
                 Column("Default", overflow="fold"),
             ]
         ),
@@ -229,11 +228,7 @@ def _field_row(
             ),
         ]
         + ([fport] if fport else [])
-        + (
-            ["[green]✓[/]", ""]
-            if field.required
-            else ["[red]✗[/]", f"{field.get_default()}"]
-        )
+        + (["[red]✗[/]"] if field.required else [f"[green]{field.get_default()}[/]"])
     )
 
     grid.add_row(*line)

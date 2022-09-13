@@ -61,15 +61,15 @@ Do you want a preview of the auto-generated help?
 from pipelime.cli import pl_print
 
 pl_print("from_image_list")
-# >>>                               from_image_list
-#             (*, folder: pydantic.types.DirectoryPath, ext: str = '.png')
-#                A SamplesSequence loading images in folder as Samples.
+# >>>                         from_image_list
+#       (*, folder: pydantic.types.DirectoryPath, ext: str = '.png')
+#          A SamplesSequence loading images in folder as Samples.
 #
-#     Fields   Description                   Type            Required   Default
-#     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#     folder   ▶ The folder to read.         DirectoryPath   ✓
+#      Fields   Description                   Type            Default
+#     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#      folder   ▶ The folder to read.         DirectoryPath   ✗
 #
-#     ext      ▶ The image file extension.   str             ✗          .png
+#      ext      ▶ The image file extension.   str             .png
 ```
 
 ## Custom Pipes
@@ -111,11 +111,11 @@ Do you want a preview of the auto-generated help?
 from pipelime.cli import pl_print
 
 pl_print("reversed")
-# >>>                                  reversed
-#                                   (*, num: int)
-#                    Reverses the order of the first num samples.
+# >>>                             reversed
+#                              (*, num: int)
+#               Reverses the order of the first num samples.
 #
-#     Fields   Description                           Type   Required   Default
-#     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#     num      ▶ The number of samples to reverse.   int    ✓
+#      Fields   Description                           Type   Default
+#     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#      num      ▶ The number of samples to reverse.   int    ✗
 ```

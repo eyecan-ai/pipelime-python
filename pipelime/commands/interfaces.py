@@ -378,7 +378,7 @@ class InputDatasetInterface(
 ):
     """Input dataset options."""
 
-    _default_type_description: t.ClassVar[t.Optional[str]] = "Input dataset."
+    _default_type_description: t.ClassVar[t.Optional[str]] = "The input dataset."
     _compact_form: t.ClassVar[t.Optional[str]] = "<folder>[,<skip_empty>]"
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
@@ -524,7 +524,7 @@ class OutputDatasetInterface(
 ):
     """Output dataset options."""
 
-    _default_type_description: t.ClassVar[t.Optional[str]] = "Output dataset."
+    _default_type_description: t.ClassVar[t.Optional[str]] = "The output dataset."
     _compact_form: t.ClassVar[
         t.Optional[str]
     ] = "<folder>[,<exists_ok>[,<force_new_files>]]"

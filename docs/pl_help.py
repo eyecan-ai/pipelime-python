@@ -6,7 +6,7 @@ from rich.console import Console
 
 from pipelime.cli import print_commands_ops_stages_list
 
-os.environ["COLUMNS"] = "100"
+os.environ["COLUMNS"] = "130"
 
 base_path = Path(__file__).parent.resolve() / "_static/generated"
 base_path.mkdir(parents=True, exist_ok=True)

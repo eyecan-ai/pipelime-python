@@ -111,4 +111,96 @@ Though this is a working implementation, it has some drawbacks, namely:
 
 All these issues can be addressed by using built-in interfaces from pipelime.
 
-## Using Interfaces
+## Using The Interfaces
+
+Common options, such as the input and output datasets, can be easily deployed in a standard way by using built-in interfaces from pipelime.
+For example, the previous command can be rewritten as follows:
+
+```python
+from pydantic import Field
+import numpy as np
+from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.sequences import SamplesSequence
+from pipelime.stages import StageLambda
+import pipelime.commands.interfaces as plint
+
+class StandardizationCommand(PipelimeCommand, title="std-img"):
+    """Standardize images by subtracting the mean and dividing
+    by the standard deviation.
+    """
+
+    input: plint.InputDatasetInterface = (
+        plint.InputDatasetInterface.pyd_field(alias="i", piper_port=PiperPortType.INPUT)
+    )
+    output: plint.OutputDatasetInterface = (
+        plint.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+    image_key: str = Field("image", alias="i", description="The key of the input image.")
+    out_std_image_key: str = Field(
+        "std_image", alias="s", description="The key of the output standardized image."
+    )
+    grabber: plint.GrabberInterface = plint.GrabberInterface.pyd_field(alias="g")
+
+    def run(self):
+        # load the dataset
+        seq = self.input.create_reader()
+
+        # add a stage to get the images in the range [0, 1]
+        seq = seq.map(
+            StageLambda(
+                lambda x: x.set_value_as(
+                    self.out_std_image_key,
+                    self.image_key,
+                    x[self.image_key]().astype(float) / 255.0,
+                )
+            )
+        )
+
+        # cache the values, so that we don't need to recompute it every time
+        seq = seq.cache()
+
+        # compute global mean and std
+        mean = 0
+        counter = 0
+        for x in seq:
+            image = x[self.out_std_image_key]()
+            mean += image.sum()
+            counter += image.size
+        mean /= counter
+
+        stddev = 0
+        for x in seq:
+            image = x[self.out_std_image_key]()
+            stddev += ((image - mean) ** 2).sum()
+        stddev = np.sqrt(stddev / (counter-1))
+
+        # apply the standardization
+        seq = seq.map(
+            StageLambda(
+                lambda x: x.set_value(
+                    self.out_std_image_key,
+                    (
+                        ((x[self.out_std_image_key]() - mean) / stddev) * 128.0 + 128.0
+                    ).clip(0, 255).astype(np.uint8),
+                ),
+            )
+        )
+
+        # write to disk
+        seq = self.output.append_writer(seq)
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Saving standardized images ({len(seq)} samples)",
+        )
+```
+
+In the new implementation above, a number of improvements and best practices are adopted:
+1. Fields include an `alias` to add an alternative (short) name. For example, the `input` field can be specified as `i` or `input`.
+2. `input` and `output` are now pipelime interfaces. This gives the user a standard way to specify more than just the folder, including a validation schema (see section [CLI](../cli/cli.md) for more details).
+3. The interfaces provide utility methods to easily create a reader and append a writer to a sequence. Also, the `grabber` interface allows to run on multiple processes and shows a progress bar.
+4. Note how the serialization options are given as a context manager to the `grabber` interface. This ensure that they are correctly applied even when multiple processes are involved.
