@@ -33,14 +33,14 @@ class ColoredPath:
         cidx = (self.cidx + 1) % len(self.COLORS)
         col_hex = self.COLORS[cidx]
         return ColoredPath(
-            ".".join([self.path, ""]) + col_hex + path + "[/]", cidx=cidx
+            ".".join(filter(None, [self.path, col_hex + path + "[/]"])), cidx=cidx
         )
 
     def as_list(self, path: str):
         cidx = (self.cidx + 1) % len(self.COLORS)
         col_hex = self.COLORS[cidx]
         return ColoredPath(
-            self.path + col_hex + "\[" + path + "\][/]", cidx=cidx  # type: ignore
+            self.path + col_hex + "\[" + path + "][/]", cidx=cidx  # type: ignore
         )
 
     def __str__(self) -> str:
@@ -106,7 +106,7 @@ def model_cfg_wizard(model_cls: Union[Type[BaseModel], str]):
 
     ppp.print_info("\n✨ CONFIG YAML")
     ppp.print_info("==============")
-    ppp.print_info(yaml.safe_dump(cfg))
+    ppp.print_info(yaml.safe_dump(cfg, sort_keys=False))
 
 
 def _get_pipelime_type(
@@ -212,7 +212,11 @@ def _decode_value(value, prefix: ColoredPath):
             ppp.print_error(f"Cannot import callable {v}")
             raise InvalidValue()
         try:
-            args = _iterate_callable_args(clb_type, prefix)
+            args = (
+                _iterate_model_fields(clb_type, prefix)
+                if ppp._is_model(clb_type)
+                else _iterate_callable_args(clb_type, prefix)
+            )
             return {"$call": v, "$args": args}
         except TypeError as e:
             ppp.print_error(f"Invalid symbol: {v} ({e})")
@@ -246,16 +250,35 @@ def _decode_value(value, prefix: ColoredPath):
 
 
 def _get_field_value(field: FieldModel, prefix: ColoredPath):
+    from rich.table import Table
+    from rich import box
     from rich.prompt import Confirm
+    from rich.pretty import Pretty
+    from rich import print as rprint
 
     field_prefix = prefix.as_map(field.name)
-    ppp.print_with_style(
-        f"\n{field_prefix} «"
+    header = [
+        f"{field_prefix}\n«"
         + display_as_type(field.outer_type).replace("[", r"\[")
         + "»"
+    ]
+    if not field.is_required:
+        header.append("Default")
+
+    desc = field.description if field.description else ""
+
+    table = Table(
+        *header,
+        box=box.SIMPLE_HEAVY,
+        show_header=True,
+        show_footer=False,
+        show_lines=True,
+        width=80,
     )
 
     if field.is_required:
+        table.add_row(desc)
+        rprint(table)
         if field.is_model:
             return _get_general_field_value(
                 prefix=field_prefix,
@@ -267,15 +290,13 @@ def _get_field_value(field: FieldModel, prefix: ColoredPath):
         if field.is_model:
             if default_value is not None:
                 default_value = default_value.dict()
-                if field.description:
-                    ppp.print_debug(field.description)
-                ppp.print_debug(f"{ppp._short_line()} Default:")
-                ppp.print_debug(default_value, pretty=True)
+                table.add_row(
+                    desc, Pretty(default_value, indent_guides=True, expand_all=True)
+                )
             else:
-                if field.description:
-                    ppp.print_debug(field.description)
-                ppp.print_debug(f"{ppp._short_line()} Default: None")
+                table.add_row(desc, "None")
 
+            rprint(table)
             if Confirm.ask("Accept default?", default=True):
                 return default_value
             return _get_general_field_value(
@@ -283,6 +304,8 @@ def _get_field_value(field: FieldModel, prefix: ColoredPath):
                 default=f"< {field.outer_type.__module__}.{field.outer_type.__name__}",
             )
 
+        table.add_row(desc, Pretty(default_value, indent_guides=True, expand_all=True))
+        rprint(table)
         return _get_general_field_value(prefix=field_prefix, default=str(default_value))
 
 

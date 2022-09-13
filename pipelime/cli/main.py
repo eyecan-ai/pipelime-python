@@ -514,7 +514,7 @@ def pl_main(  # noqa: C901
 
                 print_info("\n✨ CONTEXT YAML")
                 print_info("==============")
-                print_info(yaml.safe_dump(new_ctx.decode()))
+                print_info(yaml.safe_dump(new_ctx.decode(), sort_keys=False))
 
                 print_info("Processing configuration and context...", end="")
                 effective_configs = _process_cfg_or_die(
