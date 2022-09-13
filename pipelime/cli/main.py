@@ -472,15 +472,15 @@ def pl_main(  # noqa: C901
             from dataclasses import fields
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
-            print_info("\n\U0001F4C4 CONFIGURATION AUDIT\n")
+            print_info("\n📄 CONFIGURATION AUDIT\n")
             inspect_info = base_cfg.inspect()
             for field in fields(inspect_info):
                 value = getattr(inspect_info, field.name)
-                print_info(f"\U0001F50D {field.name}:")
+                print_info(f"🔍 {field.name}:")
                 if value or isinstance(value, bool):
                     print_info(value, pretty=True)
 
-            print_info("\n\U0001F4C4 CONTEXT AUDIT\n")
+            print_info("\n📄 CONTEXT AUDIT\n")
             print_info(base_ctx.to_dict(), pretty=True)
             print_info("")
 
@@ -499,7 +499,7 @@ def pl_main(  # noqa: C901
                     print_error(f"Invalid configuration! {e}")
                     raise typer.Exit(1)
 
-                print_info("\n\U0001F4DD Please enter a value for each variable")
+                print_info("\n📝 Please enter a value for each variable")
 
                 new_ctx = XConfig()
                 for var, val in inspect_info.variables.items():
@@ -512,7 +512,7 @@ def pl_main(  # noqa: C901
                     val = Prompt.ask(f"{var}", default=default_value)
                     new_ctx.deep_set(var, val, only_valid_keys=False)
 
-                print_info("\n\u2728 CONTEXT YAML")
+                print_info("\n✨ CONTEXT YAML")
                 print_info("==============")
                 print_info(yaml.safe_dump(new_ctx.decode()))
 
@@ -522,13 +522,13 @@ def pl_main(  # noqa: C901
                 )
                 print_info(" OK")
 
-                outfile = Prompt.ask("\n\U0001F4BE Write to (leave empty to not skip)")
+                outfile = Prompt.ask("\n💾 Write to (leave empty to not skip)")
                 if outfile:
                     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 
             pls = "s" if len(effective_configs) != 1 else ""
             print_info(
-                "\U0001F389 Configuration successfully processed "
+                "🎉 Configuration successfully processed "
                 f"({len(effective_configs)} variant{pls})."
             )
             raise typer.Exit(0)

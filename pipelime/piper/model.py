@@ -22,7 +22,12 @@ class PiperInfo(BaseModel, extra="forbid", copy_on_model_validation="none"):
         return bool(self.token)
 
 
-class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="forbid", copy_on_model_validation="none"):
+class PipelimeCommand(
+    BaseModel,
+    allow_population_by_field_name=True,
+    extra="forbid",
+    copy_on_model_validation="none",
+):
     """Base class for all pipelime commands.
     Subclasses should implement the run method.
     """
@@ -94,7 +99,7 @@ class PipelimeCommand(BaseModel, allow_population_by_field_name=True, extra="for
             return rich.progress.track(
                 seq,
                 total=len(seq) if size is None else size,  # type: ignore
-                description="\U0001F34B " + message,
+                description="🍋 " + message,
             )
 
     def __call__(self) -> None:

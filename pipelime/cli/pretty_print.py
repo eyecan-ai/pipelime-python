@@ -12,15 +12,34 @@ from rich.table import Table, Column
 
 
 def _input_icon():
-    return "\U0001F4E5"
+    return "📥"
 
 
 def _output_icon():
-    return "\U0001F4E6"
+    return "📦"
 
 
 def _parameter_icon():
-    return "\U0001F4D0"
+    return "📐"
+
+
+def _short_line():
+    return "━━━━━"
+
+
+def print_with_style(
+    val,
+    style: t.Optional[str] = None,
+    *,
+    pretty: bool = False,
+    end: str = "\n",
+    indent_guides: bool = True,
+):
+    get_console().print(
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
+        style=style,
+        end=end,
+    )
 
 
 def print_debug(
@@ -200,7 +219,7 @@ def _field_row(
             )
             + f"{escape(field.alias)}"
             + ("[/]" if indent == 0 else ""),
-            ("\u25B6 " + escape(field.field_info.description))
+            ("▶ " + escape(field.field_info.description))
             if field.field_info.description
             else "",
             (
@@ -211,9 +230,9 @@ def _field_row(
         ]
         + ([fport] if fport else [])
         + (
-            ["[green]\u2713[/]", ""]
+            ["[green]✓[/]", ""]
             if field.required
-            else ["[red]\u2717[/]", f"{field.get_default()}"]
+            else ["[red]✗[/]", f"{field.get_default()}"]
         )
     )
 
@@ -239,7 +258,7 @@ def _field_row(
         }
 
         for arg in inner_types:
-            grid.add_row((" " * indent) + f"[grey50]----{arg.__name__}[/]")
+            grid.add_row((" " * indent) + f"[grey50]{_short_line()} {arg.__name__}[/]")
             _iterate_model_fields(
                 model_cls=arg,
                 grid=grid,

@@ -15,6 +15,8 @@ class PydanticFieldMixinBase:
 
     @classmethod
     def _description(cls, user_desc: t.Optional[str]) -> t.Optional[str]:
+        from pipelime.cli.pretty_print import _short_line
+
         desc_list = []
         if user_desc is None:
             user_desc = cls._default_type_description
@@ -23,7 +25,7 @@ class PydanticFieldMixinBase:
             elif cls._compact_form is None:
                 return None
         if cls._compact_form is not None:
-            desc_list.append(f"----Compact form: `{cls._compact_form}`")
+            desc_list.append(f"{_short_line()} Compact form: `{cls._compact_form}`")
         return "\n".join(desc_list)
 
 

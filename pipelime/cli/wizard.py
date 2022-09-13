@@ -1,86 +1,184 @@
-from typing import Optional, Union, Type
+from typing import Optional, Union, Type, Any, Optional
+from copy import deepcopy
 from pydantic import BaseModel
+from pydantic.typing import display_as_type
 import pipelime.cli.pretty_print as ppp
+
+
+class InvalidValue(Exception):
+    pass
+
+
+class ColoredPath:
+    COLORS = [
+        "[#FF7F00]",
+        "[#33A02C]",
+        "[#6A3D9A]",
+        "[#E31A1C]",
+        "[#B15928]",
+        "[#1F78B4]",
+        "[#FDBF6F]",
+        "[#B2DF8A]",
+        "[#CAB2D6]",
+        "[#FB9A99]",
+        "[#FFFF99]",
+        "[#A6CEE3]",
+    ]
+
+    def __init__(self, path: str = "", cidx: int = -1):
+        self.path = path
+        self.cidx = cidx
+
+    def as_map(self, path: str):
+        cidx = (self.cidx + 1) % len(self.COLORS)
+        col_hex = self.COLORS[cidx]
+        return ColoredPath(
+            ".".join([self.path, ""]) + col_hex + path + "[/]", cidx=cidx
+        )
+
+    def as_list(self, path: str):
+        cidx = (self.cidx + 1) % len(self.COLORS)
+        col_hex = self.COLORS[cidx]
+        return ColoredPath(
+            self.path + col_hex + "\[" + path + "\][/]", cidx=cidx  # type: ignore
+        )
+
+    def __str__(self) -> str:
+        return str(self.path)
+
+    def __repr__(self) -> str:
+        return repr(self.path)
+
+
+class FieldModel:
+    def __init__(
+        self,
+        name: str,
+        outer_type: Type,
+        description: Optional[str],
+        is_required: bool,
+        default_value: Any,
+        is_model: bool,
+    ):
+        self.name = name
+        self.outer_type = outer_type
+        self.description = description
+        self.is_required = is_required
+        self.default_value = default_value
+        self.is_model = is_model
 
 
 def model_cfg_wizard(model_cls: Union[Type[BaseModel], str]):
     import yaml
 
-    ppp.print_info("\n\U0001FA84  Configuration Wizard")
+    ppp.print_info("\n🪄  Configuration Wizard")
     ppp.print_info("- `\"` or `'` to enforce string values")
     ppp.print_info(
         "- `[` and `{` followed by a new-line to start a list or dict "
         "(one item per line, use `:` to separate key and value)"
     )
     ppp.print_info("- `]` and `}` followed by a new-line to end a list or dict")
-    ppp.print_info("- `? <symbol>` to begin a wizard configuration for a symbol")
+    ppp.print_info(
+        "- `< [model]` to begin a wizard configuration for a pydantic model "
+        "(should be explicitly listed in the type list)."
+    )
+    ppp.print_info(
+        "- `? \[class.path]` to begin a wizard configuration "  # type: ignore
+        "for a choixe `$call` directive."
+    )
+    ppp.print_info("- `! \[class.path]` to add a choixe `$symbol` directive.")  # type: ignore
+    ppp.print_info(
+        "- `# \[name]` to begin a wizard configuration "  # type: ignore
+        "for a pipelime command, stage or operation."
+    )
+    ppp.print_info(
+        "- `c# \[name]`, `s# \[name]`, `o# \[name]` as above, "  # type: ignore
+        "but specifying the type."
+    )
 
-    model_cls = _get_model_cls(model_cls, True)  # type: ignore
-    if model_cls is None:
+    try:
+        if isinstance(model_cls, str):
+            model_cls = _get_pipelime_type(model_cls, True)  # type: ignore
+    except InvalidValue:
         return
 
-    cfg = _iterate_model_fields(model_cls)
+    cfg = _iterate_model_fields(model_cls)  # type: ignore
 
-    ppp.print_info("\n\u2728 CONFIG YAML")
+    ppp.print_info("\n✨ CONFIG YAML")
     ppp.print_info("==============")
     ppp.print_info(yaml.safe_dump(cfg))
 
 
-def _get_model_cls(
-    name_or_cls: Union[Type[BaseModel], str], should_be_cmd: bool
-) -> Optional[Type[BaseModel]]:
-    if isinstance(name_or_cls, str):
-        from pipelime.cli.utils import PipelimeSymbolsHelper
+def _get_pipelime_type(
+    name: str, is_command: bool = True, is_stage: bool = True, is_operation: bool = True
+) -> Type[BaseModel]:
+    from pipelime.cli.utils import PipelimeSymbolsHelper
 
-        if should_be_cmd:
-            cmd_cls = PipelimeSymbolsHelper.get_command(name_or_cls)
-        else:
-            cmd_cls = PipelimeSymbolsHelper.get_operator(name_or_cls)
-            if cmd_cls is None:
-                cmd_cls = PipelimeSymbolsHelper.get_stage(name_or_cls)
-        if cmd_cls is None:
-            PipelimeSymbolsHelper.show_error_and_help(
-                name_or_cls,
-                should_be_cmd=should_be_cmd,
-                should_be_op=not should_be_cmd,
-                should_be_stage=not should_be_cmd,
-            )
-            return None
-        name_or_cls = cmd_cls[1]
-    return name_or_cls  # type: ignore
+    cmd_cls = None
+    if is_command:
+        cmd_cls = PipelimeSymbolsHelper.get_command(name)
+    if cmd_cls is None and is_stage:
+        cmd_cls = PipelimeSymbolsHelper.get_stage(name)
+    if cmd_cls is None and is_operation:
+        cmd_cls = PipelimeSymbolsHelper.get_operator(name)
+
+    if cmd_cls is None:
+        PipelimeSymbolsHelper.show_error_and_help(
+            name,
+            should_be_cmd=is_command,
+            should_be_op=is_operation,
+            should_be_stage=is_stage,
+        )
+        raise InvalidValue()
+
+    return cmd_cls[1]
 
 
-def _get_value_list(prefix):
+def _get_value_list(prefix: ColoredPath):
     from rich.prompt import Prompt
 
     value_list = []
     while True:
-        value = Prompt.ask(f"{prefix} []")
+        value = Prompt.ask(f"{prefix}[{len(value_list)}]")
         if value == "]":
             return value_list
-        value_list.append(_decode_value(value, prefix + f"[{len(value)}]"))
+        try:
+            value_list.append(
+                _decode_value(value, prefix.as_list(str(len(value_list))))
+            )
+        except InvalidValue:
+            pass
 
 
-def _get_value_map(prefix):
+def _get_value_map(prefix: ColoredPath):
     from rich.prompt import Prompt
 
     value_map = {}
     while True:
-        key_val = Prompt.ask(f"{prefix} " "{}")
+        key_val = Prompt.ask(f"{prefix}" "{}")
         if key_val == "}":
             return value_map
         key, _, value = key_val.partition(":")
-        value_map[key] = _decode_value(value, prefix + "." + key)
+        try:
+            value_map[key] = _decode_value(value, prefix.as_map(key))
+        except InvalidValue:
+            pass
 
 
-def _get_general_field_value(prefix, default=...):
+def _get_general_field_value(prefix: ColoredPath, default=...):
     from rich.prompt import Prompt
 
-    value = Prompt.ask("Enter value", default=default)
-    return _decode_value(value, prefix)
+    while True:
+        value = Prompt.ask("Enter value", default=default)
+        try:
+            return _decode_value(value, prefix)
+        except InvalidValue:
+            pass
 
 
-def _decode_value(value, prefix):
+def _decode_value(value, prefix: ColoredPath):
+    from pipelime.choixe.utils.imports import import_symbol
+
     value = value.strip()
     if len(value) > 1 and value[0] in ("'", '"') and value[-1] == value[0]:
         return value[1:-1]
@@ -90,54 +188,171 @@ def _decode_value(value, prefix):
         return _get_value_list(prefix)
     if value == "{":
         return _get_value_map(prefix)
+    if value[0] == "<":
+        v = value[1:].strip()
+        if not v:
+            raise InvalidValue()
+        try:
+            model_cls = import_symbol(v)
+        except ImportError:
+            ppp.print_error(f"Cannot import model class {v}")
+            raise InvalidValue()
+        try:
+            return _iterate_model_fields(model_cls, prefix)
+        except TypeError as e:
+            ppp.print_error(f"Invalid symbol: {v} ({e})")
+            raise InvalidValue()
     if value[0] == "?":
-        model_cls = _get_model_cls(value[1:].strip(), False)
-        if model_cls is None:
-            ppp.print_error("Invalid symbol")
-            return None
-        return _iterate_model_fields(model_cls, prefix + ".")
+        v = value[1:].strip()
+        if not v:
+            raise InvalidValue()
+        try:
+            clb_type = import_symbol(v)
+        except ImportError:
+            ppp.print_error(f"Cannot import callable {v}")
+            raise InvalidValue()
+        try:
+            args = _iterate_callable_args(clb_type, prefix)
+            return {"$call": v, "$args": args}
+        except TypeError as e:
+            ppp.print_error(f"Invalid symbol: {v} ({e})")
+            raise InvalidValue()
+    if value[0] == "!":
+        v = value[1:].strip()
+        if not v:
+            raise InvalidValue()
+        try:
+            sym_type = import_symbol(v)
+        except ImportError:
+            ppp.print_warning(
+                f"{v} {ppp._short_line()} Symbol will be included, but importing has failed"
+            )
+        return f"$symbol({v})"
+    if value[0] == "#" or (len(value) > 1 and value[1] == "#"):
+        v = value[1:].strip() if value[0] == "#" else value[2:].strip()
+        if not v:
+            raise InvalidValue()
+
+        pl_type = _get_pipelime_type(
+            v,
+            is_command=value[0] in ("#", "c"),
+            is_stage=value[0] in ("#", "s"),
+            is_operation=value[0] in ("#", "o"),
+        )
+        args = _iterate_model_fields(pl_type, prefix)
+        return {v: args}
+
     return value
 
 
-def _get_field_value(field, prefix=""):
-    from rich.prompt import Prompt, Confirm
+def _get_field_value(field: FieldModel, prefix: ColoredPath):
+    from rich.prompt import Confirm
 
-    is_model = ppp._is_model(field.outer_type_)
-    has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
-    field_outer_type = (
-        field.outer_type_.__fields__["__root__"].outer_type_
-        if has_root_item
-        else field.outer_type_
+    field_prefix = prefix.as_map(field.name)
+    ppp.print_with_style(
+        f"\n{field_prefix} «"
+        + display_as_type(field.outer_type).replace("[", r"\[")
+        + "»"
     )
 
-    ppp.print_info(f"\n{prefix}{field.name} ({field_outer_type})")
-
-    if field.required:
-        if is_model:
-            return _iterate_model_fields(field_outer_type, prefix + field.name + ".")
-        return _get_general_field_value(prefix=prefix + field.name)
+    if field.is_required:
+        if field.is_model:
+            return _get_general_field_value(
+                prefix=field_prefix,
+                default=f"< {field.outer_type.__module__}.{field.outer_type.__name__}",
+            )
+        return _get_general_field_value(prefix=field_prefix)
     else:
-        default_value = field.get_default()
-        if is_model:
+        default_value = field.default_value
+        if field.is_model:
             if default_value is not None:
                 default_value = default_value.dict()
-                ppp.print_debug("----Default:")
-                ppp.print_debug(default_value)
+                if field.description:
+                    ppp.print_debug(field.description)
+                ppp.print_debug(f"{ppp._short_line()} Default:")
+                ppp.print_debug(default_value, pretty=True)
             else:
-                ppp.print_debug("----Default: None")
+                if field.description:
+                    ppp.print_debug(field.description)
+                ppp.print_debug(f"{ppp._short_line()} Default: None")
 
             if Confirm.ask("Accept default?", default=True):
                 return default_value
-            return _iterate_model_fields(field_outer_type, prefix + field.name + ".")
+            return _get_general_field_value(
+                prefix=field_prefix,
+                default=f"< {field.outer_type.__module__}.{field.outer_type.__name__}",
+            )
 
-        return _get_general_field_value(
-            prefix=prefix + field.name, default=str(default_value)
-        )
+        return _get_general_field_value(prefix=field_prefix, default=str(default_value))
 
 
-def _iterate_model_fields(model_cls, prefix=""):
+def _iterate_model_fields(model_cls: Type[BaseModel], prefix=ColoredPath()):
+    if not ppp._is_model(model_cls):
+        raise TypeError("not a pydantic model")
+
     cfg = {}
     for field in model_cls.__fields__.values():
         if not field.field_info.exclude:
-            cfg[field.name] = _get_field_value(field, prefix)
+            is_model = ppp._is_model(field.outer_type_)
+            has_root_item = (
+                ("__root__" in field.outer_type_.__fields__) if is_model else False
+            )
+            field_outer_type = (
+                field.outer_type_.__fields__["__root__"].outer_type_
+                if has_root_item
+                else field.outer_type_
+            )
+
+            try:
+                cfg[field.name] = _get_field_value(
+                    FieldModel(
+                        name=field.name,
+                        outer_type=field_outer_type,
+                        description=field.field_info.description,
+                        is_required=bool(field.required),
+                        default_value=field.get_default(),
+                        is_model=is_model,
+                    ),
+                    prefix,
+                )
+            except InvalidValue:
+                pass
+    return cfg
+
+
+def _iterate_callable_args(clb_type, prefix=ColoredPath()):
+    import inspect
+
+    cfg = {}
+    for field in inspect.signature(
+        clb_type.__init__ if inspect.isclass(clb_type) else clb_type
+    ).parameters.values():
+        if field.name in ("self", "cls"):
+            continue
+        if field.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.POSITIONAL_ONLY,
+        ):
+            raise TypeError(
+                f"{inspect.Parameter.VAR_POSITIONAL.description} and "
+                f"{inspect.Parameter.POSITIONAL_ONLY.description} parameters "
+                "are not supported"
+            )
+
+        try:
+            cfg[field.name] = _get_field_value(
+                FieldModel(
+                    name=field.name,
+                    outer_type=Any
+                    if field.annotation is inspect.Parameter.empty
+                    else field.annotation,
+                    description=None,
+                    is_required=field.default is inspect.Parameter.empty,
+                    default_value=field.default,
+                    is_model=False,
+                ),
+                prefix,
+            )
+        except InvalidValue:
+            pass
     return cfg
