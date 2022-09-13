@@ -62,7 +62,7 @@ class InvertStage(SampleStage, title="invert"):
 ```
 
 All stages must implement the `__call__` method, accepting and returning a single sample. The call method here simply reads the image item, inverts the colors and returns the new sample.
-You may notice that the class has a `key` field, that defaults to the string "image", and includes a `description`. Though not essential, you should always set fields' descriptions because they are automatically used by pipelime to display a help message in the [CLI](../cli/cli.md).
+You may notice that the class has a `key` field, that defaults to the string "image", and includes a `description`. Though not essential, you should always set fields' descriptions because they are automatically used by pipelime to display a help message in the [CLI](../cli/overview.md).
 Also, you may notice a `title` field in the class definition. Again, this is not mandatory, but it serves as a user-friendly alias to the full class name whenever you need to refer to that stage in a pipeline.
 
 ## Applying a Stage

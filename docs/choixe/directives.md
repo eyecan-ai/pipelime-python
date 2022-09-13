@@ -23,31 +23,31 @@ model:
 training:
   device: cuda
   epochs: 100
-  optimizer: 
+  optimizer:
     type: Adam
     params:
       learning_rate: 0.001
       betas: [0.9, 0.99]
 ```
 
-In this toy configuration file there are some parameters entirely dependant from the 
+In this toy configuration file there are some parameters entirely dependant from the
 task at hand. Take for instance the number of classes, whenever you decide to perform
 a training on a different dataset, the number of classes is inevitably going to change.
 
-To avoid the pitfalls described earlier, you can use **variables**. Think of a **variable** 
+To avoid the pitfalls described earlier, you can use **variables**. Think of a **variable**
 as a placeholder for something that will be defined later. **Variables** values are picked at runtime from a structure referred to as **"context"**, that can be passed to **Choixe** python
 API.
 
-To use variables, simply replace a literal value with a `var` directive: 
+To use variables, simply replace a literal value with a `var` directive:
 
 `$var(identifier: str, default: Optional[Any] = None, env: bool = False)`
 
 Where:
-- `identifier` is the [pydash](https://pydash.readthedocs.io/en/latest/) path (dot notation only) where the value is looked up in the **context**.
+- `identifier` is the [pydash](https://pydash.readthedocs.io/en/latest/deeppath.html) path (dot notation only) where the value is looked up in the **context**.
 - `default` is a value to use when the context lookup fails - essentially making the variable entirely optional. Defaults to `None`.
 - `env` is a bool that, if set to `True`, will also look at the system environment variables in case the **context** lookup fails. Defaults to `False`.
 
-Here is what the deep learning toy configuration looks like after replacing some values with **variables**: 
+Here is what the deep learning toy configuration looks like after replacing some values with **variables**:
 
 ```yaml
 model:
@@ -62,7 +62,7 @@ model:
 training:
   device: $var(TRAINING_DEVICE, default=cpu, env=True) # Choose device based on env vars.
   epochs: $var(hparams.num_epochs, default=100)
-  optimizer: 
+  optimizer:
     type: Adam
     params:
       learning_rate: $var(hparams.lr, default=0.001)
@@ -118,7 +118,7 @@ model:
 training:
   device: $var(TRAINING_DEVICE, default=cpu, env=True)
   epochs: $var(hparams.num_epochs, default=100)
-  optimizer: 
+  optimizer:
     type: Adam
     params:
       learning_rate: $var(hparams.lr, default=0.001)
@@ -164,7 +164,7 @@ To use a `sweep` **directive**, replace any node of the configuration with the f
 
 Where:
 - `args` is an arbitrary set of parameters.
-  
+
 All the **directives** introduced so far are "non-branching", i.e. they only have one possible outcome. **Sweeps** instead, are currently the only "branching" **Choixe directives**, as they produce multiple configurations as their output.
 
 Example:
@@ -225,12 +225,12 @@ By default, all **sweeps** are global, each of them adds a new axis to the param
 Example:
 
 ```yaml
-foo: 
+foo:
   $directive: sweep # Sweep 1 (global)
   $args:
     - alpha: $sweep(foo, bar) # Sweep 2 (local)
       beta: 10
-    - gamma: hello 
+    - gamma: hello
   $kwargs: {}
 ```
 
@@ -266,7 +266,7 @@ a -->|Sweep 2| bar
 
 **Note**: these **directives** can only be used with the **special form**.
 
-### Call 
+### Call
 
 To invoke a python `Callable`, use the following directive.
 
@@ -284,7 +284,7 @@ Where:
 Example:
 
 ```yaml
-foo: 
+foo:
   $call: path/to/my_file.py:MyClass
   $args:
     a: 10
@@ -314,7 +314,7 @@ Will import `numpy.zeros` and produce the dictionary:
 
 ### Model
 
-Similar to `call`, the `model` **directive** will provide an easier interface to deserialize **pydantic** models. 
+Similar to `call`, the `model` **directive** will provide an easier interface to deserialize **pydantic** models.
 
 The syntax is essentially the same as `call`:
 
@@ -337,7 +337,7 @@ Example:
 
 ```yaml
 pi: $symbol(numpy.pi)
-``` 
+```
 
 ## Loops
 
@@ -357,12 +357,12 @@ Where:
 
 For-loops alone are not that powerful, but they are meant to be used along two other **directives**:
 
-- `$index(identifier: Optional[str] = None)` or `$index` 
+- `$index(identifier: Optional[str] = None)` or `$index`
 - `$item(identifier: Optional[str] = None)` or `$item`
 
-They, respectively, return the integer index and the item of the current loop iteration. If no identifier is specified (you can use the **compact form**), they will refer to the first for loop encountered in the stack. Otherwise, they will refer to the loop whose identifier matches the one specified. 
+They, respectively, return the integer index and the item of the current loop iteration. If no identifier is specified (you can use the **compact form**), they will refer to the first for loop encountered in the stack. Otherwise, they will refer to the loop whose identifier matches the one specified.
 
-Optionally, the `item` **directive** can contain a [pydash](https://pydash.readthedocs.io/en/latest/) key starting with the loop id, to refer to a specific item inside the structure.
+Optionally, the `item` **directive** can contain a [pydash](https://pydash.readthedocs.io/en/latest/deeppath.html) key starting with the loop id, to refer to a specific item inside the structure.
 
 Example:
 ```yaml
@@ -381,14 +381,14 @@ bob:
 charlie:
     # For loop that concatenates the resulting strings
     "$for(params.cats, x)": "Cat_$index(x)=$item(x.age) "
-``` 
+```
 Given the context:
 ```yaml
 params:
   cats:
     - name: Luna
       age: 5
-    - name: Milo 
+    - name: Milo
       age: 6
     - name: Oliver
       age: 14
@@ -420,7 +420,7 @@ charlie: "Cat_0=5 Cat_1=6 Cat_2=14 "
 
 ## Utilities
 
-Along other more structural **directives**, **Choixe** provides some utilities commonly used when writing a configuration file. 
+Along other more structural **directives**, **Choixe** provides some utilities commonly used when writing a configuration file.
 
 ### UUID
 
@@ -440,7 +440,7 @@ Where format is the format string (see python strftime for more info). Defaults 
 
 ### Command
 
-You can get the output of a **system command** with the `cmd` **directive**. 
+You can get the output of a **system command** with the `cmd` **directive**.
 
 `$cmd(command: str)`
 

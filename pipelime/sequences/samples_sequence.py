@@ -200,7 +200,7 @@ class SamplesSequence(
         `pipelime.sequences.build_pipe` to reconstruct the sequence.
         NB: nested sequences are recursively serialized only if `recursive` is True,
         while other objects are not. Consider to use `pipelime.choixe` features to
-        fully (de)-serialized them to YAML/JSON.
+        fully (de)-serialized them to yaml/json.
 
         :param recursive: if True nested sequences are recursively serialized,
             defaults to True.

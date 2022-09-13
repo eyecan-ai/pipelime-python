@@ -275,6 +275,14 @@ def _process_cfg_or_die(
 app = typer.Typer(pretty_exceptions_enable=False)
 
 
+def version_callback(value: bool):
+    from pipelime import __version__
+
+    if value:
+        print(__version__)
+        raise typer.Exit()
+
+
 @app.command(
     add_help_option=False,
     no_args_is_help=True,
@@ -291,7 +299,7 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the arguments "
+            "A yaml/json file with some or all the arguments "
             "required by the command.\n\n"
             "`++opt` or `+opt` command line options update and override them.\n\n "
         ),
@@ -306,7 +314,7 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the context parameters.\n\n"
+            "A yaml/json file with some or all the context parameters.\n\n"
             "`@@opt` or `@opt` command line options update and override them.\n\n"
             "After a `//` token, `++opt` and `+opt` are accepted as well.\n\n "
         ),
@@ -329,7 +337,7 @@ def pl_main(  # noqa: C901
         "-o",
         writable=True,
         resolve_path=True,
-        help="Save final processed configuration to JSON/YAML.",
+        help="Save final processed configuration to json/yaml.",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
@@ -364,6 +372,14 @@ def pl_main(  # noqa: C901
     help: bool = typer.Option(
         False, "--help", "-h", show_default=False, help="Show this message and exit."
     ),
+    version: t.Optional[bool] = typer.Option(
+        None,
+        "--version",
+        show_default=False,
+        help="Show version and exit.",
+        callback=version_callback,
+        is_eager=True,
+    ),
 ):
     """
     Pipelime Command Line Interface. Examples:
@@ -380,6 +396,7 @@ def pl_main(  # noqa: C901
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
     and `none`/`null`/`nul` to enforce `None`.
     """
+
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 
     if command_args is None:

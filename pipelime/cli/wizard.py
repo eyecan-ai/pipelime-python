@@ -79,7 +79,7 @@ def model_cfg_wizard(model_cls: Union[Type[BaseModel], str]):
     )
     ppp.print_info("- `]` and `}` followed by a new-line to end a list or dict")
     ppp.print_info(
-        "- `< [model]` to begin a wizard configuration for a pydantic model "
+        "- `< \[model]` to begin a wizard configuration for a pydantic model "  # type: ignore
         "(should be explicitly listed in the type list)."
     )
     ppp.print_info(

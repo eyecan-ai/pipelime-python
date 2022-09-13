@@ -434,7 +434,7 @@ def pl_print(
     import inspect
     from rich import print as rprint
     from pydantic import BaseModel
-    from pipelime.cli import print_model_info
+    from pipelime.cli.pretty_print import print_model_info
     from pipelime.sequences import SamplesSequence
     from pipelime.piper import PipelimeCommand
 

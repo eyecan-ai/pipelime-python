@@ -15,7 +15,7 @@ data = {
         "a": "hello",
         "b": "world",
     },
-} 
+}
 
 # Instance an XConfig
 cfg = XConfig(data)
@@ -23,7 +23,7 @@ cfg = XConfig(data)
 
 ## Interaction
 
-An `XConfig` is also a python `Mapping` and has all the methods you would expect from a plain python `dict`. 
+An `XConfig` is also a python `Mapping` and has all the methods you would expect from a plain python `dict`.
 
 In addition, you can get/set its contents with the dot notation (if you know the keys at code time) like:
 
@@ -36,7 +36,7 @@ cfg.alpha
 # {"a": 10, "b": -2, "new_key": 42}
 ```
 
-You can also use `deep_get` and `deep_set` to get/set deep content using [pydash](https://pydash.readthedocs.io/en/latest/) keys, useful if you don't know the keys at code time. The `deep_set` method also have a flag that disables the setting of the new value if this involves creating a new key.
+You can also use `deep_get` and `deep_set` to get/set deep content using [pydash](https://pydash.readthedocs.io/en/latest/deeppath.html) keys, useful if you don't know the keys at code time. The `deep_set` method also have a flag that disables the setting of the new value if this involves creating a new key.
 
 ```python
 cfg.deep_get("alpha.b")
@@ -119,7 +119,7 @@ The result of `inspect` is an `Inspection`, containing the following fields:
 
 ## Validation
 
-At the moment of creation - whether from file or from a plain dictionary, you can specify an optional `Schema` object used for validation. More details [here](https://github.com/keleshev/schema). 
+At the moment of creation - whether from file or from a plain dictionary, you can specify an optional `Schema` object used for validation. More details [here](https://github.com/keleshev/schema).
 
 Validation is enabled only when a schema is set.
 

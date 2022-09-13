@@ -102,7 +102,7 @@ class StandardizationCommand(PipelimeCommand, title="std-img"):
         seq.run()
 ```
 
-First, note that all parameters are defined as pydantic `Field`s with a `description` and, optionally, a default value. Moreover, the `input` and `output` fields are marked as `PiperPortType.INPUT` and `PiperPortType.OUTPUT`, respectively: this is needed to find dependencies between commands when building an [execution graph](../piper/dags.md).
+First, note that all parameters are defined as pydantic `Field`s with a `description` and, optionally, a default value. Moreover, the `input` and `output` fields are marked as `PiperPortType.INPUT` and `PiperPortType.OUTPUT`, respectively: this is needed to find dependencies between commands when building an [execution graph](../cli/piper.md).
 
 Though this is a working implementation, it has some drawbacks, namely:
 - there is no option to run the command in parallel
@@ -201,6 +201,6 @@ class StandardizationCommand(PipelimeCommand, title="std-img"):
 
 In the new implementation above, a number of improvements and best practices are adopted:
 1. Fields include an `alias` to add an alternative (short) name. For example, the `input` field can be specified as `i` or `input`.
-2. `input` and `output` are now pipelime interfaces. This gives the user a standard way to specify more than just the folder, including a validation schema (see section [CLI](../cli/cli.md) for more details).
+2. `input` and `output` are now pipelime interfaces. This gives the user a standard way to specify more than just the folder, including a validation schema (see section [CLI](../cli/overview.md) for more details).
 3. The interfaces provide utility methods to easily create a reader and append a writer to a sequence. Also, the `grabber` interface allows to run on multiple processes and shows a progress bar.
 4. Note how the serialization options are given as a context manager to the `grabber` interface. This ensure that they are correctly applied even when multiple processes are involved.

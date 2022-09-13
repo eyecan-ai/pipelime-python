@@ -53,9 +53,10 @@ operations/commands.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Piper: "
+:caption: "Command Line Usage: "
 
-piper/dags.md
+cli/overview.md
+cli/piper.md
 ```
 
 ```{toctree}
@@ -66,13 +67,6 @@ choixe/intro.md
 choixe/syntax.md
 choixe/directives.md
 choixe/xconfig.md
-```
-
-```{toctree}
-:maxdepth: 4
-:caption: "Command Line Usage: "
-
-cli/cli.md
 ```
 
 ```{toctree}

@@ -201,7 +201,7 @@ dataset = build_pipe(pipe)
 ## Commands
 
 Complex operations, which may include some sort of data processing, may be easily linked in a
-[Directed Acyclic Graph (DAG)](../piper/dags.md)
+[Directed Acyclic Graph (DAG)](../cli/piper.md)
 and executed with the help of **Piper**, a Pipelime's core component.
 Using Piper and [**Choixe**](../choixe/intro.md), another Pipelime's core component,
 you can create a graph of commands to execute with an associated user-defined configuration.
@@ -226,7 +226,7 @@ $ pipelime clone +i path/to/input +o path/to/output,false,true +g 4
 ```
 
 Using the command line interface is straighforward once you know the rationale behind it,
-which is described in section [CLI](../cli/cli.md).
+which is described in section [CLI](../cli/overview.md).
 
 Commands are just classes ([pydantic](https://pydantic-docs.helpmanual.io) models, specifically),
 so you can also create and run them programmatically:
@@ -241,7 +241,7 @@ cmd = ConcatCommand(
 cmd()
 ```
 
-Beware that `inputs` and `output` here are *interfaces* to command options, so they have to be defined in a special way (see section [CLI](../cli/cli.md) for more details).
+Beware that `inputs` and `output` here are *interfaces* to command options, so they have to be defined in a special way (see section [CLI](../cli/overview.md) for more details).
 
 ```{admonition} TIP
 :class: tip
@@ -250,5 +250,5 @@ Commands are a really powerful tool to create complex pipelines and also to easi
 
 All you have to do is to pack your code as `PipelimeCommand`s and `SampleStage`s - and let Pipelime do the rest!
 
-See [Cli](../cli/cli.md) for more details.
+See [Cli](../cli/overview.md) for more details.
 ```

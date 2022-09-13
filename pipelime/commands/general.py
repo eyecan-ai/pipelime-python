@@ -42,7 +42,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         None,
         alias="op",
         description=(
-            "An optional pipeline to run or a path to a YAML/JSON file as "
+            "An optional pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]\n"
             "The pipeline is defined as a mapping or a sequence of mappings where "
             "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
@@ -125,7 +125,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         ...,
         alias="op",
         description=(
-            "The pipeline to run or a path to a YAML/JSON file as "
+            "The pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]\n"
             "The pipeline is defined as a mapping or a sequence of mappings where "
             "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
@@ -454,7 +454,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
         None,
-        description="YAML/JSON schema definition",
+        description="yaml/json schema definition",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
