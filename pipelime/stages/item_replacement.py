@@ -5,6 +5,9 @@ from pipelime.items import Item
 from pipelime.stages import SampleStage
 from pipelime.utils.pydantic_types import ItemType
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
+
 
 class StageReplaceItem(SampleStage, title="replace-item"):
     """Replaces items in sample preserving internal values."""
@@ -16,7 +19,7 @@ class StageReplaceItem(SampleStage, title="replace-item"):
         ),
     )
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         for key, item_cls in self.key_item_map.items():
             if key in x:
                 old_item = x[key]

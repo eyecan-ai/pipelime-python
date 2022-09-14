@@ -93,17 +93,13 @@ with pli.item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
     seq.to_underfolder("datasets/mini_mnist_allnew").run()
 ```
 
-```{admonition} TIP
-:class: tip
-
+```{tip}
 When you set the serialization mode on a base class, such as `NumpyItem`, it will affect
 derive classes too. Indeed, pipelime goes through all base classes of an item and chooses
 the *lowest* mode according to this order: `REMOTE_FILE` > `HARD_LINK` > `SYM_LINK` > `DEEP_COPY` > `CREATE_NEW_FILE`.
 ```
 
-```{admonition} NOTE
-:class: note
-
+```{note}
 When serializing an item, either to disk or to a remote data lake, the content does not change,
 so it is safely added a new *source* to the same item object. Then, subsequent serializations
 might take advantage of that, e.g., by hard-linking the existing file instead of creating
@@ -171,9 +167,7 @@ seq = seq.no_data_cache()
 print(seq[0])  # you should see a value for "label", but not for "metadata"
 ```
 
-```{admonition} TIP
-:class: tip
-
+```{tip}
 The `cache_data` attribute always takes precedence over the global configuration, which
 is taken into account only if `cache_data` is `None`. In such cases, the cache settings
 for all base classes are considered and the first one not set to `None` is applied.
@@ -182,8 +176,7 @@ Initially, data caching is set to `None` both on the item objects and in the glo
 so the default behavior is to cache the data.
 ```
 
-```{admonition} WARNING
-:class: warning
+```{warning}
 Calling `no_/data_cache` with no arguments will disable/enable the caching
 for **all** item types, so, for example, the following pipeline would cache no data:
 
@@ -259,6 +252,10 @@ class WavItem(Item[np.ndarray]):
                 "WAV data type must be one of float32, int32, int16 or uint8",
             )
         return data
+
+    @classmethod
+    def pl_pretty_data(cls, value: np.ndarray) -> str:
+        return f"Sample rate: {self.sample_rate}\n" + str(value)
 ```
 
 This new `WavItem` loads a WAV audio file and exposes the sample rate as property.

@@ -5,6 +5,9 @@ import pydantic as pyd
 
 from pipelime.stages import SampleStage
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
+
 
 class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     __root__: t.Dict[str, t.Any]
@@ -97,7 +100,7 @@ class StageAlbumentations(SampleStage, title="albumentations"):
 
         self.transform.value.add_targets(target_types)
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         to_transform = {k: x[v]() for k, v in self._target_to_keys.items() if v in x}
         transformed = self.transform.value(**to_transform)
         for k, v in transformed.items():

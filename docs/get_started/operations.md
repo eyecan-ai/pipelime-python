@@ -243,9 +243,7 @@ cmd()
 
 Beware that `inputs` and `output` here are *interfaces* to command options, so they have to be defined in a special way (see section [CLI](../cli/overview.md) for more details).
 
-```{admonition} TIP
-:class: tip
-
+```{tip}
 Commands are a really powerful tool to create complex pipelines and also to easily add to any project a complete CLI with rich help, advanced configuration management e automatic multiple-processing!
 
 All you have to do is to pack your code as `PipelimeCommand`s and `SampleStage`s - and let Pipelime do the rest!

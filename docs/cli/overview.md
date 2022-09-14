@@ -22,7 +22,7 @@ starting with `++` or `+`. Likewise, context file is merged with command line ar
 Also, after a double slash `//`, both `++`/`+` and `@@`/`@` can be used to specify context arguments.
 
 Beside this bunch of options, there is also a list of CLI subcommands:
-- `help`, `h`: same as `--help`, but can be used also to get help on a pipelime command, a sequence operator or a stage (cfr [Get Help](#get-help)).
+- `help`, `h`: same as `--help`, but can be used also to get help on a pipelime command, a sequence operator or a stage (see [Get Help](#get-help)).
 - `list`, `ll`, `l`: list all the available pipelime commands, sequence operators and stages. If `--module` is specified, only the symbols defined in the specified module(s) will be listed.
 - `list-commands`, `list-cmds`, `list-cmd`, `lc`: same as `list`, but printing only pipelime commands.
 - `list-operators`, `list-ops`, `list-op`, `lo`: same as `list`, but printing only sequence generators and piped operators.
@@ -35,7 +35,8 @@ Now we are ready to explore some common scenarios.
 
 ### Get Help
 
-All the `list*` commands can be used to retrieve the available pipelime interfaces, i.e., commands, sequence operators and stages, and with `-m` you limit the search to the specified module(s). For example:
+All the `list*` commands can be used to retrieve the available pipelime interfaces, i.e., commands, sequence operators and stages,
+limiting the search to specific modules with `-m`. For example:
 
 ```bash
 $ pipelime list-stg
@@ -56,6 +57,11 @@ $ pipelime list-stg
 # remote-upload  pipelime.stages.item_sources.StageUploadToRemote      Uploads the sample to one or more remote servers.
 ```
 
+Where each line shows:
+- the title of the stage you can use in your configuration file.
+- the full name of the class implementing the stage, if needed.
+- a short description of the stage, i.e., the docstring of the class.
+
 To get help on a specific command, operator or stage, just type `help`:
 
 ```bash
@@ -72,9 +78,7 @@ $ pipelime help filter-keys
 #                             pipelime.stages.key_transformations.StageKeysFilter
 ```
 
-```{admonition} TIP
-:class: tip
-
+```{tip}
 You can autogenerate similar help messages for **any** class derived from `pydantic.BaseModel`!
 
 Just print your class with `pipelime.cli.pl_print`.
@@ -98,25 +102,19 @@ First, an help message is printed:
 - `# [name]` to begin a wizard configuration for a pipelime command, stage or operation.
 - `c# [name]`, `s# [name]`, `o# [name]` as above, but specifying the type.
 
-```{admonition} WARNING
-:class: warning
-
+```{warning}
 Since you may use Choixe directives and other fancy stuffs,
 **no validation nor parsing is performed on the data you provide!**
 
 See next section to see how to do it.
 ```
 
-```{admonition} TIP
-:class: tip
-
+```{tip}
 Anytime you have to insert a class path, you can either use the usual python dot notation,
 or provide a **path to a python file**, e.g., `path/to/mymodule.py:MyClass`. Though, the latter should be use with **caution**, since multiprocessing execution is not supported.
 ```
 
-```{admonition} NOTE
-:class: note
-
+```{note}
 The wizard is intended to be used with pipelime commands, however, you may find it works
 also with stages and operations.
 
@@ -136,9 +134,7 @@ $ pipelime audit --config config.yaml
 If the configuration is valid, you will see the list of internal imports, variables and symbols.
 Then, if anything is missing, you can immediately start a wizard to write a context file.
 
-```{admonition} TIP
-:class: tip
-
+```{tip}
 `pipelime audit` works with any yaml/json file using Choixe.
 ```
 

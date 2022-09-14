@@ -21,26 +21,19 @@ import pipelime.stages as plst
 
 ## Definition
 
-Consider the example from the previous tutorial:
-```{admonition} Quote
-:class: tip
-
-Let's modify the "mini mnist" dataset by:
+[Previously](../sequences/sequences.md), we have seen how to get and modify samples from a dataset. Now, consider again [the operations we implemented](../sequences/sequences.md#modifying-data):
 1. Keeping only the samples with even index.
 2. Inverting the color of the images.
 3. Adding a new item called "color" with the average image color.
 4. Deleting the "maskinv" item.
-```
 
 Points 2, 3 and 4 can be implemented as **stages**, while point 1 requires to remove samples from a sequence, thus violating one of the conditions to be a stage, i.e., input and outputs should have the same length.
 
 We will detail the implementation of point 2 "inverting the color of the images".
 
-Stages are subclasses of `plst.SampleStage`, which in turn is a [pydantic](https://pydantic-docs.helpmanual.io/) model. If you are not familiar with pydantic, you should take a look at it
+Stages are subclasses of `plst.SampleStage`, which in turn is a [pydantic](https://pydantic-docs.helpmanual.io/) model. If you are not familiar with pydantic, you should take a look at it.
 
-```{admonition} TL;DR
-:class: note
-
+```{hint}
 Pydantic models are dataclasses on steroids, they provide automatic de/serialization, validation, constructor, property-like fields generation and tons of interesting features aimed at reducing the amount of boilerplate code for plain python classes.
 ```
 
@@ -121,7 +114,7 @@ Indeed, the left/right shift operators are just shorcuts for the `StageCompose` 
 new_seq = seq.map(plst.StageCompose([InvertStage(), AverageColor(), plst.StageKeysFilter(key_list=["maskinv"], negate=True)]))
 ```
 
-or, equivalently, using the stages' titles:
+or, equivalently, using the titles:
 
 ```python
 new_seq = seq.map(plst.StageCompose(["invert", "avg_color", {"filter-keys": {"key_list": ["maskinv"], "negate": True}}]))

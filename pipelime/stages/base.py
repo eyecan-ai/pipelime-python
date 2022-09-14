@@ -4,12 +4,15 @@ from abc import ABC, abstractmethod
 import pydantic as pyd
 import typing as t
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
+
 
 class SampleStage(pyd.BaseModel, ABC, extra="forbid", copy_on_model_validation="none"):
     """Base class for all sample stages."""
 
     @abstractmethod
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         pass
 
     def __rshift__(self, other: SampleStage) -> SampleStage:
@@ -24,21 +27,21 @@ class SampleStage(pyd.BaseModel, ABC, extra="forbid", copy_on_model_validation="
 class StageIdentity(SampleStage, title="identity"):
     """Returns the input sample."""
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         return x
 
 
 class StageLambda(SampleStage, title="lambda"):
     """Applies a callable to the sample."""
 
-    func: t.Callable[["Sample"], "Sample"] = pyd.Field(  # type: ignore # noqa: 0602
+    func: t.Callable[["Sample"], "Sample"] = pyd.Field(
         ..., description="The callable to apply."
     )
 
     def __init__(self, func, **data):
         super().__init__(func=func, **data)  # type: ignore
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         return self.func(x)
 
 
@@ -49,7 +52,7 @@ class StageInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none")
 
     __root__: SampleStage
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         return self.__root__(x)
 
     def __str__(self) -> str:
@@ -92,7 +95,7 @@ class StageCompose(SampleStage, title="compose"):
     ):
         super().__init__(stages=stages, **data)  # type: ignore
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         for s in self.stages:
             x = s(x)  # type: ignore
         return x

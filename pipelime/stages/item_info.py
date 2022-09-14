@@ -4,6 +4,9 @@ import pydantic as pyd
 
 from pipelime.stages import SampleStage
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
+
 
 class ItemInfo(pyd.BaseModel):
     """Item infos estracted from samples."""
@@ -25,7 +28,7 @@ class StageItemInfo(SampleStage, title="item-info"):
     def items_info(self):
         return self._items_info
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         for k, v in x.items():
             class_name = (
                 v.__class__.__name__

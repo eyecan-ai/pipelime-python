@@ -125,7 +125,7 @@ Pipelime objects should be treated as immutable: i.e. you should not directly mo
 
 Why did we just say that pipelime objects *should be treated as* immutable and not that they simply *are* immutable? Well, this is python and there is no actual way to prevent you from, let's say, modifying a numpy array within an item inplace and pretend nothing has happened. We can simply consider this a **bad practice**, and ask you to avoid it, like you would avoid accessing a field that starts with "_".
 
-Let's modify the "mini mnist" dataset by:
+Let's modify the "mini_mnist" dataset by:
 1. Keeping only the samples with even index.
 2. Inverting the color of the images.
 3. Adding a new item called "color" with the average image color.
