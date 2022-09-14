@@ -75,6 +75,7 @@ choixe/xconfig.md
 
 advanced/remotes.md
 advanced/validation.md
+advanced/data_streaming.md
 ```
 
 ```{toctree}

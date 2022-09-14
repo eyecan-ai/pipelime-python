@@ -83,11 +83,11 @@ piped_dataset = dataset.repeat(100).shuffle()
 
 No pipe makes changes to the source dataset, but only provides a new view of it.
 In the example above, you can still access the original data (not repeated nor shuffled) through the `dataset` variable.
-Also, most pipes are designed to be *lazy* as much as possible, i.e., they defer the computation when an item is requested, instead of filling up the `__init__` method with heavy computations. This way, they can take advantage of the multiprocessing capabilities of the `SamplesSequence` class (see below).
+Also, pipes are usually designed to be *lazy* as much as possible, i.e., they defer the computation when an item is requested, instead of filling up the `__init__` method with heavy computations. This way, they can take advantage of the multiprocessing capabilities of the `SamplesSequence` class (more on this in the following).
 
 These are the most common pipes:
 - `to_underfolder`: writes sample to disk in underfolder format
-- `map`: applies a [stage](#stages) to each sample (see below)
+- `map`: applies a [stage](#stages) to each sample
 - `zip`: merges samples from two sequences
 - `cat`: concatenates samples
 - `filter`: applies a filter on samples, possibly reducing the length

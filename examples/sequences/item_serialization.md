@@ -10,7 +10,7 @@ following actions and to stop once one of them succeeds:
 1. *new file* (`CREATE_NEW_FILE`): a new file is created by serializing the item value
 
 Moreover, a *soft link* (`SYM_LINK`) option can be tried instead of *remote file* and
-*hard link*, but only if **explicitly requested** (see below).
+*hard link*, but only if **explicitly requested**.
 
 To alter how the item is serialized, you can explicitly set the
 `Item.serialization_mode` property or use the provided context managers

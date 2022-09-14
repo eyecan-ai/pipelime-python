@@ -23,6 +23,7 @@ extensions = [
 # templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 autosummary_generate = True
+myst_heading_anchors = 3
 
 # -- Options for HTML output -------------------------------------------
 

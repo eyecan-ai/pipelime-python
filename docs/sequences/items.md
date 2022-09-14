@@ -6,7 +6,7 @@ Any item can be built from a local path or an URL to a remote data lake, as well
 Though most of the class attributes is of no interest for the user, some are worth mentioning:
 - `__call__`: returns the data wrapped by the item. This is the only method that should be used to access the data.
 - `cache_data` (property): if `True` (the default) the data is cached in memory after the first access, if not already loaded.
-- `serialization_mode` (property): the serialization mode to use when saving the item to disk (see below [Serialization Modes](#serialization-modes)).
+- `serialization_mode` (property): the serialization mode to use when saving the item to disk (cfr [Serialization Modes](#serialization-modes)).
 - `is_shared` (property): if `True` the item is shared between all samples, i.e., the data is the same for the whole sequence.
 - `file_extensions` (class method): returns the list of valid file extensions.
 - `make_new` (class method): creates a new item of the same type.

@@ -52,7 +52,33 @@ class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
 
 
 class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
-    """Multiprocessing grabbing options."""
+    """Multiprocessing grabbing options.
+
+    Examples:
+        How to use it in your command::
+
+            class EasyCommand(PipelimeCommand, title="easy"):
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
+                    alias="i", piper_port=PiperPortType.INPUT
+                )
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
+                        alias="o", piper_port=PiperPortType.OUTPUT
+                )
+                grabber: GrabberInterface = GrabberInterface.pyd_field(
+                    alias="g"
+                )
+
+                def run(self):
+                    seq = self.input.create_reader()
+                    seq = self.output.append_writer(seq)
+                    self.grabber.grab_all(
+                        seq,
+                        grab_context_manager=self.output.serialization_cm(),
+                        keep_order=False,
+                        parent_cmd=self,
+                        track_message=f"Executing ({len(seq)} samples)",
+                    )
+    """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "Grabber options."
     _compact_form: t.ClassVar[t.Optional[str]] = "<num_workers>[,<prefetch>]"
@@ -106,8 +132,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         """Runs the grabber on a sequence.
         NB: `sample_fn` always runs on the main process and may take just the sample
         or the sample and its index.
-        NB: `grab_context_manager.__enter__` will be used as `worker_init_fn`, please
-        use `GrabberInterface.grab_all_ext` if you want to specify your `worker_init_fn`
+        NB: `grab_context_manager.__enter__` will be used as `worker_init_fn`,
+        please use `GrabberInterface.grab_all_wrk_init` if you want to specify
+        your `worker_init_fn`.
 
         Args:
             sequence: the sequence to grab, usually a SamplesSequence.
@@ -129,7 +156,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         """
         from copy import deepcopy
 
-        return self.grab_all_ext(
+        return self.grab_all_wrk_init(
             sequence=sequence,
             keep_order=keep_order,
             parent_cmd=parent_cmd,
@@ -142,7 +169,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             else deepcopy(grab_context_manager).__enter__,
         )
 
-    def grab_all_ext(
+    def grab_all_wrk_init(
         self,
         sequence,
         *,
@@ -376,7 +403,33 @@ class InputDatasetInterface(
     extra="forbid",
     copy_on_model_validation="none",
 ):
-    """Input dataset options."""
+    """Input dataset options.
+
+    Examples:
+        How to use it in your command::
+
+            class EasyCommand(PipelimeCommand, title="easy"):
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
+                    alias="i", piper_port=PiperPortType.INPUT
+                )
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
+                        alias="o", piper_port=PiperPortType.OUTPUT
+                )
+                grabber: GrabberInterface = GrabberInterface.pyd_field(
+                    alias="g"
+                )
+
+                def run(self):
+                    seq = self.input.create_reader()
+                    seq = self.output.append_writer(seq)
+                    self.grabber.grab_all(
+                        seq,
+                        grab_context_manager=self.output.serialization_cm(),
+                        keep_order=False,
+                        parent_cmd=self,
+                        track_message=f"Executing ({len(seq)} samples)",
+                    )
+    """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "The input dataset."
     _compact_form: t.ClassVar[t.Optional[str]] = "<folder>[,<skip_empty>]"
@@ -522,7 +575,33 @@ class OutputDatasetInterface(
     extra="forbid",
     copy_on_model_validation="none",
 ):
-    """Output dataset options."""
+    """Output dataset options.
+
+    Examples:
+        How to use it in your command::
+
+            class EasyCommand(PipelimeCommand, title="easy"):
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
+                    alias="i", piper_port=PiperPortType.INPUT
+                )
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
+                        alias="o", piper_port=PiperPortType.OUTPUT
+                )
+                grabber: GrabberInterface = GrabberInterface.pyd_field(
+                    alias="g"
+                )
+
+                def run(self):
+                    seq = self.input.create_reader()
+                    seq = self.output.append_writer(seq)
+                    self.grabber.grab_all(
+                        seq,
+                        grab_context_manager=self.output.serialization_cm(),
+                        keep_order=False,
+                        parent_cmd=self,
+                        track_message=f"Executing ({len(seq)} samples)",
+                    )
+    """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "The output dataset."
     _compact_form: t.ClassVar[

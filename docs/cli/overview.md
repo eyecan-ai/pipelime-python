@@ -22,7 +22,7 @@ starting with `++` or `+`. Likewise, context file is merged with command line ar
 Also, after a double slash `//`, both `++`/`+` and `@@`/`@` can be used to specify context arguments.
 
 Beside this bunch of options, there is also a list of CLI subcommands:
-- `help`, `h`: same as `--help`, but can be used also to get help on a pipelime command, a sequence operator or a stage (see below).
+- `help`, `h`: same as `--help`, but can be used also to get help on a pipelime command, a sequence operator or a stage (cfr [Get Help](#get-help)).
 - `list`, `ll`, `l`: list all the available pipelime commands, sequence operators and stages. If `--module` is specified, only the symbols defined in the specified module(s) will be listed.
 - `list-commands`, `list-cmds`, `list-cmd`, `lc`: same as `list`, but printing only pipelime commands.
 - `list-operators`, `list-ops`, `list-op`, `lo`: same as `list`, but printing only sequence generators and piped operators.

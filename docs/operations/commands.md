@@ -202,5 +202,43 @@ class StandardizationCommand(PipelimeCommand, title="std-img"):
 In the new implementation above, a number of improvements and best practices are adopted:
 1. Fields include an `alias` to add an alternative (short) name. For example, the `input` field can be specified as `i` or `input`.
 2. `input` and `output` are now pipelime interfaces. This gives the user a standard way to specify more than just the folder, including a validation schema (see section [CLI](../cli/overview.md) for more details).
-3. The interfaces provide utility methods to easily create a reader and append a writer to a sequence. Also, the `grabber` interface allows to run on multiple processes and shows a progress bar.
-4. Note how the serialization options are given as a context manager to the `grabber` interface. This ensure that they are correctly applied even when multiple processes are involved.
+3. The interfaces provide utility methods to easily create a reader (`self.input.create_reader()`) and append a writer to a sequence (`self.output.append_writer(seq)`). Also, the `grabber` interface allows to run on multiple processes and to show a progress bar.
+4. Note how the serialization options are given as a **context manager** to the `grabber` interface (`self.output.serialization_cm()`). This ensure that they are correctly applied even when multiple processes are involved.
+
+## Common Built-in Interfaces
+
+When writing a new command, you should always use the built-in interfaces for common options.
+This way, users feel comfortable with your CLI and new features are automatically available to your command, without the need to change the code.
+Moreover, most interfaces are able to parse inputs in the so-called *compact form*, i.e., instead of a key-value mapping, just a single string that contains all the information needed to create the object.
+
+In the following a short list of the most common interfaces available.
+
+### GrabberInterface
+
+It exposes options to setup a multiprocessing run. Relevant methods:
+- `pyd_field`: a class method to ease the creation of the corresponding pydantic field.
+- `grab_all`, `grab_all_wrk_init`: methods to run a sequence on multiple processes. It takes care of showing a progress bar and of correctly handling the serialization options.
+
+Compact form: `num_workers[,prefetch]`. Examples:
+- `pipelime clone +g 4`: run on 4 processes with default prefetch
+- `pipelime clone +g 6,12`: run on 6 processes with 12 samples prefetched by each process
+
+### InputDatasetInterface
+
+A general interface to load a dataset from disk. Relevant methods:
+- `pyd_field`: a class method to ease the creation of the corresponding pydantic field.
+- `create_reader`: a method to create a reader for the dataset.
+
+Input data can be validated against a schema, see [Validation](../advanced/validation.md) for more details.
+
+Compact form: `folder[,skip_empty]`. Examples:
+- `pipelime clone +i path`: read all samples from the folder `path`
+- `pipelime clone +i path,true`: read only non-empty samples from the folder `path`
+
+### OutputDatasetInterface
+
+A general interface to save a dataset to disk. Relevant methods:
+- `pyd_field`: a class method to ease the creation of the corresponding pydantic field.
+- `append_writer`: a method to append a writer to a sequence.
+- `serialization_cm`: a method to create a context manager to handle the serialization options in a multiprocessing run.
+- `as_pipe`: a method to get a dictionary to add to a pipe list, useful, e.g., when working with [data streams](../advanced/data_streaming.md).
