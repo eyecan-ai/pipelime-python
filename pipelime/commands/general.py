@@ -520,6 +520,7 @@ class MapCommand(PipelimeCommand, title="map"):
 
     stage: t.Union[str, t.Mapping[str, t.Mapping[str, t.Any]]] = pyd.Field(
         ...,
+        alias="s",
         description=(
             "A stage to apply. Can be a stage name/class_path (with no arguments) or "
             "a dictionary with the stage name/class_path as key and the arguments "

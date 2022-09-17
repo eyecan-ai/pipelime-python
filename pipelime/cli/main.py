@@ -530,7 +530,7 @@ def pl_main(  # noqa: C901
                     new_ctx.deep_set(var, val, only_valid_keys=False)
 
                 print_info("\n✨ CONTEXT YAML")
-                print_info("==============")
+                print_info("===============")
                 print_info(yaml.safe_dump(new_ctx.decode(), sort_keys=False))
 
                 print_info("Processing configuration and context...", end="")
@@ -539,7 +539,7 @@ def pl_main(  # noqa: C901
                 )
                 print_info(" OK")
 
-                outfile = Prompt.ask("\n💾 Write to (leave empty to not skip)")
+                outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
                 if outfile:
                     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 

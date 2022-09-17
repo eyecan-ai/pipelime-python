@@ -179,9 +179,6 @@ def print_model_info(
 def _field_row(
     grid: Table, field, indent: int, indent_offs: int, show_piper_port: bool
 ):
-    if field.field_info.exclude:
-        return
-
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
@@ -307,13 +304,18 @@ def _get_inner_args(*type_):
 def _iterate_model_fields(
     model_cls, grid, indent, indent_offs, show_piper_port, add_blank_row
 ):
+    no_data = True
     for field in model_cls.__fields__.values():  # type: ignore
-        _field_row(
-            grid,
-            field,
-            indent=indent,
-            indent_offs=indent_offs,
-            show_piper_port=show_piper_port,
-        )
-        if add_blank_row:
-            grid.add_row()
+        if not field.field_info.exclude:
+            no_data = False
+            _field_row(
+                grid,
+                field,
+                indent=indent,
+                indent_offs=indent_offs,
+                show_piper_port=show_piper_port,
+            )
+            if add_blank_row:
+                grid.add_row()
+    if no_data:
+        grid.add_row((" " * indent) + "[grey50 italic]([strike]no parameters[/])[/]")

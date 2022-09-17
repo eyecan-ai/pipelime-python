@@ -40,21 +40,24 @@ limiting the search to specific modules with `-m`. For example:
 
 ```bash
 $ pipelime list-stg
-# >>>
-# ---Sample Stages
-# albumentations pipelime.stages.augmentations.StageAlbumentations     Sample augmentation via Albumentations.
-# compose        pipelime.stages.base.StageCompose                     Applies a sequence of stages.
-# duplicate-key  pipelime.stages.key_transformations.StageDuplicateKey Duplicate an item.
-# forget-source  pipelime.stages.item_sources.StageForgetSource        Removes data sources, ie, file paths or remotes, from items.
-# identity       pipelime.stages.base.StageIdentity                    Returns the input sample.
-# item-info      pipelime.stages.item_info.StageItemInfo               Collects item infos from samples.
-#                                                                      WARNING: this stage CANNOT be combined with MULTIPROCESSING.
-# format-key     pipelime.stages.key_transformations.StageKeyFormat    Changes key names following a format string.
-# filter-keys    pipelime.stages.key_transformations.StageKeysFilter   Filters sample keys.
-# lambda         pipelime.stages.base.StageLambda                      Applies a callable to the sample.
-# remap-key      pipelime.stages.key_transformations.StageRemap        Remaps keys in sample preserving internal values.
-# replace-item   pipelime.stages.item_replacement.StageReplaceItem     Replaces items in sample preserving internal values.
-# remote-upload  pipelime.stages.item_sources.StageUploadToRemote      Uploads the sample to one or more remote servers.
+```
+
+```
+>>>
+━━━━━ Sample Stages
+albumentations pipelime.stages.augmentations.StageAlbumentations     Sample augmentation via Albumentations.
+compose        pipelime.stages.base.StageCompose                     Applies a sequence of stages.
+duplicate-key  pipelime.stages.key_transformations.StageDuplicateKey Duplicate an item.
+forget-source  pipelime.stages.item_sources.StageForgetSource        Removes data sources, ie, file paths or remotes, from items.
+identity       pipelime.stages.base.StageIdentity                    Returns the input sample.
+item-info      pipelime.stages.item_info.StageItemInfo               Collects item infos from samples.
+                                                                     WARNING: this stage CANNOT be combined with MULTIPROCESSING.
+format-key     pipelime.stages.key_transformations.StageKeyFormat    Changes key names following a format string.
+filter-keys    pipelime.stages.key_transformations.StageKeysFilter   Filters sample keys.
+lambda         pipelime.stages.base.StageLambda                      Applies a callable to the sample.
+remap-key      pipelime.stages.key_transformations.StageRemap        Remaps keys in sample preserving internal values.
+replace-item   pipelime.stages.item_replacement.StageReplaceItem     Replaces items in sample preserving internal values.
+remote-upload  pipelime.stages.item_sources.StageUploadToRemote      Uploads the sample to one or more remote servers.
 ```
 
 Where each line shows:
@@ -66,16 +69,19 @@ To get help on a specific command, operator or stage, just type `help`:
 
 ```bash
 $ pipelime help filter-keys
-# >>>
-# --Sample Stage
-#                                                 filter-keys
-#                              (*, key_list: Sequence[str], negate: bool = False)
-#                                             Filters sample keys.
-#  Fields     Description                                                             Type            Default
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  key_list   ▶ List of keys to preserve.                                             Sequence[str]   ✗
-#  negate     ▶ TRUE to delete `key_list`, FALSE delete all but keys in `key_list`.   bool            False
-#                             pipelime.stages.key_transformations.StageKeysFilter
+```
+
+```
+>>>
+━━━━━ Sample Stage
+                                                filter-keys
+                             (*, key_list: Sequence[str], negate: bool = False)
+                                            Filters sample keys.
+ Fields     Description                                                             Type            Default
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ key_list   ▶ List of keys to preserve.                                             Sequence[str]   ✗
+ negate     ▶ TRUE to delete `key_list`, FALSE delete all but keys in `key_list`.   bool            False
+                            pipelime.stages.key_transformations.StageKeysFilter
 ```
 
 ```{tip}
@@ -145,7 +151,7 @@ If you run `pipelime help` on a command, you often see the options in a tree-lik
 ```bash
 $ pipelime help clone
 # >>>
-# ---Pipelime Command
+# ━━━━━ Pipelime Command
 #                                                     clone
 #                         (*, i: pipelime.commands.interfaces.InputDatasetInterface, o:
 # pipelime.commands.interfaces.OutputDatasetInterface, g: pipelime.commands.interfaces.GrabberInterface = None)
