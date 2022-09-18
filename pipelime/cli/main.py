@@ -414,11 +414,11 @@ def pl_main(  # noqa: C901
         else:
             print(ctx.get_help())
     elif command in subc.WIZARD[0] or any([w in command_args for w in subc.WIZARD[0]]):
-        from pipelime.cli.wizard import model_cfg_wizard
+        from pipelime.cli.wizard import Wizard
 
         if command and command not in subc.WIZARD[0]:
-            model_cfg_wizard(command)
-        model_cfg_wizard(command_args[0])
+            Wizard.model_cfg_wizard(command)
+        Wizard.model_cfg_wizard(command_args[0])
     elif command in subc.LIST[0]:
         print_commands_ops_stages_list(
             verbose, show_cmds=True, show_ops=True, show_stages=True
@@ -507,7 +507,7 @@ def pl_main(  # noqa: C901
                 )
             except ChoixeProcessingError as e:
                 from rich.prompt import Prompt, Confirm
-                import yaml
+                from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
                 if not Confirm.ask(
@@ -517,21 +517,7 @@ def pl_main(  # noqa: C901
                     raise typer.Exit(1)
 
                 print_info("\n📝 Please enter a value for each variable")
-
-                new_ctx = XConfig()
-                for var, val in inspect_info.variables.items():
-                    default_value = base_ctx.deep_get(var, default=...)
-                    if default_value == ...:
-                        if val is not None:
-                            default_value = str(val)
-                    else:
-                        default_value = str(default_value)
-                    val = Prompt.ask(f"{var}", default=default_value)
-                    new_ctx.deep_set(var, val, only_valid_keys=False)
-
-                print_info("\n✨ CONTEXT YAML")
-                print_info("===============")
-                print_info(yaml.safe_dump(new_ctx.decode(), sort_keys=False))
+                new_ctx = Wizard.context_wizard(inspect_info.variables, base_ctx)
 
                 print_info("Processing configuration and context...", end="")
                 effective_configs = _process_cfg_or_die(

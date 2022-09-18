@@ -1,8 +1,11 @@
-from typing import Optional, Union, Type, Any, Optional
+import typing as t
 from copy import deepcopy
 from pydantic import BaseModel
 from pydantic.typing import display_as_type
 import pipelime.cli.pretty_print as ppp
+
+if t.TYPE_CHECKING:
+    from pipelime.choixe import XConfig
 
 
 class InvalidValue(Exception):
@@ -54,10 +57,10 @@ class FieldModel:
     def __init__(
         self,
         name: str,
-        outer_type: Type,
-        description: Optional[str],
+        outer_type: t.Type,
+        description: t.Optional[str],
         is_required: bool,
-        default_value: Any,
+        default_value: t.Any,
         is_model: bool,
     ):
         self.name = name
@@ -68,50 +71,88 @@ class FieldModel:
         self.is_model = is_model
 
 
-def model_cfg_wizard(model_cls: Union[Type[BaseModel], str]):
-    import yaml
+class Wizard:
+    @staticmethod
+    def help_message(title: str):
+        ppp.print_info("\n🪄  " + title)
+        ppp.print_info("- `\"` or `'` to enforce string values")
+        ppp.print_info(
+            "- `[` and `{` followed by a new-line to start a list or dict "
+            "(one item per line, use `:` to separate key and value)"
+        )
+        ppp.print_info("- `]` and `}` followed by a new-line to end a list or dict")
+        ppp.print_info(
+            "- `< \[model]` to begin a wizard configuration for a pydantic model "  # type: ignore
+            "(should be explicitly listed in the type list)."
+        )
+        ppp.print_info(
+            "- `? \[class.path]` to begin a wizard configuration "  # type: ignore
+            "for a choixe `$call` directive."
+        )
+        ppp.print_info("- `! \[class.path]` to add a choixe `$symbol` directive.")  # type: ignore
+        ppp.print_info(
+            "- `# \[name]` to begin a wizard configuration "  # type: ignore
+            "for a pipelime command, stage or operation."
+        )
+        ppp.print_info(
+            "- `c# \[name]`, `s# \[name]`, `o# \[name]` as above, "  # type: ignore
+            "but specifying the type."
+        )
 
-    ppp.print_info("\n🪄  Configuration Wizard")
-    ppp.print_info("- `\"` or `'` to enforce string values")
-    ppp.print_info(
-        "- `[` and `{` followed by a new-line to start a list or dict "
-        "(one item per line, use `:` to separate key and value)"
-    )
-    ppp.print_info("- `]` and `}` followed by a new-line to end a list or dict")
-    ppp.print_info(
-        "- `< \[model]` to begin a wizard configuration for a pydantic model "  # type: ignore
-        "(should be explicitly listed in the type list)."
-    )
-    ppp.print_info(
-        "- `? \[class.path]` to begin a wizard configuration "  # type: ignore
-        "for a choixe `$call` directive."
-    )
-    ppp.print_info("- `! \[class.path]` to add a choixe `$symbol` directive.")  # type: ignore
-    ppp.print_info(
-        "- `# \[name]` to begin a wizard configuration "  # type: ignore
-        "for a pipelime command, stage or operation."
-    )
-    ppp.print_info(
-        "- `c# \[name]`, `s# \[name]`, `o# \[name]` as above, "  # type: ignore
-        "but specifying the type."
-    )
+    @staticmethod
+    def print_yaml(cfg):
+        import yaml
 
-    try:
-        if isinstance(model_cls, str):
-            model_cls = _get_pipelime_type(model_cls, True)  # type: ignore
-    except InvalidValue:
-        return
+        ppp.print_info("\n✨ FINAL YAML")
+        ppp.print_info("==============")
+        ppp.print_info(yaml.safe_dump(cfg, sort_keys=False))
 
-    cfg = _iterate_model_fields(model_cls)  # type: ignore
+    @staticmethod
+    def model_cfg_wizard(model_cls: t.Union[t.Type[BaseModel], str]):
+        Wizard.help_message("Configuration Wizard")
 
-    ppp.print_info("\n✨ CONFIG YAML")
-    ppp.print_info("==============")
-    ppp.print_info(yaml.safe_dump(cfg, sort_keys=False))
+        try:
+            if isinstance(model_cls, str):
+                model_cls = _get_pipelime_type(model_cls, True)  # type: ignore
+        except InvalidValue:
+            return
+
+        cfg = _iterate_model_fields(model_cls)  # type: ignore
+        Wizard.print_yaml(cfg)
+        return cfg
+
+    @staticmethod
+    def context_wizard(variables: t.Mapping, default_ctx: "XConfig"):
+        from pydash import set_
+        from pipelime.choixe import XConfig
+
+        Wizard.help_message("Context Wizard")
+
+        new_ctx = {}
+        for var, val in variables.items():
+            default_value = default_ctx.deep_get(var, default=...)
+            if default_value is ...:
+                if val is not None:
+                    default_value = val
+            val = _get_field_value(
+                FieldModel(
+                    name=var,
+                    outer_type=t.Any if default_value is ... else type(default_value),
+                    description=None,
+                    is_required=default_value is ...,
+                    default_value=default_value,
+                    is_model=False,
+                ),
+                prefix=ColoredPath(),
+            )
+            set_(new_ctx, var, val)
+        Wizard.print_yaml(new_ctx)
+        return XConfig(new_ctx)
 
 
 def _get_pipelime_type(
     name: str, is_command: bool = True, is_stage: bool = True, is_operation: bool = True
-) -> Type[BaseModel]:
+) -> t.Type[BaseModel]:
     from pipelime.cli.utils import PipelimeSymbolsHelper
 
     cmd_cls = None
@@ -309,7 +350,7 @@ def _get_field_value(field: FieldModel, prefix: ColoredPath):
         return _get_general_field_value(prefix=field_prefix, default=str(default_value))
 
 
-def _iterate_model_fields(model_cls: Type[BaseModel], prefix=ColoredPath()):
+def _iterate_model_fields(model_cls: t.Type[BaseModel], prefix=ColoredPath()):
     if not ppp._is_model(model_cls):
         raise TypeError("not a pydantic model")
 
@@ -366,7 +407,7 @@ def _iterate_callable_args(clb_type, prefix=ColoredPath()):
             cfg[field.name] = _get_field_value(
                 FieldModel(
                     name=field.name,
-                    outer_type=Any
+                    outer_type=t.Any
                     if field.annotation is inspect.Parameter.empty
                     else field.annotation,
                     description=None,
