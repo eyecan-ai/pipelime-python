@@ -3,10 +3,19 @@ import typing as t
 
 class SubCommands:
     HELP = (("help", "h"), "show help for a command, an operator or a stage")
-    LIST = (("list", "l", "ll"), "list all commands, operators or stages")
-    LIST_CMDS = (("list-commands", "list-cmds", "list-cmd", "lc"), "list all commands")
-    LIST_OPS = (("list-operators", "list-ops", "list-op", "lo"), "list all operators")
-    LIST_STGS = (("list-stages", "list-stgs", "list-stg", "ls"), "list all stages")
+    LIST = (("list", "l", "ll", "ls"), "list all commands, operators or stages")
+    LIST_CMDS = (
+        ("list-commands", "list-cmds", "list-cmd", "lc", "ls-cmds", "ls-cmd", "lsc"),
+        "list all commands",
+    )
+    LIST_OPS = (
+        ("list-operators", "list-ops", "list-op", "lo", "ls-ops", "ls-op", "lso"),
+        "list all operators",
+    )
+    LIST_STGS = (
+        ("list-stages", "list-stgs", "list-stg", "lst", "ls-stgs", "ls-stg", "lss"),
+        "list all stages",
+    )
     AUDIT = (("audit", "a"), "inspects configuration and context")
     WIZARD = (
         ("wizard", "wiz", "w"),

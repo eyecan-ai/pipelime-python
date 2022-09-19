@@ -25,7 +25,7 @@ class SplitBase(
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return "" if self.output is None else str(self.output.folder)
+        return "" if self.output is None else self.output.__piper_repr__()
 
 
 class PercSplit(SplitBase):

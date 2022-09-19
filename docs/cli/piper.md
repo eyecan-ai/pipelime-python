@@ -64,3 +64,68 @@ $ pipelime run help
 
                                pipelime.commands.piper.RunCommand
 ```
+
+The `nodes` parameter is a mapping where the keys are node names, i.e., any unique string, and the values are the pipelime commands to execute.
+Such commands can be specified as python objects, e.g., using the [`$model` directive](../choixe/directives.md#model), or, simply, by their title and arguments. For example:
+
+```yaml
+nodes:
+  good_split:
+    split-query:
+      input: $var(input)
+      output_selected: $tmp(good)
+      query: "`metadata.label` == 'good'"
+      grabber:
+        num_workers: $var(nproc)
+  bad_split:
+    split-query:
+      input: $var(input)
+      output_selected: $tmp(bad)
+      query: "`metadata.label` == 'bad'"
+      grabber:
+        num_workers: $var(nproc)
+  good_train_test:
+    split:
+      input: $tmp(good)
+      splits:
+        - output: $var(output)/train
+          fraction: 0.8
+        - output: $tmp(good_test)
+          fraction: 0.8
+      grabber:
+        num_workers: $var(nproc)
+  test_dataset:
+    cat:
+      inputs: [ $tmp(good_test), $tmp(bad) ]
+      output: $var(output)/test
+      grabber:
+        num_workers: $var(nproc)
+```
+
+In the configuration above, we have a DAG with 4 nodes and some Choixe [variables](../choixe/directives.md#variables).
+To get a usable DAG, these variables must be defined in the associated context.
+To this end, just run `pipelime audit` as [shown before](overview.md#validate-a-configuration-and-write-a-context).
+For example, a possible context might be:
+
+```yaml
+input: path/to/input
+nproc: '6'
+output: path/to/output
+```
+
+Also, remember that context options can be override from the command line using the [`@` syntax](overview.md).
+
+To visualize what the DAG will do, we can draw it:
+
+```bash
+pipelime draw --config dag.yaml --context context.yaml
+```
+
+![dag](../images/dag.png "dag")
+
+Now we are ready to run the DAG. A few options are available:
+- `include`/`exclude`: only nodes listed in `include` and not in `exclude` are run. If not specified, all nodes are run.
+- `watch`: if `True`, the execution is monitored in the current console, otherwise you need to register your own listener.
+- `token`: the execution token to be used to identify this run when monitoring it. If not specified, a new token is generated.
+
+If you don't need advanced broadcasting features, you can just ignore the `token` option and leave `watch` to `True`.

@@ -23,10 +23,10 @@ Also, after a double slash `//`, both `++`/`+` and `@@`/`@` can be used to speci
 
 Beside this bunch of options, there is also a list of CLI subcommands:
 - `help`, `h`: same as `--help`, but can be used also to get help on a pipelime command, a sequence operator or a stage (see [Get Help](#get-help)).
-- `list`, `ll`, `l`: list all the available pipelime commands, sequence operators and stages. If `--module` is specified, only the symbols defined in the specified module(s) will be listed.
-- `list-commands`, `list-cmds`, `list-cmd`, `lc`: same as `list`, but printing only pipelime commands.
-- `list-operators`, `list-ops`, `list-op`, `lo`: same as `list`, but printing only sequence generators and piped operators.
-- `list-stages`, `list-stgs`, `list-stg`, `ls`: same as `list`, but printing only stages.
+- `list`, `ll`, `l`, `ls`: list all the available pipelime commands, sequence operators and stages. If `--module` is specified, only the symbols defined in the specified module(s) will be listed.
+- `list-commands`, `list-cmds`, `list-cmd`, `lc`, `ls-cmds`, `ls-cmd`, `lsc`: same as `list`, but printing only pipelime commands.
+- `list-operators`, `list-ops`, `list-op`, `lo`, `ls-ops`, `ls-op`, `lso`: same as `list`, but printing only sequence generators and piped operators.
+- `list-stages`, `list-stgs`, `list-stg`, `lst`, `ls-stgs`, `ls-stg`, `lss`: same as `list`, but printing only stages.
 - `audit`, `a`: inspect the given configuration and context, if any, printing the effective configuration and missing definitions. A wizard to write a new valid context is started afterwards.
 - `wizard`, `w`: start a wizard to write a configuration file for a given pipelime command.
 - `exec`, `exe`, `x`, `e`: execute a configuration where the command is the top-level key, useful when you want to ship a configuration for a single command to run.

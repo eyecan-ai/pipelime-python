@@ -320,9 +320,9 @@ def print_command_op_stage_info(command_operator_stage: str):
 
         print_info("Multiple definitions found!")
         idx = Prompt.ask(
-            "Show "
-            + ", ".join(f"`{v[0][0][0]}` ({i})" for i, v in enumerate(available_defs))
-            + " or ALL (-1)?",
+            ">>> Show:\n"
+            + "\n".join(f"[{i:>2}] {v[0][0][0]}" for i, v in enumerate(available_defs))
+            + "\n[-1] ALL\n>>>",
             choices=["-1"] + list(str(v) for v in range(len(available_defs))),
             default="-1",
         )
