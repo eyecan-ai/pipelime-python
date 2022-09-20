@@ -85,7 +85,7 @@ class Wizard:
             "(should be explicitly listed in the type list)."
         )
         ppp.print_info(
-            "- `? \[class.path]` to begin a wizard configuration "  # type: ignore# noqa: W605
+            "- `? \[class.path]` to begin a wizard configuration "  # type: ignore # noqa: W605
             "for a choixe `$call` directive."
         )
         ppp.print_info("- `! \[class.path]` to add a choixe `$symbol` directive.")  # type: ignore # noqa: W605
