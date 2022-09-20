@@ -34,8 +34,9 @@ class StageIdentity(SampleStage, title="identity"):
 class StageLambda(SampleStage, title="lambda"):
     """Applies a callable to the sample."""
 
-    func: t.Callable[["Sample"], "Sample"] = pyd.Field(
-        ..., description="The callable to apply."
+    func: t.Callable = pyd.Field(
+        ...,
+        description="The callable to apply, accepting a Sample and returning a Sample.",
     )
 
     def __init__(self, func, **data):
