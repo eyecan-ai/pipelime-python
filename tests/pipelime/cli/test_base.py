@@ -44,7 +44,9 @@ class TestCliBase:
                 result, in_modules=module_data["operators"] + module_data["commands"]
             )
         assert "Fields" in result.output
-        assert "Required" in result.output
+        assert "Description" in result.output
+        assert "Type" in result.output
+        assert "Default" in result.output
 
     def test_run(self, data_folder, minimnist_dataset, tmp_path):
         from pathlib import Path
