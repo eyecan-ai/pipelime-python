@@ -1,7 +1,6 @@
 import typing as t
 import pydantic as pyd
 
-from pipelime.items import Item
 from pipelime.stages import SampleStage
 from pipelime.utils.pydantic_types import ItemType
 

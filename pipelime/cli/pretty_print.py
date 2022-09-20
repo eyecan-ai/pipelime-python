@@ -221,7 +221,7 @@ def _field_row(
             (
                 ""
                 if is_model and not has_root_item
-                else display_as_type(field_outer_type).replace("[", r"\[")
+                else display_as_type(field_outer_type).replace("[", r"\[")  # noqa: W605
             ),
         ]
         + ([fport] if fport else [])

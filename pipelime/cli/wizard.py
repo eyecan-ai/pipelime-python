@@ -1,5 +1,4 @@
 import typing as t
-from copy import deepcopy
 from pydantic import BaseModel
 from pydantic.typing import display_as_type
 import pipelime.cli.pretty_print as ppp
@@ -43,7 +42,7 @@ class ColoredPath:
         cidx = (self.cidx + 1) % len(self.COLORS)
         col_hex = self.COLORS[cidx]
         return ColoredPath(
-            self.path + col_hex + "\[" + path + "][/]", cidx=cidx  # type: ignore
+            self.path + col_hex + "\[" + path + "][/]", cidx=cidx  # type: ignore # noqa: W605
         )
 
     def __str__(self) -> str:
@@ -82,20 +81,20 @@ class Wizard:
         )
         ppp.print_info("- `]` and `}` followed by a new-line to end a list or dict")
         ppp.print_info(
-            "- `< \[model]` to begin a wizard configuration for a pydantic model "  # type: ignore
+            "- `< \[model]` to begin a wizard configuration for a pydantic model "  # type: ignore # noqa: W605
             "(should be explicitly listed in the type list)."
         )
         ppp.print_info(
-            "- `? \[class.path]` to begin a wizard configuration "  # type: ignore
+            "- `? \[class.path]` to begin a wizard configuration "  # type: ignore# noqa: W605
             "for a choixe `$call` directive."
         )
-        ppp.print_info("- `! \[class.path]` to add a choixe `$symbol` directive.")  # type: ignore
+        ppp.print_info("- `! \[class.path]` to add a choixe `$symbol` directive.")  # type: ignore # noqa: W605
         ppp.print_info(
-            "- `# \[name]` to begin a wizard configuration "  # type: ignore
+            "- `# \[name]` to begin a wizard configuration "  # type: ignore # noqa: W605
             "for a pipelime command, stage or operation."
         )
         ppp.print_info(
-            "- `c# \[name]`, `s# \[name]`, `o# \[name]` as above, "  # type: ignore
+            "- `c# \[name]`, `s# \[name]`, `o# \[name]` as above, "  # type: ignore # noqa: W605
             "but specifying the type."
         )
 
@@ -217,6 +216,74 @@ def _get_general_field_value(prefix: ColoredPath, default=...):
             pass
 
 
+def _get_model(v: str, prefix: ColoredPath):
+    from pipelime.choixe.utils.imports import import_symbol
+
+    if not v:
+        raise InvalidValue()
+    try:
+        model_cls = import_symbol(v)
+    except ImportError:
+        ppp.print_error(f"Cannot import model class {v}")
+        raise InvalidValue()
+    try:
+        return _iterate_model_fields(model_cls, prefix)
+    except TypeError as e:
+        ppp.print_error(f"Invalid symbol: {v} ({e})")
+        raise InvalidValue()
+
+
+def _get_callable(v: str, prefix: ColoredPath):
+    from pipelime.choixe.utils.imports import import_symbol
+
+    if not v:
+        raise InvalidValue()
+    try:
+        clb_type = import_symbol(v)
+    except ImportError:
+        ppp.print_error(f"Cannot import callable {v}")
+        raise InvalidValue()
+    try:
+        args = (
+            _iterate_model_fields(clb_type, prefix)
+            if ppp._is_model(clb_type)
+            else _iterate_callable_args(clb_type, prefix)
+        )
+        return {"$call": v, "$args": args}
+    except TypeError as e:
+        ppp.print_error(f"Invalid symbol: {v} ({e})")
+        raise InvalidValue()
+
+
+def _get_symbol(v: str):
+    from pipelime.choixe.utils.imports import import_symbol
+
+    if not v:
+        raise InvalidValue()
+    try:
+        _ = import_symbol(v)
+    except ImportError:
+        ppp.print_warning(
+            f"{v} {ppp._short_line()} Symbol will be included, but importing has failed"
+        )
+    return f"$symbol({v})"
+
+
+def _get_pipelime_object(value: str, prefix: ColoredPath):
+    v = value[1:].strip() if value[0] == "#" else value[2:].strip()
+    if not v:
+        raise InvalidValue()
+
+    pl_type = _get_pipelime_type(
+        v,
+        is_command=value[0] in ("#", "c"),
+        is_stage=value[0] in ("#", "s"),
+        is_operation=value[0] in ("#", "o"),
+    )
+    args = _iterate_model_fields(pl_type, prefix)
+    return {v: args}
+
+
 def _decode_value(value, prefix: ColoredPath):
     from pipelime.choixe.utils.imports import import_symbol
 
@@ -230,62 +297,13 @@ def _decode_value(value, prefix: ColoredPath):
     if value == "{":
         return _get_value_map(prefix)
     if value[0] == "<":
-        v = value[1:].strip()
-        if not v:
-            raise InvalidValue()
-        try:
-            model_cls = import_symbol(v)
-        except ImportError:
-            ppp.print_error(f"Cannot import model class {v}")
-            raise InvalidValue()
-        try:
-            return _iterate_model_fields(model_cls, prefix)
-        except TypeError as e:
-            ppp.print_error(f"Invalid symbol: {v} ({e})")
-            raise InvalidValue()
+        return _get_model(value[1:].strip(), prefix)
     if value[0] == "?":
-        v = value[1:].strip()
-        if not v:
-            raise InvalidValue()
-        try:
-            clb_type = import_symbol(v)
-        except ImportError:
-            ppp.print_error(f"Cannot import callable {v}")
-            raise InvalidValue()
-        try:
-            args = (
-                _iterate_model_fields(clb_type, prefix)
-                if ppp._is_model(clb_type)
-                else _iterate_callable_args(clb_type, prefix)
-            )
-            return {"$call": v, "$args": args}
-        except TypeError as e:
-            ppp.print_error(f"Invalid symbol: {v} ({e})")
-            raise InvalidValue()
+        return _get_callable(value[1:].strip(), prefix)
     if value[0] == "!":
-        v = value[1:].strip()
-        if not v:
-            raise InvalidValue()
-        try:
-            sym_type = import_symbol(v)
-        except ImportError:
-            ppp.print_warning(
-                f"{v} {ppp._short_line()} Symbol will be included, but importing has failed"
-            )
-        return f"$symbol({v})"
+        return _get_symbol(value[1:].strip())
     if value[0] == "#" or (len(value) > 1 and value[1] == "#"):
-        v = value[1:].strip() if value[0] == "#" else value[2:].strip()
-        if not v:
-            raise InvalidValue()
-
-        pl_type = _get_pipelime_type(
-            v,
-            is_command=value[0] in ("#", "c"),
-            is_stage=value[0] in ("#", "s"),
-            is_operation=value[0] in ("#", "o"),
-        )
-        args = _iterate_model_fields(pl_type, prefix)
-        return {v: args}
+        return _get_pipelime_object(value, prefix)
 
     return value
 
@@ -300,7 +318,7 @@ def _get_field_value(field: FieldModel, prefix: ColoredPath):
     field_prefix = prefix.as_map(field.name)
     header = [
         f"{field_prefix}\n«"
-        + display_as_type(field.outer_type).replace("[", r"\[")
+        + display_as_type(field.outer_type).replace("[", r"\[")  # noqa: W605
         + "»"
     ]
     if not field.is_required:

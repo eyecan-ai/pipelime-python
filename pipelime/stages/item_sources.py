@@ -11,7 +11,6 @@ if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-
 class StageUploadToRemote(SampleStage, title="remote-upload"):
     """Uploads the sample to one or more remote servers."""
 

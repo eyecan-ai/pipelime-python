@@ -2,7 +2,6 @@ import os
 from contextlib import redirect_stdout
 from pathlib import Path
 import rich
-from rich.console import Console
 
 from pipelime.cli import print_commands_ops_stages_list
 
