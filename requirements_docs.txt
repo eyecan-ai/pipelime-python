@@ -1,0 +1,13 @@
+# To avoid inconsistencies, we should keep the docs packages versions pinned.
+
+# Sphinx documentation
+Sphinx==5.1.1
+
+# Material theme
+sphinx-material==0.0.35
+
+# Needed to be able to write documentation in markdown
+myst-parser==0.18.0
+
+# Mermaid extention for Sphinx - Needed to render graphs in markdown
+sphinxcontrib-mermaid==0.7.1

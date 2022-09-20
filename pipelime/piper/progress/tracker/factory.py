@@ -6,7 +6,7 @@ from pipelime.piper.progress.tracker.zmq import ZmqTrackCallback
 
 
 class TrackCallbackFactory:
-    """Factory for `TrackCallback`s"""
+    """Factory for ``TrackCallback`` s"""
 
     DEFAULT_CALLBACK_TYPE = "ZMQ"
 

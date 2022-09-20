@@ -26,7 +26,9 @@ class ToyDataset(
     with_kpts: bool = pyd.Field(
         True, description="Whether to generate objects' keypoints."
     )
-    image_size: int = pyd.Field(256, description="The size of the generated images.")
+    image_size: t.Union[int, t.Tuple[int, int]] = pyd.Field(
+        256, description="The size of the generated images."
+    )
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -57,6 +59,11 @@ class ToyDataset(
 
     def size(self) -> int:
         return self.length
+
+    def image_shape(self) -> t.Tuple[int, int]:
+        if isinstance(self.image_size, int):
+            return (self.image_size, self.image_size)
+        return self.image_size
 
     def get_sample(self, idx: int) -> pls.Sample:
         if idx < 0 or idx >= self.size():
@@ -110,7 +117,7 @@ class ToyDataset(
     def _generate_2d_object(self):
         import numpy as np
 
-        size = np.array([self.image_size, self.image_size])
+        size = np.array(self.image_shape())
         center = np.random.uniform(0.25 * size[0], 0.75 * size[0], (2,))
         random_size = np.random.uniform(size * 0.05, size * 0.24, (2,))
         top_left = np.array(
@@ -175,7 +182,7 @@ class ToyDataset(
 
         image = (
             Image.fromarray(
-                np.random.uniform(0, 255, (self.image_size, self.image_size, 3)).astype(
+                np.random.uniform(0, 255, self.image_shape() + (3,)).astype(
                     np.uint8
                 )
             )
@@ -183,12 +190,12 @@ class ToyDataset(
             else None
         )
         mask = (
-            Image.new("L", (self.image_size, self.image_size))
+            Image.new("L", self.image_shape())
             if self.with_masks
             else None
         )
         instances = (
-            Image.new("L", (self.image_size, self.image_size))
+            Image.new("L", self.image_shape())
             if self.with_instances
             else None
         )

@@ -275,6 +275,14 @@ def _process_cfg_or_die(
 app = typer.Typer(pretty_exceptions_enable=False)
 
 
+def version_callback(value: bool):
+    from pipelime import __version__
+
+    if value:
+        print(__version__)
+        raise typer.Exit()
+
+
 @app.command(
     add_help_option=False,
     no_args_is_help=True,
@@ -291,7 +299,7 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the arguments "
+            "A yaml/json file with some or all the arguments "
             "required by the command.\n\n"
             "`++opt` or `+opt` command line options update and override them.\n\n "
         ),
@@ -306,7 +314,7 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A YAML/JSON file with some or all the context parameters.\n\n"
+            "A yaml/json file with some or all the context parameters.\n\n"
             "`@@opt` or `@opt` command line options update and override them.\n\n"
             "After a `//` token, `++opt` and `+opt` are accepted as well.\n\n "
         ),
@@ -329,7 +337,7 @@ def pl_main(  # noqa: C901
         "-o",
         writable=True,
         resolve_path=True,
-        help="Save final processed configuration to JSON/YAML.",
+        help="Save final processed configuration to json/yaml.",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
@@ -337,30 +345,18 @@ def pl_main(  # noqa: C901
         "",
         show_default=False,
         help=(
-            "A pipelime command, ie, a `command-name`, "
-            "a `package.module.ClassName` class path or "
-            "a `path/to/module.py:ClassName` uri (use with care).\n\n"
-            "\b\nSpecial commands:\n"
-            f"- `{subc.LIST.value}` shows commands and operators"
-            "\n"
-            f"- `{subc.AUDIT.value}` inspects configuration and context"
-            "\n"
-            f"- `{subc.EXEC.value}` execute a configuration "
-            "where the command is the top-level key\n "
+            (
+                "A pipelime command, ie, a `command-name`, "
+                "a `package.module.ClassName` class path or "
+                "a `path/to/module.py:ClassName` uri (use with care).\n\n"
+            )
+            + subc.get_help()
         ),
         autocompletion=PipelimeSymbolsHelper.complete_name(
             is_cmd=True,
             is_seq_op=False,
             is_stage=False,
-            additional_names=[
-                (subc.LIST.value, "show commands, operators and stages"),
-                (subc.AUDIT.value, "inspect configuration and context"),
-                (
-                    subc.EXEC.value,
-                    ("execute a configuration where the command is the top-level key"),
-                ),
-                (subc.HELP.value, "show help for a command, an operator or a stage"),
-            ],
+            additional_names=subc.get_autocompletions(),
         ),
     ),
     command_args: t.Optional[t.List[str]] = typer.Argument(
@@ -375,6 +371,14 @@ def pl_main(  # noqa: C901
     ),
     help: bool = typer.Option(
         False, "--help", "-h", show_default=False, help="Show this message and exit."
+    ),
+    version: t.Optional[bool] = typer.Option(
+        None,
+        "--version",
+        show_default=False,
+        help="Show version and exit.",
+        callback=version_callback,
+        is_eager=True,
     ),
 ):
     """
@@ -392,20 +396,45 @@ def pl_main(  # noqa: C901
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
     and `none`/`null`/`nul` to enforce `None`.
     """
+
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 
     if command_args is None:
         command_args = []
 
-    if help or command == subc.HELP.value or subc.HELP.value in command_args:
-        if command and command != subc.HELP.value:
+    if (
+        help
+        or command in subc.HELP[0]
+        or any([h in command_args for h in subc.HELP[0]])
+    ):
+        if command and command not in subc.HELP[0]:
             print_command_op_stage_info(command)
         elif command_args:
             print_command_op_stage_info(command_args[0])
         else:
             print(ctx.get_help())
-    elif command == subc.LIST.value:
-        print_commands_ops_stages_list(verbose)
+    elif command in subc.WIZARD[0] or any([w in command_args for w in subc.WIZARD[0]]):
+        from pipelime.cli.wizard import Wizard
+
+        if command and command not in subc.WIZARD[0]:
+            Wizard.model_cfg_wizard(command)
+        Wizard.model_cfg_wizard(command_args[0])
+    elif command in subc.LIST[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=True, show_ops=True, show_stages=True
+        )
+    elif command in subc.LIST_CMDS[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=True, show_ops=False, show_stages=False
+        )
+    elif command in subc.LIST_OPS[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=False, show_ops=True, show_stages=False
+        )
+    elif command in subc.LIST_STGS[0]:
+        print_commands_ops_stages_list(
+            verbose, show_cmds=False, show_ops=False, show_stages=True
+        )
     elif command:
         from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
@@ -456,19 +485,19 @@ def pl_main(  # noqa: C901
             data=base_ctx, cwd=Path.cwd() if context is None else context.parent
         )
 
-        if command == subc.AUDIT.value:
+        if command in subc.AUDIT[0]:
             from dataclasses import fields
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
-            print_info("\n\U0001F4C4 CONFIGURATION AUDIT\n")
+            print_info("\n📄 CONFIGURATION AUDIT\n")
             inspect_info = base_cfg.inspect()
             for field in fields(inspect_info):
                 value = getattr(inspect_info, field.name)
-                print_info(f"\U0001F50D {field.name}:")
+                print_info(f"🔍 {field.name}:")
                 if value or isinstance(value, bool):
                     print_info(value, pretty=True)
 
-            print_info("\n\U0001F4C4 CONTEXT AUDIT\n")
+            print_info("\n📄 CONTEXT AUDIT\n")
             print_info(base_ctx.to_dict(), pretty=True)
             print_info("")
 
@@ -478,7 +507,7 @@ def pl_main(  # noqa: C901
                 )
             except ChoixeProcessingError as e:
                 from rich.prompt import Prompt, Confirm
-                import yaml
+                from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
                 if not Confirm.ask(
@@ -487,22 +516,8 @@ def pl_main(  # noqa: C901
                     print_error(f"Invalid configuration! {e}")
                     raise typer.Exit(1)
 
-                print_info("\n\U0001F4DD Please enter a value for each variable")
-
-                new_ctx = XConfig()
-                for var, val in inspect_info.variables.items():
-                    default_value = base_ctx.deep_get(var, default=...)
-                    if default_value == ...:
-                        if val is not None:
-                            default_value = str(val)
-                    else:
-                        default_value = str(default_value)
-                    val = Prompt.ask(f"{var}", default=default_value)
-                    new_ctx.deep_set(var, val, only_valid_keys=False)
-
-                print_info("\n\u2728 CONTEXT YAML")
-                print_info("---")
-                print_info(yaml.safe_dump(new_ctx.decode()))
+                print_info("\n📝 Please enter a value for each variable")
+                new_ctx = Wizard.context_wizard(inspect_info.variables, base_ctx)
 
                 print_info("Processing configuration and context...", end="")
                 effective_configs = _process_cfg_or_die(
@@ -510,13 +525,13 @@ def pl_main(  # noqa: C901
                 )
                 print_info(" OK")
 
-                outfile = Prompt.ask("\n\U0001F4BE Write to (leave empty to not skip)")
+                outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
                 if outfile:
                     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 
             pls = "s" if len(effective_configs) != 1 else ""
             print_info(
-                "\U0001F389 Configuration successfully processed "
+                "🎉 Configuration successfully processed "
                 f"({len(effective_configs)} variant{pls})."
             )
             raise typer.Exit(0)
@@ -552,7 +567,7 @@ def pl_main(  # noqa: C901
                 cfg_dict = cfg.to_dict()
                 cmd_name = command
 
-                if cmd_name == subc.EXEC.value:
+                if cmd_name in subc.EXEC[0]:
                     if len(cfg_dict) == 0:
                         print_error("No command specified.")
                         raise typer.Exit(1)

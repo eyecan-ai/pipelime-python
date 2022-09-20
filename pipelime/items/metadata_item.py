@@ -56,7 +56,7 @@ class YamlMetadataItem(MetadataItem):
 
     @classmethod
     def encode(cls, value: _metadata_type, fp: t.BinaryIO):
-        yaml.safe_dump(value, TextIOWrapper(fp))
+        yaml.safe_dump(value, TextIOWrapper(fp), sort_keys=False)
 
 
 class TomlMetadataItem(MetadataItem):

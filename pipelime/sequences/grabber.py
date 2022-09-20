@@ -13,7 +13,7 @@ class ReturnType(Enum):
     SAMPLE_AND_INDEX = auto()
 
 
-class Grabber(pyd.BaseModel, extra="forbid"):
+class Grabber(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     num_workers: int = pyd.Field(
         0,
         description=(

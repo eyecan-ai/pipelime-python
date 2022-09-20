@@ -8,7 +8,7 @@ from pipelime.items import Item
 
 
 class SamplePathRegex:
-    KEY_PATH_REGEX = re.compile(r"(?<!\\)(?:\\\\)*\.|(\[\d+\])")
+    KEY_PATH_REGEX = re.compile(r"(?<!\\)(?:\\\\)*\.|(\[\d+\])")  # noqa: W605
 
     @classmethod
     def split(cls, key_path: str) -> t.Tuple[str, str]:

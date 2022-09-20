@@ -47,7 +47,7 @@ class ImageItem(NumpyItem):
             [
                 "".join(
                     [
-                        f"[rgb({_get_color_str(value[v, u])})]\u2588[/]"
+                        f"[rgb({_get_color_str(value[v, u])})]█[/]"
                         for u in range(value.shape[1])
                     ]
                 )

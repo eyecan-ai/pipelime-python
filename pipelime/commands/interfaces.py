@@ -5,6 +5,8 @@ from urllib.parse import ParseResult
 
 import pydantic as pyd
 
+from pipelime.utils.pydantic_types import ItemType
+
 
 class PydanticFieldMixinBase:
     # override in derived clasess
@@ -13,6 +15,8 @@ class PydanticFieldMixinBase:
 
     @classmethod
     def _description(cls, user_desc: t.Optional[str]) -> t.Optional[str]:
+        from pipelime.cli.pretty_print import _short_line
+
         desc_list = []
         if user_desc is None:
             user_desc = cls._default_type_description
@@ -21,7 +25,7 @@ class PydanticFieldMixinBase:
             elif cls._compact_form is None:
                 return None
         if cls._compact_form is not None:
-            desc_list.append(f"-----Compact form: `{cls._compact_form}`")
+            desc_list.append(f"{_short_line()} Compact form: `{cls._compact_form}`")
         return "\n".join(desc_list)
 
 
@@ -48,7 +52,33 @@ class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
 
 
 class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
-    """Multiprocessing grabbing options."""
+    """Multiprocessing grabbing options.
+
+    Examples:
+        How to use it in your command::
+
+            class EasyCommand(PipelimeCommand, title="easy"):
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
+                    alias="i", piper_port=PiperPortType.INPUT
+                )
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
+                        alias="o", piper_port=PiperPortType.OUTPUT
+                )
+                grabber: GrabberInterface = GrabberInterface.pyd_field(
+                    alias="g"
+                )
+
+                def run(self):
+                    seq = self.input.create_reader()
+                    seq = self.output.append_writer(seq)
+                    self.grabber.grab_all(
+                        seq,
+                        grab_context_manager=self.output.serialization_cm(),
+                        keep_order=False,
+                        parent_cmd=self,
+                        track_message=f"Executing ({len(seq)} samples)",
+                    )
+    """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "Grabber options."
     _compact_form: t.ClassVar[t.Optional[str]] = "<num_workers>[,<prefetch>]"
@@ -102,8 +132,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         """Runs the grabber on a sequence.
         NB: `sample_fn` always runs on the main process and may take just the sample
         or the sample and its index.
-        NB: `grab_context_manager.__enter__` will be used as `worker_init_fn`, please
-        use `GrabberInterface.grab_all_ext` if you want to specify your `worker_init_fn`
+        NB: `grab_context_manager.__enter__` will be used as `worker_init_fn`,
+        please use `GrabberInterface.grab_all_wrk_init` if you want to specify
+        your `worker_init_fn`.
 
         Args:
             sequence: the sequence to grab, usually a SamplesSequence.
@@ -125,7 +156,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         """
         from copy import deepcopy
 
-        return self.grab_all_ext(
+        return self.grab_all_wrk_init(
             sequence=sequence,
             keep_order=keep_order,
             parent_cmd=parent_cmd,
@@ -138,7 +169,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             else deepcopy(grab_context_manager).__enter__,
         )
 
-    def grab_all_ext(
+    def grab_all_wrk_init(
         self,
         sequence,
         *,
@@ -202,10 +233,12 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         )
 
 
-class ItemValidationModel(pyd.BaseModel, extra="forbid"):
+class ItemValidationModel(
+    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
+):
     """Item schema validation."""
 
-    class_path: str = pyd.Field(
+    class_path: ItemType = pyd.Field(
         ...,
         description=(
             "The item class path. The default package `pipelime.item` can be omitted"
@@ -224,22 +257,12 @@ class ItemValidationModel(pyd.BaseModel, extra="forbid"):
         alias="validator",
     )
 
-    _item_cls = pyd.PrivateAttr()
     _validator_callable = pyd.PrivateAttr()
 
     def __init__(self, **data):
         from pipelime.choixe.utils.imports import import_symbol
-        from pipelime.items import Item
 
         super().__init__(**data)
-
-        self._item_cls = import_symbol(
-            self.class_path
-            if "." in self.class_path
-            else f"pipelime.items.{self.class_path}"
-        )
-        if not issubclass(self._item_cls, Item):
-            raise ValueError("Item classes must inherit from `pipelime.items.Item`.")
 
         def _identity(v):
             return v
@@ -250,8 +273,8 @@ class ItemValidationModel(pyd.BaseModel, extra="forbid"):
 
     def make_field(self, key_name: str):
         return (
-            self._item_cls,
-            pyd.Field(default_factory=self._item_cls, alias=key_name)
+            self.class_path.itype,
+            pyd.Field(default_factory=self.class_path.itype, alias=key_name)
             if self.is_optional
             else pyd.Field(..., alias=key_name),
         )
@@ -284,7 +307,9 @@ class ItemValidationModel(pyd.BaseModel, extra="forbid"):
         return pyd.validator(field_name)(fn_helper)
 
 
-class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
+class SampleValidationInterface(
+    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
+):
     """Sample schema validation."""
 
     sample_schema: t.Union[str, t.Mapping[str, ItemValidationModel]] = pyd.Field(
@@ -372,10 +397,41 @@ class SampleValidationInterface(pyd.BaseModel, extra="forbid"):
         }
 
 
-class InputDatasetInterface(PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="forbid"):
-    """Input dataset options."""
+class InputDatasetInterface(
+    PydanticFieldNoDefaultMixin,
+    pyd.BaseModel,
+    extra="forbid",
+    copy_on_model_validation="none",
+):
+    """Input dataset options.
 
-    _default_type_description: t.ClassVar[t.Optional[str]] = "Input dataset."
+    Examples:
+        How to use it in your command::
+
+            class EasyCommand(PipelimeCommand, title="easy"):
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
+                    alias="i", piper_port=PiperPortType.INPUT
+                )
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
+                        alias="o", piper_port=PiperPortType.OUTPUT
+                )
+                grabber: GrabberInterface = GrabberInterface.pyd_field(
+                    alias="g"
+                )
+
+                def run(self):
+                    seq = self.input.create_reader()
+                    seq = self.output.append_writer(seq)
+                    self.grabber.grab_all(
+                        seq,
+                        grab_context_manager=self.output.serialization_cm(),
+                        keep_order=False,
+                        parent_cmd=self,
+                        track_message=f"Executing ({len(seq)} samples)",
+                    )
+    """
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "The input dataset."
     _compact_form: t.ClassVar[t.Optional[str]] = "<folder>[,<skip_empty>]"
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
@@ -442,7 +498,10 @@ class InputDatasetInterface(PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="f
 
 
 class SerializationModeInterface(
-    pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True
+    pyd.BaseModel,
+    extra="forbid",
+    copy_on_model_validation="none",
+    underscore_attrs_are_private=True,
 ):
     """Serialization modes for items and keys."""
 
@@ -511,11 +570,40 @@ class SerializationModeInterface(
 
 
 class OutputDatasetInterface(
-    PydanticFieldNoDefaultMixin, pyd.BaseModel, extra="forbid"
+    PydanticFieldNoDefaultMixin,
+    pyd.BaseModel,
+    extra="forbid",
+    copy_on_model_validation="none",
 ):
-    """Output dataset options."""
+    """Output dataset options.
 
-    _default_type_description: t.ClassVar[t.Optional[str]] = "Output dataset."
+    Examples:
+        How to use it in your command::
+
+            class EasyCommand(PipelimeCommand, title="easy"):
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
+                    alias="i", piper_port=PiperPortType.INPUT
+                )
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
+                        alias="o", piper_port=PiperPortType.OUTPUT
+                )
+                grabber: GrabberInterface = GrabberInterface.pyd_field(
+                    alias="g"
+                )
+
+                def run(self):
+                    seq = self.input.create_reader()
+                    seq = self.output.append_writer(seq)
+                    self.grabber.grab_all(
+                        seq,
+                        grab_context_manager=self.output.serialization_cm(),
+                        keep_order=False,
+                        parent_cmd=self,
+                        track_message=f"Executing ({len(seq)} samples)",
+                    )
+    """
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "The output dataset."
     _compact_form: t.ClassVar[
         t.Optional[str]
     ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
@@ -602,7 +690,12 @@ class OutputDatasetInterface(
         return self.folder.as_posix()
 
 
-class UrlDataModel(pyd.BaseModel, extra="forbid", underscore_attrs_are_private=True):
+class UrlDataModel(
+    pyd.BaseModel,
+    extra="forbid",
+    copy_on_model_validation="none",
+    underscore_attrs_are_private=True,
+):
     """URL data model."""
 
     scheme: str = pyd.Field(..., description="The addressing scheme, eg, `s3`.")
@@ -635,6 +728,7 @@ class RemoteInterface(
     PydanticFieldNoDefaultMixin,
     pyd.BaseModel,
     extra="forbid",
+    copy_on_model_validation="none",
     underscore_attrs_are_private=True,
 ):
     """Remote data lake options."""
@@ -682,7 +776,9 @@ class RemoteInterface(
         return self._parsed_url
 
 
-class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
+class ToyDatasetInterface(
+    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
+):
     """Toy dataset creation options."""
 
     length: int = pyd.Field(..., description="The number of samples to generate.")
@@ -740,76 +836,3 @@ class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
             max_labels=self.max_labels,
             objects_range=self.objects_range,
         )
-
-
-yaml_any_type = t.Union[None, str, int, float, bool, t.Mapping[str, t.Any], t.Sequence]
-
-
-class YamlInput(pyd.BaseModel, extra="forbid"):
-    """General yaml/json data (str, number, mapping, list...) optionally loaded from
-    a yaml/json file, possibly with key path (format <filepath>[:<key>])."""
-
-    __root__: yaml_any_type
-
-    @property
-    def value(self):
-        return self.__root__
-
-    def __str__(self) -> str:
-        return str(self.__root__)
-
-    def __repr__(self) -> str:
-        return self.__piper_repr__()
-
-    def __piper_repr__(self) -> str:
-        return repr(self.__root__)
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, YamlInput):
-            return value
-        if isinstance(value, (str, bytes)):
-            value = str(value)
-            filepath, _, root_key = (
-                value.rpartition(":") if ":" in value else (value, None, None)
-            )
-            filepath = Path(filepath)
-            if filepath.exists():
-                import yaml
-                import pydash as py_
-
-                with filepath.open() as f:
-                    value = yaml.safe_load(f)
-                    if root_key is not None:
-                        value = py_.get(value, root_key, default=None)
-            return YamlInput(__root__=value)  # type: ignore
-        if cls._check_any_type(value):
-            return YamlInput(__root__=value)
-        raise ValueError(f"Invalid yaml data input: {value}")
-
-    # @classmethod
-    # def _check_mapping(cls, value):
-    #     for k, v in value.items():
-    #         if not isinstance(k, str):
-    #             return False
-    #         if not cls._check_any_type(v):
-    #             return False
-    #     return True
-    #
-    # @classmethod
-    # def _check_sequence(cls, value):
-    #     for v in value:
-    #         if not cls._check_any_type(v):
-    #             return False
-    #     return True
-
-    @classmethod
-    def _check_any_type(cls, value):
-        if isinstance(value, (str, int, float, bool, t.Sequence)) or value is None:
-            return True
-        if isinstance(value, t.Mapping):
-            return all(isinstance(k, str) for k in value)

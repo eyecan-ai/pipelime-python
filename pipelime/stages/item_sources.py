@@ -7,6 +7,9 @@ import pydantic as pyd
 from pipelime.items import Item
 from pipelime.stages import SampleStage
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
+
 
 class StageUploadToRemote(SampleStage, title="remote-upload"):
     """Uploads the sample to one or more remote servers."""
@@ -22,7 +25,7 @@ class StageUploadToRemote(SampleStage, title="remote-upload"):
     def unique_remotes(cls, v):
         return tuple(set(v))
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         for k, v in x.items():
             if not self.keys_to_upload or k in self.keys_to_upload:
                 v.serialize(*self.remotes)  # type: ignore
@@ -55,7 +58,7 @@ class StageForgetSource(SampleStage, title="forget-source"):
             always_remove=always_remove, remove_by_key=remove_by_key  # type: ignore
         )
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         from pipelime.sequences import Sample
 
         new_data: t.Dict[str, Item] = {}
