@@ -11,6 +11,7 @@ class SplitBase(
     pyd.BaseModel,
     allow_population_by_field_name=True,
     extra="forbid",
+    copy_on_model_validation="none",
 ):
     output: t.Optional[
         pl_interfaces.OutputDatasetInterface
@@ -24,7 +25,7 @@ class SplitBase(
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return "" if self.output is None else str(self.output.folder)
+        return "" if self.output is None else self.output.__piper_repr__()
 
 
 class PercSplit(SplitBase):

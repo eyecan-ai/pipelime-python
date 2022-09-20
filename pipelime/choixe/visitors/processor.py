@@ -235,7 +235,7 @@ class Processor(ast.NodeVisitor):
         name = self._tmp_name if node.name is None else node.name.data
         path = Path(tempfile.gettempdir()) / name
         path.parent.mkdir(exist_ok=True, parents=True)
-        return [str(path)]
+        return [path.as_posix()]
 
 
 def process(

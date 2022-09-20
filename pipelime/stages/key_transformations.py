@@ -4,8 +4,13 @@ import pydantic as pyd
 
 from pipelime.stages import SampleStage
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
+
 
 class StageDuplicateKey(SampleStage, title="duplicate-key"):
+    """Duplicate an item."""
+
     source_key: str = pyd.Field(..., description="The key to duplicate.")
     copy_to: str = pyd.Field(
         ...,
@@ -15,11 +20,13 @@ class StageDuplicateKey(SampleStage, title="duplicate-key"):
         ),
     )
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         return x.duplicate_key(self.source_key, self.copy_to)
 
 
 class StageKeyFormat(SampleStage, title="format-key"):
+    """Changes key names following a format string."""
+
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -43,7 +50,7 @@ class StageKeyFormat(SampleStage, title="format-key"):
             return v
         return "*" + v
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         keys = list(x.keys())
         for k in keys:
             x = x.rename_key(k, self.key_format.replace("*", k))
@@ -62,7 +69,7 @@ class StageRemap(SampleStage, title="remap-key"):
         "in the output sample before name remapping",
     )
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         if self.remove_missing:
             x = x.extract_keys(*self.remap.keys())
         for kold, knew in self.remap.items():
@@ -71,7 +78,7 @@ class StageRemap(SampleStage, title="remap-key"):
 
 
 class StageKeysFilter(SampleStage, title="filter-keys"):
-    """Filter sample keys."""
+    """Filters sample keys."""
 
     key_list: t.Sequence[str] = pyd.Field(..., description="List of keys to preserve.")
     negate: bool = pyd.Field(
@@ -81,7 +88,7 @@ class StageKeysFilter(SampleStage, title="filter-keys"):
         ),
     )
 
-    def __call__(self, x: "Sample") -> "Sample":  # type: ignore # noqa: 0602
+    def __call__(self, x: "Sample") -> "Sample":
         return (
             x.remove_keys(*self.key_list)
             if self.negate

@@ -9,6 +9,7 @@ from pipelime.items.base import (
     disable_item_data_cache,
     enable_item_data_cache,
     no_data_cache,
+    data_cache,
 )
 
 # import and register all items

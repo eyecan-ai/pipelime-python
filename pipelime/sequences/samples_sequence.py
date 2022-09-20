@@ -53,8 +53,8 @@ class SamplesSequence(
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`.
 
-    The list of all available pipes and sources, along with respective pydantic models,
-    can be retrieved through `pipelime list --details`.
+    The list of all available pipes and sources can be retrieved
+    through `pipelime list-ops`.
 
     NB: when defining a pipe, the `source` sample sequence must be bound to a pydantic
     Field with `pipe_source=True`.
@@ -118,16 +118,57 @@ class SamplesSequence(
             return zip(*src_iters)
         return itertools.zip_longest(*src_iters, fillvalue=fill)
 
+    def apply(
+        self,
+        *,
+        num_workers: int = 0,
+        prefetch: int = 2,
+        track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
+    ):
+        """Goes through all the samples of the sequence, optionally using multiple
+        processes and returns a new sequence holding the processed samples.
+        Also, a `track_fn` can be defined, eg, to show the progress.
+
+        :param num_workers: The number of processes to spawn. If negative,
+            the number of (logical) cpu cores is used, defaults to 0
+        :type num_workers: int, optional
+        :param prefetch: The number of samples loaded in advanced by each worker,
+            defaults to 2
+        :type prefetch: int, optional
+        :param sample_fn: a callable to run on each sample, defaults to None
+        :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
+        :param track_fn: a callable to track the progress, defaults to None
+        :type track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]], optional
+        """
+        samples: t.List[Sample] = []
+
+        def _store_sample(x: Sample, idx: int):
+            if len(samples) <= idx:
+                samples.extend([Sample() for _ in range(idx - len(samples) + 1)])
+            samples[idx] = x
+
+        self.run(
+            num_workers=num_workers,
+            prefetch=prefetch,
+            keep_order=False,
+            sample_fn=_store_sample,
+            track_fn=track_fn,
+        )
+
+        return SamplesSequence.from_list(samples)
+
     def run(
         self,
         *,
         num_workers: int = 0,
         prefetch: int = 2,
         keep_order: bool = False,
-        sample_fn: t.Optional[t.Callable[[Sample], None]] = None,
+        sample_fn: t.Union[
+            t.Callable[[Sample], None], t.Callable[[Sample, int], None], None
+        ] = None,
         track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
     ):
-        """Go through all the samples of the sequence, optionally using multiple
+        """Goes through all the samples of the sequence, optionally using multiple
         processes and applying `sample_fn` to each sample. Also, a `track_fn` can be
         defined, eg, to show the progress.
 
@@ -159,7 +200,7 @@ class SamplesSequence(
         `pipelime.sequences.build_pipe` to reconstruct the sequence.
         NB: nested sequences are recursively serialized only if `recursive` is True,
         while other objects are not. Consider to use `pipelime.choixe` features to
-        fully (de)-serialized them to YAML/JSON.
+        fully (de)-serialized them to yaml/json.
 
         :param recursive: if True nested sequences are recursively serialized,
             defaults to True.
@@ -196,12 +237,17 @@ class SamplesSequence(
                     elif isinstance(field_value, pyd.BaseModel):
                         field_value = field_value.dict()
                 arg_dict[field_alias] = (
-                    field_value
+                    (
+                        list(field_value)
+                        if isinstance(field_value, tuple)
+                        else field_value
+                    )
                     if not objs_to_str
                     or isinstance(
                         field_value,
                         (str, bytes, int, float, bool, t.Mapping, t.Sequence),
                     )
+                    or field_value is None
                     else str(field_value)
                 )
         return source_list + [{self._operator_path: arg_dict}]
@@ -331,7 +377,7 @@ class SamplesSequence(
         self,
         *,
         idx_key: str = "~idx",
-        item_cls_path: str = "pipelime.items.TxtNumpyItem",
+        item_cls: str = "pipelime.items.TxtNumpyItem",
     ) -> SamplesSequence:
         """Add a new index item to each Sample in the input SamplesSequence.
         Run `pipelime help enumerate` to read the complete documentation.
@@ -353,6 +399,18 @@ class SamplesSequence(
         """Cache the input Samples the first time they are accessed.
         Run `pipelime help cache` to read the complete documentation.
         """
+        ...
+
+    def data_cache(
+        self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
+    ) -> SamplesSequence:
+        """Enables item data caching on previous pipeline steps."""
+        ...
+
+    def no_data_cache(
+        self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
+    ) -> SamplesSequence:
+        """Disables item data caching on previous pipeline steps."""
         ...
 
     def to_underfolder(
@@ -396,7 +454,13 @@ def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     if cls.__module__.startswith("pipelime"):
         cls._operator_path = cls.name()
     else:
-        module_path = Path(inspect.getfile(cls)).resolve().as_posix()
+        try:
+            source_path = inspect.getfile(cls)
+            module_path = Path(source_path).resolve().as_posix()
+        except TypeError:
+            # this happens when the class does not come from a file
+            module_path = "__main__"
+
         if (cls.__module__.replace(".", "/") + ".py") in module_path:
             module_path = cls.__module__
         cls._operator_path = module_path + ":" + cls.name()

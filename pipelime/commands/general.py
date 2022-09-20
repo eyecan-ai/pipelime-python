@@ -3,6 +3,7 @@ import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
+import pipelime.utils.pydantic_types as pl_types
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -37,11 +38,11 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
     )
 
-    operations: t.Optional[pl_interfaces.YamlInput] = pyd.Field(
+    operations: t.Optional[pl_types.YamlInput] = pyd.Field(
         None,
         alias="op",
         description=(
-            "An optional pipeline to run or a path to a YAML/JSON file as "
+            "An optional pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]\n"
             "The pipeline is defined as a mapping or a sequence of mappings where "
             "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
@@ -120,11 +121,11 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
 class PipeCommand(PipelimeCommand, title="pipe"):
     """A general-purpose command to build up linear pipelines."""
 
-    operations: pl_interfaces.YamlInput = pyd.Field(
+    operations: pl_types.YamlInput = pyd.Field(
         ...,
         alias="op",
         description=(
-            "The pipeline to run or a path to a YAML/JSON file as "
+            "The pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]\n"
             "The pipeline is defined as a mapping or a sequence of mappings where "
             "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
@@ -453,7 +454,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
         None,
-        description="YAML/JSON schema definition",
+        description="yaml/json schema definition",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
@@ -519,6 +520,7 @@ class MapCommand(PipelimeCommand, title="map"):
 
     stage: t.Union[str, t.Mapping[str, t.Mapping[str, t.Any]]] = pyd.Field(
         ...,
+        alias="s",
         description=(
             "A stage to apply. Can be a stage name/class_path (with no arguments) or "
             "a dictionary with the stage name/class_path as key and the arguments "

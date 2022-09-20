@@ -78,7 +78,7 @@ when one of them succeeds:
 1. *new file* (`CREATE_NEW_FILE`): a new file is created by serializing the item value
 
 Moreover, a *soft link* (`SYM_LINK`) option can be tried instead of *remote file* and
-*hard link*, but only if **explicitly requested** (see below).
+*hard link*, but only if **explicitly requested**.
 
 To alter this behavior, you can set the `serialization` option so as to override,
 disable or force the desired mode, eg:

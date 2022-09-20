@@ -6,7 +6,7 @@ from pipelime.piper.progress.listener.callbacks.rich_table import (
 
 
 class ProgressReceiverFactory:
-    """Factory for `ProgressReceiver`s"""
+    """Factory for ``ProgressReceiver`` s"""
 
     DEFAULT_RECEIVER_TYPE = "ZMQ"
 
@@ -22,7 +22,7 @@ class ProgressReceiverFactory:
 
 
 class ListenerCallbackFactory:
-    """Factory for `ListenerCallback`s"""
+    """Factory for ``ListenerCallback`` s"""
 
     DEFAULT_CALLBACK_TYPE = "RICH_TABLE"
 
