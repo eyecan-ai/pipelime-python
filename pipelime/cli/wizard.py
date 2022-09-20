@@ -285,8 +285,6 @@ def _get_pipelime_object(value: str, prefix: ColoredPath):
 
 
 def _decode_value(value, prefix: ColoredPath):
-    from pipelime.choixe.utils.imports import import_symbol
-
     value = value.strip()
     if len(value) > 1 and value[0] in ("'", '"') and value[-1] == value[0]:
         return value[1:-1]
