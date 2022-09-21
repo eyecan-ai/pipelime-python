@@ -245,7 +245,10 @@ class ConcatCommand(PipelimeCommand, title="cat"):
 
 
 class AddRemoteCommand(PipelimeCommand, title="remote-add"):
-    """Upload samples to one or more remotes."""
+    """Upload samples to one or more remotes.
+    Slicing options filter the samples to upload,
+    but the whole dataset is always written out.
+    """
 
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
@@ -261,6 +264,16 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
         default_factory=list,
         alias="k",
         description="Keys to upload. Leave empty to upload all the keys.",
+    )
+
+    start: t.Optional[int] = pyd.Field(
+        None, description="The first sample (included), defaults to the first element."
+    )
+    stop: t.Optional[int] = pyd.Field(
+        None, description="The last sample (excluded), defaults to the whole sequence."
+    )
+    step: t.Optional[int] = pyd.Field(
+        None, description="The slice step, defaults to 1."
     )
 
     output: t.Optional[
@@ -285,19 +298,28 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     def run(self):
         from pipelime.stages import StageUploadToRemote
 
-        seq = self.input.create_reader().map(
+        original = self.input.create_reader()
+        seq = original.slice(start=self.start, stop=self.stop, step=self.step).map(
             StageUploadToRemote(
                 remotes=[r.get_url() for r in self.remotes],  # type: ignore
                 keys_to_upload=self.keys,
             )
         )
 
-        if self.output is not None:
-            self._grab_all(
-                self.output.append_writer(seq), self.output.serialization_cm()
-            )
-        else:
+        if self.output is None:
             self._grab_all(seq, None)
+        else:
+            # NB: we should always write the whole dataset,
+            # even if we are uploading only a slice
+            if self.start is None and self.stop is None and self.step is None:
+                self._grab_all(
+                    self.output.append_writer(seq), self.output.serialization_cm()
+                )
+            else:
+                self._grab_all(seq, None)
+                self._grab_all(
+                    self.output.append_writer(original), self.output.serialization_cm()
+                )
 
     def _grab_all(self, seq, sm):
         self.grabber.grab_all(
@@ -455,7 +477,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
         None,
-        description="yaml/json schema definition",
+        description="yaml schema definition",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,

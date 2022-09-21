@@ -6,13 +6,13 @@ In this tutorial we will se how to interact with sample sequences and samples, t
 
 ## Relevant Modules
 
-`SampleSequence` and `Sample` are defined in the `pipelime.sequences` subpackage.
+`SamplesSequence` and `Sample` are defined in the `pipelime.sequences` subpackage.
 If you want to import everything, we suggest to alias it as `pls`.
 We suggest to also import `pipelime.items` aliased as `pli`.
 Here you will find all built-in item specializations and some useful lower-level utilities.
 
 ```python
-from pipelime.sequences import SampleSequence
+from pipelime.sequences import SamplesSequence
 import pipelime.items as pli
 ```
 
@@ -32,7 +32,11 @@ The `seq` object works like a python `Sequence`, you can get its length:
 
 ```python
 print(len(seq))
-# >>> 20
+```
+
+```bash
+>>>
+20
 ```
 
 Or you can get individual samples by subscripting it:
@@ -47,7 +51,11 @@ You can also **slice** it, obtaining a view of a subset of the samples:
 ```python
 subseq = seq[4:10:2]
 print(len(subseq))
-# >>> 3
+```
+
+```bash
+>>>
+3
 ```
 
 Here, `subseq` is another sample sequence with only samples 4, 6 and 8.
@@ -56,10 +64,20 @@ We can also take a peek inside individual samples, which behave like python `Map
 
 ```python
 print(len(sample_7))
-# >>> 8
+```
 
+```bash
+>>>
+8
+```
+
+```
 print(list(sample_7.keys()))
-# >>> ['common', 'numbers', 'label', 'maskinv', 'metadata', 'points', 'mask', 'image']
+```
+
+```bash
+>>>
+['common', 'numbers', 'label', 'maskinv', 'metadata', 'points', 'mask', 'image']
 ```
 
 As you may notice, the keys of `sample_7` match the names of the files inside `datasets/mini_mnist/data`, with the only exception of "common" and "numbers", which are "shared items", i.e. items that are shared across all samples and stored in files outside the `data` subfolder to avoid unnecessary redundancy.
@@ -69,14 +87,18 @@ We can access individual items by subscripting the sample object:
 ```python
 image_item = sample_7["image"]
 print(image_item)
-# >>> JpegImageItem:
-#       data: None
-#       sources:
-#           - datasets/mini_mnist/data/000007_image.jpg
-#       remotes:
-#       shared: False
-#       cache: True
-#       serialization: None
+```
+
+```bash
+>>>
+JpegImageItem:
+  data: None
+  sources:
+      - datasets/mini_mnist/data/000007_image.jpg
+  remotes:
+  shared: False
+  cache: True
+  serialization: None
 ```
 
 Note that you can easily get a *rich* printing as well:
@@ -96,7 +118,11 @@ To do so, we need to explicitly tell pipelime to get the data, by **calling** th
 ```python
 image = image_item()
 print(type(image), image.shape)
-# >>> <class 'numpy.ndarray'> (28, 28, 3)
+```
+
+```bash
+>>>
+<class 'numpy.ndarray'> (28, 28, 3)
 ```
 
 After the data has been loaded, it gets cached inside the item object: consecutive calls to `image_item` will simply return the cached data. If you wish to disable this behavior, you have two options:
@@ -138,7 +164,7 @@ We assume you already have a sequence from the previous example. If so, start by
 even_samples = seq[::2]
 ```
 
-Then, we need to modify the remaining samples individually, thus we iterate over the `even_samples` in a for loop. Before doing that, since the `SampleSequence` is an immutable object, we need to initialize a new list that will contain the new samples.
+Then, we need to modify the remaining samples individually, thus we iterate over the `even_samples` in a for loop. Before doing that, since the `SamplesSequence` is an immutable object, we need to initialize a new list that will contain the new samples.
 
 ```python
 # Initialize an empty list of samples

@@ -45,7 +45,7 @@ class S3Remote(BaseRemote):
                 access_key=netloc_data.user,
                 secret_key=netloc_data.password,
                 session_token=netloc_data.init_args.get("session", None),
-                secure=netloc_data.init_args.get("secure", True),
+                secure=netloc_data.init_args.get("secure", True),  # type: ignore
                 region=netloc_data.init_args.get("region", None),
                 credentials=ChainedProvider(
                     [

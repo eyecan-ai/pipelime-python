@@ -42,7 +42,7 @@ limiting the search to specific modules with `-m`. For example:
 $ pipelime list-stg
 ```
 
-```
+```bash
 >>>
 ━━━━━ Sample Stages
 albumentations pipelime.stages.augmentations.StageAlbumentations     Sample augmentation via Albumentations.
@@ -71,7 +71,7 @@ To get help on a specific command, operator or stage, just type `help`:
 $ pipelime help filter-keys
 ```
 
-```
+```bash
 >>>
 ━━━━━ Sample Stage
                                                 filter-keys
@@ -150,51 +150,53 @@ If you run `pipelime help` on a command, you often see the options in a tree-lik
 
 ```bash
 $ pipelime help clone
-# >>>
-# ━━━━━ Pipelime Command
-#                                                     clone
-#                         (*, i: pipelime.commands.interfaces.InputDatasetInterface, o:
-# pipelime.commands.interfaces.OutputDatasetInterface, g: pipelime.commands.interfaces.GrabberInterface = None)
-#                 Clone a dataset. You can use this command to create a local copy of a dataset
-#               hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option.
-#
-#   Fields                  Description            Type                    Piper Port     Default
-#  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#   input / i               ▶ The input dataset.                           📥 INPUT       ✗
-#                           ━━━━━ Compact form:
-#                           `<folder>[,<skip_emp
-#                           ty>]`
-#     folder                ▶ Dataset root         Path                    📐 PARAMETER   ✗
-#                           folder.
-#     merge_root_items      ▶ Adds root items as   bool                    📐 PARAMETER   True
-#                           shared items to each
-#                           sample (sample
-#                           values take
-#                           precedence).
-# ...
-#   output / o              ▶ The output                                   📦 OUTPUT      ✗
-#                           dataset.
-#                           ━━━━━ Compact form:
-#                           `<folder>[,<exists_o
-#                           k>[,<force_new_files
-#                           >]]`
-#     folder                ▶ Dataset root         Path                    📐 PARAMETER   ✗
-#                           folder.
-# ...
-#     serialization         ▶ Serialization                                📐 PARAMETER   override={}
-#                           modes for items and                                           disable={} keys={}
-#                           keys.
-#       override            ▶ Serialization        Mapping[str,            📐 PARAMETER   {}
-#                           modes overridden for   Union[str,
-#                           specific item types,   Sequence[str],
-#                           eg,                    NoneType]]
-#                           `{CREATE_NEW_FILE:
-#                           [ImageItem,
-#                           my.package.MyItem,
-#                           my/module.py:OtherIt
-#                           em]}`. A Null value
-#                           applies to all
-#                           items.
+```
+
+```bash
+>>>
+━━━━━ Pipelime Command
+                                                    clone
+                        (*, i: pipelime.commands.interfaces.InputDatasetInterface, o:
+pipelime.commands.interfaces.OutputDatasetInterface, g: pipelime.commands.interfaces.GrabberInterface = None)
+                Clone a dataset. You can use this command to create a local copy of a dataset
+              hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option.
+  Fields                  Description            Type                    Piper Port     Default
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  input / i               ▶ The input dataset.                           📥 INPUT       ✗
+                          ━━━━━ Compact form:
+                          `<folder>[,<skip_emp
+                          ty>]`
+    folder                ▶ Dataset root         Path                    📐 PARAMETER   ✗
+                          folder.
+    merge_root_items      ▶ Adds root items as   bool                    📐 PARAMETER   True
+                          shared items to each
+                          sample (sample
+                          values take
+                          precedence).
+...
+  output / o              ▶ The output                                   📦 OUTPUT      ✗
+                          dataset.
+                          ━━━━━ Compact form:
+                          `<folder>[,<exists_o
+                          k>[,<force_new_files
+                          >]]`
+    folder                ▶ Dataset root         Path                    📐 PARAMETER   ✗
+                          folder.
+...
+    serialization         ▶ Serialization                                📐 PARAMETER   override={}
+                          modes for items and                                           disable={} keys={}
+                          keys.
+      override            ▶ Serialization        Mapping[str,            📐 PARAMETER   {}
+                          modes overridden for   Union[str,
+                          specific item types,   Sequence[str],
+                          eg,                    NoneType]]
+                          `{CREATE_NEW_FILE:
+                          [ImageItem,
+                          my.package.MyItem,
+                          my/module.py:OtherIt
+                          em]}`. A Null value
+                          applies to all
+                          items.
 ```
 
 The same structure is what you should follow both when writing a configuration file and
