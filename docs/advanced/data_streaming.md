@@ -18,9 +18,9 @@ from pipelime.sequences import SamplesSequence, DataStream
 reader = SamplesSequence.from_underfolder("datasets/mini_mnist")
 outpipe = [
     "to_underfolder": {
-                "folder": "output",
-                "zfill": 6,
-                "exists_ok": False,
+        "folder": "output",
+        "zfill": 6,
+        "exists_ok": False,
     }
 ]
 stream = DataStream(input_sequence=reader, output_pipe=outpipe)
@@ -36,4 +36,33 @@ stream.set_output(new_idx, sample)
 
 ## Dynamically Updating An Existing Underfolder
 
+If the reader and the writer share the same folder, which may or may not exist, you can create the `DataStream` by calling the `read_write_underfolder` class method:
+
+```python
+from pipelime.sequences import DataStream
+
+stream = DataStream.read_write_underfolder(
+    "datasets/mini_mnist", must_exist=True, zfill=None
+)
+```
+
+Beside the path to the folder, the optional parameters include:
+- `must_exist`: if True, the folder must exist, otherwise an error is raised
+- `zfill`: if not None, must be an integer specifyng the number of digits to use for the sample index, otherwise the padding is taken from the length of the original sequence
+
+Note that the underlying reader has the `watch` option active, so that every time you ask for a sample, you get the last written sample.
+
 ## Writing Samples To A New Underfolder
+
+A very common use case is to gather data outputted by some algorithm and save it to a new underfolder dataset. Therefore, the target folder *must not* exist.
+The `create_new_underfolder` class method setups the `DataStream` for this use case and raise an error if the folder already exists:
+
+```python
+from pipelime.sequences import DataStream
+
+stream = DataStream.create_new_underfolder(
+    "datasets/mini_mnist", zfill=6
+)
+```
+
+Note that in this case the `zfill` must be explicitly specified, because the writer does not have a reader to infer it from.
