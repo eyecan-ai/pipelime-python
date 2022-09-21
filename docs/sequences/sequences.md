@@ -6,13 +6,13 @@ In this tutorial we will se how to interact with sample sequences and samples, t
 
 ## Relevant Modules
 
-`SampleSequence` and `Sample` are defined in the `pipelime.sequences` subpackage.
+`SamplesSequence` and `Sample` are defined in the `pipelime.sequences` subpackage.
 If you want to import everything, we suggest to alias it as `pls`.
 We suggest to also import `pipelime.items` aliased as `pli`.
 Here you will find all built-in item specializations and some useful lower-level utilities.
 
 ```python
-from pipelime.sequences import SampleSequence
+from pipelime.sequences import SamplesSequence
 import pipelime.items as pli
 ```
 
@@ -164,7 +164,7 @@ We assume you already have a sequence from the previous example. If so, start by
 even_samples = seq[::2]
 ```
 
-Then, we need to modify the remaining samples individually, thus we iterate over the `even_samples` in a for loop. Before doing that, since the `SampleSequence` is an immutable object, we need to initialize a new list that will contain the new samples.
+Then, we need to modify the remaining samples individually, thus we iterate over the `even_samples` in a for loop. Before doing that, since the `SamplesSequence` is an immutable object, we need to initialize a new list that will contain the new samples.
 
 ```python
 # Initialize an empty list of samples
