@@ -79,10 +79,23 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return all(isinstance(k, str) for k in value)
 
 
-class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+def _item_type_to_string(item_type: t.Type[Item]) -> str:
+    return (
+        item_type.__name__
+        if item_type.__module__.startswith("pipelime.items")
+        else item_type.__module__ + "." + item_type.__qualname__
+    )
+
+
+class ItemType(pyd.BaseModel):
     """Item type definition."""
 
     __root__: t.Type[Item]
+
+    class Config:
+        extra = "forbid"
+        copy_on_model_validation = "none"
+        json_encoders = {Item: _item_type_to_string}
 
     @classmethod
     def make_default(cls, itype: t.Any) -> ItemType:
@@ -96,7 +109,7 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
         return self.__root__(*args, **kwargs)
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return _item_type_to_string(self.__root__)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()

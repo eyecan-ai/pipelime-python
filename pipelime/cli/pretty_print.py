@@ -7,7 +7,7 @@ from rich import box
 from rich.markup import escape
 from rich import get_console
 from rich import print as rprint
-from rich.pretty import pprint, Pretty
+from rich.pretty import Pretty
 from rich.table import Table, Column
 
 
@@ -106,7 +106,7 @@ def print_model_field_values(
             f"\n{icon if icon else '***'} {k}:",
             f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]",
         )
-        pprint(repr(v), expand_all=True)
+        rprint("[green]" + repr(v) + "[/]")
 
 
 def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821

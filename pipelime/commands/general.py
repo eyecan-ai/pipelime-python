@@ -212,9 +212,10 @@ class CloneCommand(PipelimeCommand, title="clone"):
 class ConcatCommand(PipelimeCommand, title="cat"):
     """Concatenate two or more datasets."""
 
-    inputs: t.Union[pl_interfaces.InputDatasetInterface, t.Sequence[
-        pl_interfaces.InputDatasetInterface
-    ]] = pl_interfaces.InputDatasetInterface.pyd_field(
+    inputs: t.Union[
+        pl_interfaces.InputDatasetInterface,
+        t.Sequence[pl_interfaces.InputDatasetInterface],
+    ] = pl_interfaces.InputDatasetInterface.pyd_field(
         alias="i", piper_port=PiperPortType.INPUT
     )
 
@@ -375,9 +376,9 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             return self.__piper_repr__()
 
         def __piper_repr__(self) -> str:
-            import json
+            import yaml
 
-            return json.dumps(self.schema_def, indent=2)
+            return yaml.safe_dump(self.schema_def, sort_keys=False)
 
     class OutputCmdLineSchema(pyd.BaseModel):
         schema_def: t.Any
@@ -486,7 +487,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
         sample_schema = {
             k: pl_interfaces.ItemValidationModel(
-                class_path=info.class_path,
+                class_path=info.item_type,
                 is_optional=(info.count_ != len(seq)),
                 is_shared=info.is_shared,
             ).dict(by_alias=True)
@@ -498,20 +499,34 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             ignore_extra_keys=False,
             lazy=(self.max_samples == 0),
             max_samples=self.max_samples,
-        )
-        through_json = json.loads(sample_validation.json(by_alias=True))
+        ).dict()
+
+        def _type2str(data):
+            import inspect
+            from pipelime.items import Item
+            from pipelime.utils.pydantic_types import ItemType
+
+            for k, v in data.items():
+                if inspect.isclass(v) and issubclass(v, Item):
+                    data[k] = str(ItemType(__root__=v))
+                elif isinstance(v, t.Mapping):
+                    _type2str(v)
+            return data
+
+        sample_validation = _type2str(sample_validation)
+
         if self.root_key_path:
             import pydash as py_
 
             tmp_dict = {}
-            py_.set_(tmp_dict, self.root_key_path, through_json)
-            through_json = tmp_dict
+            py_.set_(tmp_dict, self.root_key_path, sample_validation)
+            sample_validation = tmp_dict
 
         self.output_schema_def = ValidateCommand.OutputSchemaDefinition(
-            schema_def=through_json
+            schema_def=sample_validation
         )
         self.output_cmd_line_schema = ValidateCommand.OutputCmdLineSchema(
-            schema_def=through_json
+            schema_def=sample_validation
         )
 
 
