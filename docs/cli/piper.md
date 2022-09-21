@@ -18,7 +18,7 @@ Now let's see how to use it:
 $ pipelime run help
 ```
 
-```
+```bash
 >>>
 ━━━━━ Pipelime Command
                                                run
@@ -69,15 +69,16 @@ The `nodes` parameter is a mapping where the keys are node names, i.e., any uniq
 Such commands can be specified as python objects, e.g., using the [`$model` directive](../choixe/directives.md#model), or, simply, by their title and arguments. For example:
 
 ```yaml
-nodes:
-  good_split:
+nodes:                              # ☚ The "nodes" argument of the "run" command
+  good_split:                       # ☚ The title of the command to execute
+    # ☟ the arguments of the command
     split-query:
-      input: $var(input)
+      input: $var(input)            # ☚ this is a variable to be defined in the context
       output_selected: $tmp(good)
       query: "`metadata.label` == 'good'"
       grabber:
-        num_workers: $var(nproc)
-  bad_split:
+        num_workers: $var(nproc)    # ☚ another variable
+  bad_split:                        # ☚ another command
     split-query:
       input: $var(input)
       output_selected: $tmp(bad)
@@ -86,7 +87,7 @@ nodes:
         num_workers: $var(nproc)
   good_train_test:
     split:
-      input: $tmp(good)
+      input: $tmp(good)             # ☚ this is linked to "split-query.output_selected"
       splits:
         - output: $var(output)/train
           fraction: 0.8
