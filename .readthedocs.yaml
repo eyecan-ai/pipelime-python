@@ -1,0 +1,19 @@
+version: 2
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.8"
+  jobs:
+    pre_build:
+      - python docs/pl_help.py
+      - sphinx-apidoc -o docs/api/generated pipelime
+
+sphinx:
+  builder: html
+  configuration: docs/conf.py
+  fail_on_warning: false
+
+python:
+  install:
+    - requirements: docs/requirements.txt
