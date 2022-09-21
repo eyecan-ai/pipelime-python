@@ -477,7 +477,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
         None,
-        description="yaml/json schema definition",
+        description="yaml schema definition",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
