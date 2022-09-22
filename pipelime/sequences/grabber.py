@@ -13,7 +13,7 @@ class ReturnType(Enum):
     SAMPLE_AND_INDEX = auto()
 
 
-class Grabber(pyd.BaseModel, extra="forbid"):
+class Grabber(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     num_workers: int = pyd.Field(
         0,
         description=(
@@ -33,8 +33,18 @@ class Grabber(pyd.BaseModel, extra="forbid"):
         sequence: pls.SamplesSequence,
         return_type: ReturnType = ReturnType.SAMPLE,
         size: t.Optional[int] = None,
+        *,
+        worker_init_fn: t.Union[
+            t.Callable, t.Tuple[t.Callable, t.Sequence], None
+        ] = None,
     ) -> _GrabContext:
-        return _GrabContext(self, sequence, return_type=return_type, size=size)
+        return _GrabContext(
+            self,
+            sequence,
+            return_type=return_type,
+            size=size,
+            worker_init_fn=worker_init_fn,
+        )
 
 
 class _GrabWorker:
@@ -58,23 +68,33 @@ class _GrabContext:
         sequence: pls.SamplesSequence,
         return_type: ReturnType,
         size: t.Optional[int],
+        worker_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None],
     ):
         self._grabber = grabber
         self._sequence = sequence
         self._return_type = return_type
         self._size = size
         self._pool = None
+        self._worker_init_fn = (
+            worker_init_fn
+            if isinstance(worker_init_fn, tuple)
+            else (worker_init_fn, ())
+        )
 
     def __enter__(self):
         if self._grabber.num_workers == 0:
             self._pool = None
             it = iter(self._sequence)
+            if self._worker_init_fn[0] is not None:
+                self._worker_init_fn[0](*self._worker_init_fn[1])
             if self._return_type == ReturnType.SAMPLE_AND_INDEX:
                 return enumerate(it)
             return it
 
         self._pool = multiprocessing.Pool(
-            self._grabber.num_workers if self._grabber.num_workers > 0 else None
+            self._grabber.num_workers if self._grabber.num_workers > 0 else None,
+            initializer=self._worker_init_fn[0],
+            initargs=self._worker_init_fn[1],
         )
         runner = self._pool.__enter__()
 
@@ -112,8 +132,11 @@ def grab_all(
         t.Callable[[pls.Sample], None], t.Callable[[pls.Sample, int], None], None
     ] = None,
     size: t.Optional[int] = None,
+    grab_context_manager: t.Optional[t.ContextManager] = None,
+    worker_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
 ):
     from inspect import signature, Parameter
+    import contextlib
 
     if track_fn is None:
         track_fn = lambda x: x  # noqa: E731
@@ -130,13 +153,21 @@ def grab_all(
             )
             else ReturnType.SAMPLE
         )
+    if grab_context_manager is None:
+        grab_context_manager = contextlib.nullcontext()
 
-    ctx = grabber(sequence, return_type=return_type, size=size)
-    if return_type == ReturnType.SAMPLE_AND_INDEX:
-        with ctx as gseq:
-            for idx, sample in track_fn(gseq):
-                sample_fn(sample, idx)  # type: ignore
-    else:
-        with ctx as gseq:
-            for sample in track_fn(gseq):
-                sample_fn(sample)  # type: ignore
+    with grab_context_manager:
+        ctx = grabber(
+            sequence,
+            return_type=return_type,
+            size=size,
+            worker_init_fn=worker_init_fn,
+        )
+        if return_type == ReturnType.SAMPLE_AND_INDEX:
+            with ctx as gseq:
+                for idx, sample in track_fn(gseq):
+                    sample_fn(sample, idx)  # type: ignore
+        else:
+            with ctx as gseq:
+                for sample in track_fn(gseq):
+                    sample_fn(sample)  # type: ignore

@@ -38,6 +38,6 @@ def dump(obj: Any, path: Path) -> None:
     with open(path, "w") as fd:
         ext = path.suffix
         if ext in (".yaml", ".yml"):
-            yaml.safe_dump(obj, fd)
+            yaml.safe_dump(obj, fd, sort_keys=False)
         elif ext == ".json":
             json.dump(obj, fd)

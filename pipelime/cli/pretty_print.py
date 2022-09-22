@@ -7,51 +7,78 @@ from rich import box
 from rich.markup import escape
 from rich import get_console
 from rich import print as rprint
-from rich.pretty import pprint, Pretty
+from rich.pretty import Pretty
 from rich.table import Table, Column
 
 
 def _input_icon():
-    return "\U0001F4E5"
+    return "📥"
 
 
 def _output_icon():
-    return "\U0001F4E6"
+    return "📦"
 
 
 def _parameter_icon():
-    return "\U0001F4D0"
+    return "📐"
 
 
-def print_debug(val, *, pretty: bool = False, end: str = "\n"):
+def _short_line():
+    return "━━━━━"
+
+
+def print_with_style(
+    val,
+    style: t.Optional[str] = None,
+    *,
+    pretty: bool = False,
+    end: str = "\n",
+    indent_guides: bool = True,
+):
     get_console().print(
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
+        style=style,
+        end=end,
+    )
+
+
+def print_debug(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
+    get_console().print(
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="italic grey50",
         end=end,
     )
 
 
-def print_info(val, *, pretty: bool = False, end: str = "\n"):
+def print_info(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="cyan",
         end=end,
     )
 
 
-def print_warning(val, *, pretty: bool = False, end: str = "\n"):
+def print_warning(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
         "[bold blink]WARNING:[/bold blink]",
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="orange1",
         end=end,
     )
 
 
-def print_error(val, *, pretty: bool = False, end: str = "\n"):
+def print_error(
+    val, *, pretty: bool = False, end: str = "\n", indent_guides: bool = True
+):
     get_console().print(
         "[bold blink]ERROR:[/bold blink]",
-        Pretty(val, indent_guides=True, expand_all=True) if pretty else val,
+        Pretty(val, indent_guides=indent_guides, expand_all=True) if pretty else val,
         style="dark_red on white",
         end=end,
     )
@@ -79,7 +106,7 @@ def print_model_field_values(
             f"\n{icon if icon else '***'} {k}:",
             f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]",
         )
-        pprint(v, expand_all=True)
+        rprint("[green]" + repr(v) + "[/]")
 
 
 def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821
@@ -123,7 +150,6 @@ def print_model_info(
             ]
             + ([Column("Piper Port", overflow="fold")] if show_piper_port else [])
             + [
-                Column("Required", overflow="fold"),
                 Column("Default", overflow="fold"),
             ]
         ),
@@ -138,7 +164,7 @@ def print_model_info(
         expand=True,
     )
 
-    _iterate_field_model(
+    _iterate_model_fields(
         model_cls=model_cls,
         grid=grid,
         indent=0,
@@ -153,16 +179,13 @@ def print_model_info(
 def _field_row(
     grid: Table, field, indent: int, indent_offs: int, show_piper_port: bool
 ):
-    if field.field_info.exclude:
-        return
-
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
     has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
     field_outer_type = field.outer_type_
 
-    if is_model and has_root_item:
+    if has_root_item:
         field_outer_type = field.outer_type_.__fields__["__root__"].outer_type_
 
     if show_piper_port:
@@ -192,27 +215,23 @@ def _field_row(
             )
             + f"{escape(field.alias)}"
             + ("[/]" if indent == 0 else ""),
-            ("\u25B6 " + escape(field.field_info.description))
+            ("▶ " + escape(field.field_info.description))
             if field.field_info.description
             else "",
             (
                 ""
                 if is_model and not has_root_item
-                else display_as_type(field_outer_type).replace("[", r"\[")
+                else display_as_type(field_outer_type).replace("[", r"\[")  # noqa: W605
             ),
         ]
         + ([fport] if fport else [])
-        + (
-            ["[green]\u2713[/]", ""]
-            if field.required
-            else ["[red]\u2717[/]", f"{field.get_default()}"]
-        )
+        + (["[red]✗[/]"] if field.required else [f"[green]{field.get_default()}[/]"])
     )
 
     grid.add_row(*line)
 
     if is_model and not has_root_item:
-        _iterate_field_model(
+        _iterate_model_fields(
             model_cls=field_outer_type,
             grid=grid,
             indent=indent + indent_offs,
@@ -231,8 +250,8 @@ def _field_row(
         }
 
         for arg in inner_types:
-            grid.add_row((" " * indent) + f"[grey50]-----{arg.__name__}[/]")
-            _iterate_field_model(
+            grid.add_row((" " * indent) + f"[grey50]{_short_line()} {arg.__name__}[/]")
+            _iterate_model_fields(
                 model_cls=arg,
                 grid=grid,
                 indent=indent + indent_offs,
@@ -282,16 +301,21 @@ def _get_inner_args(*type_):
     }
 
 
-def _iterate_field_model(
+def _iterate_model_fields(
     model_cls, grid, indent, indent_offs, show_piper_port, add_blank_row
 ):
+    no_data = True
     for field in model_cls.__fields__.values():  # type: ignore
-        _field_row(
-            grid,
-            field,
-            indent=indent,
-            indent_offs=indent_offs,
-            show_piper_port=show_piper_port,
-        )
-        if add_blank_row:
-            grid.add_row()
+        if not field.field_info.exclude:
+            no_data = False
+            _field_row(
+                grid,
+                field,
+                indent=indent,
+                indent_offs=indent_offs,
+                show_piper_port=show_piper_port,
+            )
+            if add_blank_row:
+                grid.add_row()
+    if no_data:
+        grid.add_row((" " * indent) + "[grey50 italic]([strike]no parameters[/])[/]")

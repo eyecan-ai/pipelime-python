@@ -260,10 +260,10 @@ class PipelimeSymbolsHelper:
 
 
 def _print_info(info_cls, show_class_path=True, show_piper_port=True):
-    from pipelime.cli.pretty_print import print_info, print_model_info
+    from pipelime.cli.pretty_print import print_info, print_model_info, _short_line
 
     if info_cls is not None:
-        print_info(f"\n---{info_cls[0][0]}")
+        print_info(f"\n{_short_line()} {info_cls[0][0]}")
         print_model_info(
             info_cls[1],
             show_class_path=show_class_path,
@@ -320,9 +320,9 @@ def print_command_op_stage_info(command_operator_stage: str):
 
         print_info("Multiple definitions found!")
         idx = Prompt.ask(
-            "Show "
-            + ", ".join(f"`{v[0][0][0]}` ({i})" for i, v in enumerate(available_defs))
-            + " or ALL (-1)?",
+            ">>> Show:\n"
+            + "\n".join(f"[{i:>2}] {v[0][0][0]}" for i, v in enumerate(available_defs))
+            + "\n[-1] ALL\n>>>",
             choices=["-1"] + list(str(v) for v in range(len(available_defs))),
             default="-1",
         )
@@ -335,11 +335,11 @@ def print_command_op_stage_info(command_operator_stage: str):
 
 
 def _print_details(info, show_class_path, show_piper_port):
-    from pipelime.cli.pretty_print import print_info, print_model_info
+    from pipelime.cli.pretty_print import _short_line, print_info, print_model_info
 
     for info_type, info_map in info.items():
         for info_cls in info_map.values():
-            print_info(f"\n---{info_type[0]}")
+            print_info(f"\n{_short_line()} {info_type[0]}")
             print_model_info(
                 info_cls,
                 show_class_path=show_class_path,
@@ -348,10 +348,14 @@ def _print_details(info, show_class_path, show_piper_port):
 
 
 def _print_short_help(info, show_class_path, *args, **kwargs):
-    from pipelime.cli.pretty_print import print_info, print_models_short_help
+    from pipelime.cli.pretty_print import (
+        _short_line,
+        print_info,
+        print_models_short_help,
+    )
 
     for info_type, info_map in info.items():
-        print_info(f"\n---{info_type[1]}")
+        print_info(f"\n{_short_line()} {info_type[1]}")
         print_models_short_help(
             *[info_cls for info_cls in info_map.values()],
             show_class_path=show_class_path,
@@ -434,7 +438,7 @@ def pl_print(
     import inspect
     from rich import print as rprint
     from pydantic import BaseModel
-    from pipelime.cli import print_model_info
+    from pipelime.cli.pretty_print import print_model_info
     from pipelime.sequences import SamplesSequence
     from pipelime.piper import PipelimeCommand
 

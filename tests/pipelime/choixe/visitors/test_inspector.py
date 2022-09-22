@@ -65,6 +65,31 @@ class TestInspector:
             ],
             [
                 {
+                    "$switch(nation)": [
+                        {
+                            "$case": ["UK", "$var(a_nation)", "Australia"],
+                            "$then": "hello",
+                        },
+                        {
+                            "$case": "Italy",
+                            "$then": "$var(italian_salute)",
+                        },
+                        {
+                            "$default": "$var(default_salute)",
+                        },
+                    ]
+                },
+                Inspection(
+                    variables={
+                        "nation": None,
+                        "a_nation": None,
+                        "italian_salute": None,
+                        "default_salute": None,
+                    }
+                ),
+            ],
+            [
+                {
                     "$for(var.my_var, x)": {"$index(x)": "$item(x)"},
                     "$var(var.another_var)": 10,
                     "$for(var.my_var2, y)": {"$index(y)": "$var(var.another_var2)"},

@@ -56,13 +56,22 @@ class Processor(ast.NodeVisitor):
         self._current_loop: Optional[str] = None
         self._tmp_name = uuid.uuid1().hex
 
+    def _branches(self, *branches: List[Any]) -> List[Any]:
+        if len(branches) == 1:
+            return branches[0]
+        return list(product(*branches))
+
+    def _repeat(self, data: Any, n: int) -> List[Any]:
+        new_data = []
+        for _ in range(n):
+            new_data.extend(deepcopy(data))
+        return new_data
+
     def visit_dict(self, node: ast.DictNode) -> List[Dict]:
         data = [{}]
         for k, v in node.nodes.items():
-            branches = list(product(k.accept(self), v.accept(self)))
-            new_data = []
-            for _ in range(len(branches)):
-                new_data.extend(deepcopy(data))
+            branches = self._branches(k.accept(self), v.accept(self))
+            new_data = self._repeat(data, len(branches))
             for i, d in enumerate(new_data):
                 d[branches[i // len(data)][0]] = branches[i // len(data)][1]
             data = new_data
@@ -72,25 +81,23 @@ class Processor(ast.NodeVisitor):
         data = [[]]
         for x in node.nodes:
             branches = x.accept(self)
-            new_data = []
-            for _ in range(len(branches)):
-                new_data.extend(deepcopy(data))
+            new_data = self._repeat(data, len(branches))
             for i, d in enumerate(new_data):
                 d.append(branches[i // len(data)])
             data = new_data
         return data
 
-    def visit_object(self, node: ast.LiteralNode) -> List[Any]:
+    def visit_literal(self, node: ast.LiteralNode) -> List[Any]:
         return [node.data]
 
     def visit_dict_bundle(self, node: ast.DictBundleNode) -> List[Dict]:
         data = [{}]
         for x in node.nodes:
             branches = x.accept(self)
-            N = len(data)
-            data *= len(branches)
-            for i in range(len(data)):
-                data[i].update(branches[i // N])
+            new_data = self._repeat(data, len(branches))
+            for i in range(len(new_data)):
+                new_data[i].update(branches[i // len(data)])
+            data = new_data
         return data
 
     def visit_str_bundle(self, node: ast.StrBundleNode) -> List[str]:
@@ -104,33 +111,51 @@ class Processor(ast.NodeVisitor):
         return data
 
     def visit_var(self, node: ast.VarNode) -> List[Any]:
-        if py_.has(self._context, node.identifier.data):
-            return [py_.get(self._context, node.identifier.data)]
+        id_branches = node.identifier.accept(self)
+        default_brances = node.default.accept(self) if node.default else [None]
+        env_branches = node.env.accept(self) if node.env else [None]
 
-        if node.env is not None and node.env.data:
-            value = os.getenv(node.identifier.data)
-            if value is not None:
-                return [value]
+        branches = self._branches(id_branches, default_brances, env_branches)
+        data = []
 
-        if node.default is not None:
-            return [node.default.data]
+        for id_, default, env in branches:
+            if py_.has(self._context, id_):
+                data.append(py_.get(self._context, id_))
+                continue
 
-        raise ChoixeProcessingError(f"Variable not found: `{node.identifier.data}`")
+            if env:
+                value = os.getenv(id_)
+                if value is not None:
+                    data.append(value)
+                    continue
+
+            if default is not None:
+                data.append(default)
+                continue
+
+            raise ChoixeProcessingError(f"Variable not found: `{id_}`")
+
+        return data
 
     def visit_import(self, node: ast.ImportNode) -> List[Any]:
-        path = Path(node.path.data)
-        if not path.is_absolute():
-            path = self._cwd / path
+        all_nested = []
+        branches = node.path.accept(self)
+        for path in branches:
+            path = Path(path)
+            if not path.is_absolute():
+                path = self._cwd / path
 
-        subdata = load(path)
-        parsed = parse(subdata)
+            subdata = load(path)
+            parsed = parse(subdata)
 
-        old_cwd = self._cwd
-        self._cwd = path.parent
-        nested = parsed.accept(self)
-        self._cwd = old_cwd
+            old_cwd = self._cwd
+            self._cwd = path.parent
+            nested = parsed.accept(self)
+            self._cwd = old_cwd
 
-        return nested
+            all_nested.append(nested)
+
+        return self._branches(*all_nested)
 
     def visit_sweep(self, node: ast.SweepNode) -> List[Any]:
         if self._allow_branching:
@@ -148,17 +173,24 @@ class Processor(ast.NodeVisitor):
     def visit_instance(self, node: ast.InstanceNode) -> List[Any]:
         symbol_branches = node.symbol.accept(self)
         args_branches = node.args.accept(self)
-        branches = list(product(symbol_branches, args_branches))
+        branches = self._branches(symbol_branches, args_branches)
         return [import_symbol(s, cwd=self._cwd)(**a) for s, a in branches]
 
     def visit_model(self, node: ast.ModelNode) -> Any:
         symbol_branches = node.symbol.accept(self)
         args_branches = node.args.accept(self)
-        branches = list(product(symbol_branches, args_branches))
+        branches = self._branches(symbol_branches, args_branches)
         return [import_symbol(s, cwd=self._cwd).parse_obj(a) for s, a in branches]
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
-        iterable = py_.get(self._context, node.iterable.data)
+        if isinstance(node.iterable.data, int):
+            iterable = list(range(node.iterable.data))
+        else:
+            iterable = py_.get(self._context, node.iterable.data)
+
+        if isinstance(iterable, int):
+            iterable = list(range(iterable))
+
         if not isinstance(iterable, Iterable):
             if not py_.has(self._context, node.iterable.data):
                 raise ChoixeProcessingError(
@@ -178,54 +210,96 @@ class Processor(ast.NodeVisitor):
 
         self._current_loop = prev_loop
 
-        branches = list(product(*branches))
+        branches = self._branches(*branches)
         for i, branch in enumerate(branches):
-            if isinstance(node.body, ast.DictNode):
-                res = {}
-                [res.update(item) for item in branch]
+            if isinstance(node.body, ast.LiteralNode) or isinstance(
+                node.body, ast.StrBundleNode
+            ):
+                res = "".join([str(item) for item in branch])
             elif isinstance(node.body, ast.ListNode):
                 res = []
                 [res.extend(item) for item in branch]
             else:
-                res = "".join([str(item) for item in branch])
+                res = {}
+                [res.update(item) for item in branch]
             branches[i] = res
 
         return branches
 
-    def visit_index(self, node: ast.IndexNode) -> List[Any]:
-        id_ = (
-            self._current_loop if node.identifier is None else str(node.identifier.data)
+    def visit_switch(self, node: ast.SwitchNode) -> List[Any]:
+        value_branches = node.value.accept(self)
+        set_branches = [x[0].accept(self) for x in node.cases]
+        body_branches = [x[1].accept(self) for x in node.cases]
+        default_branches = node.default.accept(self) if node.default else [None]
+
+        all_branches = self._branches(
+            value_branches, *set_branches, *body_branches, default_branches
         )
-        return [self._loop_data[id_].index]  # type: ignore
+
+        branches = []
+        for branch in all_branches:
+            value = py_.get(self._context, branch[0])
+            found = False
+            for i in range(len(node.cases)):
+                set_ = branch[i + 1]
+                if not isinstance(set_, Iterable) or isinstance(set_, str):
+                    set_ = [set_]
+
+                if value in set_:
+                    branches.append(branch[i + 1 + len(node.cases)])
+                    found = True
+                    break
+            if not found and branch[-1] is not None:
+                branches.append(branch[-1])
+
+        return branches
+
+    def visit_index(self, node: ast.IndexNode) -> List[Any]:
+        branches = (
+            node.identifier.accept(self) if node.identifier else [self._current_loop]
+        )
+        return [self._loop_data[x].index for x in branches]  # type: ignore
 
     def visit_item(self, node: ast.ItemNode) -> List[Any]:
-        key = (
-            self._current_loop if node.identifier is None else str(node.identifier.data)
+        branches = (
+            node.identifier.accept(self) if node.identifier else [self._current_loop]
         )
         sep = "."
-        loop_id, _, key = key.partition(sep)  # type: ignore
-        return [py_.get(self._loop_data[loop_id].item, f"{sep}{key}")]
+        items = []
+        for branch in branches:
+            loop_id, _, key = str(branch).partition(sep)  # type: ignore
+            item = py_.get(self._loop_data[loop_id].item, f"{sep}{key}")
+            items.append(item)
+        return items
 
     def visit_uuid(self, node: ast.UuidNode) -> List[str]:
         return [uuid.uuid1().hex]
 
     def visit_date(self, node: ast.DateNode) -> List[str]:
-        format_ = node.format
         ts = datetime.now()
-        if format_ is None:
-            return [ts.isoformat()]
-        else:
-            return [ts.strftime(format_.data)]
+        branches = node.format.accept(self) if node.format else [None]
+        dates = []
+        for branch in branches:
+            date = ts.strftime(branch) if branch else ts.isoformat()
+            dates.append(date)
+        return dates
 
     def visit_cmd(self, node: ast.CmdNode) -> List[str]:
-        subp = os.popen(node.command.data)
-        return [subp.read()]
+        stdouts = []
+        for branch in node.command.accept(self):
+            subp = os.popen(str(branch))
+            stdout = subp.read()
+            stdouts.append(stdout)
+        return stdouts
 
     def visit_tmp_dir(self, node: ast.TmpDirNode) -> Any:
-        name = self._tmp_name if node.name is None else node.name.data
-        path = Path(tempfile.gettempdir()) / name
-        path.parent.mkdir(exist_ok=True, parents=True)
-        return [str(path)]
+        paths = []
+        branches = node.name.accept(self) if node.name else [self._tmp_name]
+        for branch in branches:
+            path = Path(tempfile.gettempdir()) / str(branch)
+            path.parent.mkdir(exist_ok=True, parents=True)
+            paths.append(str(path))
+        return paths
 
 
 def process(

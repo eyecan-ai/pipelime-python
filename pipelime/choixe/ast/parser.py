@@ -84,7 +84,7 @@ class Scanner:
         kwargs = {}
         for py_kwarg in py_kwargs:
             key, value = py_kwarg.arg, py_kwarg.value
-            kwargs[key] = self._scan_argument(value)
+            kwargs[key] = self._scan_argument(value)  # type: ignore
 
         return Token(token_name, args, kwargs)
 
@@ -159,7 +159,8 @@ class Parser:
         }
 
         self._key_value_forms = {
-            S.Schema({self._token_schema("for"): object}): self._parse_for
+            S.Schema({self._token_schema("for"): object}): self._parse_for,
+            S.Schema({self._token_schema("switch"): list}): self._parse_switch,
         }
 
     def _token_schema(
@@ -201,26 +202,51 @@ class Parser:
 
     def _parse_instance(self, data: dict) -> c_ast.InstanceNode:
         pairs = self._key_value_pairs_by_token_name(data)
-        symbol = c_ast.LiteralNode(pairs["call"][1])
-        args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
-        return c_ast.InstanceNode(symbol, args)
+        symbol = self.parse(pairs["call"][1])
+        args = (
+            self.parse(pairs["args"][1])
+            if "args" in pairs
+            else c_ast.DictNode(nodes={})
+        )
+        return c_ast.InstanceNode(symbol=symbol, args=args)  # type: ignore
 
     def _parse_model(self, data: dict) -> c_ast.ModelNode:
         pairs = self._key_value_pairs_by_token_name(data)
-        symbol = c_ast.LiteralNode(pairs["model"][1])
-        args = self.parse(pairs["args"][1]) if "args" in pairs else c_ast.DictNode({})
-        return c_ast.ModelNode(symbol, args)
+        symbol = self.parse(pairs["model"][1])
+        args = (
+            self.parse(pairs["args"][1])
+            if "args" in pairs
+            else c_ast.DictNode(nodes={})
+        )
+        return c_ast.ModelNode(symbol, args)  # type: ignore
 
     def _parse_for(self, loop: str, body: Any) -> c_ast.ForNode:
-        loop = self._scanner.scan(loop)[0]
-        iterable = c_ast.LiteralNode(loop.args[0])
+        token = self._scanner.scan(loop)[0]
+        iterable = c_ast.LiteralNode(data=token.args[0])
         identifier = (
-            loop.args[1] if len(loop.args) > 1 else loop.kwargs.get("identifier")
+            token.args[1] if len(token.args) > 1 else token.kwargs.get("identifier")
         )
-        identifier = c_ast.LiteralNode(identifier) if identifier else None
-        return c_ast.ForNode(iterable, self.parse(body), identifier=identifier)
+        identifier = c_ast.LiteralNode(data=identifier) if identifier else None
+        return c_ast.ForNode(
+            iterable=iterable, body=self.parse(body), identifier=identifier
+        )
 
-    def _parse_dict(self, data: dict) -> c_ast.DictNode:
+    def _parse_switch(self, switch: str, body: Any) -> c_ast.SwitchNode:
+        token = self._scanner.scan(switch)[0]
+        value = c_ast.LiteralNode(data=token.args[0])
+        cases = []
+        default = None
+        for entry in body:
+            pairs = self._key_value_pairs_by_token_name(entry)
+            if "default" in pairs:
+                default = self.parse(pairs["default"][1])
+            elif "case" in pairs:
+                case_set = self.parse(pairs["case"][1])
+                case_body = self.parse(pairs["then"][1])
+                cases.append((case_set, case_body))
+        return c_ast.SwitchNode(value=value, cases=cases, default=default)
+
+    def _parse_dict(self, data: dict) -> Union[c_ast.DictNode, c_ast.DictBundleNode]:
         # Check if the dict is an extended or special form, in that case parse it and
         # return the result, no further checks are needed.
         for schema, fn in self._extended_and_special_forms.items():
@@ -234,15 +260,20 @@ class Parser:
         # it to the bundle. Keep track of what is left to parse.
         parsed_keyvalues = []
         parsed_other = {}
-        for schema, fn in self._key_value_forms.items():
-            for k, v in data.items():
+        for k, v in data.items():
+            any_valid = False
+
+            for schema, fn in self._key_value_forms.items():
                 if schema.is_valid({k: v}):
                     parsed_keyvalues.append(fn(k, v))
-                else:
-                    parsed_other[self._parse_str(k)] = self.parse(v)
+                    any_valid = True
+                    break
+
+            if not any_valid:
+                parsed_other[self._parse_str(k)] = self.parse(v)
 
         # Parse the remaining entries as a DictNode.
-        parsed_other = c_ast.DictNode(parsed_other)
+        parsed_other = c_ast.DictNode(nodes=parsed_other)
 
         # If no key_value form was found, return the DictNode.
         if len(parsed_keyvalues) == 0:
@@ -259,7 +290,7 @@ class Parser:
 
     def _parse_token(self, token: Token) -> c_ast.Node:
         if token.name == "str":
-            return c_ast.LiteralNode(token.args[0])
+            return c_ast.LiteralNode(data=token.args[0])
 
         try:
             for schema, fn in self._call_forms.items():
@@ -298,7 +329,7 @@ class Parser:
                 if isinstance(data, type_):
                     fn = parse_fn
                     break
-            res = fn(data)
+            res = fn(data)  # type: ignore
             return res
 
         except (ChoixeSyntaxError, SyntaxError) as e:

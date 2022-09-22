@@ -17,8 +17,8 @@ A quick reference to the pipelime CLI.
 | Main Options | Description |
 | ---- | ---- |
 | `-m` | Search for commands, operations and stages in additional module/packages. |
-| `--config` | A YAML/JSON configuration file. |
-| `--context` | A YAML/JSON context file. |
+| `--config` | A yaml/json configuration file. |
+| `--context` | A yaml/json context file. |
 | `+<key> <value>`<br>`++<key> <value>`<br>`+<key>=<value>`<br>`++<key>=<value>` | Configuration options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
 | `@<key> <value>`<br>`@@<key> <value>`<br>`@<key>=<value>`<br>`@@<key>=<value>` | Context options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
 
@@ -28,7 +28,7 @@ A quick reference to the pipelime CLI.
 | ---- | ---- |
 | `pipelime audit ...` | Inspect the input configuration and context, showing, eg, imports, variables, symbols as well as configuration error, such as missing definitions. |
 | `-d -v` | Print the configuration and the context as loaded from files and overridden by the cli. Then show the built command, but **skip the execution**. |
-| `-o <file>` | Save the effective processed configuration to YAML/JSON. |
+| `-o <file>` | Save the effective processed configuration to yaml/json. |
 
 ## Multiple Configurations
 

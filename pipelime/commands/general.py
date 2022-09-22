@@ -3,6 +3,7 @@ import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
+import pipelime.utils.pydantic_types as pl_types
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -37,11 +38,11 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
     )
 
-    operations: t.Optional[pl_interfaces.YamlInput] = pyd.Field(
+    operations: t.Optional[pl_types.YamlInput] = pyd.Field(
         None,
         alias="op",
         description=(
-            "An optional pipeline to run or a path to a YAML/JSON file as "
+            "An optional pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]\n"
             "The pipeline is defined as a mapping or a sequence of mappings where "
             "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
@@ -120,11 +121,11 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
 class PipeCommand(PipelimeCommand, title="pipe"):
     """A general-purpose command to build up linear pipelines."""
 
-    operations: pl_interfaces.YamlInput = pyd.Field(
+    operations: pl_types.YamlInput = pyd.Field(
         ...,
         alias="op",
         description=(
-            "The pipeline to run or a path to a YAML/JSON file as "
+            "The pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]\n"
             "The pipeline is defined as a mapping or a sequence of mappings where "
             "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
@@ -167,13 +168,13 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         seq = build_pipe(self.operations.value, seq)  # type: ignore
         seq = self.output.append_writer(seq)
 
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Writing results ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing results ({len(seq)} samples)",
+        )
 
 
 class CloneCommand(PipelimeCommand, title="clone"):
@@ -199,20 +200,21 @@ class CloneCommand(PipelimeCommand, title="clone"):
     def run(self):
         seq = self.input.create_reader()
         seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Cloning data ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Cloning data ({len(seq)} samples)",
+        )
 
 
 class ConcatCommand(PipelimeCommand, title="cat"):
     """Concatenate two or more datasets."""
 
-    inputs: t.Sequence[
-        pl_interfaces.InputDatasetInterface
+    inputs: t.Union[
+        pl_interfaces.InputDatasetInterface,
+        t.Sequence[pl_interfaces.InputDatasetInterface],
     ] = pl_interfaces.InputDatasetInterface.pyd_field(
         alias="i", piper_port=PiperPortType.INPUT
     )
@@ -227,29 +229,26 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         alias="g"
     )
 
-    @pyd.validator("inputs")
-    def check_inputs(cls, v):
-        if len(v) < 2:
-            raise ValueError("You need at least two inputs.")
-        return v
-
     def run(self):
-        input_it = iter(self.inputs)
+        inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
+        input_it = iter(inputs)
         seq = next(input_it).create_reader()
         for input_ in input_it:
             seq = seq.cat(input_.create_reader())
-        seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Writing data ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing data ({len(seq)} samples)",
+        )
 
 
 class AddRemoteCommand(PipelimeCommand, title="remote-add"):
-    """Upload samples to one or more remotes."""
+    """Upload samples to one or more remotes.
+    Slicing options filter the samples to upload,
+    but the whole dataset is always written out.
+    """
 
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
@@ -265,6 +264,16 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
         default_factory=list,
         alias="k",
         description="Keys to upload. Leave empty to upload all the keys.",
+    )
+
+    start: t.Optional[int] = pyd.Field(
+        None, description="The first sample (included), defaults to the first element."
+    )
+    stop: t.Optional[int] = pyd.Field(
+        None, description="The last sample (excluded), defaults to the whole sequence."
+    )
+    step: t.Optional[int] = pyd.Field(
+        None, description="The slice step, defaults to 1."
     )
 
     output: t.Optional[
@@ -289,23 +298,33 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     def run(self):
         from pipelime.stages import StageUploadToRemote
 
-        seq = self.input.create_reader().map(
+        original = self.input.create_reader()
+        seq = original.slice(start=self.start, stop=self.stop, step=self.step).map(
             StageUploadToRemote(
                 remotes=[r.get_url() for r in self.remotes],  # type: ignore
                 keys_to_upload=self.keys,
             )
         )
 
-        if self.output is not None:
-            seq = self.output.append_writer(seq)
-            with self.output.serialization_cm():
-                self._grab_all(seq)
+        if self.output is None:
+            self._grab_all(seq, None)
         else:
-            self._grab_all(seq)
+            # NB: we should always write the whole dataset,
+            # even if we are uploading only a slice
+            if self.start is None and self.stop is None and self.step is None:
+                self._grab_all(
+                    self.output.append_writer(seq), self.output.serialization_cm()
+                )
+            else:
+                self._grab_all(seq, None)
+                self._grab_all(
+                    self.output.append_writer(original), self.output.serialization_cm()
+                )
 
-    def _grab_all(self, seq):
+    def _grab_all(self, seq, sm):
         self.grabber.grab_all(
             seq,
+            grab_context_manager=sm,
             keep_order=False,
             parent_cmd=self,
             track_message=f"Uploading data ({len(seq)} samples)",
@@ -360,14 +379,13 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
         seq = self.input.create_reader().map(
             StageForgetSource(*remove_all, **remove_by_key)
         )
-        seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Removing remotes ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Removing remotes ({len(seq)} samples)",
+        )
 
 
 class ValidateCommand(PipelimeCommand, title="validate"):
@@ -380,9 +398,9 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             return self.__piper_repr__()
 
         def __piper_repr__(self) -> str:
-            import json
+            import yaml
 
-            return json.dumps(self.schema_def, indent=2)
+            return yaml.safe_dump(self.schema_def, sort_keys=False)
 
     class OutputCmdLineSchema(pyd.BaseModel):
         schema_def: t.Any
@@ -459,7 +477,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
     output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
         None,
-        description="YAML/JSON schema definition",
+        description="yaml schema definition",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
@@ -491,7 +509,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
         sample_schema = {
             k: pl_interfaces.ItemValidationModel(
-                class_path=info.class_path,
+                class_path=info.item_type,
                 is_optional=(info.count_ != len(seq)),
                 is_shared=info.is_shared,
             ).dict(by_alias=True)
@@ -503,20 +521,34 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             ignore_extra_keys=False,
             lazy=(self.max_samples == 0),
             max_samples=self.max_samples,
-        )
-        through_json = json.loads(sample_validation.json(by_alias=True))
+        ).dict()
+
+        def _type2str(data):
+            import inspect
+            from pipelime.items import Item
+            from pipelime.utils.pydantic_types import ItemType
+
+            for k, v in data.items():
+                if inspect.isclass(v) and issubclass(v, Item):
+                    data[k] = str(ItemType(__root__=v))
+                elif isinstance(v, t.Mapping):
+                    _type2str(v)
+            return data
+
+        sample_validation = _type2str(sample_validation)
+
         if self.root_key_path:
             import pydash as py_
 
             tmp_dict = {}
-            py_.set_(tmp_dict, self.root_key_path, through_json)
-            through_json = tmp_dict
+            py_.set_(tmp_dict, self.root_key_path, sample_validation)
+            sample_validation = tmp_dict
 
         self.output_schema_def = ValidateCommand.OutputSchemaDefinition(
-            schema_def=through_json
+            schema_def=sample_validation
         )
         self.output_cmd_line_schema = ValidateCommand.OutputCmdLineSchema(
-            schema_def=through_json
+            schema_def=sample_validation
         )
 
 
@@ -525,6 +557,7 @@ class MapCommand(PipelimeCommand, title="map"):
 
     stage: t.Union[str, t.Mapping[str, t.Mapping[str, t.Any]]] = pyd.Field(
         ...,
+        alias="s",
         description=(
             "A stage to apply. Can be a stage name/class_path (with no arguments) or "
             "a dictionary with the stage name/class_path as key and the arguments "
@@ -553,11 +586,54 @@ class MapCommand(PipelimeCommand, title="map"):
         seq = seq.map(
             self.stage if isinstance(self.stage, t.Mapping) else {self.stage: {}}
         )
-        seq = self.output.append_writer(seq)
-        with self.output.serialization_cm():
-            self.grabber.grab_all(
-                seq,
-                keep_order=False,
-                parent_cmd=self,
-                track_message=f"Mapping data ({len(seq)} samples)",
-            )
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Mapping data ({len(seq)} samples)",
+        )
+
+
+class SortCommand(PipelimeCommand, title="sort"):
+    """Sort a dataset based on metadata values."""
+
+    key_path: str = pyd.Field(
+        ...,
+        alias="k",
+        description=(
+            "A pydash-like key path. The path is built by splitting the mapping "
+            "keys by `.` and enclosing list indexes within `[]`. "
+            "Use `\\` to escape the `.` character."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def run(self):
+        def _sort_key_fn(x):
+            return x.deep_get(self.key_path)
+
+        seq = self.input.create_reader()
+        seq = seq.sort(_sort_key_fn)
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Sorting data ({len(seq)} samples)",
+        )

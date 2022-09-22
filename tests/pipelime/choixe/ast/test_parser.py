@@ -10,12 +10,12 @@ class TestParse:
     def test_parse_dict(self):
         expr = {"a": 10, "b": {"c": 10.0, "d": "hello"}}
         expected = ast.DictNode(
-            {
-                ast.LiteralNode("a"): ast.LiteralNode(10),
-                ast.LiteralNode("b"): ast.DictNode(
-                    {
-                        ast.LiteralNode("c"): ast.LiteralNode(10.0),
-                        ast.LiteralNode("d"): ast.LiteralNode("hello"),
+            nodes={
+                ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                ast.LiteralNode(data="b"): ast.DictNode(
+                    nodes={
+                        ast.LiteralNode(data="c"): ast.LiteralNode(data=10.0),
+                        ast.LiteralNode(data="d"): ast.LiteralNode(data="hello"),
                     }
                 ),
             }
@@ -25,13 +25,13 @@ class TestParse:
     def test_parse_list(self):
         expr = [1, 2, 3, ("foo", "bar", [10.0, 10])]
         expected = ast.ListNode(
-            ast.LiteralNode(1),
-            ast.LiteralNode(2),
-            ast.LiteralNode(3),
+            ast.LiteralNode(data=1),
+            ast.LiteralNode(data=2),
+            ast.LiteralNode(data=3),
             ast.ListNode(
-                ast.LiteralNode("foo"),
-                ast.LiteralNode("bar"),
-                ast.ListNode(ast.LiteralNode(10.0), ast.LiteralNode(10)),
+                ast.LiteralNode(data="foo"),
+                ast.LiteralNode(data="bar"),
+                ast.ListNode(ast.LiteralNode(data=10.0), ast.LiteralNode(data=10)),
             ),
         )
         assert parse(expr) == expected
@@ -51,16 +51,20 @@ class TestParse:
             },
         }
         expected = ast.InstanceNode(
-            ast.LiteralNode("path/to/a/script.py:ClassName"),
-            ast.DictNode(
-                {
-                    ast.LiteralNode("a"): ast.LiteralNode(10),
-                    ast.LiteralNode("b"): ast.InstanceNode(
-                        ast.LiteralNode("some.interesting.module.MyClass"),
-                        ast.DictNode(
-                            {
-                                ast.LiteralNode("foo"): ast.LiteralNode("hello"),
-                                ast.LiteralNode("bar"): ast.LiteralNode("world"),
+            symbol=ast.LiteralNode(data="path/to/a/script.py:ClassName"),
+            args=ast.DictNode(
+                nodes={
+                    ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                    ast.LiteralNode(data="b"): ast.InstanceNode(
+                        symbol=ast.LiteralNode(data="some.interesting.module.MyClass"),
+                        args=ast.DictNode(
+                            nodes={
+                                ast.LiteralNode(data="foo"): ast.LiteralNode(
+                                    data="hello"
+                                ),
+                                ast.LiteralNode(data="bar"): ast.LiteralNode(
+                                    data="world"
+                                ),
                             }
                         ),
                     ),
@@ -81,14 +85,14 @@ class TestParse:
             },
         }
         expected = ast.ModelNode(
-            ast.LiteralNode("path/to/a/script.py:ModelName"),
-            ast.DictNode(
-                {
-                    ast.LiteralNode("a"): ast.LiteralNode(10),
-                    ast.LiteralNode("b"): ast.DictNode(
-                        {
-                            ast.LiteralNode("foo"): ast.LiteralNode("hello"),
-                            ast.LiteralNode("bar"): ast.LiteralNode("world"),
+            symbol=ast.LiteralNode(data="path/to/a/script.py:ModelName"),
+            args=ast.DictNode(
+                nodes={
+                    ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                    ast.LiteralNode(data="b"): ast.DictNode(
+                        nodes={
+                            ast.LiteralNode(data="foo"): ast.LiteralNode(data="hello"),
+                            ast.LiteralNode(data="bar"): ast.LiteralNode(data="world"),
                         }
                     ),
                 }
@@ -99,45 +103,47 @@ class TestParse:
     def test_parse_instance_no_args(self):
         expr = {"$call": "path/to/a/script.py:ClassName"}
         expected = ast.InstanceNode(
-            ast.LiteralNode("path/to/a/script.py:ClassName"),
-            ast.DictNode({}),
+            symbol=ast.LiteralNode(data="path/to/a/script.py:ClassName"),
+            args=ast.DictNode(nodes={}),
         )
         assert parse(expr) == expected
 
     def test_parse_model_no_args(self):
         expr = {"$model": "path/to/a/script.py:ModelName"}
         expected = ast.ModelNode(
-            ast.LiteralNode("path/to/a/script.py:ModelName"),
-            ast.DictNode({}),
+            symbol=ast.LiteralNode(data="path/to/a/script.py:ModelName"),
+            args=ast.DictNode(nodes={}),
         )
         assert parse(expr) == expected
 
     def test_parse_for(self):
         expr = {"$for(iterable, x)": {"node_$index(x)": "Hello_$item(x)"}}
         expected = ast.ForNode(
-            ast.LiteralNode("iterable"),
-            ast.DictNode(
-                {
+            iterable=ast.LiteralNode(data="iterable"),
+            body=ast.DictNode(
+                nodes={
                     ast.StrBundleNode(
-                        ast.LiteralNode("node_"), ast.IndexNode(ast.LiteralNode("x"))
+                        ast.LiteralNode(data="node_"),
+                        ast.IndexNode(identifier=ast.LiteralNode(data="x")),
                     ): ast.StrBundleNode(
-                        ast.LiteralNode("Hello_"), ast.ItemNode(ast.LiteralNode("x"))
+                        ast.LiteralNode(data="Hello_"),
+                        ast.ItemNode(identifier=ast.LiteralNode(data="x")),
                     )
                 }
             ),
-            ast.LiteralNode("x"),
+            identifier=ast.LiteralNode(data="x"),
         )
         assert parse(expr) == expected
 
     def test_parse_for_compact(self):
         expr = {"$for(iterable)": {"node_$index": "Hello_$item"}}
         expected = ast.ForNode(
-            ast.LiteralNode("iterable"),
-            ast.DictNode(
-                {
+            iterable=ast.LiteralNode(data="iterable"),
+            body=ast.DictNode(
+                nodes={
                     ast.StrBundleNode(
-                        ast.LiteralNode("node_"), ast.IndexNode()
-                    ): ast.StrBundleNode(ast.LiteralNode("Hello_"), ast.ItemNode())
+                        ast.LiteralNode(data="node_"), ast.IndexNode()
+                    ): ast.StrBundleNode(ast.LiteralNode(data="Hello_"), ast.ItemNode())
                 }
             ),
         )
@@ -151,32 +157,38 @@ class TestParse:
         }
         expected = ast.DictBundleNode(
             ast.ForNode(
-                ast.LiteralNode("alpha"),
-                ast.DictNode(
-                    {
+                iterable=ast.LiteralNode(data="alpha"),
+                body=ast.DictNode(
+                    nodes={
                         ast.StrBundleNode(
-                            ast.LiteralNode("node_"), ast.IndexNode()
-                        ): ast.StrBundleNode(ast.LiteralNode("Hello_"), ast.ItemNode())
+                            ast.LiteralNode(data="node_"), ast.IndexNode()
+                        ): ast.StrBundleNode(
+                            ast.LiteralNode(data="Hello_"), ast.ItemNode()
+                        )
                     }
                 ),
             ),
             ast.ForNode(
-                ast.LiteralNode("beta"),
-                ast.DictNode(
-                    {
+                iterable=ast.LiteralNode(data="beta"),
+                body=ast.DictNode(
+                    nodes={
                         ast.StrBundleNode(
-                            ast.LiteralNode("node_"), ast.IndexNode()
-                        ): ast.StrBundleNode(ast.LiteralNode("Ciao_"), ast.ItemNode())
+                            ast.LiteralNode(data="node_"), ast.IndexNode()
+                        ): ast.StrBundleNode(
+                            ast.LiteralNode(data="Ciao_"), ast.ItemNode()
+                        )
                     }
                 ),
             ),
             ast.ForNode(
-                ast.LiteralNode("gamma"),
-                ast.DictNode(
-                    {
+                iterable=ast.LiteralNode(data="gamma"),
+                body=ast.DictNode(
+                    nodes={
                         ast.StrBundleNode(
-                            ast.LiteralNode("node_"), ast.IndexNode()
-                        ): ast.StrBundleNode(ast.LiteralNode("Hola_"), ast.ItemNode())
+                            ast.LiteralNode(data="node_"), ast.IndexNode()
+                        ): ast.StrBundleNode(
+                            ast.LiteralNode(data="Hola_"), ast.ItemNode()
+                        )
                     }
                 ),
             ),
@@ -192,32 +204,36 @@ class TestParse:
         }
         expected = ast.DictBundleNode(
             ast.ForNode(
-                ast.LiteralNode("alpha"),
-                ast.DictNode(
-                    {
+                iterable=ast.LiteralNode(data="alpha"),
+                body=ast.DictNode(
+                    nodes={
                         ast.StrBundleNode(
-                            ast.LiteralNode("node_"), ast.IndexNode()
-                        ): ast.StrBundleNode(ast.LiteralNode("Hello_"), ast.ItemNode())
+                            ast.LiteralNode(data="node_"), ast.IndexNode()
+                        ): ast.StrBundleNode(
+                            ast.LiteralNode(data="Hello_"), ast.ItemNode()
+                        )
                     }
                 ),
             ),
             ast.ForNode(
-                ast.LiteralNode("beta"),
-                ast.DictNode(
-                    {
+                iterable=ast.LiteralNode(data="beta"),
+                body=ast.DictNode(
+                    nodes={
                         ast.StrBundleNode(
-                            ast.LiteralNode("node_"), ast.IndexNode()
-                        ): ast.StrBundleNode(ast.LiteralNode("Ciao_"), ast.ItemNode())
+                            ast.LiteralNode(data="node_"), ast.IndexNode()
+                        ): ast.StrBundleNode(
+                            ast.LiteralNode(data="Ciao_"), ast.ItemNode()
+                        )
                     }
                 ),
             ),
             ast.DictNode(
-                {
-                    ast.LiteralNode("a"): ast.LiteralNode(10),
-                    ast.LiteralNode("b"): ast.DictNode(
-                        {
-                            ast.LiteralNode("c"): ast.LiteralNode(10.0),
-                            ast.LiteralNode("d"): ast.LiteralNode("hello"),
+                nodes={
+                    ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                    ast.LiteralNode(data="b"): ast.DictNode(
+                        nodes={
+                            ast.LiteralNode(data="c"): ast.LiteralNode(data=10.0),
+                            ast.LiteralNode(data="d"): ast.LiteralNode(data="hello"),
                         }
                     ),
                 }
@@ -225,11 +241,48 @@ class TestParse:
         )
         assert parse(expr) == expected
 
+    def test_parse_switch_base(self):
+        expr = {
+            "$switch(nation)": [
+                {
+                    "$case": ["UK", "USA", "Australia"],
+                    "$then": "hello",
+                },
+                {
+                    "$case": "Italy",
+                    "$then": "ciao",
+                },
+                {
+                    "$default": "*raise your hand*",
+                },
+            ]
+        }
+        expected = ast.SwitchNode(
+            value=ast.LiteralNode(data="nation"),
+            cases=[
+                (
+                    ast.ListNode(
+                        ast.LiteralNode(data="UK"),
+                        ast.LiteralNode(data="USA"),
+                        ast.LiteralNode(data="Australia"),
+                    ),
+                    ast.LiteralNode(data="hello"),
+                ),
+                (
+                    ast.LiteralNode(data="Italy"),
+                    ast.LiteralNode(data="ciao"),
+                ),
+            ],
+            default=ast.LiteralNode(data="*raise your hand*"),
+        )
+        print(parse(expr))
+        assert parse(expr) == expected
+
 
 class TestStringParse:
     def test_simple(self):
         expr = "I am a string"
-        assert parse(expr) == ast.LiteralNode(expr)
+        assert parse(expr) == ast.LiteralNode(data=expr)
 
     @pytest.mark.parametrize(
         ["id_", "default", "env"],
@@ -243,31 +296,35 @@ class TestStringParse:
         default_str = f'"{default}"' if isinstance(default, str) else default
         expr = f"$var({id_}, default={default_str}, env={env})"
         assert parse(expr) == ast.VarNode(
-            ast.LiteralNode(id_),
-            default=ast.LiteralNode(default),
-            env=ast.LiteralNode(env),
+            identifier=ast.LiteralNode(data=id_),
+            default=ast.LiteralNode(data=default),
+            env=ast.LiteralNode(data=env),
         )
 
     def test_import(self):
         path = "path/to/my/file.json"
         expr = f"$import('{path}')"
-        assert parse(expr) == ast.ImportNode(ast.LiteralNode(path))
+        assert parse(expr) == ast.ImportNode(path=ast.LiteralNode(data=path))
 
     def test_sweep(self):
         expr = "$sweep(10, foo.bar, '30')"
         expected = ast.SweepNode(
-            ast.LiteralNode(10), ast.LiteralNode("foo.bar"), ast.LiteralNode("30")
+            ast.LiteralNode(data=10),
+            ast.LiteralNode(data="foo.bar"),
+            ast.LiteralNode(data="30"),
         )
         assert parse(expr) == expected
 
     def test_str_bundle(self):
         expr = "I am a string with $var(one.two.three) and $sweep(10, foo.bar, '30')"
         expected = ast.StrBundleNode(
-            ast.LiteralNode("I am a string with "),
-            ast.VarNode(ast.LiteralNode("one.two.three")),
-            ast.LiteralNode(" and "),
+            ast.LiteralNode(data="I am a string with "),
+            ast.VarNode(identifier=ast.LiteralNode(data="one.two.three")),
+            ast.LiteralNode(data=" and "),
             ast.SweepNode(
-                ast.LiteralNode(10), ast.LiteralNode("foo.bar"), ast.LiteralNode("30")
+                ast.LiteralNode(data=10),
+                ast.LiteralNode(data="foo.bar"),
+                ast.LiteralNode(data="30"),
             ),
         )
         assert parse(expr) == expected
@@ -282,21 +339,21 @@ class TestStringParse:
         expr = "$date"
         if format_ is not None:
             expr += f'("{format_}")'
-        format_ = ast.LiteralNode(format_) if format_ is not None else None
-        assert parse(expr) == ast.DateNode(format_)
+        format_ = ast.LiteralNode(data=format_) if format_ is not None else None
+        assert parse(expr) == ast.DateNode(format=format_)
 
     @pytest.mark.parametrize(["name"], [[None], ["my_name"]])
     def test_tmp(self, name):
         expr = "$tmp"
         if name is not None:
             expr += f'("{name}")'
-        name = ast.LiteralNode(name) if name is not None else None
-        assert parse(expr) == ast.TmpDirNode(name)
+        name = ast.LiteralNode(data=name) if name is not None else None
+        assert parse(expr) == ast.TmpDirNode(name=name)
 
     @pytest.mark.parametrize(["symbol"], [["builtins.str"], ["np.array"]])
     def test_symbol(self, symbol: str) -> None:
         expr = f"$symbol({symbol})"
-        assert parse(expr) == ast.SymbolNode(ast.LiteralNode(symbol))
+        assert parse(expr) == ast.SymbolNode(symbol=ast.LiteralNode(data=symbol))
 
 
 class TestParserRaise:
@@ -320,11 +377,6 @@ class TestParserRaise:
         ],
     )
     def test_syntax_error(self, expr: str):
-        with pytest.raises(ChoixeParsingError):
-            parse(expr)
-
-    def test_invalid_arg(self):
-        expr = {"$directive": "var", "$args": ["$var(one.two)"], "$kwargs": {}}
         with pytest.raises(ChoixeParsingError):
             parse(expr)
 

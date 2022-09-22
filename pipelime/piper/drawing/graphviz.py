@@ -3,7 +3,24 @@ from io import BytesIO
 from typing import Optional, Sequence
 
 import numpy as np
-import pygraphviz as pgv
+
+try:
+    from pygraphviz import AGraph  # type: ignore
+except ImportError:
+
+    class AGraph:
+        def _raise(self):
+            raise AttributeError(
+                "`pygraphviz` not installed! Please follow the documentation "
+                "to install `graphviz`, then `pip instal pipelime[draw]`."
+            )
+
+        def __init__(self, *args, **kwargs):
+            self._raise()
+
+        def __getattribute__(self, name):
+            self._raise()
+
 
 from pipelime.piper.drawing.base import NodesGraphDrawer
 from pipelime.piper.graph import (
@@ -150,11 +167,11 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         content += "</TABLE>>"
         return content
 
-    def _add_node_to_agraph(self, agraph: pgv.AGraph, node: GraphNode):
+    def _add_node_to_agraph(self, agraph: AGraph, node: GraphNode):
         """Adds a node to the graph distinguising between operation and data nodes
 
         Args:
-            agraph (pgv.AGraph): graph to add the node to
+            agraph (AGraph): graph to add the node to
             node (GraphNode): node to add
         """
         if isinstance(node, GraphNodeOperation):
@@ -197,7 +214,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
 
     def _add_edge_op2data(
         self,
-        agraph: pgv.AGraph,
+        agraph: AGraph,
         n0: GraphNodeOperation,
         n1: GraphNodeData,
         edge_attrs: dict,
@@ -205,7 +222,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         """Adds an edge from an Operation node to a Data node
 
         Args:
-            agraph (pgv.AGraph): graph to add the edge to
+            agraph (AGraph): graph to add the edge to
             n0 (GraphNodeOperation): starting node
             n1 (GraphNodeData): ending node
             edge_attrs (dict): edge attributes
@@ -221,7 +238,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
 
     def _add_edge_data2op(
         self,
-        agraph: pgv.AGraph,
+        agraph: AGraph,
         n0: GraphNodeData,
         n1: GraphNodeOperation,
         edge_attrs: dict,
@@ -229,7 +246,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         """Adds an edge from a Data node to an Operation node
 
         Args:
-            agraph (pgv.AGraph): graph to add the edge to
+            agraph (AGraph): graph to add the edge to
             n0 (GraphNodeData): starting node
             n1 (GraphNodeOperation): ending node
             edge_attrs (dict): edge attributes
@@ -245,7 +262,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
 
     def _add_edge_to_agraph(
         self,
-        agraph: pgv.AGraph,
+        agraph: AGraph,
         n0: GraphNode,
         n1: GraphNode,
         edge_attrs: dict,
@@ -253,7 +270,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         """Adds an edge to the graph
 
         Args:
-            agraph (pgv.AGraph): graph to add the edge to
+            agraph (AGraph): graph to add the edge to
             n0 (GraphNode): starting node
             n1 (GraphNode): ending node
             edge_attrs (dict): edge attributes
@@ -269,16 +286,16 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         else:
             raise ValueError(f"Unknown edge type: {type(n0)}, {type(n1)}")
 
-    def _build_agraph(self, graph: DAGNodesGraph) -> pgv.AGraph:
+    def _build_agraph(self, graph: DAGNodesGraph) -> AGraph:
         """Builds the graphviz graph from a DAGNodesGraph
 
         Args:
             graph (DAGNodesGraph): input graph
 
         Returns:
-            pgv.AGraph: graphviz graph
+            AGraph: graphviz graph
         """
-        agraph = pgv.AGraph(directed=True)
+        agraph = AGraph(directed=True)
 
         for edge in graph.raw_graph.edges():
             n0: GraphNode = edge[0]
@@ -301,7 +318,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         """
         import imageio
 
-        agraph: pgv.AGraph = self._build_agraph(graph)
+        agraph: AGraph = self._build_agraph(graph)
         agraph.layout("dot")
         bmp_img = agraph.draw(format="bmp", prog="dot")
         return imageio.imread(BytesIO(bmp_img))

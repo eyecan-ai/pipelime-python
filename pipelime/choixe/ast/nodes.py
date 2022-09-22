@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
@@ -32,7 +32,7 @@ class NodeVisitor:  # pragma: no cover
     def visit_list(self, node: ListNode) -> Any:
         return self._ignore(node)
 
-    def visit_object(self, node: LiteralNode) -> Any:
+    def visit_literal(self, node: LiteralNode) -> Any:
         return self._ignore(node)
 
     def visit_dict_bundle(self, node: DictBundleNode) -> Any:
@@ -60,6 +60,9 @@ class NodeVisitor:  # pragma: no cover
         return self._ignore(node)
 
     def visit_for(self, node: ForNode) -> Any:
+        return self._ignore(node)
+
+    def visit_switch(self, node: SwitchNode) -> Any:
         return self._ignore(node)
 
     def visit_index(self, node: IndexNode) -> Any:
@@ -126,7 +129,7 @@ class DictNode(Node):
 class ListNode(Node):
     """AST node for List-like structures. Contains a list of `Node` objects."""
 
-    nodes: Tuple[Node]
+    nodes: Sequence[Node]
 
     def __init__(self, *nodes: Node) -> None:
         self.nodes = nodes
@@ -143,14 +146,14 @@ class LiteralNode(HashNode):
     data: Any
 
     def accept(self, visitor: NodeVisitor) -> Any:
-        return visitor.visit_object(self)
+        return visitor.visit_literal(self)
 
 
 @dataclass(init=False, eq=False)
 class DictBundleNode(Node):
     """An `DictBundleNode` represents a dictionary union of a nodes collection."""
 
-    nodes: Tuple[Node]
+    nodes: Sequence[Node]
 
     def __init__(self, *nodes: Node) -> None:
         self.nodes = nodes
@@ -163,7 +166,7 @@ class DictBundleNode(Node):
 class StrBundleNode(HashNode):
     """A `StrBundleNode` represents a concatenation of a sequence of strings."""
 
-    nodes: Tuple[HashNode]
+    nodes: Sequence[HashNode]
 
     def __init__(self, *nodes: HashNode) -> None:
         self.nodes = nodes
@@ -176,9 +179,9 @@ class StrBundleNode(HashNode):
 class VarNode(HashNode):
     """A `VarNode` represents a Choixe variable. It has an id and a default value."""
 
-    identifier: LiteralNode
-    default: Optional[LiteralNode] = None
-    env: Optional[LiteralNode] = None
+    identifier: HashNode
+    default: Optional[HashNode] = None
+    env: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_var(self)
@@ -188,7 +191,7 @@ class VarNode(HashNode):
 class ImportNode(Node):
     """An `ImportNode` represents a Choixe import directive from a filesystem path."""
 
-    path: LiteralNode
+    path: HashNode
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_import(self)
@@ -198,7 +201,7 @@ class ImportNode(Node):
 class SweepNode(HashNode):
     """A `SweepNode` represents a Choixe sweep directive from multiple branching options."""
 
-    cases: Tuple[Node]
+    cases: Sequence[Node]
 
     def __init__(self, *cases: Node) -> None:
         self.cases = cases
@@ -211,7 +214,7 @@ class SweepNode(HashNode):
 class SymbolNode(Node):
     """A `SymbolNode` represents a Choixe instance block to import a generic python object."""
 
-    symbol: LiteralNode
+    symbol: HashNode
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_symbol(self)
@@ -222,8 +225,8 @@ class InstanceNode(Node):
     """An `InstanceNode` represents a Choixe instance block to get the result of a
     generic python callable object."""
 
-    symbol: LiteralNode
-    args: DictNode
+    symbol: HashNode
+    args: Union[DictNode, DictBundleNode]
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_instance(self)
@@ -249,11 +252,22 @@ class ForNode(Node):
         return visitor.visit_for(self)
 
 
+@dataclass
+class SwitchNode(Node):
+
+    value: HashNode
+    cases: Sequence[Tuple[Node, Node]]
+    default: Optional[Node] = None
+
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit_switch(self)
+
+
 @dataclass(eq=False)
 class IndexNode(HashNode):
     """An `IndexNode` represents the index of the current iteration of a for loop."""
 
-    identifier: Optional[LiteralNode] = None
+    identifier: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_index(self)
@@ -263,7 +277,7 @@ class IndexNode(HashNode):
 class ItemNode(HashNode):
     """An `ItemNode` represents the item of the current iteration of a for loop."""
 
-    identifier: Optional[LiteralNode] = None
+    identifier: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_item(self)
@@ -281,7 +295,7 @@ class UuidNode(HashNode):
 class DateNode(HashNode):
     """A `DateNode` represents the current datetime with an optional custom format."""
 
-    format: Optional[LiteralNode] = None
+    format: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_date(self)
@@ -291,7 +305,7 @@ class DateNode(HashNode):
 class CmdNode(HashNode):
     """A `CmdNode` represents the calling of a system command."""
 
-    command: LiteralNode
+    command: HashNode
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_cmd(self)
@@ -301,7 +315,7 @@ class CmdNode(HashNode):
 class TmpDirNode(HashNode):
     """A `TmpDirNode` represents the creation of a temporary directory."""
 
-    name: Optional[LiteralNode] = None
+    name: Optional[HashNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_tmp_dir(self)

@@ -71,7 +71,11 @@ def build_pipe(
 
 
 class DataStream(
-    t.Sequence[Sample], BaseModel, extra="forbid", underscore_attrs_are_private=True
+    t.Sequence[Sample],
+    BaseModel,
+    extra="forbid",
+    copy_on_model_validation="none",
+    underscore_attrs_are_private=True,
 ):
     """A stream of samples, comprising an input sequence to the data and an output
     pipe to further process the samples when ready.

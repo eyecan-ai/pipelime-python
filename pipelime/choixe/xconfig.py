@@ -159,7 +159,7 @@ class XConfig(Box):
     def deep_update(self, data: Dict, full_merge: bool = False):
         """Updates current confing in depth, based on keys of other input dictionary.
         It is used to replace nested keys with new ones, but can also be used as a merge
-        of two completely different XConfig if `full_merge`=True.
+        of two completely different XConfig if ``full_merge=True``.
 
         Args:
             data (Dict): An other dictionary to use as data source.

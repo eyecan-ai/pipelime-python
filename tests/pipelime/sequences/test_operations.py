@@ -172,13 +172,13 @@ class TestSamplesSequenceOperations:
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         enum_seq = source.enumerate(
-            idx_key="custom_id", item_cls_path="pipelime.items.TxtNumpyItem"
+            idx_key="custom_id", item_cls="pipelime.items.TxtNumpyItem"
         )
 
         for (idx, s_sample), e_sample in zip(enumerate(source), enum_seq):
             assert "custom_id" in e_sample
             assert isinstance(e_sample["custom_id"], pli.TxtNumpyItem)
-            assert int(e_sample["custom_id"]()) == idx
+            assert int(e_sample["custom_id"]()) == idx  # type: ignore
             assert all(v == e_sample[k] for k, v in s_sample.items())
 
     def test_repeat(self, minimnist_dataset: dict):
