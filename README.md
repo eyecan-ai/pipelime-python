@@ -22,9 +22,21 @@ Maybe too much for you? No worries, Pipelime is **modular** and you can just tak
 
 ## Installation
 
+Install Pipelime using pip:
+
+```
+pip install pipelime-python
+```
+
+To be able to *draw* the dataflow graphs, you need the `draw` variant:
+
+```
+pip install pipelime-python[draw]
+```
+
 > **Warning**
 >
-> You need `Graphviz` <https://www.graphviz.org/> installed on your system.
+> The `draw` variant needs `Graphviz` <https://www.graphviz.org/> installed on your system
 > On Linux Ubuntu/Debian, you can install it with:
 >
 > ```
@@ -38,12 +50,6 @@ Maybe too much for you? No worries, Pipelime is **modular** and you can just tak
 > ```
 >
 > Please see the full options at https://github.com/pygraphviz/pygraphviz/blob/main/INSTALL.txt
-
-Install Pipelime using pip:
-
-```
-pip install pipelime-python
-```
 
 ## Basic Usage
 

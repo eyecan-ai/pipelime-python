@@ -48,12 +48,12 @@ dependencies = [
     "pyzmq",
     "dictquery",
     "minio",
-    "pygraphviz",
     "requests",
 ]
 dynamic = [ "version" ]
 
 [project.optional-dependencies]
+draw = ["pygraphviz"]
 tests = [
     "pytest",
     "pytest-cov",
