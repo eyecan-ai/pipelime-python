@@ -1,4 +1,4 @@
-![logo](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/pipelime_logo.svg?sanitize=true)
+![](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/pipelime_logo.svg?sanitize=true)
 
 # 🍋 Pipelime
 
@@ -61,7 +61,7 @@ pip install pipelime-python[draw]
 The **Underfolder** format is the preferred pipelime dataset formats, i.e., a flexible way to
 model and store a generic dataset through **filesystem**.
 
-![underfolder structure](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/images/underfolder.png?raw=true)
+![](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/images/underfolder.png?raw=true)
 
 An Underfolder **dataset** is a collection of samples. A **sample** is a collection of items.
 An **item** is a unitary block of data, i.e., a multi-channel image, a python object,
@@ -71,7 +71,7 @@ and items. Also, *global shared* items can be stored in the root folder.
 
 Items are named using the following naming convention:
 
-![naming convention](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/images/naming.png?raw=true)
+![](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/images/naming.png?raw=true)
 
 Where:
 
