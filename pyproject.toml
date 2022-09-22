@@ -5,11 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "pipelime-python"
 authors = [
-  { name="Daniele De Gregorio", email="daniele.degregorio@eyecan.ai" },
+  { name="Eyecan.ai", email="info@eyecan.ai" },
 ]
 description = "Data workflows, cli and dataflow automation."
 readme = "README.md"
-license = { file="LICENSE" }
+license = { text="GNU General Public License v3 (GPLv3)" }
 requires-python = ">=3.8"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -77,6 +77,7 @@ docs = [
 [project.urls]
 "Source" = "https://github.com/eyecan-ai/pipelime-python"
 "Issues" = "https://github.com/eyecan-ai/pipelime-python/issues"
+"Documentation" = "http://pipelime-python.readthedocs.io/"
 
 [project.scripts]
 pipelime = "pipelime.cli.main:app"
