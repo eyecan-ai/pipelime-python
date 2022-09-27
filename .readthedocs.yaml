@@ -6,7 +6,7 @@ build:
     python: "3.8"
   jobs:
     pre_build:
-      - python docs/pl_help.py
+      # - python docs/pl_help.py
       - sphinx-apidoc -o docs/api/generated pipelime
 
 sphinx:
