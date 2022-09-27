@@ -309,7 +309,9 @@ class Parser:
         for token in self._scanner.scan(data):
             nodes.append(self._parse_token(token))
 
-        if len(nodes) == 1:
+        if len(nodes) == 0:
+            return c_ast.LiteralNode(data="")
+        elif len(nodes) == 1:
             return nodes[0]
         else:
             return c_ast.StrBundleNode(*nodes)
