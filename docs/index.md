@@ -83,8 +83,5 @@ advanced/data_streaming.md
 :maxdepth: 4
 :caption: "API Reference:"
 
-api/stages.md
-api/operations.md
-api/commands.md
 api/generated/modules.rst
 ```
