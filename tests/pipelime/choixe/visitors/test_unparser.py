@@ -41,6 +41,14 @@ from pipelime.choixe.visitors import unparse
             "$var(variable.one, default=-24, env=True)",
         ],
         [
+            ast.VarNode(
+                identifier=ast.LiteralNode(data="variable"),
+                default=ast.LiteralNode(data=32),
+                help=ast.LiteralNode(data="help message"),
+            ),
+            '$var(variable, default=32, help="help message")',
+        ],
+        [
             ast.ImportNode(path=ast.LiteralNode(data="path/to/file.yaml")),
             '$import("path/to/file.yaml")',
         ],

@@ -40,6 +40,8 @@ class Unparser(ast.NodeVisitor):
             kwargs["default"] = node.default
         if node.env is not None:
             kwargs["env"] = node.env
+        if node.help is not None:
+            kwargs["help"] = node.help
         return self._unparse_auto("var", node.identifier, **kwargs)
 
     def visit_import(self, node: ast.ImportNode) -> Union[Dict, str]:

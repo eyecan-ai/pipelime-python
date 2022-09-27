@@ -182,6 +182,7 @@ class VarNode(HashNode):
     identifier: HashNode
     default: Optional[HashNode] = None
     env: Optional[HashNode] = None
+    help: Optional[LiteralNode] = None
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_var(self)
