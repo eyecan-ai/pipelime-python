@@ -45,7 +45,7 @@ html_sidebars = {
 # if there's a valid code for your choice
 html_theme_options = {
     "base_url": "https://www.eyecan.ai",
-    "repo_url": "https://github.com/eyecan-ai/pypelime-python/",
+    "repo_url": "https://github.com/eyecan-ai/pipelime-python/",
     "repo_name": "Check pipelime on github!",
     "repo_type": "github",
     "html_minify": True,
