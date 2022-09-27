@@ -17,6 +17,7 @@ from pipelime.choixe.utils.io import load
 class Inspection:
     imports: Set[Path] = field(default_factory=set)
     variables: Dict[str, Any] = field(default_factory=dict)
+    help_strings: Dict[str, Any] = field(default_factory=dict)
     environ: Dict[str, Any] = field(default_factory=dict)
     symbols: Set[str] = field(default_factory=set)
     processed: bool = False
@@ -36,6 +37,9 @@ class Inspection:
             environ={**self.environ, **other.environ},
             symbols={*self.symbols, *other.symbols},
             processed=self.processed and other.processed,
+            help_strings=py_.merge_with(
+                self.help_strings, other.help_strings, iteratee=self._iteratee
+            ),  # type: ignore
         )
 
 
@@ -83,11 +87,17 @@ class Inspector(ast.NodeVisitor):
             default = None if node.default is None else node.default.data  # type: ignore
             variables = py_.set_({}, id_, default)
 
+            help_strings = {}
+            if node.help is not None:
+                help_strings = py_.set_({}, id_, node.help.data)
+
             environ = {}
             if node.env is not None and node.env.data:  # type: ignore
                 environ[id_] = default
 
-            insp = insp + Inspection(variables=variables, environ=environ)
+            insp = insp + Inspection(
+                variables=variables, environ=environ, help_strings=help_strings
+            )
 
         return insp
 

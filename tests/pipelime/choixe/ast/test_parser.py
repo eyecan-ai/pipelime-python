@@ -285,20 +285,22 @@ class TestStringParse:
         assert parse(expr) == ast.LiteralNode(data=expr)
 
     @pytest.mark.parametrize(
-        ["id_", "default", "env"],
+        ["id_", "default", "env", "help"],
         [
-            ["var1", 10, False],
-            ["var1.var2", "hello", True],
-            ["var.var.var", 10.0, True],
+            ["var1", 10, False, "help"],
+            ["var1.var2", "hello", True, ""],
+            ["var.var.var", 10.0, True, "help with many words"],
         ],
     )
-    def test_var(self, id_: Any, default: Any, env: bool):
+    def test_var(self, id_: Any, default: Any, env: bool, help: str):
         default_str = f'"{default}"' if isinstance(default, str) else default
-        expr = f"$var({id_}, default={default_str}, env={env})"
+        expr = f'$var({id_}, default={default_str}, env={env}, help="{help}")'
+        print(expr)
         assert parse(expr) == ast.VarNode(
             identifier=ast.LiteralNode(data=id_),
             default=ast.LiteralNode(data=default),
             env=ast.LiteralNode(data=env),
+            help=ast.LiteralNode(data=help),
         )
 
     def test_import(self):

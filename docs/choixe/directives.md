@@ -46,6 +46,7 @@ Where:
 - `identifier` is the [pydash](https://pydash.readthedocs.io/en/latest/deeppath.html) path (dot notation only) where the value is looked up in the **context**.
 - `default` is a value to use when the context lookup fails - essentially making the variable entirely optional. Defaults to `None`.
 - `env` is a bool that, if set to `True`, will also look at the system environment variables in case the **context** lookup fails. Defaults to `False`.
+- `help` is a string containing an optional help message. Choixe uses this message when performing inspection to provide the user with a brief description. It serves no other purpose.
 
 Here is what the deep learning toy configuration looks like after replacing some values with **variables**:
 
@@ -416,6 +417,44 @@ bob:
   - I am cat number 2
   - My name is Oliver
 charlie: "Cat_0=5 Cat_1=6 Cat_2=14 "
+```
+
+## Switch Case
+
+Choixe also supports switch-case-like control statements to change a configuration node based on the value of a context variable. This is especially useful for conditioned workflows and data pipelines.
+
+Switch-case is only available with a **key-value form**. 
+
+```yaml
+greeting_action:
+  $switch(nation):
+    # If the value is one of the following ...
+    - $case: [UK, USA, Australia]
+      $then: "Say 'hello'."
+
+    # If the nation exactly matches ...
+    - $case: Italy
+      $then: "Say 'ciao'."
+
+    # Optional default case
+    - $default: "Just wave."
+```
+
+Based on different values from the context, the possible outcomes are the following:
+
+```yaml
+# For UK, USA and Australia
+greeting_action: "Say 'hello'."
+```
+
+```yaml
+# For Italy
+greeting_action: "Say 'ciao'."
+```
+
+```yaml
+# For everything else
+greeting_action: "Just wave."
 ```
 
 ## Utilities
