@@ -1,4 +1,4 @@
-![](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/pipelime_logo.png?raw=true)
+<img src="https://github.com/eyecan-ai/pipelime-python/blob/main/docs/pipelime_logo.png?raw=true" width="256"/>
 
 # 🍋 Pipelime
 
