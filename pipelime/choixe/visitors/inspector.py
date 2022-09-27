@@ -17,10 +17,10 @@ from pipelime.choixe.utils.io import load
 class Inspection:
     imports: Set[Path] = field(default_factory=set)
     variables: Dict[str, Any] = field(default_factory=dict)
+    help_strings: Dict[str, Any] = field(default_factory=dict)
     environ: Dict[str, Any] = field(default_factory=dict)
     symbols: Set[str] = field(default_factory=set)
     processed: bool = False
-    help_strings: Dict[str, Any] = field(default_factory=dict)
 
     def _iteratee(self, obj_value, src_value, key, obj, source) -> Any:
         res = None
