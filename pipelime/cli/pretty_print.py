@@ -106,7 +106,7 @@ def print_model_field_values(
             f"\n{icon if icon else '***'} {k}:",
             f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]",
         )
-        rprint("[green]" + repr(v) + "[/]")
+        rprint("[green]" + escape(repr(v)) + "[/]")
 
 
 def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821
