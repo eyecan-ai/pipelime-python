@@ -74,6 +74,7 @@ choixe/xconfig.md
 :maxdepth: 4
 :caption: "Advanced Topics: "
 
+advanced/debugging.md
 advanced/remotes.md
 advanced/validation.md
 advanced/data_streaming.md
