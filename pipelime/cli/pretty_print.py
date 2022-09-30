@@ -102,10 +102,11 @@ def print_model_field_values(
     icon: str = "",
 ):
     for k, v in port_values.items():
-        rprint(
-            f"\n{icon if icon else '***'} {k}:",
-            f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]",
-        )
+        rprint(f"\n{icon if icon else '***'} {k}:")
+        if model_fields[k].field_info.description:
+            rprint(
+                f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]"
+            )
         rprint("[green]" + escape(repr(v)) + "[/]")
 
 
