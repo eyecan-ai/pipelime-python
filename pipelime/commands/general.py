@@ -244,6 +244,52 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         )
 
 
+class ZipCommand(PipelimeCommand, title="zip"):
+    """Zip two or more datasets merging items."""
+
+    inputs: t.Union[
+        pl_interfaces.InputDatasetInterface,
+        t.Sequence[pl_interfaces.InputDatasetInterface],
+    ] = pl_interfaces.InputDatasetInterface.pyd_field(
+        alias="i", piper_port=PiperPortType.INPUT
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    key_format: str = pyd.Field(
+        "*",
+        description=(
+            "The zipped samples' key format. Any `*` will be replaced with the "
+            "source key, eg, `my_*_key` on [`image`, `mask`] generates "
+            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
+            "suffixed to source key, ie, `MyKey` on `image` gives "
+            "`imageMyKey`. If empty, the source key will be used as-is."
+        ),
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def run(self):
+        inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
+        input_it = iter(inputs)
+        seq = next(input_it).create_reader()
+        for input_ in input_it:
+            seq = seq.zip(input_.create_reader(), key_format=self.key_format)
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing data ({len(seq)} samples)",
+        )
+
+
 class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     """Upload samples to one or more remotes.
     Slicing options filter the samples to upload,
