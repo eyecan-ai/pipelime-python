@@ -7,19 +7,18 @@ import numpy as np
 try:
     from pygraphviz import AGraph  # type: ignore
 except ImportError:
+    def _raise():
+        raise AttributeError(
+            "`pygraphviz` not installed! Please follow the documentation "
+            "to install `graphviz`, then `pip instal pipelime[draw]`."
+        )
 
     class AGraph:
-        def _raise(self):
-            raise AttributeError(
-                "`pygraphviz` not installed! Please follow the documentation "
-                "to install `graphviz`, then `pip instal pipelime[draw]`."
-            )
-
         def __init__(self, *args, **kwargs):
-            self._raise()
+            _raise()
 
         def __getattribute__(self, name):
-            self._raise()
+            _raise()
 
 
 from pipelime.piper.drawing.base import NodesGraphDrawer
