@@ -423,7 +423,7 @@ charlie: "Cat_0=5 Cat_1=6 Cat_2=14 "
 
 Choixe also supports switch-case-like control statements to change a configuration node based on the value of a context variable. This is especially useful for conditioned workflows and data pipelines.
 
-Switch-case is only available with a **key-value form**. 
+Switch-case is only available with a **key-value form**.
 
 ```yaml
 greeting_action:
@@ -475,7 +475,7 @@ You can get the **current datetime** with the `date` **directive**.
 
 `$date(format: str = None)`
 
-Where format is the format string (see python strftime for more info). Defaults to isoformat.
+Where format is the format string (see [python strftime format codes](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) for more info). Defaults to isoformat.
 
 ### Command
 

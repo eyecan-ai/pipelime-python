@@ -510,24 +510,28 @@ def pl_main(  # noqa: C901
                 from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
-                if not Confirm.ask(
-                    "Do you want to create a new context?", default=True
-                ):
-                    print_error(f"Invalid configuration! {e}")
-                    raise typer.Exit(1)
+                print_error(f"Invalid configuration! {e}")
+                raise typer.Exit(1)
 
-                print_info("\n📝 Please enter a value for each variable")
-                new_ctx = Wizard.context_wizard(inspect_info.variables, base_ctx)
-
-                print_info("Processing configuration and context...", end="")
-                effective_configs = _process_cfg_or_die(
-                    base_cfg, new_ctx, run_all, output
-                )
-                print_info(" OK")
-
-                outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
-                if outfile:
-                    new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
+                ### SKIP FOR NOW
+                # if not Confirm.ask(
+                #     "Do you want to create a new context?", default=True
+                # ):
+                #     print_error(f"Invalid configuration! {e}")
+                #     raise typer.Exit(1)
+            #
+            # print_info("\n📝 Please enter a value for each variable")
+            # new_ctx = Wizard.context_wizard(inspect_info.variables, base_ctx)
+            #
+            # print_info("Processing configuration and context...", end="")
+            # effective_configs = _process_cfg_or_die(
+            #     base_cfg, new_ctx, run_all, output
+            # )
+            # print_info(" OK")
+            #
+            # outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
+            # if outfile:
+            #     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 
             pls = "s" if len(effective_configs) != 1 else ""
             print_info(
