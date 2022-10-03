@@ -62,6 +62,11 @@ class TestProcessor:
         expected = ["red"]
         self._expectation_test(data, expected)
 
+    def test_var_none_default(self):
+        data = "$var(color.sat, default=None)"
+        expected = [None]
+        self._expectation_test(data, expected)
+
     def test_var_missing(self):
         data = "$var(color.sat, default='low')"
         expected = ["low"]

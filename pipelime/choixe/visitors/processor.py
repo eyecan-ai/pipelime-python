@@ -112,10 +112,10 @@ class Processor(ast.NodeVisitor):
 
     def visit_var(self, node: ast.VarNode) -> List[Any]:
         id_branches = node.identifier.accept(self)
-        default_brances = node.default.accept(self) if node.default else [None]
+        default_branches = node.default.accept(self) if node.default else [None]
         env_branches = node.env.accept(self) if node.env else [None]
 
-        branches = self._branches(id_branches, default_brances, env_branches)
+        branches = self._branches(id_branches, default_branches, env_branches)
         data = []
 
         for id_, default, env in branches:
@@ -129,7 +129,7 @@ class Processor(ast.NodeVisitor):
                     data.append(value)
                     continue
 
-            if default is not None:
+            if node.default:
                 data.append(default)
                 continue
 
