@@ -407,12 +407,15 @@ def pl_main(  # noqa: C901
         or command in subc.HELP[0]
         or any([h in command_args for h in subc.HELP[0]])
     ):
-        if command and command not in subc.HELP[0]:
-            print_command_op_stage_info(command)
-        elif command_args:
-            print_command_op_stage_info(command_args[0])
-        else:
-            print(ctx.get_help())
+        try:
+            if command and command not in subc.HELP[0]:
+                print_command_op_stage_info(command)
+            elif command_args:
+                print_command_op_stage_info(command_args[0])
+            else:
+                print(ctx.get_help())
+        except ValueError:
+            pass
     elif command in subc.WIZARD[0] or any([w in command_args for w in subc.WIZARD[0]]):
         from pipelime.cli.wizard import Wizard
 
