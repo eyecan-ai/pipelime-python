@@ -34,6 +34,11 @@ class ImageItem(NumpyItem):
         if value.shape[0] > IMAGE_SIZE or value.shape[1] > IMAGE_SIZE:
             import albumentations as A
 
+            if value.dtype != np.uint8:
+                src_min, src_max = value.min(), value.max()
+                value = (value.astype(np.float32) + src_min) / float(src_max - src_min)
+                value = (value * 255.0).astype(np.uint8)
+
             value = A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True)(
                 image=value
             )["image"]
