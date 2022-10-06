@@ -25,5 +25,8 @@ class NaiveNodesGraphExecutor(NodesGraphExecutor):
 
                 logger.debug(f"Executing command: {node.command._piper.node}")
 
-                node.command()
+                try:
+                    node.command()
+                except Exception as e:
+                    raise RuntimeError(f"Failed to execute node: {node.name}") from e
         return True

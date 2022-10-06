@@ -126,15 +126,24 @@ class DrawCommand(PipelimeCommand, title="draw"):
         ),
         piper_port=PiperPortType.OUTPUT,
     )
+    raw_output: t.Optional[str] = Field(
+        None,
+        description="raw graph representation",
+        exclude=True,
+        repr=False,
+        piper_port=PiperPortType.OUTPUT,
+    )
     backend: DrawBackendChoice = Field(
         DrawBackendChoice.GRAPHVIZ, alias="b", description="The graph backend to use."
     )
     open: bool = Field(
         False,
-        alias="o",
         description=(
             "If `output` has been set, open the image file in the default viewer."
         ),
+    )
+    raw: bool = Field(
+        False, alias="r", description="Show the raw graph representation."
     )
 
     def run(self):
@@ -171,14 +180,18 @@ class DrawCommand(PipelimeCommand, title="draw"):
         graph = DAGNodesGraph.build_nodes_graph(dag)
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
 
-        # Show or Write
-        if self.output is not None:
-            drawer.export(graph, str(self.output))
-            if self.open:
-                start_file(str(self.output))
+        # raw graph representation
+        if self.raw:
+            self.raw_output = drawer.representation(graph)
         else:
-            from PIL import Image
+            # Show or Write
+            if self.output is not None:
+                drawer.export(graph, str(self.output))
+                if self.open:
+                    start_file(str(self.output))
+            else:
+                from PIL import Image
 
-            graph_image = drawer.draw(graph=graph)
-            img = Image.fromarray(graph_image, "RGB")
-            img.show("Graph")
+                graph_image = drawer.draw(graph=graph)
+                img = Image.fromarray(graph_image, "RGB")
+                img.show("Graph")

@@ -218,6 +218,18 @@ class SplitCommand(PipelimeCommand, title="split"):
             split_start = split_stop
 
 
+class _MatchHelper:
+    def __init__(self, query: str, negate: bool):
+        self._query = query
+        self._negate = negate
+
+    def __call__(self, x):
+        m: bool = x.match(self._query)
+        if self._negate:
+            return not m
+        return m
+
+
 class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     """Split a dataset by query."""
 
@@ -262,19 +274,20 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
     )
 
     def run(self):
+        # NOTE: do not use lambda, since they do not play well with multiprocessing
         reader = self.input.create_reader()
         if self.output_selected is not None:
             self._filter(
                 reader,
                 self.output_selected,
-                lambda x: x.match(self.query),
+                _MatchHelper(self.query, False),
                 "selected samples",
             )
         if self.output_discarded is not None:
             self._filter(
                 reader,
-                self.output_selected,
-                lambda x: not x.match(self.query),
+                self.output_discarded,
+                _MatchHelper(self.query, True),
                 "discarded samples",
             )
 
