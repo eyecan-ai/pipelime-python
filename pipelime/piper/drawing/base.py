@@ -16,7 +16,7 @@ class NodesGraphDrawer(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def draw(self, graph: DAGNodesGraph) -> np.ndarray:
+    def draw(self, graph: DAGNodesGraph, **kwargs) -> np.ndarray:
         raise NotImplementedError()
 
     @abstractmethod
@@ -24,8 +24,18 @@ class NodesGraphDrawer(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def export(self, graph: DAGNodesGraph, filename: str, format: Optional[str] = None):
+    def export(
+        self,
+        graph: DAGNodesGraph,
+        filename: str,
+        format: Optional[str] = None,
+        **kwargs,
+    ):
+        pass
+
+    def _check_format(self, filename: str, format: Optional[str] = None) -> str:
         if format is None:
             format = Path(filename).suffix[1:]
         if format not in self.exportable_formats():
             raise ValueError(f"Format {format} not supported")
+        return format

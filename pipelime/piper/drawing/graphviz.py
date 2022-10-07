@@ -7,6 +7,7 @@ import numpy as np
 try:
     from pygraphviz import AGraph  # type: ignore
 except ImportError:
+
     def _raise():
         raise AttributeError(
             "`pygraphviz` not installed! Please follow the documentation "
@@ -113,9 +114,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         return {
             **(self._operation_styles(node)),
             "shape": self._operation_shape(node),
-            "label": self._operation_node_content(node),
-            # Easter egg
-            "URL": "https://c.tenor.com/2jvzfQQxDFcAAAAC/think-smart.gif",
+            "label": self._node_content(node),
         }
 
     def _data_attributes(self, node: GraphNodeData) -> dict:
@@ -130,38 +129,21 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         return {
             **(self._data_styles(node)),
             "shape": self._data_shape(node),
-            "label": self._data_node_content(node),
+            "label": self._node_content(node),
         }
 
-    def _operation_node_content(self, node: GraphNodeOperation) -> str:
-        """Returns the textual representation of an Operation node in Graphviz TABLE
-        format
+    def _node_content(self, node: GraphNode) -> str:
+        """Returns the textual representation of a node in Graphviz TABLE format.
 
         Args:
-            node (GraphNodeOperation): input node
+            node (GraphNode): input node
 
         Returns:
             str: textual representation of the node
         """
         content = '<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20">'
         content += "<TR>"
-        content += f"<TD>{node.command.command_name()}</TD>"
-        content += "</TR>"
-        content += "</TABLE>>"
-        return content
-
-    def _data_node_content(self, node: GraphNodeData) -> str:
-        """Returns the textual representation of a Data node in Graphviz TABLE format
-
-        Args:
-            node (GraphNodeData): input node
-
-        Returns:
-            str: textual representation of the node
-        """
-        content = '<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20">'
-        content += "<TR>"
-        content += f"<TD>{node.path}</TD>"
+        content += f"<TD>{node.short_repr}</TD>"
         content += "</TR>"
         content += "</TABLE>>"
         return content
@@ -306,7 +288,32 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
 
         return agraph
 
-    def draw(self, graph: DAGNodesGraph) -> np.ndarray:
+    def _get_draw_kwargs(
+        self, default_format: str = "bmp", default_layout: str = "dot", **kwargs
+    ) -> dict:
+        graph_format = (
+            kwargs["format"]
+            if "format" in kwargs
+            else (kwargs["T"] if "T" in kwargs else default_format)
+        )
+        layout = (
+            kwargs["prog"]
+            if "prog" in kwargs
+            else (kwargs["K"] if "K" in kwargs else default_layout)
+        )
+
+        kwargs.pop("format", None)
+        kwargs.pop("T", None)
+        kwargs.pop("prog", None)
+        kwargs.pop("K", None)
+
+        return {
+            "format": graph_format,
+            "prog": layout,
+            "args": " ".join(f"{k} {v}" for k, v in kwargs.items()),
+        }
+
+    def draw(self, graph: DAGNodesGraph, **kwargs) -> np.ndarray:
         """Draws a graph and returns the image as a numpy array
 
         Args:
@@ -318,9 +325,8 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         import imageio
 
         agraph: AGraph = self._build_agraph(graph)
-        agraph.layout("dot")
-        bmp_img = agraph.draw(format="bmp", prog="dot")
-        return imageio.imread(BytesIO(bmp_img))
+        img = agraph.draw(**self._get_draw_kwargs(**kwargs))
+        return imageio.imread(BytesIO(img))
 
     def representation(self, graph: DAGNodesGraph) -> str:
         """Returns a representation of the graph as a DOT string
@@ -343,9 +349,15 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         Returns:
             Sequence[str]: exportable formats
         """
-        return ["png", "dot", "pdf", "svg"]
+        return ["bmp", "png", "jpg", "jpeg", "jpe", "dot", "pdf", "svg", "svgz"]
 
-    def export(self, graph: DAGNodesGraph, filename: str, format: Optional[str] = None):
+    def export(
+        self,
+        graph: DAGNodesGraph,
+        filename: str,
+        format: Optional[str] = None,
+        **kwargs,
+    ):
         """Exports the graph to a file
 
         Args:
@@ -353,14 +365,12 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
             filename (str): filename
             format (str): format
         """
-        super().export(graph, filename, format)
-
-        if format is None:
-            format = Path(filename).suffix[1:]
+        format = self._check_format(filename, format)
 
         agraph = self._build_agraph(graph)
         if format in ["dot"]:
             agraph.write(filename)
         else:
-            agraph.layout("dot")
-            agraph.draw(filename)
+            agraph.draw(
+                filename, **self._get_draw_kwargs(default_format=format, **kwargs)
+            )
