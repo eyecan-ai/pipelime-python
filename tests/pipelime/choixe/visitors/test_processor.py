@@ -343,6 +343,32 @@ class TestProcessor:
         ]
         self._expectation_test(data, expected)
 
+    def test_for_direct_nesting(self):
+        data = {
+            "$for(collection3, x)": {
+                "$for(collection4, y)": ["item_$index(x)_$index(y)=$item(y)"]
+            }
+        }
+        expected = [
+            ["item_0_0=100", "item_0_1=101", "item_1_0=100", "item_1_1=101"],
+        ]
+        self._expectation_test(data, expected)
+
+    def test_for_one_element_dict(self):
+        data = {"$for(1)": {"$index": "$index"}}
+        expected = [{0: 0}]
+        self._expectation_test(data, expected)
+
+    def test_for_one_element_list(self):
+        data = {"$for(1)": ["$index"]}
+        expected = [[0]]
+        self._expectation_test(data, expected)
+
+    def test_for_one_element_str(self):
+        data = {"$for(1)": "$index"}
+        expected = ["0"]
+        self._expectation_test(data, expected)
+
     def test_for_nested_compact(self):
         data = {
             "$for(collection3)": {

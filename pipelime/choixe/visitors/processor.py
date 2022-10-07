@@ -210,16 +210,17 @@ class Processor(ast.NodeVisitor):
 
         self._current_loop = prev_loop
 
-        branches = self._branches(*branches)
+        branches = list(product(*branches))
         for i, branch in enumerate(branches):
-            if isinstance(node.body, ast.LiteralNode) or isinstance(
-                node.body, ast.StrBundleNode
-            ):
+            res = None
+            if len(branch) == 0:
+                branches[i] = None
+            elif isinstance(branch[0], (str, int, float, bool)):
                 res = "".join([str(item) for item in branch])
-            elif isinstance(node.body, ast.ListNode):
+            elif isinstance(branch[0], list):
                 res = []
                 [res.extend(item) for item in branch]
-            else:
+            elif isinstance(branch[0], dict):
                 res = {}
                 [res.update(item) for item in branch]
             branches[i] = res
