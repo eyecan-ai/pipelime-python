@@ -41,10 +41,10 @@ class RunCommand(PipelimeCommand, title="run"):
         piper_port=PiperPortType.INPUT,
     )
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not run."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not run."
     )
     token: t.Optional[str] = Field(
         None,
@@ -113,10 +113,10 @@ class DrawCommand(PipelimeCommand, title="draw"):
         piper_port=PiperPortType.INPUT,
     )
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not run."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not run."
     )
     output: t.Optional[Path] = Field(
         None,
@@ -141,6 +141,16 @@ class DrawCommand(PipelimeCommand, title="draw"):
         description=(
             "If `output` has been set, open the image file in the default viewer."
         ),
+    )
+
+    data_max_width: int = Field(
+        0, alias="m", description="Max width of data node names."
+    )
+    show_command_names: bool = Field(
+        False, alias="c", description="Show command names instead of node names."
+    )
+    extra_args: t.Optional[t.Mapping[str, t.Any]] = Field(
+        None, alias="x", description="Extra arguments to pass to the backend."
     )
     raw: bool = Field(
         False, alias="r", description="Show the raw graph representation."
@@ -177,8 +187,14 @@ class DrawCommand(PipelimeCommand, title="draw"):
             if _node_to_run(name)
         }
         dag = DAGModel(nodes=nodes)
-        graph = DAGNodesGraph.build_nodes_graph(dag)
+        graph = DAGNodesGraph.build_nodes_graph(
+            dag,
+            data_max_width=self.data_max_width,
+            show_command_name=self.show_command_names,
+        )
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
+
+        extra = self.extra_args or {}
 
         # raw graph representation
         if self.raw:
@@ -186,12 +202,12 @@ class DrawCommand(PipelimeCommand, title="draw"):
         else:
             # Show or Write
             if self.output is not None:
-                drawer.export(graph, str(self.output))
+                drawer.export(graph, str(self.output), **extra)
                 if self.open:
                     start_file(str(self.output))
             else:
                 from PIL import Image
 
-                graph_image = drawer.draw(graph=graph)
+                graph_image = drawer.draw(graph=graph, **extra)
                 img = Image.fromarray(graph_image, "RGB")
                 img.show("Graph")
