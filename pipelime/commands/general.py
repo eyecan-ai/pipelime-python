@@ -260,7 +260,7 @@ class ZipCommand(PipelimeCommand, title="zip"):
         )
     )
 
-    key_format: str = pyd.Field(
+    key_format: t.Union[str, t.Sequence[str]] = pyd.Field(
         "*",
         description=(
             "The zipped samples' key format. Any `*` will be replaced with the "
@@ -277,16 +277,21 @@ class ZipCommand(PipelimeCommand, title="zip"):
 
     def run(self):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
+
+        key_formats = [self.key_format]*len(inputs) if isinstance(self.key_format, str) else self.key_format
+        if len(key_formats) != len(inputs):
+            raise ValueError(f"Number of inputs and key formats do not match.")
+
         input_it = iter(inputs)
         seq = next(input_it).create_reader()
-        for input_ in input_it:
-            seq = seq.zip(input_.create_reader(), key_format=self.key_format)
+        for input_, kf in zip(input_it, key_formats):
+            seq = seq.zip(input_.create_reader(), key_format=kf)
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),
             keep_order=False,
             parent_cmd=self,
-            track_message=f"Writing data ({len(seq)} samples)",
+            track_message=f"Zipping data ({len(seq)} samples)",
         )
 
 
