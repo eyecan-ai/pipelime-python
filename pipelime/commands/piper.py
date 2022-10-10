@@ -133,7 +133,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
     )
     raw_output: t.Optional[str] = Field(
         None,
-        description="raw graph representation",
+        description="Raw graph representation",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
