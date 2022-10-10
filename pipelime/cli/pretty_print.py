@@ -103,7 +103,8 @@ def print_model_field_values(
 ):
     for k, v in port_values.items():
         rprint(f"\n{icon if icon else '***'} {k}:")
-        if model_fields[k].field_info.description:
+        # Ports might be virtual, as in ShellCommand, so they might not be in the model
+        if k in model_fields and model_fields[k].field_info.description:
             rprint(
                 f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]"
             )
@@ -211,6 +212,7 @@ def _field_row(
 
     line = (
         [
+            # Field name & alias
             (" " * indent)
             + ("[bold salmon1]" if indent == 0 else "")
             + (
@@ -220,16 +222,22 @@ def _field_row(
             )
             + f"{escape(field.alias)}"
             + ("[/]" if indent == 0 else ""),
+            # Description
             ("▶ " + escape(field.field_info.description))
             if field.field_info.description
             else "",
+            # Type
             (
                 ""
                 if is_model and not has_root_item
-                else display_as_type(field_outer_type).replace("[", r"\[")  # noqa: W605
+                else _human_readable_type(field_outer_type).replace(
+                    "[", r"\["
+                )  # noqa: W605
             ),
         ]
+        # Piper port
         + ([fport] if fport else [])
+        # Default value
         + (["[red]✗[/]"] if field.required else [f"[green]{field.get_default()}[/]"])
     )
 
@@ -282,6 +290,15 @@ def _get_signature(model_cls: t.Type[BaseModel]) -> str:
 
 def _is_model(type_):
     return inspect.isclass(type_) and issubclass(type_, BaseModel)
+
+
+def _human_readable_type(field_outer_type):
+    from enum import Enum
+
+    tstr = display_as_type(field_outer_type)
+    if inspect.isclass(field_outer_type) and issubclass(field_outer_type, Enum):
+        tstr += " {" + ", ".join(v.name.lower() for v in field_outer_type) + "}"
+    return tstr
 
 
 def _recursive_args_flattening(arg):

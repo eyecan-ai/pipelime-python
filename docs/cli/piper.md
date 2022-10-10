@@ -122,7 +122,10 @@ To visualize what the DAG will do, we can draw it:
 pipelime draw --config dag.yaml --context context.yaml
 ```
 
-![dag](../images/dag.png "dag")
+```{figure} ../images/dag.svg
+:width: 70%
+:align: center
+```
 
 Now we are ready to run the DAG. A few options are available:
 - `include`/`exclude`: only nodes listed in `include` and not in `exclude` are run. If not specified, all nodes are run.

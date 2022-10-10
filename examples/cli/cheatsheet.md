@@ -57,7 +57,7 @@ as specified in every command help. Here a quick reference:
 | Train/test/val splits | `pipelime split +i <input> +s 0.8,train +s 0.1,test +s null,val` |
 | Dataset shuffling, sampling and reduction | `pipelime split +i <input> +s 0.5,<output> +shf +ss 3` |
 | Split by query | `pipelime split-query +i <input> +q <dictquery> +os <output>` |
-| Split by value | `pipelime split-query +i <input> +k <sample_key> +o <output_base_path>` |
+| Split by value | `pipelime split-value +i <input> +k <sample_key> +o <output_base_path>` |
 | Generate a basic validation schema | `pipelime validate +i <input>` |
 | Upload to a S3 remote storage | `pipelime remote-add +i <input> +o <output> +r s3://user:password@host:port/bucket` |
 | Upload to a system folder remote storage | `pipelime remote-add +i <input> +o <output> +r file://localhost/path/to/folder`<br>`pipelime remote-add +i <input> +o <output> +r file://localhost/c:/path/to/folder` |

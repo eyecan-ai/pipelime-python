@@ -138,10 +138,10 @@ $ pipelime audit --config config.yaml
 ```
 
 If the configuration is valid, you will see the list of internal imports, variables and symbols.
-Then, if anything is missing, you can immediately start a wizard to write a context file.
 
 ```{tip}
-`pipelime audit` works with any yaml/json file using Choixe.
+`pipelime audit` works with any yaml/json file using Choixe, so you can use it to validate and parse any configuration file!
+To save the final processed configuration, use the `--output/-o` option.
 ```
 
 ### Merge Options From File And Command Line

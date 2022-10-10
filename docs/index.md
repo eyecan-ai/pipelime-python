@@ -44,20 +44,21 @@ sequences/items.md
 
 ```{toctree}
 :maxdepth: 4
+:caption: "Command Line Usage: "
+
+cli/overview.md
+cli/piper.md
+cli/common_tasks.md
+```
+
+```{toctree}
+:maxdepth: 4
 :caption: "Extending Pipelime: "
 
 operations/intro.md
 operations/stages.md
 operations/pipes.md
 operations/commands.md
-```
-
-```{toctree}
-:maxdepth: 4
-:caption: "Command Line Usage: "
-
-cli/overview.md
-cli/piper.md
 ```
 
 ```{toctree}

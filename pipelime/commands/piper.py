@@ -113,10 +113,10 @@ class DrawCommand(PipelimeCommand, title="draw"):
         piper_port=PiperPortType.INPUT,
     )
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="i", description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not drawn."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="e", description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not drawn."
     )
     output: t.Optional[Path] = Field(
         None,
@@ -176,7 +176,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
         inc_n = [self.include] if isinstance(self.include, str) else self.include
         exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
 
-        def _node_to_run(node: str) -> bool:
+        def _node_to_draw(node: str) -> bool:
             return (inc_n is None or node in inc_n) and (
                 exc_n is None or node not in exc_n
             )
@@ -184,7 +184,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
         nodes = {
             name: _get_command(cmd)
             for name, cmd in self.nodes.items()
-            if _node_to_run(name)
+            if _node_to_draw(name)
         }
         dag = DAGModel(nodes=nodes)
         graph = DAGNodesGraph.build_nodes_graph(
