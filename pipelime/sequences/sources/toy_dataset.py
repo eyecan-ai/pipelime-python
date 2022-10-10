@@ -1,4 +1,5 @@
 import typing as t
+import numpy as np
 
 import pydantic as pyd
 
@@ -46,7 +47,10 @@ class ToyDataset(
         (1, 5), description="The (min, max) number of objects in each sample."
     )
 
+    seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
+
     _sample_cache: t.Dict[int, pls.Sample] = pyd.PrivateAttr(default_factory=dict)
+    _rnd_gen: np.random.Generator = pyd.PrivateAttr(None)
 
     @pyd.validator("key_format")
     def validate_key_format(cls, v):
@@ -70,15 +74,17 @@ class ToyDataset(
             raise IndexError(f"Sample index `{idx}` is out of range.")
         if idx in self._sample_cache:
             return self._sample_cache[idx]
-        sample = self._generate_sample()
+
+        # create the random generator here, so that processes do not share the seed
+        if self._rnd_gen is None:
+            self._rnd_gen = np.random.default_rng(self.seed)
+
+        sample = self._generate_sample(idx)
         self._sample_cache[idx] = sample
         return sample
 
-    def _generate_sample(self) -> pls.Sample:
+    def _generate_sample(self, idx) -> pls.Sample:
         import uuid
-
-        import numpy as np
-
         import pipelime.items as pli
         import json
 
@@ -87,13 +93,20 @@ class ToyDataset(
         kpts_key = self.key_format.replace("*", "keypoints")
 
         metadata = {
-            label_key: np.random.randint(self.max_labels + 1),
-            self.key_format.replace("*", "id"): uuid.uuid1().hex,
+            label_key: int(self._rnd_gen.integers(self.max_labels + 1)),
+            self.key_format.replace("*", "id"): idx
+            + (
+                self.seed
+                if self.seed is not None
+                else int(self._rnd_gen.integers(self.length))
+            ),
         }
 
         objects = []
         if self.with_objects:
-            no_objs = np.random.randint(self.objects_range[0], self.objects_range[1])
+            no_objs = self._rnd_gen.integers(
+                self.objects_range[0], self.objects_range[1]
+            )
             objects = [self._generate_2d_object() for _ in range(no_objs)]
             if self.with_bboxes:
                 metadata[bboxes_key] = [self._generate_bbox(obj) for obj in objects]
@@ -115,11 +128,9 @@ class ToyDataset(
         return pls.Sample(items)
 
     def _generate_2d_object(self):
-        import numpy as np
-
         size = np.array(self.image_shape())
-        center = np.random.uniform(0.25 * size[0], 0.75 * size[0], (2,))
-        random_size = np.random.uniform(size * 0.05, size * 0.24, (2,))
+        center = self._rnd_gen.uniform(0.25 * size[0], 0.75 * size[0], (2,))
+        random_size = self._rnd_gen.uniform(size * 0.05, size * 0.24, (2,))
         top_left = np.array(
             [center[0] - random_size[0] * 0.5, center[1] - random_size[1] * 0.5]
         )
@@ -133,7 +144,7 @@ class ToyDataset(
 
         width = random_size[0]
         height = random_size[1]
-        label = np.random.randint(0, self.max_labels + 1)
+        label = int(self._rnd_gen.integers(0, self.max_labels + 1))
 
         return {
             "center": center,
@@ -159,8 +170,6 @@ class ToyDataset(
         )
 
     def _generate_kpts(self, obj):
-        import numpy as np
-
         tl = obj["tl"]
         br = obj["br"]
         diag = obj["diag"]
@@ -177,33 +186,24 @@ class ToyDataset(
         return [kp1, kp2]
 
     def _generate_images(self, objs):
-        import numpy as np
         from PIL import Image, ImageDraw
 
         image = (
             Image.fromarray(
-                np.random.uniform(0, 255, self.image_shape() + (3,)).astype(
-                    np.uint8
+                self._rnd_gen.integers(
+                    0, 256, self.image_shape() + (3,), dtype=np.uint8
                 )
             )
             if self.with_images
             else None
         )
-        mask = (
-            Image.new("L", self.image_shape())
-            if self.with_masks
-            else None
-        )
-        instances = (
-            Image.new("L", self.image_shape())
-            if self.with_instances
-            else None
-        )
+        mask = Image.new("L", self.image_shape()) if self.with_masks else None
+        instances = Image.new("L", self.image_shape()) if self.with_instances else None
 
         for index, obj in enumerate(objs):
             label = obj["label"]
             coords = tuple(obj["tl"]), tuple(obj["br"])
-            color = tuple(np.random.randint(0, 255, (3,)))
+            color = tuple(self._rnd_gen.integers(0, 255, (3,)))
 
             if image:
                 ImageDraw.Draw(image).rectangle(coords, fill=color)

@@ -157,7 +157,7 @@ pipe:
 | Description | Command |
 | ---- | ---- |
 | Train/test/val splits | `pipelime split +i <input> +s 0.8,train +s 0.1,test +s null,val` |
-| Dataset shuffling, sampling (1 every 3) and reduction (half of the length) | `pipelime split +i <input> +s 0.5,<output> +shf +ss 3` |
+| Dataset shuffling, subsampling (1 every 3) and reduction (half of the length) | `pipelime split +i <input> +s 0.5,<output> +shf +ss 3` |
 | Split by (a boolean) query | `pipelime split-query +i <input> +q <dictquery> +os <output_true> +od <output_false>` |
 | Split by value (a new dataset for each value of a given item) | `pipelime split-value +i <input> +k <sample_key> +o <output_base_path>` |
 
@@ -170,6 +170,7 @@ pipe:
 | Show a dag (needs `Graphviz`, see [installation instructions](../get_started/installation.md)) | `pipelime draw --config <config.yaml> --context <context.yaml>` |
 | Show a dag using the [Mermaid](https://mermaid-js.github.io/mermaid/) backend | `pipelime draw --config <config.yaml> --context <context.yaml> +b mermaid` |
 | Show a dag with (`+c`) full command names and (`+m`) limited data names' width (any backend) | `pipelime draw --config <config.yaml> --context <context.yaml> +c +m 30` |
+| Show a dag anonymizing paths | `pipelime draw --config <config.yaml> --context <context.yaml> +m "/" +ep start` |
 | Show a dag at high resolution (`Graphviz` only, see [installation instructions](../get_started/installation.md)) | `pipelime draw --config <config.yaml> --context <context.yaml> +x.G dpi=300` |
 | Save a dag to png (any backend) | `pipelime draw --config <config.yaml> --context <context.yaml> +o dag.png` |
 | Save a dag to svg or pdf (`Graphviz` only, see [installation instructions](../get_started/installation.md)) | `pipelime draw --config <config.yaml> --context <context.yaml> +o [dag.svg, dag.pdf]` |

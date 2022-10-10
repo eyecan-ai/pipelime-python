@@ -2,7 +2,7 @@ import typing as t
 from enum import Enum
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, PositiveInt
 
 from pipelime.piper import PipelimeCommand, PiperPortType
 
@@ -100,6 +100,11 @@ class DrawCommand(PipelimeCommand, title="draw"):
         GRAPHVIZ = "graphviz"
         MERMAID = "mermaid"
 
+    class EllipsesChoice(Enum):
+        START = "start"
+        MIDDLE = "middle"
+        END = "end"
+
     nodes: t.Mapping[
         str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
     ] = Field(
@@ -143,8 +148,20 @@ class DrawCommand(PipelimeCommand, title="draw"):
         ),
     )
 
-    data_max_width: int = Field(
-        0, alias="m", description="Max width of data node names."
+    data_max_width: t.Union[PositiveInt, str, None] = Field(
+        None,
+        alias="m",
+        description=(
+            "If an int is given, it is the maximum data node name length. "
+            "If a string is given, it is matched against the node name and "
+            "replaced with ellipses. Note that the search starts from "
+            "the last character if `ellipsis_position` is `start`."
+        ),
+    )
+    ellipsis_position: EllipsesChoice = Field(
+        EllipsesChoice.MIDDLE,
+        alias="ep",
+        description="Where ellipses should be put if the data node name is too long.",
     )
     show_command_names: bool = Field(
         False, alias="c", description="Show command names instead of node names."
@@ -191,6 +208,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
             dag,
             data_max_width=self.data_max_width,
             show_command_name=self.show_command_names,
+            ellipsis_position=self.ellipsis_position.value,
         )
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
 

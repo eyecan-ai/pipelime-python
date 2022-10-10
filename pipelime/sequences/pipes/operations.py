@@ -251,10 +251,9 @@ class ShuffledSequence(
         import random
 
         super().__init__(**data)
-        if self.seed is not None:
-            random.seed(self.seed)
+        rnd = random.Random(self.seed)
         self._shuffled_idxs = list(range(len(self.source)))
-        random.shuffle(self._shuffled_idxs)
+        rnd.shuffle(self._shuffled_idxs)
 
     def get_sample(self, idx: int) -> pls.Sample:
         return self.source[self._shuffled_idxs[idx]]

@@ -1,7 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
-from typing import Optional, Sequence, Mapping, Set, Iterable, Collection, Any
+from typing import Optional, Union, Sequence, Mapping, Set, Iterable, Collection, Any
 
 import networkx as nx
 
@@ -55,20 +55,47 @@ class GraphNodeOperation(GraphNode):
 
 
 class GraphNodeData(GraphNode):
-    def __init__(self, name: str, path: str, data_max_width: int):
+    def __init__(
+        self,
+        name: str,
+        path: str,
+        data_max_width: Union[int, str, None],
+        ellipsis_position: str,
+    ):
         import math
 
         super().__init__(name, GraphNode.GRAPH_NODE_TYPE_DATA)
         self._path = str(path)
 
         self._short_repr = self._path
-        if data_max_width > 0 and len(self._short_repr) > data_max_width:
-            halfw = (data_max_width - 3) * 0.5
-            self._short_repr = (
-                self._short_repr[: math.floor(halfw)]
-                + "..."
-                + self._short_repr[-math.ceil(halfw) :]
-            )
+        if isinstance(data_max_width, int):
+            if data_max_width > 0 and len(self._short_repr) > data_max_width:
+                ellipsis_position = ellipsis_position.lower()
+                effective_length = data_max_width - 3
+                if ellipsis_position == "start":
+                    self._short_repr = f"…{self._short_repr[-effective_length:]}"
+                elif ellipsis_position == "end":
+                    self._short_repr = f"{self._short_repr[:effective_length]}…"
+                elif ellipsis_position == "middle":
+                    halfw = effective_length * 0.5
+                    self._short_repr = (
+                        self._short_repr[: math.floor(halfw)]
+                        + "..."
+                        + self._short_repr[-math.ceil(halfw) :]
+                    )
+                else:
+                    raise ValueError(f"Unknown ellipsis position: {ellipsis_position}")
+        elif data_max_width is not None:
+            if ellipsis_position == "start":
+                idx = self._short_repr.rfind(data_max_width)
+                if idx >= 0:
+                    self._short_repr = f"…{self._short_repr[idx+len(data_max_width):]}"
+            elif ellipsis_position == "end":
+                idx = self._short_repr.find(data_max_width)
+                if idx >= 0:
+                    self._short_repr = f"{self._short_repr[:idx]}…"
+            elif ellipsis_position == "middle":
+                self._short_repr = self._short_repr.replace(data_max_width, "…")
 
     @property
     def path(self) -> str:
@@ -238,15 +265,26 @@ class DAGNodesGraph:
     def build_nodes_graph(
         cls,
         dag_model: DAGModel,
-        data_max_width: int = 0,
+        data_max_width: Union[int, str, None] = None,
         show_command_name: bool = False,
+        ellipsis_position: str = "middle",
     ) -> "DAGNodesGraph":
         """Builds the nodes graph of the DAG starting from a plain DAG model.
+
+        Args:
+            dag_model (DAGModel): the DAG model.
+            data_max_width (Union[int, str, None], optional): If an int is given, it is
+                the maximum data node name length. If a string is given, it is matched
+                against the node name and replaced with ellipses. Defaults to None.
+            show_command_name (bool, optional): whether to show the command name
+                alongside the node name. Defaults to False.
+            ellipsis_position (str, optional): where to put the ellipses if the data
+                node name is too long, can be "start", "middle" or "end".
+                Defaults to "middle".
 
         Returns:
             DAGNodesGraph: The nodes graph of the DAG.
         """
-
         g = nx.DiGraph()
 
         for node_name, node in dag_model.nodes.items():
@@ -256,10 +294,24 @@ class DAGNodesGraph:
             outputs = node.get_outputs()
 
             cls._add_io_ports(
-                g, node_name, node, inputs, True, data_max_width, show_command_name
+                g,
+                node_name,
+                node,
+                inputs,
+                True,
+                data_max_width,
+                ellipsis_position,
+                show_command_name,
             )
             cls._add_io_ports(
-                g, node_name, node, outputs, False, data_max_width, show_command_name
+                g,
+                node_name,
+                node,
+                outputs,
+                False,
+                data_max_width,
+                ellipsis_position,
+                show_command_name,
             )
 
         return DAGNodesGraph(raw_graph=g)
@@ -272,7 +324,8 @@ class DAGNodesGraph:
         node_cmd: PipelimeCommand,
         io_map: Optional[Mapping[str, Any]],
         is_input: bool,
-        data_max_width: int,
+        data_max_width: Union[int, str, None],
+        ellipsis_position: str,
         show_command_name: bool,
     ):
         def _to_str(x):
@@ -295,7 +348,9 @@ class DAGNodesGraph:
                 for x in value:
                     if x:  # discard empty strings and None
                         x_name = _to_str(x)
-                        n0 = GraphNodeData(x_name, x_name, data_max_width)
+                        n0 = GraphNodeData(
+                            x_name, x_name, data_max_width, ellipsis_position
+                        )
                         n1 = GraphNodeOperation(node_name, node_cmd, show_command_name)
                         if is_input:
                             port_attr = DAGNodesGraph.GraphAttrs.INPUT_PORT
