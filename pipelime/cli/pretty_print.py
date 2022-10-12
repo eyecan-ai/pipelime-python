@@ -188,11 +188,23 @@ def _field_row(
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
-    has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
-    field_outer_type = field.outer_type_
 
-    if has_root_item:
-        field_outer_type = field.outer_type_.__fields__["__root__"].outer_type_
+    # NB: docs should not come from the inner __root__ type
+    field_docs = (
+        field.field_info.description
+        if field.field_info.description
+        else (
+            field.outer_type_.__doc__ if hasattr(field.outer_type_, "__doc__") else ""
+        )
+    )
+    field_docs = " ".join(field_docs.split())
+
+    has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
+    field_outer_type = (
+        field.outer_type_.__fields__["__root__"].outer_type_
+        if has_root_item
+        else field.outer_type_
+    )
 
     if show_piper_port:
         from pipelime.piper import PiperPortType
@@ -223,9 +235,7 @@ def _field_row(
             + f"{escape(field.alias)}"
             + ("[/]" if indent == 0 else ""),
             # Description
-            ("▶ " + escape(field.field_info.description))
-            if field.field_info.description
-            else "",
+            ("▶ " + escape(field_docs)),
             # Type
             (
                 ""
@@ -263,7 +273,10 @@ def _field_row(
         }
 
         for arg in inner_types:
-            grid.add_row((" " * indent) + f"[grey50]{_short_line()} {arg.__name__}[/]")
+            grid.add_row(
+                (" " * indent)
+                + f"[grey50]{_short_line()} {arg.__name__}[/]"  # type:ignore
+            )
             _iterate_model_fields(
                 model_cls=arg,
                 grid=grid,
@@ -309,7 +322,7 @@ def _recursive_args_flattening(arg):
             for u in (_recursive_args_flattening(k), _recursive_args_flattening(v))
             for a in u
         }
-    if isinstance(arg, t.Collection):
+    if isinstance(arg, t.Collection) and not isinstance(arg, (str, bytes)):
         return {a for v in arg for a in _recursive_args_flattening(v)}
     return {arg}
 
