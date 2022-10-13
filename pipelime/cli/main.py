@@ -640,5 +640,14 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     print_command_outputs(cmd_obj)
 
 
+def run_with_extra_modules(*extra_modules):
+    """Run the CLI setting extra modules as if -m was used."""
+
+    import sys
+
+    sys.argv.extend([a for m in extra_modules for a in ("-m", m)])
+    app()
+
+
 if __name__ == "__main__":
     app()
