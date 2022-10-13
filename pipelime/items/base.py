@@ -339,7 +339,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     _shared: bool
     _serialization_mode: t.Optional[SerializationMode]
 
-    def __init__(self, *sources: _item_init_types, shared: bool = False):
+    def __init__(
+        self,
+        *sources: _item_init_types,
+        shared: bool = False,
+        dont_check_paths: bool = False,
+    ):
         super().__init__()
         self._data_cache = None
         self._file_sources = []
@@ -356,7 +361,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 src = src()
 
             if isinstance(src, (Path, ParseResult)):
-                self._add_data_source(src)
+                self._add_data_source(src, dont_check_paths)
             elif self._data_cache is not None:
                 raise ValueError(f"{self.__class__.__name__}: Cannot set data twice.")
             elif isinstance(src, (t.BinaryIO, io.IOBase)):
@@ -431,8 +436,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 f"{self.__class__.__name__}: invalid extension for `{srcstr}`"
             )
 
-    def _add_data_source(self, source: _item_data_source) -> bool:
-        self._check_source(source)
+    def _add_data_source(
+        self, source: _item_data_source, dont_check_paths: bool = False
+    ) -> bool:
+        if not dont_check_paths:
+            self._check_source(source)
         if isinstance(source, Path):
             source = source.resolve()
             if source not in self._file_sources:
