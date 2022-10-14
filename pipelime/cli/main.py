@@ -292,6 +292,8 @@ def pl_main(  # noqa: C901
     ctx: typer.Context,
     config: t.Optional[Path] = typer.Option(
         None,
+        "--config",
+        "-c",
         exists=True,
         file_okay=True,
         dir_okay=False,

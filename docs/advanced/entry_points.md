@@ -46,7 +46,7 @@ Then, you can list the pipelime items, show their help and run them all with:
 ```bash
 $ pipelime -m my_project list
 $ pipelime -m my_project help CmdZero
-$ pipelime -m my_project cmd-zero --config config.yaml [...]
+$ pipelime -m my_project cmd-zero -c config.yaml [...]
 ```
 
 ## Custom Entry Points
@@ -88,5 +88,5 @@ Now, after installing your package, you can run:
 ```bash
 $ my_project list
 $ my_project help CmdZero
-$ my_project cmd-zero --config config.yaml [...]
+$ my_project cmd-zero -c config.yaml [...]
 ```

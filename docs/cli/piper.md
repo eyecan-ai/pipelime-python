@@ -119,7 +119,7 @@ Also, remember that context options can be override from the command line using 
 To visualize what the DAG will do, we can draw it:
 
 ```bash
-pipelime draw --config dag.yaml --context context.yaml
+pipelime draw -c dag.yaml --context context.yaml
 ```
 
 ```{figure} ../images/dag.svg

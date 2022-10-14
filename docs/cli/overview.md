@@ -14,7 +14,7 @@ The following options applies to main `pipelime` command. You recognize them bec
 - `--output`, `-o`: output file path (yaml/json) where to save the effective configuration.
 - `--run-all`, `--no-run-all`: in case of multiple configurations, e.g., when a `$sweep` is present, run them all; otherwise, run only the first one. If not specified, user will be notified if multiple configurations are found.
 - `--module`, `-m`: additional module and packages where user-defined commands, sequence generators, piped operations and stages are defined. This option can be specified multiple times.
-- `--config`: path to a yaml/json file with all the parameters required by the command.
+- `--config`, `-c`: path to a yaml/json file with all the parameters required by the command.
 - `--context`: path to a yaml/json file with the context needed by Choixe to resolve variables, for loops etc.
 
 As we will see in a moment, the configuration file is in fact merged with command line arguments
@@ -134,7 +134,7 @@ Once you get your new configuration file, it's time to validate it and write a c
 Run `pipelime audit` on your configuration:
 
 ```bash
-$ pipelime audit --config config.yaml
+$ pipelime audit -c config.yaml
 ```
 
 If the configuration is valid, you will see the list of internal imports, variables and symbols.
@@ -218,7 +218,7 @@ Once you have a valid configuration file, you can run the command as `pipelime <
 followed by the configuration and context:
 
 ```bash
-$ pipelime clone --config config.yaml --context context.yaml +i input @the_answer 42
+$ pipelime clone -c config.yaml --context context.yaml +i input @the_answer 42
 ```
 
 In the example above we are running `clone` using the parameters in `config.yaml` and the context
@@ -237,4 +237,4 @@ clone:
     folder: output_$var(the_answer)
 ```
 
-And now run again with `pipelime exec --config config.yaml --context context.yaml +i input @the_answer 42`.
+And now run again with `pipelime exec -c config.yaml --context context.yaml +i input @the_answer 42`.

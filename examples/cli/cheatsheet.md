@@ -17,7 +17,7 @@ A quick reference to the pipelime CLI.
 | Main Options | Description |
 | ---- | ---- |
 | `-m` | Search for commands, operations and stages in additional module/packages. |
-| `--config` | A yaml/json configuration file. |
+| `-c` | A yaml/json configuration file. |
 | `--context` | A yaml/json context file. |
 | `+<key> <value>`<br>`++<key> <value>`<br>`+<key>=<value>`<br>`++<key>=<value>` | Configuration options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
 | `@<key> <value>`<br>`@@<key> <value>`<br>`@<key>=<value>`<br>`@@<key>=<value>` | Context options. Accepted values are strings, numbers, "true"/"false" (case insensitive), "none"/"null"/"nul" (case insensitive). Value can be omitted for TRUE boolean flags. |
