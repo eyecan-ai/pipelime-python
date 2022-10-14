@@ -463,6 +463,9 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             return False
 
         target_path = path.resolve()
+        if target_path in self._file_sources:
+            return None
+
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
         # At this point if smode is REMOTE_FILE, then REMOTE_FILE is not disabled.
