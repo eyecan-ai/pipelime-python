@@ -3,6 +3,7 @@ from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse
 from enum import IntEnum
+from copy import deepcopy
 from contextlib import ContextDecorator, contextmanager
 from loguru import logger
 import io
@@ -393,6 +394,14 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     def is_shared(self) -> bool:
         return self._shared
 
+    @property
+    def local_sources(self) -> t.Sequence[Path]:
+        return deepcopy(self._file_sources)
+
+    @property
+    def remote_sources(self) -> t.Sequence[ParseResult]:
+        return deepcopy(self._remote_sources)
+
     def effective_serialization_mode(self) -> SerializationMode:
         smode = (
             self.serialization_mode
@@ -463,9 +472,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             return False
 
         target_path = path.resolve()
-        if target_path in self._file_sources:
-            return None
-
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
         # At this point if smode is REMOTE_FILE, then REMOTE_FILE is not disabled.
@@ -473,11 +479,13 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             path = self.as_default_remote_file(target_path)
         elif target_path.suffix not in self.file_extensions():
             path = self.as_default_name(target_path)
-
-        # first delete the existing file, if any
-        path.unlink(missing_ok=True)
+        else:
+            path = target_path
 
         if smode is SerializationMode.REMOTE_FILE:
+            # it's safe to delete an existing remote file
+            path.unlink(missing_ok=True)
+
             try:
                 with path.open("w") as fp:
                     json.dump([rm.geturl() for rm in self._remote_sources], fp)
@@ -486,13 +494,22 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 logger.warning(  # logger.exception(
                     f"{self.__class__}: remote file serialization error `{exc}`."
                 )
+
+                # remove any unfinished remote file
                 path.unlink(missing_ok=True)
+
+                # fall back to local file path
                 path = (
                     self.as_default_name(target_path)
                     if target_path.suffix not in self.file_extensions()
                     else target_path
                 )
                 smode = SerializationMode.HARD_LINK
+
+        # skip if local file already exists
+        if path in self._file_sources:
+            return None
+        path.unlink(missing_ok=True)
 
         if smode is SerializationMode.HARD_LINK:
             smode = (
