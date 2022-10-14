@@ -163,18 +163,20 @@ pipe:
 
 ### Piper
 
+Here we assume the context file is named `context*.[yaml|yml|json]` and placed in the same folder of the configuration file.
+
 | Description | Command |
 | ---- | ---- |
-| Run a dag from config and context files | `pipelime run -c <config.yaml> --context <context.yaml>` |
-| Run a only a subset of nodes (must be included and not excluded) | `pipelime run -c <config.yaml> --context <context.yaml> +i node_1 +i node_2 ... +e node_2 +e node_3 ...` |
-| Show a dag (needs `Graphviz`, see [installation instructions](../get_started/installation.md)) | `pipelime draw -c <config.yaml> --context <context.yaml>` |
-| Show a dag using the [Mermaid](https://mermaid-js.github.io/mermaid/) backend | `pipelime draw -c <config.yaml> --context <context.yaml> +b mermaid` |
-| Show a dag with (`+c`) full command names and (`+m`) limited data names' width (any backend) | `pipelime draw -c <config.yaml> --context <context.yaml> +c +m 30` |
-| Show a dag anonymizing paths | `pipelime draw -c <config.yaml> --context <context.yaml> +m "/" +ep start` |
-| Show a dag at high resolution (`Graphviz` only, see [installation instructions](../get_started/installation.md)) | `pipelime draw -c <config.yaml> --context <context.yaml> +x.G dpi=300` |
-| Save a dag to png (any backend) | `pipelime draw -c <config.yaml> --context <context.yaml> +o dag.png` |
-| Save a dag to svg or pdf (`Graphviz` only, see [installation instructions](../get_started/installation.md)) | `pipelime draw -c <config.yaml> --context <context.yaml> +o [dag.svg, dag.pdf]` |
-| Save a dag to markdown ([Mermaid](https://mermaid-js.github.io/mermaid/) only) | `pipelime draw -c <config.yaml> --context <context.yaml> +o dag.md +b mermaid` |
+| Run a dag from config and context files | `pipelime run -c <config.yaml>` |
+| Run a only a subset of nodes (must be included and not excluded) | `pipelime run -c <config.yaml> +i node_1 +i node_2 ... +e node_2 +e node_3 ...` |
+| Show a dag (needs `Graphviz`, see [installation instructions](../get_started/installation.md)) | `pipelime draw -c <config.yaml>` |
+| Show a dag using the [Mermaid](https://mermaid-js.github.io/mermaid/) backend | `pipelime draw -c <config.yaml> +b mermaid` |
+| Show a dag with (`+c`) full command names and (`+m`) limited data names' width (any backend) | `pipelime draw -c <config.yaml> +c +m 30` |
+| Show a dag anonymizing paths | `pipelime draw -c <config.yaml> +m "/" +ep start` |
+| Show a dag at high resolution (`Graphviz` only, see [installation instructions](../get_started/installation.md)) | `pipelime draw -c <config.yaml> +x.G dpi=300` |
+| Save a dag to png (any backend) | `pipelime draw -c <config.yaml> +o dag.png` |
+| Save a dag to svg or pdf (`Graphviz` only, see [installation instructions](../get_started/installation.md)) | `pipelime draw -c <config.yaml> +o [dag.svg, dag.pdf]` |
+| Save a dag to markdown ([Mermaid](https://mermaid-js.github.io/mermaid/) only) | `pipelime draw -c <config.yaml> +o dag.md +b mermaid` |
 
 ## Utilities
 

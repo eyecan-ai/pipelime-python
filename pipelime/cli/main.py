@@ -316,11 +316,21 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A yaml/json file with some or all the context parameters.\n\n"
+            "A yaml/json file with some or all the context parameters. "
+            "If `--config` is set and `--context` is not, the first file matching "
+            "`context*.[yaml|yml|json]` in the folder of the config will be loaded as "
+            "context. Use `--no-ctx-autoload` to disable this behavior.\n\n"
             "`@@opt` or `@opt` command line options update and override them.\n\n"
             "After a `//` token, `++opt` and `+opt` are accepted as well.\n\n "
         ),
         autocompletion=_complete_yaml,
+    ),
+    ctx_autoload: bool = typer.Option(
+        True,
+        help=(
+            "Enable/disable context auto-loading when "
+            "`--config` is set and `--context` is not."
+        ),
     ),
     extra_modules: t.List[str] = typer.Option(
         [], "--module", "-m", help="Additional modules to import."
@@ -328,9 +338,9 @@ def pl_main(  # noqa: C901
     run_all: t.Optional[bool] = typer.Option(
         None,
         help=(
-            "In case of multiple configurations, run them all, "
-            "otherwise, run only the first one. If not specified, user will be "
-            "notified if multiple configurations are found."
+            "In case of multiple configurations, run them all or only the first one. "
+            "If not specified, user will be notified if multiple configurations "
+            "are found and asked on how to proceed."
         ),
     ),
     output: t.Optional[Path] = typer.Option(
@@ -445,6 +455,12 @@ def pl_main(  # noqa: C901
         import pipelime.choixe.utils.io as choixe_io
         from pipelime.cli.pretty_print import print_error, print_warning, print_info
 
+        if config is not None and context is None and ctx_autoload:
+            for p in config.resolve().parent.glob("context*.*"):
+                if p.suffix in (".yaml", ".yml", ".json"):
+                    context = p
+                    break
+
         if verbose:
             print_info(
                 "No configuration file"
@@ -452,7 +468,7 @@ def pl_main(  # noqa: C901
                 else f"Configuration file: {config}"
             )
             print_info(
-                "No context file" if context is None else f"Context file: {config}"
+                "No context file" if context is None else f"Context file: {context}"
             )
             print_info(
                 f"Other command and context arguments: {command_args}"

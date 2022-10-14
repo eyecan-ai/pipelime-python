@@ -15,7 +15,7 @@ The following options applies to main `pipelime` command. You recognize them bec
 - `--run-all`, `--no-run-all`: in case of multiple configurations, e.g., when a `$sweep` is present, run them all; otherwise, run only the first one. If not specified, user will be notified if multiple configurations are found.
 - `--module`, `-m`: additional module and packages where user-defined commands, sequence generators, piped operations and stages are defined. This option can be specified multiple times.
 - `--config`, `-c`: path to a yaml/json file with all the parameters required by the command.
-- `--context`: path to a yaml/json file with the context needed by Choixe to resolve variables, for loops etc.
+- `--context`: path to a yaml/json file with the context needed by Choixe to resolve variables, for loops etc. It can be automatically loaded if named `context*.[yaml|yml|json]` and placed in the same folder of the configuration file.
 
 As we will see in a moment, the configuration file is in fact merged with command line arguments
 starting with `++` or `+`. Likewise, context file is merged with command line arguments starting with `@@` or `@`.
@@ -215,10 +215,10 @@ Also, options declared with no value are interpreted as `True` boolean flags.
 ### Executing A Command
 
 Once you have a valid configuration file, you can run the command as `pipelime <command>`
-followed by the configuration and context:
+followed by the configuration and context (NB: context file is usually [autoloaded](#basic-usage)):
 
 ```bash
-$ pipelime clone -c config.yaml --context context.yaml +i input @the_answer 42
+$ pipelime clone -c config.yaml +i input @the_answer 42
 ```
 
 In the example above we are running `clone` using the parameters in `config.yaml` and the context
