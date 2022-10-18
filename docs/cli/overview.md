@@ -215,7 +215,7 @@ Also, options declared with no value are interpreted as `True` boolean flags.
 ### Executing A Command
 
 Once you have a valid configuration file, you can run the command as `pipelime <command>`
-followed by the configuration and context (NB: context file is usually [autoloaded](#basic-usage)):
+followed by the configuration and context (NB: context file is usually [auto-loaded](#basic-usage)):
 
 ```bash
 $ pipelime clone -c config.yaml +i input @the_answer 42

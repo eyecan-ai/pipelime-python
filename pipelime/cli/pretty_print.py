@@ -84,6 +84,11 @@ def print_error(
     )
 
 
+def show_spinning_status(text: str):
+    """Returns a context manager."""
+    return get_console().status(text)
+
+
 def get_model_title(model_cls: t.Type[BaseModel]) -> str:
     if model_cls.__config__.title:
         return model_cls.__config__.title

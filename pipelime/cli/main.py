@@ -1,5 +1,6 @@
 from __future__ import annotations
 import typing as t
+import functools
 from pathlib import Path
 from abc import ABC, abstractmethod
 import typer
@@ -11,6 +12,9 @@ from pipelime.cli.utils import (
     print_command_op_stage_info,
     print_commands_ops_stages_list,
 )
+
+if t.TYPE_CHECKING:
+    from pipelime.choixe import XConfig
 
 
 class CLISpecialChars:
@@ -238,14 +242,21 @@ def _dict_update(to_be_updated: t.MutableMapping, data: t.Mapping):
         to_be_updated[k] = v
 
 
+def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig"):
+    to_be_updated.deep_update(data, full_merge=True)
+    return to_be_updated
+
+
 def _process_cfg_or_die(
-    cfg,
-    ctx,
+    cfg: "XConfig",
+    ctx: t.Optional["XConfig"],
+    cfg_name: str,
     run_all: t.Optional[bool],
     output: t.Optional[Path],
-    exit_on_error: bool = True,
-):
-    from pipelime.cli.pretty_print import print_error
+    exit_on_error: bool,
+    verbose: bool,
+) -> t.List["XConfig"]:
+    from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
     try:
@@ -256,9 +267,20 @@ def _process_cfg_or_die(
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
-            print_error(f"Invalid configuration! {e}")
+            print_error(f"Invalid {cfg_name}! {e}\nRun with -v to get more info.")
             raise typer.Exit(1)
         raise e
+
+    if verbose:
+        pls = "s" if len(effective_configs) != 1 else ""
+        print_info(f"\nFound {len(effective_configs)} {cfg_name}{pls}")
+
+    if len(effective_configs) > 1 and run_all is None:
+        if not typer.confirm(
+            f"{len(effective_configs)} {cfg_name}s found. "
+            "Do you want to keep them all?"
+        ):
+            effective_configs = effective_configs[:1]
 
     if output is not None:
         zero_fill = len(str(len(effective_configs) - 1))
@@ -270,6 +292,51 @@ def _process_cfg_or_die(
             )
             cfg.save_to(filepath)
     return effective_configs
+
+
+def _process_all(
+    base_cfg: t.List["XConfig"],
+    effective_ctx: "XConfig",
+    output: t.Optional[Path],
+    run_all: t.Optional[bool],
+    exit_on_error: bool,
+    verbose: bool,
+):
+    from pipelime.cli.pretty_print import print_info
+    from pipelime.choixe import XConfig
+
+    # first process with no branch
+    effective_configs = [
+        _process_cfg_or_die(
+            c, effective_ctx, "configuration", False, output, exit_on_error, verbose
+        )
+        for c in base_cfg
+        if c.to_dict()
+    ]
+    if effective_configs:
+        effective_configs = functools.reduce(
+            lambda acc, curr: acc + curr, effective_configs
+        )
+        effective_configs = functools.reduce(
+            lambda acc, curr: _deep_update_fn(acc, curr), effective_configs
+        )
+    else:
+        effective_configs = XConfig()
+
+    if verbose:
+        print_info("\nMerged configuration:")
+        print_info(effective_configs.to_dict(), pretty=True)
+
+    # now process the branches, if any, and check the overall merge
+    return _process_cfg_or_die(
+        effective_configs,
+        effective_ctx,
+        "configuration",
+        run_all,
+        output,
+        exit_on_error,
+        verbose,
+    )
 
 
 app = typer.Typer(pretty_exceptions_enable=False)
@@ -290,7 +357,7 @@ def version_callback(value: bool):
 )
 def pl_main(  # noqa: C901
     ctx: typer.Context,
-    config: t.Optional[Path] = typer.Option(
+    config: t.List[Path] = typer.Option(
         None,
         "--config",
         "-c",
@@ -301,14 +368,16 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A yaml/json file with some or all the arguments "
-            "required by the command.\n\n"
+            "One or more yaml/json files with some or "
+            "all the arguments required by the command.\n\n"
             "`++opt` or `+opt` command line options update and override them.\n\n "
         ),
         autocompletion=_complete_yaml,
     ),
-    context: t.Optional[Path] = typer.Option(
+    context: t.List[Path] = typer.Option(
         None,
+        "--context",
+        "-x",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -316,10 +385,11 @@ def pl_main(  # noqa: C901
         readable=True,
         resolve_path=True,
         help=(
-            "A yaml/json file with some or all the context parameters. "
-            "If `--config` is set and `--context` is not, the first file matching "
-            "`context*.[yaml|yml|json]` in the folder of the config will be loaded as "
-            "context. Use `--no-ctx-autoload` to disable this behavior.\n\n"
+            "One or more yaml/json files with some or all the context parameters. "
+            "If `--config` is set and `--context` is not, all files matching "
+            "`context*.[yaml|yml|json]` in the folders of all the "
+            "configuration files will be loaded as the context. "
+            "Use `--no-ctx-autoload` to disable this behavior.\n\n"
             "`@@opt` or `@opt` command line options update and override them.\n\n"
             "After a `//` token, `++opt` and `+opt` are accepted as well.\n\n "
         ),
@@ -350,6 +420,12 @@ def pl_main(  # noqa: C901
         writable=True,
         resolve_path=True,
         help="Save final processed configuration to json/yaml.",
+    ),
+    output_ctx: t.Optional[Path] = typer.Option(
+        None,
+        writable=True,
+        resolve_path=True,
+        help="Save final processed context to json/yaml.",
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
@@ -455,29 +531,35 @@ def pl_main(  # noqa: C901
         import pipelime.choixe.utils.io as choixe_io
         from pipelime.cli.pretty_print import print_error, print_warning, print_info
 
-        if config is not None and context is None and ctx_autoload:
-            for p in config.resolve().parent.glob("context*.*"):
-                if p.suffix in (".yaml", ".yml", ".json"):
-                    context = p
-                    break
+        if config and context is None and ctx_autoload:
+            context = []
+            for c in config:
+                for p in c.resolve().parent.glob("context*.*"):
+                    if p.suffix in (".yaml", ".yml", ".json"):
+                        context += [p]
 
         if verbose:
-            print_info(
-                "No configuration file"
-                if config is None
-                else f"Configuration file: {config}"
-            )
-            print_info(
-                "No context file" if context is None else f"Context file: {context}"
-            )
+
+            def _print_file_list(files: t.Sequence[Path], name: str):
+                if config:
+                    flist = ", ".join(f'"{str(c)}"' for c in config)
+                    print_info(
+                        f"{name.capitalize()} file"
+                        + (f"s: [ {flist} ]" if len(config) > 1 else f": {config[0]}")
+                    )
+                else:
+                    print_info(f"No {name} file")
+
+            _print_file_list(config, "configuration")
+            _print_file_list(context, "context")
             print_info(
                 f"Other command and context arguments: {command_args}"
                 if command_args
                 else "No other command or context arguments"
             )
 
-        base_cfg = {} if config is None else choixe_io.load(config)
-        base_ctx = {} if context is None else choixe_io.load(context)
+        base_cfg = [choixe_io.load(c) for c in config]
+        base_ctx = [choixe_io.load(c) for c in context]
 
         # process extra args
         cli_state = CLIParserHoldState()
@@ -487,44 +569,65 @@ def pl_main(  # noqa: C901
         cmdline_cfg, cmdline_ctx = cli_state.cfg_opts, cli_state.ctx_opts
 
         if verbose:
-            _print_dict("Loaded configuration file", base_cfg)
-            _print_dict("Loaded context file", base_ctx)
+            _print_dict(
+                f"Loaded configuration file{'s' if len(config) > 1 else ''}", base_cfg
+            )
+            _print_dict(
+                f"Loaded context file{'s' if len(context) > 1 else ''}", base_ctx
+            )
             _print_dict("Configuration options from command line", cmdline_cfg)
             _print_dict("Context options from command line", cmdline_ctx)
 
-        _dict_update(base_cfg, cmdline_cfg)
-        _dict_update(base_ctx, cmdline_ctx)
+        # keep each config separated to get the right cwd
+        base_cfg = [XConfig(data=c, cwd=p.parent) for c, p in zip(base_cfg, config)]
+        base_cfg.append(XConfig(data=cmdline_cfg, cwd=Path.cwd()))
+
+        base_ctx = [XConfig(data=c, cwd=p.parent) for c, p in zip(base_ctx, context)]
+        base_ctx.append(XConfig(data=cmdline_ctx, cwd=Path.cwd()))
+
+        # process contexts to resolve imports and local loops
+        effective_ctx = [
+            _process_cfg_or_die(c, None, "context", run_all, output_ctx, True, verbose)
+            for c in base_ctx
+            if c.to_dict()
+        ]
+        if effective_ctx:
+            effective_ctx = functools.reduce(
+                lambda acc, curr: acc + curr, effective_ctx
+            )
+            effective_ctx = functools.reduce(
+                lambda acc, curr: _deep_update_fn(acc, curr), effective_ctx
+            )
+        else:
+            effective_ctx = XConfig()
 
         if verbose:
-            _print_dict("Merged configuration", base_cfg)
-            _print_dict("Merged context", base_ctx)
-
-        base_cfg = XConfig(
-            data=base_cfg, cwd=Path.cwd() if config is None else config.parent
-        )
-        base_ctx = XConfig(
-            data=base_ctx, cwd=Path.cwd() if context is None else context.parent
-        )
+            print_info("\nFinal effective context:")
+            print_info(effective_ctx.to_dict(), pretty=True)
 
         if command in subc.AUDIT[0]:
             from dataclasses import fields
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
             print_info("\n📄 CONFIGURATION AUDIT\n")
-            inspect_info = base_cfg.inspect()
-            for field in fields(inspect_info):
-                value = getattr(inspect_info, field.name)
-                print_info(f"🔍 {field.name}:")
-                if value or isinstance(value, bool):
-                    print_info(value, pretty=True)
+            for idx, c in enumerate(base_cfg):
+                if len(base_cfg) > 1:
+                    name = str(config[idx]) if idx < len(config) else "command line"
+                    print_info(f"*** {name}")
+                inspect_info = c.inspect()
+                for field in fields(inspect_info):
+                    value = getattr(inspect_info, field.name)
+                    print_info(f"🔍 {field.name}:")
+                    if value or isinstance(value, bool):
+                        print_info(value, pretty=True)
 
             print_info("\n📄 CONTEXT AUDIT\n")
-            print_info(base_ctx.to_dict(), pretty=True)
+            print_info(effective_ctx.to_dict(), pretty=True)
             print_info("")
 
             try:
-                effective_configs = _process_cfg_or_die(
-                    base_cfg, base_ctx, run_all, output, False
+                effective_configs = _process_all(
+                    base_cfg, effective_ctx, output, run_all, False, verbose
                 )
             except ChoixeProcessingError as e:
                 from rich.prompt import Prompt, Confirm
@@ -542,7 +645,7 @@ def pl_main(  # noqa: C901
                 #     raise typer.Exit(1)
             #
             # print_info("\n📝 Please enter a value for each variable")
-            # new_ctx = Wizard.context_wizard(inspect_info.variables, base_ctx)
+            # new_ctx = Wizard.context_wizard(inspect_info.variables, effective_ctx)
             #
             # print_info("Processing configuration and context...", end="")
             # effective_configs = _process_cfg_or_die(
@@ -561,38 +664,23 @@ def pl_main(  # noqa: C901
             )
             raise typer.Exit(0)
         else:
-            effective_configs = _process_cfg_or_die(base_cfg, base_ctx, run_all, output)
+            from pipelime.cli.pretty_print import show_spinning_status
 
-            if verbose:
-                pls = "s" if len(effective_configs) != 1 else ""
-                print_info(f"Found {len(effective_configs)} configuration{pls}")
+            with show_spinning_status("Processing configuration and context..."):
+                effective_configs = _process_all(
+                    base_cfg, effective_ctx, output, run_all, True, verbose
+                )
 
-            for cfg in effective_configs:
-                if not cfg.inspect().processed:
-                    print_error("The configuration has not been fully processed.")
-                    if verbose:
-                        _print_dict("Unprocessed data", cfg)
-                    else:
-                        print_info(
-                            "Run with --verbose to see the final configuration file."
-                        )
-                    raise typer.Exit(1)
-
-            if len(effective_configs) > 1 and run_all is None:
-                if not typer.confirm(
-                    f"{len(effective_configs)} configurations found. "
-                    "Do you want to run them all?"
-                ):
-                    effective_configs = effective_configs[:1]
-
+            cmd_name = command
             cfg_size = len(effective_configs)
             for idx, cfg in enumerate(effective_configs):
-                if verbose and cfg_size > 1:
-                    print_info(f"*** CONFIGURATION {idx}/{cfg_size} ***")
                 cfg_dict = cfg.to_dict()
-                cmd_name = command
 
-                if cmd_name in subc.EXEC[0]:
+                if verbose:
+                    print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
+                    print_info(cfg_dict, pretty=True)
+
+                if command in subc.EXEC[0]:
                     if len(cfg_dict) == 0:
                         print_error("No command specified.")
                         raise typer.Exit(1)
