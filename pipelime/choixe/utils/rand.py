@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from math import prod
 from statistics import fmean
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
@@ -43,10 +44,12 @@ class RealFn(ABC):
         pass
 
 
-t_piece_fn = Callable[[np.ndarray], np.ndarray]
-t_piece = Union[float, Tuple[float, float], t_piece_fn, RealFn]
-t_piecewise = Union[Sequence[t_piece], Mapping[float, t_piece]]
-t_pdf = Union[RealFn, t_piece_fn, Sequence[t_piece], Mapping[float, t_piece]]
+t_fn_callable = Callable[[np.ndarray], np.ndarray]
+t_fn = Union[float, Tuple[float, float], t_fn_callable, RealFn]
+t_fn_pw_simple = Sequence[float]
+t_fn_pw_ranges = Sequence[Tuple[float, t_fn]]
+t_pw = Union[t_fn_pw_simple, t_fn_pw_ranges]
+t_pdf = Union[RealFn, t_fn_callable, t_fn_pw_simple, t_fn_pw_ranges]
 
 
 class LinearFn(RealFn):
@@ -118,7 +121,6 @@ class QuadraticFn(RealFn):
         if a == 0:
             return LinearFn(b, c).invert(start, stop)
         vertex_x = -b / (2 * a)
-        print(vertex_x, start, stop)
         if start + eps < vertex_x < stop - eps:
             return None
         sv = -1 if (start + stop) / 2 < vertex_x else 1
@@ -164,7 +166,7 @@ class GenericFn(RealFn):
         x = np.linspace(self.start, self.stop, self.steps + 1)
         y = self(x)
         x, y = x.tolist(), y.tolist()
-        segments = {x[i]: (y[i], y[i + 1]) for i in range(len(x) - 1)}
+        segments = [(x[i], (y[i], y[i + 1])) for i in range(len(x) - 1)]
         return PiecewiseFn.parse(segments, self.start, self.stop)
 
     def integrate(self) -> PiecewiseFn:
@@ -182,7 +184,7 @@ class GenericFn(RealFn):
 
 class PiecewiseFn(RealFn):
     @classmethod
-    def parse_piece(cls, piece: t_piece, start: float, stop: float) -> RealFn:
+    def parse_piece(cls, piece: t_fn, start: float, stop: float) -> RealFn:
         if isinstance(piece, RealFn):
             return piece
         elif isinstance(piece, float):
@@ -199,32 +201,36 @@ class PiecewiseFn(RealFn):
     @classmethod
     def parse(
         cls,
-        fn: t_piecewise,
+        fn: t_pw,
         start: Optional[float] = None,
         stop: Optional[float] = None,
     ) -> PiecewiseFn:
-        if isinstance(fn, Sequence):
+        if len(fn) == 0:
+            raise ValueError("Piecewise function must have at least one piece")
+        if all(isinstance(piece, float) for piece in fn):
             segments = {}
             start_, stop_ = start or 0.0, stop or 1.0
             cur = start_
             step = (stop_ - start_) / len(fn)
             for piece in fn:
-                segments[cur] = cls.parse_piece(piece, cur, cur + step)
+                segments[cur] = cls.parse_piece(piece, cur, cur + step)  # type: ignore
                 cur += step
             segments[stop_] = ConstantFn(0.0)
-        elif isinstance(fn, Mapping):
+        elif all(isinstance(piece, tuple) for piece in fn):
             segments = {}
-            keysteps = sorted(list(fn.keys()))
+            keysteps = [x[0] for x in fn]  # type: ignore
             start_, stop_ = start or keysteps[0], stop or keysteps[-1]
             for i in range(len(keysteps)):
                 cur, nxt = (
                     keysteps[i],
                     keysteps[i + 1] if i < len(keysteps) - 1 else stop_,
                 )
-                segments[cur] = cls.parse_piece(fn[cur], cur, nxt)
+                if cur == nxt:
+                    continue
+                segments[cur] = cls.parse_piece(fn[i][1], cur, nxt)  # type: ignore
             segments[stop_] = ConstantFn(0.0)
         else:
-            raise TypeError("Invalid function")
+            raise TypeError("Function must be a list of all floats or all tuples")
         return cls(segments)
 
     def __init__(self, segments: Mapping[float, RealFn]) -> None:
@@ -283,6 +289,9 @@ class PiecewiseFn(RealFn):
 def plot(start: float, stop: float, *fn: Optional[RealFn], steps: int = 1000) -> None:
     import matplotlib.pyplot as plt
 
+    start = max(start, -1e3)
+    stop = min(stop, 1e3)
+
     span = stop - start
     input_start = start - span / 5
     input_stop = stop + span / 5
@@ -304,7 +313,6 @@ def plot(start: float, stop: float, *fn: Optional[RealFn], steps: int = 1000) ->
     plt.grid()
     plt.axhline(y=0, color="k")
     plt.axvline(x=0, color="k")
-    # plt.axis("equal")
     plt.xlim(start, stop)
     plt.show()
 
@@ -318,11 +326,13 @@ class Distribution:
         inverse_primitive = primitive.invert(start, stop)
         sum_ = primitive(stop)
 
+        assert inverse_primitive is not None, "The function must be invertible"
+
         self.pdf = lambda x: fn(np.clip(x, start, stop)) / sum_
         self.cdf = lambda x: primitive(x) / sum_
         self.inverse_cdf = lambda x: inverse_primitive(x * sum_)  # type: ignore
 
-        plot(start, stop, self.pdf, self.cdf, steps=1000)  # type: ignore
+        # plot(start, stop, self.pdf, self.cdf, steps=1000)  # type: ignore
 
     def sample_n(self, n: int) -> np.ndarray:
         return self.inverse_cdf(np.random.rand(n))
@@ -332,13 +342,13 @@ class Distribution:
         cls, fn: t_pdf, start: Optional[float] = None, stop: Optional[float] = None
     ) -> Distribution:
         if isinstance(fn, RealFn):
-            return cls(fn, start or -float("inf"), stop or float("inf"))
+            return cls(fn, start or 0.0, stop or 1.0)
         elif callable(fn):
-            start_, stop_ = start or -float("inf"), stop or float("inf")
+            start_, stop_ = start or 0.0, stop or 1.0
             rfn = PiecewiseFn.parse_piece(fn, start_, stop_)  # type: ignore
             return cls(rfn, start_, stop_)
-        elif isinstance(fn, (Sequence, Mapping)):
-            rfn = PiecewiseFn.parse(fn)
+        elif isinstance(fn, Sequence):
+            rfn = PiecewiseFn.parse(fn, start=start, stop=stop)
             keysteps = sorted(list(rfn.segments.keys()))
             start_, stop_ = keysteps[0], keysteps[-1]
             return cls(rfn, start_, stop_)
@@ -346,50 +356,47 @@ class Distribution:
             raise ValueError("Invalid distribution")
 
 
-def _rand_floats(
+def _rand(
     start: Optional[float] = None,
     stop: Optional[float] = None,
-    n: int = 0,
+    n: Union[int, Sequence[int]] = 0,
     pdf: Optional[t_pdf] = None,
+    dtype: Optional[Any] = None,
 ) -> Union[float, Sequence[float]]:
     if pdf is None:
         start_, stop_, n_ = start or 0.0, stop or 1.0, n or 1
-        results = np.random.uniform(start_, stop_, n_).tolist()
+        results = np.random.uniform(start_, stop_, n_)
     else:
         distribution = Distribution.parse(pdf, start=start, stop=stop)
-        n_ = n or 1
-        results = distribution.sample_n(n_).tolist()
+        n_ = prod(n) if isinstance(n, Sequence) else (n or 1)
+        results = distribution.sample_n(n_)
 
-    return results if n > 0 else results[0]
+    if dtype is not None:
+        results = results.astype(dtype)
 
-
-def _rand_ints(
-    start: Optional[int] = None,
-    stop: Optional[int] = None,
-    n: int = 0,
-    pdf: Optional[t_pdf] = None,
-) -> Union[int, Sequence[int]]:
-    floats = _rand_floats(start=start, stop=stop, n=n, pdf=pdf)
-    if isinstance(floats, float):
-        return int(round(floats))
-    return [int(round(x)) for x in floats]
+    if n == 0:
+        return results.item()
+    elif isinstance(n, int):
+        return results.tolist()
+    else:
+        return results.reshape(n)  # type: ignore
 
 
 def rand(*args, n: int = 0, pdf: Optional[t_pdf] = None) -> Any:
     if len(args) == 0:
-        return _rand_floats(n=n, pdf=pdf)
+        return _rand(n=n, pdf=pdf)
     elif len(args) == 1:
         a = args[0]
         if isinstance(a, int):
-            return _rand_ints(stop=a, n=n, pdf=pdf)
+            return _rand(stop=a, n=n, pdf=pdf, dtype=np.int32)
         if isinstance(a, float):
-            return _rand_floats(stop=a, n=n, pdf=pdf)
+            return _rand(stop=a, n=n, pdf=pdf)
     elif len(args) == 2:
         a, b = args
         if isinstance(a, int) and isinstance(b, int):
-            return _rand_ints(start=a, stop=b, n=n, pdf=pdf)
+            return _rand(start=a, stop=b, n=n, pdf=pdf, dtype=np.int32)
         if isinstance(a, float) and isinstance(b, float):
-            return _rand_floats(start=a, stop=b, n=n, pdf=pdf)
+            return _rand(start=a, stop=b, n=n, pdf=pdf)
 
     raise ValueError("Invalid arguments")
 
@@ -397,21 +404,28 @@ def rand(*args, n: int = 0, pdf: Optional[t_pdf] = None) -> Any:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    n = int(1e7)
+    n = int(1e5)
 
-    pdf = [0.1, (1.0, 0.4), 2.0, (0.0, 0.2)]
-    samples = rand(0.0, 10.0, n=n, pdf=pdf)
-    plt.hist(samples, bins=100), plt.show()  # type: ignore
+    # # Uniform random sampling
+    # samples = rand(n=n)
 
-    pdf = [0.1, 1.0, 2.0, 0.2]
-    samples = rand(0.0, 10.0, n=n, pdf=pdf)
-    plt.hist(samples, bins=100), plt.show()  # type: ignore
+    # samples = rand(0.0, 4.0, n=n)
 
-    pdf = {0.0: 0.1, 1.0: 1.0, 2.0: 2.0, 3.0: 0.2, 15.0: 120.0}
-    samples = rand(0.0, 10.0, n=n, pdf=pdf)
-    plt.hist(samples, bins=100), plt.show()  # type: ignore
+    # samples = rand(0, 10, n=n)
 
-    # Gaussian pdf
-    pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
-    samples = rand(-5.0, 10.0, n=n, pdf=pdf)
+    # pdf = [0.1, 1.0, 2.0, 0.2]
+    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
+
+    # pdf = [(0.0, 0.1), (0.5, 1.0), (2.0, 2.0), (2.7, 0.2), (8.0, 1.0)]
+    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
+
+    # pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
+    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
+
+    # pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
+    # samples = rand(-5.0, 10.0, n=n, pdf=pdf)
+
+    pdf = [(0.0, (0.0, 0.5)), (0.5, lambda x: 1 / x), (1.0, 0.5)]
+    samples = rand(0.0, 2.0, n=n, pdf=pdf)
+
     plt.hist(samples, bins=100), plt.show()  # type: ignore
