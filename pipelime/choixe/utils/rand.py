@@ -48,7 +48,7 @@ t_fn = Union[float, Tuple[float, float], t_fn_callable, RealFn]
 t_fn_pw_simple = Sequence[float]
 t_fn_pw_ranges = Sequence[Tuple[float, t_fn]]
 t_pw = Union[t_fn_pw_simple, t_fn_pw_ranges]
-t_pdf = Union[RealFn, t_fn_callable, t_fn_pw_simple, t_fn_pw_ranges]
+t_pdf = Union[RealFn, t_fn_callable, t_fn_pw_simple, t_fn_pw_ranges, str]
 
 
 class LinearFn(RealFn):
@@ -355,21 +355,25 @@ class Distribution:
     def sample_n(self, n: int) -> np.ndarray:
         return self.inverse_cdf(np.random.rand(n))
 
+
+class DistributionFactory:
     @classmethod
     def parse(
         cls, fn: t_pdf, start: Optional[float] = None, stop: Optional[float] = None
     ) -> Distribution:
+        if isinstance(fn, str):
+            raise NotImplementedError("Parsing strings is not implemented yet")
         if isinstance(fn, RealFn):
-            return cls(fn, start or 0.0, stop or 1.0)
+            return Distribution(fn, start or 0.0, stop or 1.0)
         elif callable(fn):
             start_, stop_ = start or 0.0, stop or 1.0
             rfn = PiecewiseFn.parse_piece(fn, start_, stop_)  # type: ignore
-            return cls(rfn, start_, stop_)
+            return Distribution(rfn, start_, stop_)
         elif isinstance(fn, Sequence):
             rfn = PiecewiseFn.parse(fn, start=start, stop=stop)
             keysteps = sorted(list(rfn.segments.keys()))
             start_, stop_ = keysteps[0], keysteps[-1]
-            return cls(rfn, start_, stop_)
+            return Distribution(rfn, start_, stop_)
         else:
             raise ValueError("Invalid distribution")
 
@@ -385,7 +389,7 @@ def _rand(
         start_, stop_, n_ = start or 0.0, stop or 1.0, n or 1
         results = np.random.uniform(start_, stop_, n_)
     else:
-        distribution = Distribution.parse(pdf, start=start, stop=stop)
+        distribution = DistributionFactory.parse(pdf, start=start, stop=stop)
         n_ = prod(n) if isinstance(n, Sequence) else (n or 1)
         results = distribution.sample_n(n_)
 
@@ -405,16 +409,12 @@ def rand(*args, n: int = 0, pdf: Optional[t_pdf] = None) -> Any:
         return _rand(n=n, pdf=pdf)
     elif len(args) == 1:
         a = args[0]
-        if isinstance(a, int):
-            return _rand(stop=a, n=n, pdf=pdf, dtype=np.int32)
-        if isinstance(a, float):
-            return _rand(stop=a, n=n, pdf=pdf)
+        dtype = np.float32 if isinstance(a, float) else np.int32
+        return _rand(stop=a, n=n, pdf=pdf, dtype=dtype)
     elif len(args) == 2:
         a, b = args
-        if isinstance(a, int) and isinstance(b, int):
-            return _rand(start=a, stop=b, n=n, pdf=pdf, dtype=np.int32)
-        if isinstance(a, float) and isinstance(b, float):
-            return _rand(start=a, stop=b, n=n, pdf=pdf)
+        dtype = np.float32 if isinstance(a, float) or isinstance(b, float) else np.int32
+        return _rand(start=a, stop=b, n=n, pdf=pdf, dtype=dtype)
 
     raise ValueError("Invalid arguments")
 
@@ -424,11 +424,13 @@ if __name__ == "__main__":
 
     n = int(1e5)
 
-    # # Uniform random sampling
+    # Uniform random sampling
     # samples = rand(n=n)
 
-    # samples = rand(0.0, 4.0, n=n)
+    # # Uniform between 1 and 4
+    # samples = rand(1.0, 4.0, n=n)
 
+    # Uniform between 0 and 10, but integers
     # samples = rand(0, 10, n=n)
 
     # pdf = [0.1, 1.0, 2.0, 0.2]
@@ -440,10 +442,10 @@ if __name__ == "__main__":
     # pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
     # samples = rand(0.0, 10.0, n=n, pdf=pdf)
 
-    # pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
-    # samples = rand(-5.0, 10.0, n=n, pdf=pdf)
+    pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
+    samples = rand(-5.0, 10.0, n=n, pdf=pdf)
 
-    pdf = [(0.0, (0.0, 0.5)), (0.5, lambda x: 1 / x), (1.0, 0.5)]
-    samples = rand(0.0, 2.0, n=n, pdf=pdf)
+    # pdf = [(0.0, (0.0, 0.5)), (0.5, lambda x: 1 / x), (1.0, 0.5)]
+    # samples = rand(0.0, 2.0, n=n, pdf=pdf)
 
     plt.hist(samples, bins=100), plt.show()  # type: ignore

@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import typing as t
-from pathlib import Path
 from abc import ABC, abstractmethod
+from pathlib import Path
+
 import typer
 
 from pipelime.cli.subcommands import SubCommands as subc
-
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
     print_command_op_stage_info,
@@ -199,6 +200,7 @@ def _complete_yaml(incomplete: str):
 
 def _print_dict(name, data):
     import json
+
     from pipelime.cli.pretty_print import print_info
 
     print_info(f"\n{name}:")
@@ -245,8 +247,8 @@ def _process_cfg_or_die(
     output: t.Optional[Path],
     exit_on_error: bool = True,
 ):
-    from pipelime.cli.pretty_print import print_error
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
+    from pipelime.cli.pretty_print import print_error
 
     try:
         effective_configs = (
@@ -439,9 +441,9 @@ def pl_main(  # noqa: C901
             verbose, show_cmds=False, show_ops=False, show_stages=True
         )
     elif command:
-        from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
-        from pipelime.cli.pretty_print import print_error, print_warning, print_info
+        from pipelime.choixe import XConfig
+        from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
         if verbose:
             print_info(
@@ -490,6 +492,7 @@ def pl_main(  # noqa: C901
 
         if command in subc.AUDIT[0]:
             from dataclasses import fields
+
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
             print_info("\n📄 CONFIGURATION AUDIT\n")
@@ -509,7 +512,8 @@ def pl_main(  # noqa: C901
                     base_cfg, base_ctx, run_all, output, False
                 )
             except ChoixeProcessingError as e:
-                from rich.prompt import Prompt, Confirm
+                from rich.prompt import Confirm, Prompt
+
                 from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
@@ -602,12 +606,9 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
 
     import time
 
-    from pipelime.cli.pretty_print import (
-        print_info,
-        print_command_outputs,
-    )
-    from pipelime.piper import PipelimeCommand
+    from pipelime.cli.pretty_print import print_command_outputs, print_info
     from pipelime.cli.utils import PipelimeSymbolsHelper, time_to_str
+    from pipelime.piper import PipelimeCommand
 
     cmd_cls = PipelimeSymbolsHelper.get_command(command)
     if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
