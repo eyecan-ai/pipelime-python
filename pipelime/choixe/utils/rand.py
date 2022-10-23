@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from math import prod
-from statistics import fmean
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
 import numpy as np
@@ -68,7 +67,7 @@ class LinearFn(RealFn):
 
     def invert(self, start: float, stop: float) -> Optional[RealFn]:
         if self.m == 0:
-            return IdentityFn()
+            return None
         return LinearFn(1 / self.m, -self.q / self.m)
 
     def shift(self, dx: float, dy: float) -> LinearFn:
@@ -76,17 +75,6 @@ class LinearFn(RealFn):
 
     def _repr(self) -> str:
         return f"{round(self.m, 2)}x + {round(self.q, 2)}"
-
-
-class IdentityFn(LinearFn):
-    def __init__(self) -> None:
-        super().__init__(1, 0)
-
-    def _repr(self) -> str:
-        return "x"
-
-    def invert(self, start: float, stop: float) -> Optional[RealFn]:
-        return IdentityFn()
 
 
 class ConstantFn(LinearFn):
@@ -114,7 +102,11 @@ class QuadraticFn(RealFn):
         return self.a * x**2 + self.b * x + self.c
 
     def integrate(self) -> RealFn:
-        raise NotImplementedError("Bruh")
+        return GenericFn(
+            lambda x: self.a * x**3 / 3 + self.b * x**2 / 2 + self.c * x,
+            -np.inf,
+            np.inf,
+        )
 
     def invert(self, start: float, stop: float) -> Optional[RealFn]:
         a, b, c, eps = self.a, self.b, self.c, 1e-6
@@ -137,8 +129,8 @@ class QuadraticFn(RealFn):
 
     def shift(self, dx: float, dy: float) -> QuadraticFn:
         a = self.a
-        b = self.b - 2 * a * dx
-        c = a * dx**2 - b * dx + self.c + dy
+        b = self.b - 2 * self.a * dx
+        c = self.a * dx**2 - self.b * dx + self.c + dy
         return QuadraticFn(a, b, c)
 
     def _repr(self) -> str:
@@ -163,7 +155,7 @@ class GenericFn(RealFn):
         return self.fn(x)
 
     def _to_piecewise(self) -> PiecewiseFn:
-        x = np.linspace(self.start, self.stop, self.steps + 1)
+        x = np.linspace(self.start, self.stop, self.steps + 1, endpoint=True)
         y = self(x)
         x, y = x.tolist(), y.tolist()
         segments = [(x[i], (y[i], y[i + 1])) for i in range(len(x) - 1)]
@@ -234,14 +226,19 @@ class PiecewiseFn(RealFn):
         return cls(segments)
 
     def __init__(self, segments: Mapping[float, RealFn]) -> None:
+        super().__init__()
+        assert len(segments) > 0, "Piecewise function must have at least one piece"
         self.segments = segments
         self.keysteps = sorted(list(segments.keys()))
 
     def _call(self, x: np.ndarray) -> np.ndarray:
         results = np.zeros_like(x)
-        for i in range(len(self.keysteps) - 1):
-            cur, nxt = self.keysteps[i], self.keysteps[i + 1]
-            mask = (cur <= x) & (x < nxt)
+        for i in range(len(self.keysteps)):
+            cur, nxt = (
+                self.keysteps[i],
+                self.keysteps[i + 1] if i < len(self.keysteps) - 1 else float("inf"),
+            )
+            mask = (cur <= x) & (x <= nxt)
             results[mask] = self.segments[cur](x[mask])
         return results
 
@@ -259,34 +256,55 @@ class PiecewiseFn(RealFn):
             cumsum += integral(nxt) - integral(cur)
 
         segments[float("inf")] = ConstantFn(cumsum)
-
-        return PiecewiseFn(segments)
+        integral = PiecewiseFn(segments)
+        return integral.shift(0, -integral(0))
 
     def invert(self, start: float, stop: float) -> Optional[PiecewiseFn]:
         segments = {}
-        last = -float("inf")
-        for i in range(len(self.keysteps) - 1):
-            cur, nxt = self.keysteps[i], self.keysteps[i + 1]
+        last_start = last_stop = -float("inf")
+        for i in range(len(self.keysteps)):
+            cur, nxt = (
+                self.keysteps[i],
+                self.keysteps[i + 1] if i < len(self.keysteps) - 1 else stop,
+            )
             if cur <= start < nxt:
-                inverted = self.segments[cur].invert(start, min(nxt, stop))
-                if inverted is None:
+                fn = self.segments[cur]
+                inverted = fn.invert(start, min(nxt, stop))
+                is_const = isinstance(fn, LinearFn) and fn.m == 0
+
+                # Piece not invertible -> no solution
+                if inverted is None and not is_const:
                     return None
-                inverse_start = self.segments[cur](start)
-                if inverse_start < last:
+
+                # Compute the domain of the inverted function
+                inverse_start, inverse_stop = fn(start), fn(min(nxt, stop))
+
+                # If lower than previous segment or decreasing, no solution
+                if (
+                    inverse_start + 1e-5 < last_stop
+                    or inverse_stop + 1e-5 < inverse_start
+                ):
                     return None
-                last = inverse_start
-                segments[last] = inverted
+
+                last_start = inverse_start
+                last_stop = inverse_stop
+                if inverted is not None:
+                    segments[last_start] = inverted
                 start = nxt
+
+        segments[float("inf")] = ConstantFn(last_start)
         return PiecewiseFn(segments)
 
-    def shift(self, dx: float, dy: float) -> RealFn:
-        return PiecewiseFn({k - dx: v.shift(dx, dy) for k, v in self.segments.items()})
+    def shift(self, dx: float, dy: float) -> PiecewiseFn:
+        return PiecewiseFn({k + dx: v.shift(dx, dy) for k, v in self.segments.items()})
 
     def _repr(self) -> str:
         return "piecewise"
 
 
-def plot(start: float, stop: float, *fn: Optional[RealFn], steps: int = 1000) -> None:
+def plot(
+    start: float, stop: float, *fn: Optional[RealFn], steps: int = 1000
+) -> None:  # pragma: no cover
     import matplotlib.pyplot as plt
 
     start = max(start, -1e3)
