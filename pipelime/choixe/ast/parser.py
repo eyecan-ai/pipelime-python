@@ -134,6 +134,7 @@ class Parser:
             self._token_schema("cmd"): c_ast.CmdNode,
             self._token_schema("tmp"): c_ast.TmpDirNode,
             self._token_schema("symbol"): c_ast.SymbolNode,
+            self._token_schema("rand"): c_ast.RandNode,
         }
 
         self._extended_and_special_forms = {

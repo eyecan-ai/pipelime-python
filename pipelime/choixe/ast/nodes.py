@@ -83,6 +83,9 @@ class NodeVisitor:  # pragma: no cover
     def visit_tmp_dir(self, node: TmpDirNode) -> Any:
         return self._ignore(node)
 
+    def visit_rand(self, node: RandNode) -> Any:
+        return self._ignore(node)
+
 
 @dataclass
 class Node(ABC):
@@ -320,3 +323,18 @@ class TmpDirNode(HashNode):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_tmp_dir(self)
+
+
+@dataclass(init=False, eq=False)
+class RandNode(HashNode):
+    """A `RandNode` represents the creation of a random number."""
+
+    args: Sequence[HashNode]
+    n: Optional[Node] = None
+    pdf: Optional[Node] = None
+
+    def __init__(self, *args: HashNode) -> None:
+        self.args = args
+
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit_rand(self)

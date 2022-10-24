@@ -5,12 +5,14 @@ import pytest
 
 from pipelime.choixe.utils.rand import (
     ConstantFn,
+    Distribution,
     LinearFn,
     PiecewiseFn,
     QuadraticFn,
     RealFn,
     GenericFn,
     plot,
+    rand,
 )
 
 
@@ -367,3 +369,125 @@ class TestPiecewiseFn:
     def test_parse_piece_raise(self, piece) -> None:
         with pytest.raises(TypeError):
             PiecewiseFn.parse_piece(piece, 0.0, 1.0)
+
+    @pytest.mark.parametrize(
+        ["fn", "exc"],
+        [
+            [[], ValueError],
+            [[10], TypeError],
+            [[(0.0, 1.0), 3.0], TypeError],
+            [[3.0, (0.0, 1.0)], TypeError],
+        ],
+    )
+    def test_parse_raise(self, fn, exc):
+        with pytest.raises(exc):
+            PiecewiseFn.parse(fn)
+
+    @pytest.mark.parametrize(
+        "fn", [[(0.0, 1.0)], [(0.0, 1.0), (1.0, 2.0)], [10.0, 20.0]]
+    )
+    def test_parse(self, fn):
+        assert isinstance(PiecewiseFn.parse(fn), PiecewiseFn)
+
+
+@pytest.fixture()
+def fake_random(monkeypatch):
+    monkeypatch.setattr(np.random, "rand", lambda x: np.linspace(0, 1, x))
+
+
+class TestDistribution:
+    @pytest.mark.parametrize(
+        "dist",
+        [
+            Distribution(ConstantFn(2.0), 3.0, 4.0),
+            Distribution(LinearFn(1.0, 0.0), 3.0, 4.0),
+            Distribution(QuadraticFn(1.0, 0.0, 0.0), 3.0, 4.0),
+        ],
+    )
+    def test_sample(self, fake_random, dist) -> None:
+        x = np.linspace(dist.start, dist.stop, 1000)
+        assert (dist.pdf(x) > 0.0).all()
+        assert (dist.cdf(x) >= 0.0).all() and (dist.cdf(x) <= 1.0).all()
+        assert dist.inverse_cdf(0.0) == dist.start
+        assert dist.inverse_cdf(1.0) == dist.stop
+
+        samples = dist.sample(100)
+        assert samples.shape == (100,)
+        assert (samples >= dist.start).all() and (samples <= dist.stop).all()
+
+    @pytest.mark.parametrize("fn", ["normal"])
+    def test_parse_str(self, fake_random, fn) -> None:
+        with pytest.raises(NotImplementedError):
+            Distribution.parse(fn)
+
+    @pytest.mark.parametrize("fn", [10, 10.0, True])
+    def test_parse_invalid(self, fake_random, fn) -> None:
+        with pytest.raises(ValueError):
+            Distribution.parse(fn)
+
+    @pytest.mark.parametrize(
+        ["fn", "start", "stop"],
+        [
+            [GenericFn(lambda x: np.exp(-x), -2.0, 10.0), 0.0, 10.0],
+            [GenericFn(lambda x: np.exp(-x), -2.0, 10.0), None, None],
+            [lambda x: np.exp(-x), None, None],
+            [[0.0, 1.0, 2.0, 3.0], None, None],
+            [[(0.0, 1.0), (1.0, 2.0), (2.0, 3.0)], 0.0, 3.0],
+        ],
+    )
+    def test_parse_fn(self, fake_random, fn, start, stop) -> None:
+        dist = Distribution.parse(fn, start=start, stop=stop)
+        assert isinstance(dist, Distribution)
+        assert dist.start == (start or 0.0)
+        assert dist.stop == (stop or 1.0)
+
+
+@pytest.mark.parametrize(
+    ["args", "kwargs", "type_", "shape", "dtype"],
+    [
+        [[], {}, float, ..., ...],
+        [[1.0], {}, float, ..., ...],
+        [[1.0, 2.0], {}, float, ..., ...],
+        [[], {"n": 0}, float, ..., ...],
+        [[1.0], {"n": 0}, float, ..., ...],
+        [[1.0, 2.0], {"n": 0}, float, ..., ...],
+        [[], {"n": 1}, list, 1, float],
+        [[1.0], {"n": 1}, list, 1, float],
+        [[1.0, 2.0], {"n": 1}, list, 1, float],
+        [[], {"n": 4}, list, 4, float],
+        [[1.0], {"n": 4}, list, 4, float],
+        [[1.0, 2.0], {"n": 4}, list, 4, float],
+        [[], {"n": (4,)}, np.ndarray, (4,), np.float64],
+        [[1.0], {"n": (4,)}, np.ndarray, (4,), np.float64],
+        [[1.0, 2.0], {"n": (4,)}, np.ndarray, (4,), np.float64],
+        [[10], {}, int, ..., ...],
+        [[10, 20], {}, int, ..., ...],
+        [[10], {"n": 0}, int, ..., ...],
+        [[10, 20], {"n": 0}, int, ..., ...],
+        [[10], {"n": 1}, list, 1, int],
+        [[10, 20], {"n": 1}, list, 1, int],
+        [[10], {"n": 4}, list, 4, int],
+        [[10, 20], {"n": 4}, list, 4, int],
+        [[10], {"n": (4,)}, np.ndarray, (4,), np.int32],
+        [[10, 20], {"n": (4,)}, np.ndarray, (4,), np.int32],
+        [[], {"pdf": [0.5, 1.0]}, float, ..., ...],
+    ],
+)
+def test_rand(fake_random, args, kwargs, type_, shape, dtype):
+    res = rand(*args, **kwargs)
+
+    if type_ == np.ndarray:
+        assert isinstance(res, type_)
+        assert res.shape == shape
+        assert res.dtype == dtype
+    elif type_ == list:
+        assert isinstance(res, type_)
+        assert len(res) == shape
+        assert all(isinstance(x, dtype) for x in res)
+    else:
+        assert isinstance(res, type_)
+
+
+def test_rand_raises(fake_random):
+    with pytest.raises(ValueError):
+        rand(1, 2, 3, 4)

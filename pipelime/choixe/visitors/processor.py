@@ -14,6 +14,7 @@ import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
 from pipelime.choixe.utils.io import load
+from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
 
@@ -301,6 +302,16 @@ class Processor(ast.NodeVisitor):
             path.parent.mkdir(exist_ok=True, parents=True)
             paths.append(str(path))
         return paths
+
+    def visit_rand(self, node: ast.RandNode) -> Any:
+        args_branches = self._branches([x.accept(self) for x in node.args])
+        n_branches = node.n.accept(self) if node.n else [0]
+        pdf_branches = node.pdf.accept(self) if node.pdf else [None]
+        branches = self._branches(args_branches, n_branches, pdf_branches)
+        randoms = []
+        for branch in branches:
+            randoms.append(rand(*branch[0], n=branch[1], pdf=branch[2]))
+        return randoms
 
 
 def process(

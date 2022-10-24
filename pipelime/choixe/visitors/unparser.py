@@ -117,6 +117,14 @@ class Unparser(ast.NodeVisitor):
             args.append(node.name)
         return self._unparse_auto("tmp", *args)
 
+    def visit_rand(self, node: ast.RandNode) -> Any:
+        kwargs = {}
+        if node.n is not None:
+            kwargs["n"] = node.n
+        if node.pdf is not None:
+            kwargs["pdf"] = node.pdf
+        return self._unparse_auto("rand", *node.args, **kwargs)
+
     def _unparse_as_arg(self, node: ast.Node) -> str:
         unparsed = node.accept(self)
         if isinstance(unparsed, str):

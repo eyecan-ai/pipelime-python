@@ -154,18 +154,19 @@ class GenericFn(RealFn):
     def _call(self, x: np.ndarray) -> np.ndarray:
         return self.fn(x)
 
-    def _to_piecewise(self) -> PiecewiseFn:
-        x = np.linspace(self.start, self.stop, self.steps + 1, endpoint=True)
+    def _to_piecewise(self, start=None, stop=None) -> PiecewiseFn:
+        start, stop = start or self.start, stop or self.stop
+        x = np.linspace(start, stop, self.steps + 1, endpoint=True)
         y = self(x)
         x, y = x.tolist(), y.tolist()
         segments = [(x[i], (y[i], y[i + 1])) for i in range(len(x) - 1)]
-        return PiecewiseFn.parse(segments, self.start, self.stop)
+        return PiecewiseFn.parse(segments, start, stop)
 
     def integrate(self) -> PiecewiseFn:
         return self._to_piecewise().integrate()
 
     def invert(self, start: float, stop: float) -> Optional[PiecewiseFn]:
-        return self._to_piecewise().invert(start, stop)
+        return self._to_piecewise(start=start, stop=stop).invert(start, stop)
 
     def shift(self, dx: float, dy: float) -> GenericFn:
         return GenericFn(lambda x: self(x - dx) + dy, self.start - dx, self.stop - dx)
@@ -292,6 +293,10 @@ class PiecewiseFn(RealFn):
                     segments[last_start] = inverted
                 start = nxt
 
+                # Break if we've reached the end of the domain
+                if nxt >= stop:
+                    break
+
         segments[float("inf")] = ConstantFn(last_start)
         return PiecewiseFn(segments)
 
@@ -341,8 +346,9 @@ class Distribution:
         self.stop = stop
 
         primitive = fn.integrate()
+        primitive = primitive.shift(0, -primitive(start))
         inverse_primitive = primitive.invert(start, stop)
-        sum_ = primitive(stop)
+        sum_ = primitive(stop) - primitive(start)
 
         assert inverse_primitive is not None, "The function must be invertible"
 
@@ -350,13 +356,9 @@ class Distribution:
         self.cdf = lambda x: primitive(x) / sum_
         self.inverse_cdf = lambda x: inverse_primitive(x * sum_)  # type: ignore
 
-        # plot(start, stop, self.pdf, self.cdf, steps=1000)  # type: ignore
-
-    def sample_n(self, n: int) -> np.ndarray:
+    def sample(self, n: int) -> np.ndarray:
         return self.inverse_cdf(np.random.rand(n))
 
-
-class DistributionFactory:
     @classmethod
     def parse(
         cls, fn: t_pdf, start: Optional[float] = None, stop: Optional[float] = None
@@ -389,9 +391,9 @@ def _rand(
         start_, stop_, n_ = start or 0.0, stop or 1.0, n or 1
         results = np.random.uniform(start_, stop_, n_)
     else:
-        distribution = DistributionFactory.parse(pdf, start=start, stop=stop)
+        distribution = Distribution.parse(pdf, start=start, stop=stop)
         n_ = prod(n) if isinstance(n, Sequence) else (n or 1)
-        results = distribution.sample_n(n_)
+        results = distribution.sample(n_)
 
     if dtype is not None:
         results = results.astype(dtype)
@@ -404,22 +406,22 @@ def _rand(
         return results.reshape(n)  # type: ignore
 
 
-def rand(*args, n: int = 0, pdf: Optional[t_pdf] = None) -> Any:
+def rand(*args, n: Union[int, Sequence[int]] = 0, pdf: Optional[t_pdf] = None) -> Any:
     if len(args) == 0:
         return _rand(n=n, pdf=pdf)
     elif len(args) == 1:
         a = args[0]
-        dtype = np.float32 if isinstance(a, float) else np.int32
+        dtype = np.float64 if isinstance(a, float) else np.int32
         return _rand(stop=a, n=n, pdf=pdf, dtype=dtype)
     elif len(args) == 2:
         a, b = args
-        dtype = np.float32 if isinstance(a, float) or isinstance(b, float) else np.int32
+        dtype = np.float64 if isinstance(a, float) or isinstance(b, float) else np.int32
         return _rand(start=a, stop=b, n=n, pdf=pdf, dtype=dtype)
 
     raise ValueError("Invalid arguments")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import matplotlib.pyplot as plt
 
     n = int(1e5)
@@ -439,11 +441,11 @@ if __name__ == "__main__":
     # pdf = [(0.0, 0.1), (0.5, 1.0), (2.0, 2.0), (2.7, 0.2), (8.0, 1.0)]
     # samples = rand(0.0, 10.0, n=n, pdf=pdf)
 
-    # pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
-    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
+    pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
+    samples = rand(0.0, 10.0, n=n, pdf=pdf)
 
-    pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
-    samples = rand(-5.0, 10.0, n=n, pdf=pdf)
+    # pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
+    # samples = rand(-5.0, 10.0, n=n, pdf=pdf)
 
     # pdf = [(0.0, (0.0, 0.5)), (0.5, lambda x: 1 / x), (1.0, 0.5)]
     # samples = rand(0.0, 2.0, n=n, pdf=pdf)
