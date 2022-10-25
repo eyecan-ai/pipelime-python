@@ -1,0 +1,12 @@
+flags:
+  - first
+  - second
+  - third
+size: 10
+seed: 42
+filter_keys:
+  - image
+  - mask
+  - label
+  - metadata
+output_folder: dag_output

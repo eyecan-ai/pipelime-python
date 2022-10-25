@@ -31,6 +31,11 @@ def choixe_folder(data_folder: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
+def piper_folder(data_folder: Path) -> Path:
+    return data_folder / "piper"
+
+
+@pytest.fixture(scope="session")
 def extra_modules(data_folder: Path) -> t.List[t.Dict[str, t.Any]]:
     return [
         {
@@ -71,6 +76,22 @@ def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
 @pytest.fixture(scope="session")
 def choixe_plain_cfg(choixe_folder: Path) -> Path:
     return choixe_folder / "plain_cfg.yml"
+
+
+@pytest.fixture(scope="session")
+def complex_dag(piper_folder: Path) -> t.Mapping:
+    from pipelime.choixe import XConfig
+    import pipelime.choixe.utils.io as choixe_io
+
+    dag_folder = piper_folder / "dags" / "complex"
+    dag = XConfig(choixe_io.load(dag_folder / "dag.yml"))
+    ctx = XConfig(choixe_io.load(dag_folder / "ctx.yml"))
+    return dag.process(ctx).to_dict()
+
+
+@pytest.fixture(scope="session")
+def complex_dag_dot(piper_folder: Path) -> Path:
+    return piper_folder / "dags" / "complex" / "dag.dot"
 
 
 @pytest.fixture(scope="function")

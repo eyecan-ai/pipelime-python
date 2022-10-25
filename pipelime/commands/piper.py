@@ -2,7 +2,7 @@ import typing as t
 from enum import Enum
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, PositiveInt
 
 from pipelime.piper import PipelimeCommand, PiperPortType
 
@@ -41,10 +41,10 @@ class RunCommand(PipelimeCommand, title="run"):
         piper_port=PiperPortType.INPUT,
     )
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not run."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not run."
     )
     token: t.Optional[str] = Field(
         None,
@@ -100,6 +100,11 @@ class DrawCommand(PipelimeCommand, title="draw"):
         GRAPHVIZ = "graphviz"
         MERMAID = "mermaid"
 
+    class EllipsesChoice(Enum):
+        START = "start"
+        MIDDLE = "middle"
+        END = "end"
+
     nodes: t.Mapping[
         str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
     ] = Field(
@@ -113,10 +118,10 @@ class DrawCommand(PipelimeCommand, title="draw"):
         piper_port=PiperPortType.INPUT,
     )
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not drawn."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not drawn."
     )
     output: t.Optional[Path] = Field(
         None,
@@ -128,7 +133,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
     )
     raw_output: t.Optional[str] = Field(
         None,
-        description="raw graph representation",
+        description="Raw graph representation",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
@@ -141,6 +146,28 @@ class DrawCommand(PipelimeCommand, title="draw"):
         description=(
             "If `output` has been set, open the image file in the default viewer."
         ),
+    )
+
+    data_max_width: t.Union[PositiveInt, str, None] = Field(
+        None,
+        alias="m",
+        description=(
+            "If an int is given, it is the maximum data node name length. "
+            "If a string is given, it is matched against the node name and "
+            "replaced with ellipses. Note that the search starts from "
+            "the last character if `ellipsis_position` is `start`."
+        ),
+    )
+    ellipsis_position: EllipsesChoice = Field(
+        EllipsesChoice.MIDDLE,
+        alias="ep",
+        description="Where ellipses should be put if the data node name is too long.",
+    )
+    show_command_names: bool = Field(
+        False, alias="c", description="Show command names instead of node names."
+    )
+    extra_args: t.Optional[t.Mapping[str, t.Any]] = Field(
+        None, alias="x", description="Extra arguments to pass to the backend."
     )
     raw: bool = Field(
         False, alias="r", description="Show the raw graph representation."
@@ -166,7 +193,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
         inc_n = [self.include] if isinstance(self.include, str) else self.include
         exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
 
-        def _node_to_run(node: str) -> bool:
+        def _node_to_draw(node: str) -> bool:
             return (inc_n is None or node in inc_n) and (
                 exc_n is None or node not in exc_n
             )
@@ -174,11 +201,18 @@ class DrawCommand(PipelimeCommand, title="draw"):
         nodes = {
             name: _get_command(cmd)
             for name, cmd in self.nodes.items()
-            if _node_to_run(name)
+            if _node_to_draw(name)
         }
         dag = DAGModel(nodes=nodes)
-        graph = DAGNodesGraph.build_nodes_graph(dag)
+        graph = DAGNodesGraph.build_nodes_graph(
+            dag,
+            data_max_width=self.data_max_width,
+            show_command_name=self.show_command_names,
+            ellipsis_position=self.ellipsis_position.value,
+        )
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
+
+        extra = self.extra_args or {}
 
         # raw graph representation
         if self.raw:
@@ -186,12 +220,12 @@ class DrawCommand(PipelimeCommand, title="draw"):
         else:
             # Show or Write
             if self.output is not None:
-                drawer.export(graph, str(self.output))
+                drawer.export(graph, str(self.output), **extra)
                 if self.open:
                     start_file(str(self.output))
             else:
                 from PIL import Image
 
-                graph_image = drawer.draw(graph=graph)
+                graph_image = drawer.draw(graph=graph, **extra)
                 img = Image.fromarray(graph_image, "RGB")
                 img.show("Graph")

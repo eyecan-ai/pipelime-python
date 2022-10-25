@@ -32,7 +32,7 @@ myst_heading_anchors = 3
 #
 html_theme = "sphinx_material"
 html_logo = "pipelime_logo.svg"
-# html_static_path = ["_static"]
+html_static_path = ["_static"]
 html_sidebars = {
     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
 }

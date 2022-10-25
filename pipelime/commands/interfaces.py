@@ -813,6 +813,7 @@ class ToyDatasetInterface(
     objects_range: t.Tuple[int, int] = pyd.Field(
         (1, 5), description="The (min, max) number of objects in each sample."
     )
+    seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
 
     @pyd.validator("key_format")
     def validate_key_format(cls, v):
@@ -835,4 +836,5 @@ class ToyDatasetInterface(
             key_format=self.key_format,
             max_labels=self.max_labels,
             objects_range=self.objects_range,
+            seed=self.seed,
         )

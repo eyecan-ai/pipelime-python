@@ -4,7 +4,7 @@ import copy
 import re
 import typing as t
 
-from pipelime.items import Item
+from pipelime.items import Item, YamlMetadataItem
 
 
 class SamplePathRegex:
@@ -64,7 +64,12 @@ class Sample(t.Mapping[str, Item]):
     def set_value(self, key: str, value: t.Any) -> Sample:
         return self.set_value_as(key, key, value)
 
-    def deep_set(self, key_path: str, value: t.Any) -> Sample:
+    def deep_set(
+        self,
+        key_path: str,
+        value: t.Any,
+        default_item_type: t.Type[Item] = YamlMetadataItem,
+    ) -> Sample:
         r"""Sets a value of an Item of this Sample through a path similar to
         `pydash.set_`. The path is built by splitting the mapping keys by `.`
         and enclosing list indexes within `[]`. Use `\` to escape the `.` character.
@@ -77,12 +82,13 @@ class Sample(t.Mapping[str, Item]):
         import pydash as py_
 
         key, path = SamplePathRegex.split(key_path)
+        x = self if key in self._data else self.set_item(key, default_item_type({}))
         if not path:
-            return self.set_value(key, value)
+            return x.set_value(key, value)
 
-        new_value = copy.deepcopy(self._data[key]())
+        new_value = copy.deepcopy(x[key]())
         py_.set_(new_value, path, value)
-        return self.set_value(key, new_value)
+        return x.set_value(key, new_value)
 
     def deep_get(self, key_path: str, default: t.Any = None) -> t.Any:
         r"""Gets a value from the Sample through a key path similar to `pydash.get`.

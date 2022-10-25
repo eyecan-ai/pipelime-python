@@ -304,6 +304,7 @@ class SamplesSequence(
         key_format: str = "*",
         max_labels: int = 5,
         objects_range: t.Tuple[int, int] = (1, 5),
+        seed: t.Optional[int] = None,
     ) -> SamplesSequence:
         """A fake sequence of generated samples.
         Run `pipelime help toy_dataset` to read the complete documentation.

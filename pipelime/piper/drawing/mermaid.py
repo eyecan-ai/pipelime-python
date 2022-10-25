@@ -44,11 +44,9 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
             str: shape of the node
         """
 
-        return (
-            f"{node.name}[[{node.name}]]"
-            if self._is_node_file(node)
-            else f"{node.name}[({node.name})]"
-        )
+        name = node.short_repr
+        sep = ("[", "]") if self._is_node_file(node) else ("(", ")")
+        return f"{name}[{sep[0]}{name}{sep[1]}]"
 
     def _node_representation(self, node: GraphNode) -> str:
         """Returns the string mermaid representation of a node
@@ -65,7 +63,7 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
 
         out = ""
         if isinstance(node, GraphNodeOperation):
-            out = f"{node.name}:::{MermaidNodesGraphDrawer.OPERATION_NAME}"
+            out = f"{node.short_repr}:::{MermaidNodesGraphDrawer.OPERATION_NAME}"
         elif isinstance(node, GraphNodeData):
             out = f"{self._data_node_shape(node)}:::{MermaidNodesGraphDrawer.DATA_NAME}"
         else:
@@ -156,7 +154,7 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
         representation = representation + (f"{row}\n" if header else f"\t{row}\n")
         return representation
 
-    def draw(self, graph: DAGNodesGraph) -> np.ndarray:
+    def draw(self, graph: DAGNodesGraph, **kwargs) -> np.ndarray:
         """Draws a graph and returns the image as a numpy array
 
         Args:
@@ -220,16 +218,19 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
         """
         return ["png", "markdown", "md"]
 
-    def export(self, graph: DAGNodesGraph, filename: str, format: Optional[str] = None):
-        super().export(graph, filename, format)
-
-        if format is None:
-            format = Path(filename).suffix[1:]
+    def export(
+        self,
+        graph: DAGNodesGraph,
+        filename: str,
+        format: Optional[str] = None,
+        **kwargs,
+    ):
+        format = self._check_format(filename, format)
 
         if format == "png":
             import imageio
 
-            img = self.draw(graph)
+            img = self.draw(graph, **kwargs)
             imageio.imwrite(filename, img)
         elif format in ["markdown", "md"]:
             representation = self.representation(graph)

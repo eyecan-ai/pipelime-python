@@ -1,0 +1,221 @@
+strict digraph "" {
+	node [label="\N"];
+	"operation(generator_first)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>generator_first: toy_dataset</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_first)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…generated_first</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(generator_first)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_first)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(filter_keys_first)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>filter_keys_first: map</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_first)" -> "operation(filter_keys_first)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_first)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…filtered_first</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(filter_keys_first)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_first)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(subsample_first)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>subsample_first: split</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_first)" -> "operation(subsample_first)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_first)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…subsampled_first</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(subsample_first)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_first)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=splits,
+		style=dashed];
+	"operation(remap_keys_first)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>remap_keys_first: map</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_first)" -> "operation(remap_keys_first)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_first)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…remapped_first</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(remap_keys_first)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_first)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(sumup)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>sumup: cat</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_first)" -> "operation(sumup)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=inputs];
+	"data(C:/Users/nfioraio/projects/github/pipelime-python/dag_output)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…dag_output</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(sumup)" -> "data(C:/Users/nfioraio/projects/github/pipelime-python/dag_output)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(generator_second)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>generator_second: toy_dataset</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_second)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…generated_second</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(generator_second)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_second)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(filter_keys_second)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>filter_keys_second: map</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_second)" -> "operation(filter_keys_second)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_second)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…filtered_second</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(filter_keys_second)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_second)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(subsample_second)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>subsample_second: split</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_second)" -> "operation(subsample_second)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_second)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…subsampled_second</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(subsample_second)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_second)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=splits,
+		style=dashed];
+	"operation(remap_keys_second)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>remap_keys_second: map</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_second)" -> "operation(remap_keys_second)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_second)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…remapped_second</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(remap_keys_second)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_second)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_second)" -> "operation(sumup)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=inputs];
+	"operation(generator_third)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>generator_third: toy_dataset</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_third)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…generated_third</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(generator_third)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_third)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(filter_keys_third)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>filter_keys_third: map</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/generated_third)" -> "operation(filter_keys_third)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_third)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…filtered_third</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(filter_keys_third)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_third)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"operation(subsample_third)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>subsample_third: split</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/filtered_third)" -> "operation(subsample_third)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_third)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…subsampled_third</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(subsample_third)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_third)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=splits,
+		style=dashed];
+	"operation(remap_keys_third)"	[fillcolor="#03A9F4",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>remap_keys_third: map</TD></TR></TABLE>>,
+		shape=box3d,
+		style=filled];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/subsampled_third)" -> "operation(remap_keys_third)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=input];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_third)"	[fillcolor="#009688",
+		fontcolor="#fafafa",
+		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…remapped_third</TD></TR></TABLE>>,
+		shape=cylinder,
+		style=filled];
+	"operation(remap_keys_third)" -> "data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_third)"	[arrowsize=2.0,
+		color="#1DE9B6",
+		label=output,
+		style=dashed];
+	"data(C:/Users/nfioraio/AppData/Local/Temp/be8cee6048af11eda5e9ed001b779734/remapped_third)" -> "operation(sumup)"	[arrowsize=1.0,
+		color="#00B0FF",
+		label=inputs];
+}
