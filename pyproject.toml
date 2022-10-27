@@ -87,6 +87,6 @@ path = "pipelime/__init__.py"
 
 [tool.hatch.build]
 include = [
-  "pipelime/*.py",
+  "pipelime/**/*.py",
   "LICENSE",
 ]

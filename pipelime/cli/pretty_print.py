@@ -195,13 +195,13 @@ def _field_row(
     )
 
     # NB: docs should not come from the inner __root__ type
-    field_docs = (
-        field.field_info.description
-        if field.field_info.description
-        else (
-            field.outer_type_.__doc__ if hasattr(field.outer_type_, "__doc__") else ""
-        )
-    )
+    if field.field_info.description:
+        field_docs = field.field_info.description
+    elif hasattr(field.outer_type_, "__doc__") and field.outer_type_.__doc__:
+        field_docs = field.outer_type_.__doc__
+    else:
+        field_docs = ""
+
     field_docs = " ".join(field_docs.split())
 
     has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
