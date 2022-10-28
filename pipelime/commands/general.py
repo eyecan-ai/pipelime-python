@@ -278,7 +278,11 @@ class ZipCommand(PipelimeCommand, title="zip"):
     def run(self):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
 
-        key_formats = [self.key_format]*len(inputs) if isinstance(self.key_format, str) else self.key_format
+        key_formats = (
+            [self.key_format] * len(inputs)
+            if isinstance(self.key_format, str)
+            else self.key_format
+        )
         if len(key_formats) != len(inputs):
             raise ValueError(f"Number of inputs and key formats do not match.")
 
@@ -542,7 +546,6 @@ class ValidateCommand(PipelimeCommand, title="validate"):
     )
 
     def run(self):
-        import json
         from pipelime.stages import StageItemInfo
 
         seq = self.input.create_reader()
@@ -559,7 +562,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         )
 
         sample_schema = {
-            k: pl_interfaces.ItemValidationModel(
+            k: pl_types.ItemValidationModel(
                 class_path=info.item_type,
                 is_optional=(info.count_ != len(seq)),
                 is_shared=info.is_shared,
@@ -567,12 +570,12 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             for k, info in item_info.items_info().items()
         }
 
-        sample_validation = pl_interfaces.SampleValidationInterface(
+        sample_validation = pl_types.SampleValidationInterface(
             sample_schema=sample_schema,
             ignore_extra_keys=False,
             lazy=(self.max_samples == 0),
             max_samples=self.max_samples,
-        ).dict()
+        ).dict(by_alias=True)
 
         def _type2str(data):
             import inspect

@@ -4,6 +4,7 @@ import pydantic as pyd
 
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
+from pipelime.utils.pydantic_types import SampleValidationInterface
 
 
 @pls.piped_sequence
@@ -12,39 +13,28 @@ class ValidatedSequence(
 ):
     """Validates the source sequence against a schema."""
 
-    sample_schema: t.Type[pyd.BaseModel] = pyd.Field(
+    sample_schema: SampleValidationInterface = pyd.Field(
         ...,
         description=(
             "The sample schema to validate, ie, a pydantic model where fields name are "
             "the sample keys and field types are the expected item classes."
         ),
     )
-    lazy: bool = pyd.Field(
-        False, description="If True, samples will be validated only when accessed."
-    )
-    max_samples: int = pyd.Field(
-        1,
-        description=(
-            "When the validation is NOT lazy, "
-            "only the slice `[0:max_samples]` is checked. "
-            "Set to 0 to check all the samples."
-        ),
-    )
 
     def __init__(self, **data):
         super().__init__(**data)
-        if not self.lazy:
+        if not self.sample_schema.lazy:
             seq = (
                 self.source
-                if self.max_samples == 0
-                else self.source[0 : self.max_samples]  # noqa
+                if self.sample_schema.max_samples == 0
+                else self.source[0 : self.sample_schema.max_samples]
             )
-            for sample in seq:  # noqa: E203
-                self._check_sample(sample)  # type: ignore
+            for sample in seq:
+                self._check_sample(sample)
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self.source[idx]
-        if self.lazy:
+        if self.sample_schema.lazy:
             self._check_sample(sample)
         return sample
 
@@ -53,7 +43,7 @@ class ValidatedSequence(
         from pydantic.error_wrappers import display_errors
 
         try:
-            _ = self.sample_schema(**sample)  # type: ignore
+            _ = self.sample_schema.schema_model(**sample)
         except ValidationError as e:
             errs = e.errors()
             raise ValueError(
