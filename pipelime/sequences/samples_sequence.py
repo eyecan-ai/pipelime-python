@@ -7,6 +7,9 @@ from loguru import logger
 
 from pipelime.sequences.sample import Sample
 
+if t.TYPE_CHECKING:
+    from pipelime.utils.pydantic_types import SampleValidationInterface
+
 
 class SamplesSequenceBase(t.Sequence[Sample]):
     @abstractmethod
@@ -432,11 +435,7 @@ class SamplesSequence(
         ...
 
     def validate_samples(
-        self,
-        *,
-        sample_schema: t.Type[pyd.BaseModel],
-        lazy: bool = False,
-        max_samples: int = 1,
+        self, *, sample_schema: "SampleValidationInterface"
     ) -> SamplesSequence:
         """Validates the source sequence against a schema.
         Run `pipelime help validate_samples` to read the complete documentation.

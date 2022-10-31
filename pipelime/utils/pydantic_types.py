@@ -5,6 +5,9 @@ import pydantic as pyd
 
 from pipelime.items import Item
 
+if t.TYPE_CHECKING:
+    from pipelime.sequences import SamplesSequence
+
 
 yaml_any_type = t.Union[None, str, int, float, bool, t.Mapping[str, t.Any], t.Sequence]
 
@@ -296,12 +299,8 @@ class SampleValidationInterface(
     def schema_model(self) -> t.Type[pyd.BaseModel]:
         return self._schema_model
 
-    def append_validator(self, sequence):
-        return sequence.validate_samples(
-            sample_schema=self._schema_model,
-            lazy=self.lazy,
-            max_samples=self.max_samples,
-        )
+    def append_validator(self, sequence: "SamplesSequence") -> "SamplesSequence":
+        return sequence.validate_samples(sample_schema=self)
 
     def as_pipe(self):
         return {"validate_samples": {"sample_schema": self.dict(by_alias=True)}}
