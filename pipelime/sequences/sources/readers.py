@@ -89,7 +89,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
                     if entry.is_file():
                         key = self._extract_key(entry.name)
                         if key:
-                            root_items[key] = Path(entry.path)
+                            root_items[key] = entry.path
             self._root_sample = root_items if root_items else pls.Sample()
         else:
             self._root_sample = pls.Sample()
@@ -106,9 +106,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
                             self._samples.extend(
                                 [{} for _ in range(id_key[0] - len(self._samples) + 1)]
                             )
-                            self._samples[id_key[0]][id_key[1]] = Path(  # type: ignore
-                                entry.path
-                            )
+                            self._samples[id_key[0]][id_key[1]] = entry.path
 
     def size(self) -> int:
         if self.watch:
