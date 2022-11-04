@@ -707,6 +707,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     """
 
     import time
+    from pydantic.error_wrappers import ValidationError
 
     from pipelime.cli.pretty_print import (
         print_info,
@@ -727,7 +728,25 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
         print_info(f"\nCreating command `{command}` with options:")
         print_info(cmd_args, pretty=True)
 
-    cmd_obj = cmd_cls(**cmd_args)
+    try:
+        cmd_obj = cmd_cls(**cmd_args)
+    except ValidationError as e:
+
+        def _replace_alias(val):
+            if isinstance(val, str):
+                for field in cmd_cls.__fields__.values():
+                    if (
+                        field.model_config.allow_population_by_field_name
+                        and field.has_alias
+                        and field.alias == val
+                    ):
+                        return f"{field.name} / {field.alias}"
+            return val
+
+        for err in e.errors():
+            if "loc" in err:
+                err["loc"] = tuple(_replace_alias(l) for l in err["loc"])
+        raise e
 
     if verbose:
         print_info(f"\nCreated command `{command}`:")

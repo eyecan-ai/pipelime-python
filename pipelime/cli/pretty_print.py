@@ -198,7 +198,7 @@ def _field_row(
     if field.field_info.description:
         field_docs = field.field_info.description
     elif hasattr(field.outer_type_, "__doc__") and field.outer_type_.__doc__:
-        field_docs = field.outer_type_.__doc__
+        field_docs = str(inspect.getdoc(field.outer_type_))
     else:
         field_docs = ""
 
