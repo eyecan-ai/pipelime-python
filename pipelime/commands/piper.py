@@ -7,24 +7,6 @@ from pydantic import Field, PositiveInt
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
-def _get_command(cmd) -> PipelimeCommand:
-    from pipelime.cli.utils import PipelimeSymbolsHelper
-
-    if isinstance(cmd, PipelimeCommand):
-        return cmd
-
-    cmd_name, cmd_args = next(iter(cmd.items()))
-
-    cmd_cls = PipelimeSymbolsHelper.get_command(cmd_name)
-    if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
-        PipelimeSymbolsHelper.show_error_and_help(
-            cmd_name, should_be_cmd=True, should_be_op=False, should_be_stage=False
-        )
-        raise ValueError(f"{cmd_name} is not a pipelime command.")
-    cmd_cls = cmd_cls[1]
-    return cmd_cls() if cmd_args is None else cmd_cls(**cmd_args)
-
-
 class RunCommand(PipelimeCommand, title="run"):
     """Executes a DAG of pipelime commands."""
 
@@ -67,6 +49,7 @@ class RunCommand(PipelimeCommand, title="run"):
     def run(self):
         import uuid
 
+        from pipelime.cli.utils import get_pipelime_command
         from pipelime.piper.executors.factory import NodesGraphExecutorFactory
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel
@@ -83,7 +66,7 @@ class RunCommand(PipelimeCommand, title="run"):
             )
 
         nodes = {
-            name: _get_command(cmd)
+            name: get_pipelime_command(cmd)
             for name, cmd in self.nodes.items()
             if _node_to_run(name)
         }
@@ -178,6 +161,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
         import platform
         import subprocess
 
+        from pipelime.cli.utils import get_pipelime_command
         from pipelime.piper.drawing.factory import NodesGraphDrawerFactory
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel
@@ -199,7 +183,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
             )
 
         nodes = {
-            name: _get_command(cmd)
+            name: get_pipelime_command(cmd)
             for name, cmd in self.nodes.items()
             if _node_to_draw(name)
         }

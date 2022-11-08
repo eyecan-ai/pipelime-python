@@ -1,5 +1,6 @@
 import itertools
 from abc import ABC, abstractmethod
+from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional, Union, Sequence, Mapping, Set, Iterable, Collection, Any
 
@@ -15,10 +16,11 @@ class GraphNode(ABC):
     def __init__(self, name: str, type: str):
         self.name = str(name)
         self.type = str(type)
+        self.graph_alt_repr = False
 
     @property
-    def id(self):
-        return f"{self.type}({self.name})"
+    def id(self) -> str:
+        return repr(self)
 
     @property
     @abstractmethod
@@ -29,7 +31,7 @@ class GraphNode(ABC):
         return hash(f"{self.type}({self.name})")
 
     def __repr__(self) -> str:
-        return f"{self.type}({self.name})"
+        return self.short_repr if self.graph_alt_repr else f"{self.type}({self.name})"
 
     def __eq__(self, o) -> bool:
         return self.id == o.id
@@ -164,6 +166,26 @@ class DAGNodesGraph:
             for node in self.raw_graph.nodes
             if len(list(self.raw_graph.predecessors(node))) == 0
         ]
+
+    def set_nodes_short_repr(self, short_repr: bool):
+        """Set the short representation of the nodes.
+
+        Args:
+            short_repr (bool): The short representation of the nodes.
+        """
+        for node in self.raw_graph.nodes:
+            node.graph_alt_repr = short_repr
+
+    def write_graphml(self, path_or_stream):
+        """Write the graph to a GraphML file.
+
+        Args:
+            out_file (Union[str, Path]): The path to the GraphML file.
+        """
+        nx.write_graphml(
+            self.raw_graph,
+            str(path_or_stream) if isinstance(path_or_stream, Path) else path_or_stream,
+        )
 
     def consumable_operations(
         self,

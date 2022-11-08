@@ -709,20 +709,13 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     import time
     from pydantic.error_wrappers import ValidationError
 
-    from pipelime.cli.pretty_print import (
-        print_info,
-        print_command_outputs,
-    )
-    from pipelime.piper import PipelimeCommand
-    from pipelime.cli.utils import PipelimeSymbolsHelper, time_to_str
+    from pipelime.cli.pretty_print import print_info, print_command_outputs
+    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str
 
-    cmd_cls = PipelimeSymbolsHelper.get_command(command)
-    if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
-        PipelimeSymbolsHelper.show_error_and_help(
-            command, should_be_cmd=True, should_be_op=False, should_be_stage=False
-        )
+    try:
+        cmd_cls = get_pipelime_command_cls(command)
+    except ValueError:
         raise typer.Exit(1)
-    cmd_cls = cmd_cls[1]
 
     if verbose:
         print_info(f"\nCreating command `{command}` with options:")
