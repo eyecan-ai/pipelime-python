@@ -340,7 +340,10 @@ $for(ITERABLE[, ID]): BODY
 ```
 
 Where:
-- `ITERABLE` is a context key (just like a `var`) that points to a list. The for loop will iterate over the items of this list.
+- `ITERABLE` can be either:
+  - an **integer**: the loop will iterate from 0 to `ITERABLE - 1`.
+  - a context key (just like a `var`) that points to an **integer**, as above.
+  - a context key that points to a **list**: the loop will iterate over the items of this list.
 - `ID` is an optional identifier for this for-loop, used to distinguish this specific loop from all the others, in case multiple loops are nested. Think of it like the `x` in `for x in my_list:`. When not specified, **Choixe** will use a random uuid behind the scenes.
 - `BODY` can be either:
   - A **dictionary** - the for loop will perform dictionary union over all the iterations.

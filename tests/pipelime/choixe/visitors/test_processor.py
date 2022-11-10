@@ -354,19 +354,19 @@ class TestProcessor:
         ]
         self._expectation_test(data, expected)
 
-    def test_for_one_element_dict(self):
-        data = {"$for(1)": {"$index": "$index"}}
-        expected = [{0: 0}]
+    def test_for_int_element_dict(self):
+        data = {"$for(3)": {"$index": "$index"}}
+        expected = [{0: 0, 1: 1, 2: 2}]
         self._expectation_test(data, expected)
 
-    def test_for_one_element_list(self):
-        data = {"$for(1)": ["$index"]}
-        expected = [[0]]
+    def test_for_int_element_list(self):
+        data = {"$for(3)": ["$index"]}
+        expected = [[0, 1, 2]]
         self._expectation_test(data, expected)
 
-    def test_for_one_element_str(self):
-        data = {"$for(1)": "$index"}
-        expected = ["0"]
+    def test_for_int_element_str(self):
+        data = {"$for(3)": "$index"}
+        expected = ["012"]
         self._expectation_test(data, expected)
 
     def test_for_nested_compact(self):
