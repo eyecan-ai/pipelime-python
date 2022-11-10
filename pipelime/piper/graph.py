@@ -98,6 +98,10 @@ class GraphNodeData(GraphNode):
                     self._short_repr = f"{self._short_repr[:idx]}…"
             elif ellipsis_position == "middle":
                 self._short_repr = self._short_repr.replace(data_max_width, "…")
+            elif ellipsis_position == "regex":
+                import re
+
+                self._short_repr = re.sub(data_max_width, "…", self._short_repr)
 
     @property
     def path(self) -> str:
@@ -301,7 +305,7 @@ class DAGNodesGraph:
             show_command_name (bool, optional): whether to show the command name
                 alongside the node name. Defaults to False.
             ellipsis_position (str, optional): where to put the ellipses if the data
-                node name is too long, can be "start", "middle" or "end".
+                node name is too long, can be "start", "middle", "end" or "regex".
                 Defaults to "middle".
 
         Returns:
