@@ -140,18 +140,22 @@ that the `image` item size is equal to a value declared inside the `camera` meta
 ## Piped Validation
 
 Validation can be performed as a step of a pipeline as well.
-To this end, `SamplesSequence` provides the `validate_samples` method, which takes the `sample_schema` and a few other options as input, raising an exception if the validation fails.
-In this case, the schema must be provided as a pydantic model:
+To this end, `SamplesSequence` provides the `validate_samples` method, which takes the `sample_schema` as input and raise an exception if the validation fails:
 
 ```python
 from pydantic import BaseModel
 from pipelime.sequences import SamplesSequence
 from pipelime.items import ImageItem, NumpyItem
+from pipelime.utils.pydantic_types import SampleValidationInterface
 
 class MiniMNISTSampleValidator(BaseModel):
     image: ImageItem
     label: NumpyItem
 
 seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
-seq = seq.validate_samples(sample_schema=MiniMNISTSampleValidator, lazy=False, max_samples=1)
+seq = seq.validate_samples(
+  sample_schema=SampleValidationInterface(
+    sample_schema=MiniMNISTSampleValidator, lazy=False, max_samples=1
+  )
+)
 ```

@@ -1,6 +1,9 @@
 import typing as t
 from types import ModuleType
 
+if t.TYPE_CHECKING:
+    from pipelime.piper.model import PipelimeCommand
+
 
 class PipelimeSymbolsHelper:
     std_modules = ["pipelime.commands", "pipelime.stages"]
@@ -488,6 +491,34 @@ def create_stage_from_config(
         raise ValueError(f"{stage_name} is not a pipelime stage.")
     stage_cls = stage_cls[1]
     return stage_cls() if stage_args is None else stage_cls(**stage_args)
+
+
+def get_pipelime_command_cls(
+    cmd_name: str, interactive: bool = True
+) -> t.Type["PipelimeCommand"]:
+    from pipelime.piper.model import PipelimeCommand
+
+    cmd_cls = PipelimeSymbolsHelper.get_command(cmd_name)
+    if cmd_cls is None or not issubclass(cmd_cls[1], PipelimeCommand):
+        if interactive:
+            PipelimeSymbolsHelper.show_error_and_help(
+                cmd_name, should_be_cmd=True, should_be_op=False, should_be_stage=False
+            )
+        raise ValueError(f"{cmd_name} is not a pipelime command.")
+    return cmd_cls[1]
+
+
+def get_pipelime_command(
+    cmd: t.Union[t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]], "PipelimeCommand"]
+) -> "PipelimeCommand":
+    from pipelime.piper.model import PipelimeCommand
+
+    if isinstance(cmd, PipelimeCommand):
+        return cmd
+
+    cmd_name, cmd_args = next(iter(cmd.items()))
+    cmd_cls = get_pipelime_command_cls(cmd_name)
+    return cmd_cls() if cmd_args is None else cmd_cls(**cmd_args)
 
 
 def time_to_str(nanosec: int) -> str:

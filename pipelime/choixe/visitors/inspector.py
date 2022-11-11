@@ -147,7 +147,11 @@ class Inspector(ast.NodeVisitor):
     def visit_for(self, node: ast.ForNode) -> Inspection:
         if node.identifier is not None:
             self._named_for_loops[node.identifier.data] = node.iterable.data
-        iterable_insp = Inspection(variables=py_.set_({}, node.iterable.data, None))
+        iterable_insp = (
+            Inspection(variables=py_.set_({}, node.iterable.data, None))
+            if isinstance(node.iterable.data, str)
+            else Inspection(processed=True)
+        )
         body_insp = node.body.accept(self)
         return iterable_insp + body_insp
 
@@ -177,9 +181,10 @@ class Inspector(ast.NodeVisitor):
             sub_insp = node.identifier.accept(self)
             if sub_insp.processed:
                 loop_id, _, key = node.identifier.data.partition(".")  # type: ignore
-                iterable_name = self._named_for_loops[loop_id]
-                full_path = f"{iterable_name}.{key}"
-                py_.set_(variables, full_path, None)
+                if key:
+                    iterable_name = self._named_for_loops[loop_id]
+                    full_path = f"{iterable_name}.{key}"
+                    py_.set_(variables, full_path, None)
             insp = insp + sub_insp + Inspection(variables=variables)
         return insp
 

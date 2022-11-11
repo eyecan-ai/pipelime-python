@@ -148,6 +148,22 @@ class DataStream(
             },
         )
 
+    @classmethod
+    def create_output_stream(cls, path: str, zfill: int = 0) -> DataStream:
+        """Creates a DataStream to write samples to a new underfolder dataset
+        or update an existing one. NB: Samples cannot be read from this stream.
+        """
+        return cls(
+            input_sequence=None,
+            output_pipe={
+                "to_underfolder": {
+                    "folder": path,
+                    "exists_ok": True,
+                    "zfill": zfill,
+                }
+            },
+        )
+
     def __len__(self) -> int:
         return 0 if self.input_sequence is None else len(self.input_sequence)
 

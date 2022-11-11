@@ -14,7 +14,7 @@ from pipelime.sequences.pipes import PipedSequenceBase
 class MappedSequence(PipedSequenceBase, title="map"):
     """Applies a stage on all samples."""
 
-    stage: StageInput = pyd.Field(..., description=StageInput.__doc__)  # type: ignore
+    stage: StageInput = pyd.Field(...)
 
     def __init__(
         self,

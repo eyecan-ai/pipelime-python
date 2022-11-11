@@ -4,19 +4,19 @@ from pipelime.sequences import SamplesSequence
 
 
 class TestValidation:
-    def _schema_check(self, dataset, schema_def, lazy, should_fail):
+    def _schema_check(self, dataset, schema_def, should_fail):
         try:
             seq = SamplesSequence.from_underfolder(  # type: ignore
                 dataset
-            ).validate_samples(sample_schema=schema_def, lazy=lazy)
+            ).validate_samples(sample_schema=schema_def)
             try:
                 for _ in seq:
                     pass
                 assert not should_fail
             except ValueError:
-                assert should_fail and lazy
+                assert should_fail and schema_def.lazy
         except ValueError:
-            assert should_fail and not lazy
+            assert should_fail and not schema_def.lazy
 
     @pytest.mark.parametrize("lazy", [True, False])
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
@@ -28,6 +28,7 @@ class TestValidation:
         import pydantic as pyd
 
         import pipelime.items as pli
+        from pipelime.utils.pydantic_types import SampleValidationInterface
 
         class MySchema(
             pyd.BaseModel,
@@ -45,7 +46,9 @@ class TestValidation:
             invalid_key: Optional[pli.TxtNumpyItem] = None
 
         self._schema_check(
-            minimnist_dataset["path"], MySchema, lazy=lazy, should_fail=False
+            minimnist_dataset["path"],
+            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),
+            should_fail=False,
         )
 
     @pytest.mark.parametrize("lazy", [True, False])
@@ -58,6 +61,7 @@ class TestValidation:
         import pydantic as pyd
 
         import pipelime.items as pli
+        from pipelime.utils.pydantic_types import SampleValidationInterface
 
         class MySchema(
             pyd.BaseModel,
@@ -71,8 +75,7 @@ class TestValidation:
 
         self._schema_check(
             minimnist_dataset["path"],
-            MySchema,
-            lazy=lazy,
+            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),
             should_fail=not ignore_extra_keys,
         )
 
@@ -86,6 +89,7 @@ class TestValidation:
         import pydantic as pyd
 
         import pipelime.items as pli
+        from pipelime.utils.pydantic_types import SampleValidationInterface
 
         class MySchema(
             pyd.BaseModel,
@@ -102,7 +106,6 @@ class TestValidation:
 
         self._schema_check(
             minimnist_dataset["path"],
-            MySchema,
-            lazy=lazy,
+            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),
             should_fail=not ignore_extra_keys,
         )
