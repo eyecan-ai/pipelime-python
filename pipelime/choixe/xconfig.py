@@ -50,7 +50,7 @@ class XConfig(Box):
         self.update(data)
         self.set_schema(schema)
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.to_dict()}>"
 
     @classmethod

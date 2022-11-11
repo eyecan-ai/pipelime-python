@@ -61,7 +61,7 @@ def import_module_from_file(
         id_ = uuid1().hex
         spec = importlib.util.spec_from_file_location(id_, str(module_path))
         if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load module `{module_path}`")  # pragma: no cover
+            raise ImportError(f"Cannot load module `{module_path}`")
         module_ = importlib.util.module_from_spec(spec)
         with add_to_sys_module(module_, id_):
             spec.loader.exec_module(module_)

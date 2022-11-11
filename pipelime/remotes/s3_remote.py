@@ -8,7 +8,7 @@ from pipelime.remotes.base import BaseRemote, NetlocData
 
 class S3Remote(BaseRemote):
     _HASH_FN_KEY_ = "__HASH_FN__"
-    _DEFAULT_HASH_FN_ = "sha256"
+    _DEFAULT_HASH_FN_ = "blake2b"
 
     def __init__(self, netloc_data: NetlocData):
         """S3-compatible remote. Credential can be passed or retrieved from:
@@ -97,7 +97,7 @@ class S3Remote(BaseRemote):
 
                 hash_fn = getattr(hashlib, self._DEFAULT_HASH_FN_)
                 return hash_fn()
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
         return None
 
@@ -111,7 +111,7 @@ class S3Remote(BaseRemote):
                 return True
             except StopIteration:
                 return False
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
         return False
 
@@ -132,7 +132,7 @@ class S3Remote(BaseRemote):
                     length=local_stream_size,
                 )
                 return True
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
                 return False
 
@@ -164,7 +164,7 @@ class S3Remote(BaseRemote):
                 for data in response.stream(amt=1024 * 1024):
                     local_stream.write(data)
                 ok = True
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
                 return False
             finally:

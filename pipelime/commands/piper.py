@@ -87,6 +87,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
         START = "start"
         MIDDLE = "middle"
         END = "end"
+        REGEX = "regex"
 
     nodes: t.Mapping[
         str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]

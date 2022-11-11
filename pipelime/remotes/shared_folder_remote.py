@@ -13,7 +13,7 @@ class SharedFolderRemote(BaseRemote):
     _PL_FOLDER_ = ".pl"
     _TAGS_FILE_ = "tags.json"
     _HASH_FN_KEY_ = "__HASH_FN__"
-    _DEFAULT_HASH_FN_ = "sha256"
+    _DEFAULT_HASH_FN_ = "blake2b"
 
     def __init__(self, netloc_data: NetlocData):
         """Filesystem-based remote.

@@ -16,22 +16,25 @@ class GraphNode(ABC):
     def __init__(self, name: str, type: str):
         self.name = str(name)
         self.type = str(type)
-        self.graph_alt_repr = False
 
     @property
     def id(self) -> str:
-        return repr(self)
+        return f"{self.type}({self.name})"
 
     @property
     @abstractmethod
-    def short_repr(self) -> str:
+    def readable_repr(self) -> str:
         pass
 
     def __hash__(self) -> int:
-        return hash(f"{self.type}({self.name})")
+        return hash(self.id)
 
     def __repr__(self) -> str:
-        return self.short_repr if self.graph_alt_repr else f"{self.type}({self.name})"
+        from hashlib import blake2b as hashfn
+
+        h = hashfn()
+        h.update(self.id.encode())
+        return h.hexdigest()
 
     def __eq__(self, o) -> bool:
         return self.id == o.id
@@ -48,7 +51,7 @@ class GraphNodeOperation(GraphNode):
         return self._command
 
     @property
-    def short_repr(self) -> str:
+    def readable_repr(self) -> str:
         return (
             f"{self.name}: {self._command.command_name()}"
             if self._show_command_name
@@ -69,47 +72,49 @@ class GraphNodeData(GraphNode):
         super().__init__(name, GraphNode.GRAPH_NODE_TYPE_DATA)
         self._path = str(path)
 
-        self._short_repr = self._path
+        self._readable_repr = self._path
         if isinstance(data_max_width, int):
-            if data_max_width > 0 and len(self._short_repr) > data_max_width:
+            if data_max_width > 0 and len(self._readable_repr) > data_max_width:
                 ellipsis_position = ellipsis_position.lower()
                 effective_length = data_max_width - 3
                 if ellipsis_position == "start":
-                    self._short_repr = f"…{self._short_repr[-effective_length:]}"
+                    self._readable_repr = f"…{self._readable_repr[-effective_length:]}"
                 elif ellipsis_position == "end":
-                    self._short_repr = f"{self._short_repr[:effective_length]}…"
+                    self._readable_repr = f"{self._readable_repr[:effective_length]}…"
                 elif ellipsis_position == "middle":
                     halfw = effective_length * 0.5
-                    self._short_repr = (
-                        self._short_repr[: math.floor(halfw)]
+                    self._readable_repr = (
+                        self._readable_repr[: math.floor(halfw)]
                         + "..."
-                        + self._short_repr[-math.ceil(halfw) :]
+                        + self._readable_repr[-math.ceil(halfw) :]
                     )
                 else:
                     raise ValueError(f"Unknown ellipsis position: {ellipsis_position}")
         elif data_max_width is not None:
             if ellipsis_position == "start":
-                idx = self._short_repr.rfind(data_max_width)
+                idx = self._readable_repr.rfind(data_max_width)
                 if idx >= 0:
-                    self._short_repr = f"…{self._short_repr[idx+len(data_max_width):]}"
+                    self._readable_repr = (
+                        f"…{self._readable_repr[idx+len(data_max_width):]}"
+                    )
             elif ellipsis_position == "end":
-                idx = self._short_repr.find(data_max_width)
+                idx = self._readable_repr.find(data_max_width)
                 if idx >= 0:
-                    self._short_repr = f"{self._short_repr[:idx]}…"
+                    self._readable_repr = f"{self._readable_repr[:idx]}…"
             elif ellipsis_position == "middle":
-                self._short_repr = self._short_repr.replace(data_max_width, "…")
+                self._readable_repr = self._readable_repr.replace(data_max_width, "…")
             elif ellipsis_position == "regex":
                 import re
 
-                self._short_repr = re.sub(data_max_width, "…", self._short_repr)
+                self._readable_repr = re.sub(data_max_width, "…", self._readable_repr)
 
     @property
     def path(self) -> str:
         return self._path
 
     @property
-    def short_repr(self) -> str:
-        return self._short_repr
+    def readable_repr(self) -> str:
+        return self._readable_repr
 
 
 class DAGNodesGraph:
@@ -170,15 +175,6 @@ class DAGNodesGraph:
             for node in self.raw_graph.nodes
             if len(list(self.raw_graph.predecessors(node))) == 0
         ]
-
-    def set_nodes_short_repr(self, short_repr: bool):
-        """Set the short representation of the nodes.
-
-        Args:
-            short_repr (bool): The short representation of the nodes.
-        """
-        for node in self.raw_graph.nodes:
-            node.graph_alt_repr = short_repr
 
     def write_graphml(self, path_or_stream):
         """Write the graph to a GraphML file.

@@ -790,8 +790,8 @@ class UnknownItem(Item[t.Any]):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
-        raise NotImplementedError(f"{cls.__name__}: cannot decode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot decode.")
 
     @classmethod
     def encode(cls, value: t.Any, fp: t.BinaryIO):
-        raise NotImplementedError(f"{cls.__name__}: cannot encode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot encode.")
