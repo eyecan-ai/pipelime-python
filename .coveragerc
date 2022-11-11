@@ -6,8 +6,13 @@ exclude_lines =
     pass
     def __str__
     def __repr__
+    def __piper_repr__
+
     # Have to re-enable the standard pragma
     pragma: no cover
+
+    # Type checking imports cannot be covered
+    if .*TYPE_CHECKING:
 
     # Don't complain if tests don't hit defensive assertion code:
     raise AssertionError

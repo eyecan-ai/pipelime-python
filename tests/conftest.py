@@ -79,19 +79,30 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
-def complex_dag(piper_folder: Path) -> t.Mapping:
+def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
     from pipelime.choixe import XConfig
     import pipelime.choixe.utils.io as choixe_io
 
-    dag_folder = piper_folder / "dags" / "complex"
-    dag = XConfig(choixe_io.load(dag_folder / "dag.yml"))
-    ctx = XConfig(choixe_io.load(dag_folder / "ctx.yml"))
-    return dag.process(ctx).to_dict()
+    def _add_if_exists(out, path, key):
+        if path.exists():
+            out[key] = path
 
+    all_dags = []
+    with os.scandir(str(piper_folder / "dags")) as dirit:
+        for entry in dirit:
+            if entry.is_dir():
+                cfg = XConfig(choixe_io.load(Path(entry.path) / "dag.yml"))
 
-@pytest.fixture(scope="session")
-def complex_dag_dot(piper_folder: Path) -> Path:
-    return piper_folder / "dags" / "complex" / "dag.dot"
+                ctx_path = Path(entry.path) / "ctx.yml"
+                ctx = XConfig(choixe_io.load(ctx_path)) if ctx_path.exists() else None
+                cfg = cfg.process(ctx).to_dict()
+
+                dag = {}
+                dag["config"] = cfg
+                _add_if_exists(dag, Path(entry.path) / "dag.dot", "dot")
+
+                all_dags.append(dag)
+    return all_dags
 
 
 @pytest.fixture(scope="function")
