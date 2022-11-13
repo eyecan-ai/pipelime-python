@@ -41,9 +41,7 @@ class Scanner:
     DIRECTIVE_RE = r"(?:\$[^\)\( \.\,\$]+\([^\(\)]*\))|(?:\$[^\)\( \.\,\$]+)|(?:[^\$]*)"
     """Regex used to check if a string is a Choixe directive."""
 
-    def _scan_argument(
-        self, py_arg: Union[ast.Constant, ast.Attribute, ast.Name]
-    ) -> Any:
+    def _scan_argument(self, py_arg: ast.expr) -> Any:
         if isinstance(py_arg, ast.Constant):
             return py_arg.value
         elif isinstance(py_arg, ast.Attribute):
@@ -53,6 +51,10 @@ class Scanner:
             return str(name)
         elif isinstance(py_arg, ast.Name):
             return str(py_arg.id)
+        elif isinstance(py_arg, ast.List):
+            return [self._scan_argument(x) for x in py_arg.elts]
+        elif isinstance(py_arg, ast.Lambda):
+            return eval(astunparse.unparse(py_arg))
         else:
             raise ChoixeSyntaxError(py_arg.__class__)
 

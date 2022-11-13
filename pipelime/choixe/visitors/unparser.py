@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Union
 
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import DIRECTIVE_PREFIX
+import astunparse
 
 
 class Unparser(ast.NodeVisitor):
@@ -132,6 +133,8 @@ class Unparser(ast.NodeVisitor):
                 return unparsed
             else:
                 return f'"{unparsed}"'
+        elif callable(unparsed) and callable.__name__ == "<lambda>":  # pragma: no cover
+            raise ValueError("Cannot unparse lambda expressions.")
         else:
             return str(unparsed)
 

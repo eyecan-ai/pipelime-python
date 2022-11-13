@@ -336,6 +336,8 @@ class RandNode(HashNode):
     def __init__(self, *args: HashNode, **data) -> None:
         super().__init__()
         self.args = args
+        self.n = data.get("n")
+        self.pdf = data.get("pdf")
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_rand(self)
