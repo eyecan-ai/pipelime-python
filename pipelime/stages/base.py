@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 import pydantic as pyd
 import typing as t
+import inspect
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
@@ -84,7 +85,7 @@ class StageCompose(SampleStage, title="compose"):
 
     stages: t.Sequence[StageInput] = pyd.Field(
         ...,
-        description=("The stages to apply. " + StageInput.__doc__),  # type: ignore
+        description="The stages to apply. " + str(inspect.getdoc(StageInput)),
     )
 
     def __init__(

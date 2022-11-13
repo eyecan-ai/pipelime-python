@@ -329,11 +329,12 @@ class TmpDirNode(HashNode):
 class RandNode(HashNode):
     """A `RandNode` represents the creation of a random number."""
 
-    args: Sequence[HashNode]
+    args: Sequence[HashNode] = tuple()
     n: Optional[Node] = None
     pdf: Optional[Node] = None
 
-    def __init__(self, *args: HashNode) -> None:
+    def __init__(self, *args: HashNode, **data) -> None:
+        super().__init__()
         self.args = args
 
     def accept(self, visitor: NodeVisitor) -> Any:

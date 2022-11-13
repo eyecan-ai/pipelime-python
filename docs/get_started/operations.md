@@ -34,7 +34,7 @@ dataset = SamplesSequence.from_underfolder(
 ```
 
 Here a brief description of the arguments above:
-- `folder`: the path to the underfolder dataset, the keyword can be omitted
+- `folder`: the path to the underfolder dataset (this keyword can be omitted)
 - `merge_root_items`: if `True`, the root items of the dataset are merged with each sample
 - `must_exist`: if `True`, an error is raised if the dataset folder does not exist
 - `watch`: if `True`, the dataset is watched for changes every time a new sample is requested

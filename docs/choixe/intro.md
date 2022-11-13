@@ -17,18 +17,7 @@ Note that any markup format that can be deserialized into python built-ins can w
 
 All that **Choixe** does is the following:
 
-```{mermaid}
-flowchart LR
-A[File]
-B[Python\nStructure]
-C[Parsed\nChoixe AST]
-D[Python\nStructure]
-E[File]
-A -.->|Loading| B
-B -->|Parsing| C
-C -->|Processing| D
-D -.->|Writing| E
-```
+![](../images/choixe_exec.svg)
 
 1. Optionally **load** a **structure** from a markup file. The structure usually consists of
    nested python **dictionaries** or **lists**, containing built-in types like integers,

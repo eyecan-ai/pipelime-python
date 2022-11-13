@@ -13,7 +13,7 @@ As I may have anticipated, **Choixe** features are enabled when a **directive** 
 
 ```yaml
 $DIRECTIVE_NAME
-``` 
+```
 
 Basically a `$` followed by a name. The name must follow the rules of python identifiers, so only alphanumeric characters and underscores ( `_` ), the name cannot start with a digit.
 
@@ -52,7 +52,7 @@ $args: LIST_OF_ARGS
 $kwargs: DICT_OF_KWARGS
 ```
 
-The extended form is a more verbose and more explicit alternative that allows to pass complex arguments that cannot be expressed with the current limitations of the call form. 
+The extended form is a more verbose and more explicit alternative that allows to pass complex arguments that cannot be expressed with the current limitations of the call form.
 
 Examples:
 - ```yaml
@@ -80,7 +80,7 @@ Some **directives** are available only with special forms, i.e. some forms that 
 Example:
 ```yaml
 $model: package.MySuperCoolPydanticModel
-$args: 
+$args:
   foo: 10
   bar: 20
 ```
@@ -91,14 +91,14 @@ Here, the whole dictionary is recognized as a special form and parsed as a singl
 
 When a directive is expressed in the key-value form, the key-value pair containing the directive is parsed as a single block, instead of having two separate parsings for the key and the value, as occurs normally.
 
-Key-value forms are a lot like special forms, the only difference is that the parsing, instead of consuming the whole dictionary, it consumes only a the key-value pair containing the directive.
+Key-value forms are a lot like special forms, the only difference is that the parsing, instead of consuming the whole dictionary, it consumes only the key-value pair containing the directive.
 
 Example:
 ```yaml
 $for(my_list): hello
 ```
 
-Here, we have a dictionary with a single entry consisting of a key and value pair. The directive `$for` is recognized as a key-value form and thus, instead of parsing the key and the value separately, they are parsed as a single block. Contrary to the special and extended form, the dictioanry containing the pair is not consumed by the parsing operation. 
+Here, we have a dictionary with a single entry consisting of a key and value pair. The directive `$for` is recognized as a key-value form and thus, instead of parsing the key and the value separately, they are parsed as a single block. Contrary to the special and extended form, the dictioanry containing the pair is not consumed by the parsing operation.
 
 ## String Bundles
 
@@ -120,14 +120,14 @@ The result of the computation is the string concatenation of the result of each 
 A "Dict Bundle" is analogous to a "String Bundle" but with:
 - Dictionary union instead of string concatenation
 - Key-Value forms instead of compact/call forms
-  
+
 Just like Compact/Call forms can be mixed with plain strings, Key-Value forms can be mixed with plain key-value pairs in a dictionary:
 
 ```yaml
 name: mario
 $for(my_list, x): hello
 age: 203
-$for(my_list2, y): 
+$for(my_list2, y):
   - $item(y.foo)
 ```
 

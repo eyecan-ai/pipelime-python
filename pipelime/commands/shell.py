@@ -11,18 +11,30 @@ class ShellCommand(PipelimeCommand, title="shell"):
     """A generic pipelime command wrapping a shell command."""
 
     command: str = Field(
-        ..., alias="c", description="""The shell command to execute."""
+        ...,
+        alias="c",
+        description=(
+            "The shell command to execute. Use the `{name}` syntax to refer "
+            "to specific inputs and outputs, then remaining inputs/outputs keys "
+            "are appended as `--key value` arguments."
+        ),
     )
     inputs: Dict[str, Any] = Field(
         default_factory=dict,
         alias="i",
-        description="The input options.",
+        description=(
+            "The input options. They will be matched with outputs "
+            "of other commands when building a piper graph."
+        ),
         piper_port=PiperPortType.INPUT,
     )
     outputs: Dict[str, Any] = Field(
         default_factory=dict,
         alias="o",
-        description="The output options.",
+        description=(
+            "The output options. They will be matched with inputs "
+            "of other commands when building a piper graph."
+        ),
         piper_port=PiperPortType.OUTPUT,
     )
 

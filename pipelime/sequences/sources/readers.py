@@ -50,9 +50,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
 
         if not self.watch:
             self._scan_root_files()
-
-        # load samples even if we are `watch`ing, so that we know the initial length
-        self._scan_sample_files()
+            self._scan_sample_files()
 
     @property
     def root_sample(self) -> pls.Sample:
@@ -108,11 +106,12 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
                             self._samples.extend(
                                 [{} for _ in range(id_key[0] - len(self._samples) + 1)]
                             )
-                            self._samples[id_key[0]][id_key[1]] = (  # type: ignore
-                                entry.path
-                            )
+                            self._samples[id_key[0]][id_key[1]] = entry.path
 
     def size(self) -> int:
+        if self.watch:
+            self._scan_sample_files()
+
         return len(self._samples)
 
     def get_sample(self, idx: int) -> pls.Sample:

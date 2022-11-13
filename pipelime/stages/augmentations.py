@@ -10,6 +10,10 @@ if t.TYPE_CHECKING:
 
 
 class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+    """The albumentations transformation defined as python object,
+    serialized dict or yaml/json file.
+    """
+
     __root__: t.Dict[str, t.Any]
     _value: t.Union[A.BaseCompose, A.BasicTransform] = pyd.PrivateAttr(None)
 
@@ -50,13 +54,7 @@ class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="no
 class StageAlbumentations(SampleStage, title="albumentations"):
     """Sample augmentation via Albumentations."""
 
-    transform: Transformation = pyd.Field(
-        ...,
-        description=(
-            "The albumentations transformation defined as python object, "
-            "serialized dict or yaml/json file."
-        ),
-    )
+    transform: Transformation = pyd.Field(...)
     keys_to_targets: t.Mapping[str, str] = pyd.Field(
         ...,
         description=(

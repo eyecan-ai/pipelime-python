@@ -357,6 +357,29 @@ class TestStringParse:
         expr = f"$symbol({symbol})"
         assert parse(expr) == ast.SymbolNode(symbol=ast.LiteralNode(data=symbol))
 
+    @pytest.mark.parametrize(
+        ["symbol", "expected"],
+        [
+            ["$rand", ast.RandNode()],
+            ["$rand()", ast.RandNode()],
+            ["$rand(10)", ast.RandNode(ast.LiteralNode(data=10))],
+            [
+                "$rand(10, 20)",
+                ast.RandNode(ast.LiteralNode(data=10), ast.LiteralNode(data=20)),
+            ],
+            [
+                "$rand(10, 20, n=10)",
+                ast.RandNode(
+                    ast.LiteralNode(data=10),
+                    ast.LiteralNode(data=20),
+                    n=ast.LiteralNode(data=10),
+                ),
+            ],
+        ],
+    )
+    def parse_rand(self, expr: str, expected: ast.RandNode) -> None:
+        assert parse(expr) == expected
+
 
 class TestParserRaise:
     def test_unknown_directive(self):

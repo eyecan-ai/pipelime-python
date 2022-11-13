@@ -84,3 +84,9 @@ pipelime = "pipelime.cli.main:app"
 
 [tool.hatch.version]
 path = "pipelime/__init__.py"
+
+[tool.hatch.build]
+include = [
+  "pipelime/**/*.py",
+  "LICENSE",
+]

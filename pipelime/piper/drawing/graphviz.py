@@ -310,7 +310,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         return {
             "format": graph_format,
             "prog": layout,
-            "args": " ".join(f"{k} {v}" for k, v in kwargs.items()),
+            "args": " ".join(f"-{k}{v}" for k, v in kwargs.items()),
         }
 
     def draw(self, graph: DAGNodesGraph, **kwargs) -> np.ndarray:
@@ -322,11 +322,12 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         Returns:
             np.ndarray: image as a numpy array
         """
-        import imageio
+        import imageio.v3 as iio
 
         agraph: AGraph = self._build_agraph(graph)
-        img = agraph.draw(**self._get_draw_kwargs(**kwargs))
-        return imageio.imread(BytesIO(img))
+        opts = self._get_draw_kwargs(**kwargs)
+        img = agraph.draw(**opts)
+        return np.array(iio.imread(BytesIO(img), extension=f".{opts['format']}"))
 
     def representation(self, graph: DAGNodesGraph) -> str:
         """Returns a representation of the graph as a DOT string
@@ -368,7 +369,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         format = self._check_format(filename, format)
 
         agraph = self._build_agraph(graph)
-        if format in ["dot"]:
+        if format == "dot":
             agraph.write(filename)
         else:
             agraph.draw(

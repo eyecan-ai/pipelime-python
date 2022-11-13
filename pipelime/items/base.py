@@ -3,6 +3,7 @@ from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse
 from enum import IntEnum
+from copy import deepcopy
 from contextlib import ContextDecorator, contextmanager
 from loguru import logger
 import io
@@ -339,7 +340,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     _shared: bool
     _serialization_mode: t.Optional[SerializationMode]
 
-    def __init__(self, *sources: _item_init_types, shared: bool = False):
+    def __init__(
+        self,
+        *sources: _item_init_types,
+        shared: bool = False,
+        dont_check_paths: bool = False,
+    ):
         super().__init__()
         self._data_cache = None
         self._file_sources = []
@@ -356,7 +362,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 src = src()
 
             if isinstance(src, (Path, ParseResult)):
-                self._add_data_source(src)
+                self._add_data_source(src, dont_check_paths)
             elif self._data_cache is not None:
                 raise ValueError(f"{self.__class__.__name__}: Cannot set data twice.")
             elif isinstance(src, (t.BinaryIO, io.IOBase)):
@@ -387,6 +393,14 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     @property
     def is_shared(self) -> bool:
         return self._shared
+
+    @property
+    def local_sources(self) -> t.Sequence[Path]:
+        return deepcopy(self._file_sources)
+
+    @property
+    def remote_sources(self) -> t.Sequence[ParseResult]:
+        return deepcopy(self._remote_sources)
 
     def effective_serialization_mode(self) -> SerializationMode:
         smode = (
@@ -431,8 +445,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 f"{self.__class__.__name__}: invalid extension for `{srcstr}`"
             )
 
-    def _add_data_source(self, source: _item_data_source) -> bool:
-        self._check_source(source)
+    def _add_data_source(
+        self, source: _item_data_source, dont_check_paths: bool = False
+    ) -> bool:
+        if not dont_check_paths:
+            self._check_source(source)
         if isinstance(source, Path):
             source = source.resolve()
             if source not in self._file_sources:
@@ -462,11 +479,13 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             path = self.as_default_remote_file(target_path)
         elif target_path.suffix not in self.file_extensions():
             path = self.as_default_name(target_path)
-
-        # first delete the existing file, if any
-        path.unlink(missing_ok=True)
+        else:
+            path = target_path
 
         if smode is SerializationMode.REMOTE_FILE:
+            # it's safe to delete an existing remote file
+            path.unlink(missing_ok=True)
+
             try:
                 with path.open("w") as fp:
                     json.dump([rm.geturl() for rm in self._remote_sources], fp)
@@ -475,13 +494,22 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                 logger.warning(  # logger.exception(
                     f"{self.__class__}: remote file serialization error `{exc}`."
                 )
+
+                # remove any unfinished remote file
                 path.unlink(missing_ok=True)
+
+                # fall back to local file path
                 path = (
                     self.as_default_name(target_path)
                     if target_path.suffix not in self.file_extensions()
                     else target_path
                 )
                 smode = SerializationMode.HARD_LINK
+
+        # skip if local file already exists
+        if path in self._file_sources:
+            return None
+        path.unlink(missing_ok=True)
 
         if smode is SerializationMode.HARD_LINK:
             smode = (

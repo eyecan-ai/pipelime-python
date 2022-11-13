@@ -218,7 +218,13 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
         """
         return ["png", "markdown", "md"]
 
-    def export(self, graph: DAGNodesGraph, filename: str, format: Optional[str] = None, **kwargs):
+    def export(
+        self,
+        graph: DAGNodesGraph,
+        filename: str,
+        format: Optional[str] = None,
+        **kwargs,
+    ):
         format = self._check_format(filename, format)
 
         if format == "png":
