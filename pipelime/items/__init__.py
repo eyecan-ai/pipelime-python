@@ -29,3 +29,8 @@ from pipelime.items.metadata_item import (
     YamlMetadataItem,
     TomlMetadataItem,
 )
+from pipelime.items.model3d_item import (
+    Model3DItem,
+    STLModel3DItem,
+    OBJModel3DItem,
+)
