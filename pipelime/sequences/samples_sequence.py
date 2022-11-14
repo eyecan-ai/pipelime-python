@@ -137,7 +137,7 @@ class SamplesSequence(
         *,
         num_workers: int = 0,
         prefetch: int = 2,
-        track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
+        track_fn: t.Union[bool, str, t.Callable[[t.Iterable], t.Iterable], None] = True,
     ):
         """Goes through all the samples of the sequence, optionally using multiple
         processes and returns a new sequence holding the processed samples.
@@ -151,8 +151,11 @@ class SamplesSequence(
         :type prefetch: int, optional
         :param sample_fn: a callable to run on each sample, defaults to None
         :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
-        :param track_fn: a callable to track the progress, defaults to None
-        :type track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]], optional
+        :param track_fn: if True, a rich trackbar is shown; if a string is passed, it is
+            set as the message for the default rich trackbar; otherwise you should
+            provide your own callable to track the progress, defaults to True
+        :type track_fn: t.Union[bool, str, t.Callable[[t.Iterable], t.Iterable], None],
+            optional
         """
         samples: t.List[Sample] = []
 
@@ -180,7 +183,7 @@ class SamplesSequence(
         sample_fn: t.Union[
             t.Callable[[Sample], None], t.Callable[[Sample, int], None], None
         ] = None,
-        track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]] = None,
+        track_fn: t.Union[bool, str, t.Callable[[t.Iterable], t.Iterable], None] = True,
     ):
         """Goes through all the samples of the sequence, optionally using multiple
         processes and applying `sample_fn` to each sample. Also, a `track_fn` can be
@@ -197,10 +200,26 @@ class SamplesSequence(
         :type keep_order: bool, optional
         :param sample_fn: a callable to run on each sample, defaults to None
         :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
-        :param track_fn: a callable to track the progress, defaults to None
-        :type track_fn: t.Optional[t.Callable[[t.Iterable], t.Iterable]], optional
+        :param track_fn: if True, a rich trackbar is shown; if a string is passed, it is
+            set as the message for the default rich trackbar; otherwise you should
+            provide your own callable to track the progress, defaults to True
+        :type track_fn: t.Union[bool, str, t.Callable[[t.Iterable], t.Iterable], None],
+            optional
         """
         from pipelime.sequences import Grabber, grab_all
+
+        if isinstance(track_fn, (bool, str)):
+            import rich.progress
+
+            if track_fn:
+                msg = track_fn if isinstance(track_fn, str) else ""
+                track_fn = lambda x: rich.progress.track(
+                    x,
+                    total=len(self),
+                    description=msg,
+                )
+            else:
+                track_fn = None
 
         grabber = Grabber(
             num_workers=num_workers, prefetch=prefetch, keep_order=keep_order
