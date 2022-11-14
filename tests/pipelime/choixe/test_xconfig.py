@@ -62,10 +62,8 @@ class TestXConfig:
         expected = schema.validate(load(choixe_plain_cfg))
         assert bool(DeepDiff(cfg.decode(), expected)) != replace
 
-    @pytest.mark.parametrize(
-        ["only_valid_keys", "append_values"],
-        [(True, True), (False, False), (True, False), (False, True)],
-    )
+    @pytest.mark.parametrize("only_valid_keys", [True, False])
+    @pytest.mark.parametrize("append_values", [True, False])
     def test_deep_keys(
         self, choixe_plain_cfg: Path, only_valid_keys: bool, append_values: bool
     ):

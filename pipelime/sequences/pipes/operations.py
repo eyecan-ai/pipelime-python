@@ -356,7 +356,7 @@ class CachedSequence(PipedSequenceBase, title="cache"):
         try:
             with lock.acquire(timeout=1):
                 # check again to avoid races
-                if not filename.exists():
+                if not filename.exists():  # pragma: no branch
                     with open(filename, "wb") as fd:
                         pickle.dump(x, fd, protocol=-1)
         except Timeout:  # pragma: no cover

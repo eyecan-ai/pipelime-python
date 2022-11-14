@@ -168,25 +168,52 @@ print(seq[0])  # you should see a value for "label", but not for "metadata"
 ```
 
 ```{tip}
-The `cache_data` attribute always takes precedence over the global configuration, which
-is taken into account only if `cache_data` is `None`. In such cases, the cache settings
-for all base classes are considered and the first one not set to `None` is applied.
+The `Item.cache_data` attribute always takes precedence over the global configuration, which
+is taken into account only if `Item.cache_data` is `None`. In such cases, the whole class
+hierarchy is considered and the first data cache setting not `None` is applied.
 
 Initially, data caching is set to `None` both on the item objects and in the global configuration,
 so the default behavior is to cache the data.
 ```
 
-```{warning}
-Calling `no_/data_cache` with no arguments will disable/enable the caching
-for **all** item types, so, for example, the following pipeline would cache no data:
+Now take a look again at these lines from the code snippet above:
 
 ```python
-seq = SamplesSequence.from_underfolder("datasets/mini_mnist")
-seq = seq.map(StageLambda(lambda x: get_data(x, "label")))  # "label" is a TxtNumpyItem
-seq = seq.data_cache("NumpyItem")
-seq = seq.map(StageLambda(lambda x: get_data(x, "metadata")))
+...
+seq = seq.data_cache("TxtNumpyItem")
+...
 seq = seq.no_data_cache()
+...
 ```
+
+The line `seq = seq.no_data_cache()` sets the caching behavior to `False` for *all* item types,
+but `seq = seq.data_cache("TxtNumpyItem")` changes the caching behavior for `TxtNumpyItem`,
+so the "label" item will be cached, while the "metadata" item will not.
+
+If we write, instead:
+
+```python
+...
+seq = seq.data_cache("NumpyItem")
+...
+seq = seq.no_data_cache()
+...
+```
+
+the caching behavior will be set to `True` for `NumpyItem`, which is a superclass of `TxtNumpyItem`,
+but it has been explicitly set to `False` for `TxtNumpyItem` when calling `seq = seq.no_data_cache()`,
+so in this case **the "label" key will not be cached**.
+
+To cache all the subclasses of `NumpyItem`, but also to disable caching for any other item type, we should write:
+
+```python
+...
+seq = seq.data_cache("NumpyItem")
+...
+seq = seq.no_data_cache("Item")
+...
+```
+
 
 ## Custom Items
 
