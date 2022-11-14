@@ -176,7 +176,17 @@ def _count_valid_samples(x):
 dataset.run(num_workers=4, sample_fn=_count_valid_sample)
 ```
 
-Checkout section [Stages](../operations/stages.md) to see how to create a custom stage.
+Incidentally, calling `apply` or `run` will print a nice trackbar on your terminal that you can customize in several ways:
+
+```python
+dataset.run(..., track_fn=True)             # (default) prints a trackbar with no message
+dataset.run(..., track_fn="Processing")     # prints a trackbar with message "Processing"
+dataset.run(..., track_fn=lambda x: ...)    # a custom callable accepting and returning an iterable
+dataset.run(..., track_fn=None)             # disables the trackbar
+```
+
+In the previous examples we used the `map` method to attach a stage to the sequence.
+Checkout section [Stages](../operations/stages.md) to see how to create your custom stage.
 
 ## De/Serialization
 
