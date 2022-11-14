@@ -46,7 +46,9 @@ class ItemFactory(ABCMeta):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
             if ext == cls.REMOTE_FILE_EXT:
-                raise ValueError(f"{cls.REMOTE_FILE_EXT} file extension is reserved")
+                raise ValueError(f"`{cls.REMOTE_FILE_EXT}` file extension is reserved")
+            if ext in cls.ITEM_CLASSES:
+                raise ValueError(f"File extension `{ext}` is already registered")
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = None  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore

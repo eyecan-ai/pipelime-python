@@ -8,6 +8,7 @@ exclude_lines =
     def __repr__
     def __piper_repr__
     def __pl_pretty__
+    def pl_pretty_data
 
     # Have to re-enable the standard pragma
     pragma: no cover

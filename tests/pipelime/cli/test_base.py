@@ -73,9 +73,10 @@ class TestCliBase:
         self._base_launch(args)
 
         outreader = SamplesSequence.from_underfolder(outpath)  # type: ignore
-        gt = (
-            SamplesSequence.from_underfolder(minimnist_dataset["path"])  # type: ignore
-            .slice(stop=10)
+        gt = SamplesSequence.from_underfolder(
+            minimnist_dataset["path"]
+        ).slice(  # type: ignore
+            stop=10
         )
         assert len(outreader) == len(gt)
         for o, g in zip(outreader, gt):
@@ -85,9 +86,12 @@ class TestCliBase:
                     assert np.array_equal(v(), g[k](), equal_nan=True)  # type: ignore
                 else:
                     assert v() == g[k]()
-                assert isinstance(v._file_sources, Sequence)
-                assert len(v._file_sources) == 1
-                path = Path(v._file_sources[0])
+
+                v_file_sources = v.local_sources
+
+                assert isinstance(v_file_sources, Sequence)
+                assert len(v_file_sources) == 1
+                path = Path(v_file_sources[0])
                 assert not path.is_symlink()
                 assert path.is_file()
                 assert (

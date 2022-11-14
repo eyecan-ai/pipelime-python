@@ -94,7 +94,7 @@ class XConfig(Box):
         return XConfig(data=self.decode(), cwd=self.get_cwd(), schema=self.get_schema())
 
     def validate(self, replace: bool = True):
-        """Validate internal schema if any
+        """Validate internal schema, if any
 
         Args:
             replace (bool, optional): True to replace internal dictionary with
@@ -102,7 +102,7 @@ class XConfig(Box):
         """
 
         schema = self.get_schema()
-        if schema is not None:
+        if schema is not None:  # pragma: no branch
             new_dict = schema.validate(self.to_dict())
             if replace:
                 self.update(new_dict)
@@ -142,7 +142,11 @@ class XConfig(Box):
         return py_.get(self, full_key, default=default)
 
     def deep_set(
-        self, full_key: Union[str, list], value: Any, only_valid_keys: bool = True
+        self,
+        full_key: Union[str, list],
+        value: Any,
+        only_valid_keys: bool = True,
+        append_values: bool = False,
     ) -> None:
         """Sets value based on full path key, ie, 'a.b.0.d' or ['a','b','0','d'])
 
@@ -151,12 +155,16 @@ class XConfig(Box):
             value (Any): The value to set.
             only_valid_keys (bool, optional): True to avoid set on not present keys.
             Defaults to True.
+            append_values (bool, optional): Append (as lists) or replace values.
+            Defaults to False.
         """
 
         if not only_valid_keys or py_.has(self, full_key):
-            deep_set_(self, key_path=full_key, value=value, append=False)
+            deep_set_(self, key_path=full_key, value=value, append=append_values)
 
-    def deep_update(self, data: Dict, full_merge: bool = False):
+    def deep_update(
+        self, data: Dict, full_merge: bool = False, append_values: bool = False
+    ) -> None:
         """Updates current confing in depth, based on keys of other input dictionary.
         It is used to replace nested keys with new ones, but can also be used as a merge
         of two completely different XConfig if ``full_merge=True``.
@@ -165,11 +173,18 @@ class XConfig(Box):
             data (Dict): An other dictionary to use as data source.
             full_merge (bool, optional): False to replace only the keys that are
             actually present. Defaults to False.
+            append_values (bool, optional): Append (as lists) or replace values.
+            Defaults to False.
         """
 
         other_chunks = walk(parse(data))
         for key, new_value in other_chunks:
-            self.deep_set(key, new_value, only_valid_keys=not full_merge)
+            self.deep_set(
+                key,
+                new_value,
+                only_valid_keys=not full_merge,
+                append_values=append_values,
+            )
 
     def parse(self) -> Node:
         """Parse this object into a Choixe AST Node.

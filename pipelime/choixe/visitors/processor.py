@@ -215,16 +215,17 @@ class Processor(ast.NodeVisitor):
         branches = list(product(*branches))
         for i, branch in enumerate(branches):
             res = None
-            if len(branch) == 0:
-                branches[i] = None
-            elif isinstance(branch[0], (str, int, float, bool)):
-                res = "".join([str(item) for item in branch])
-            elif isinstance(branch[0], list):
-                res = []
-                [res.extend(item) for item in branch]
-            elif isinstance(branch[0], dict):
-                res = {}
-                [res.update(item) for item in branch]
+            if branch:
+                if isinstance(branch[0], (str, int, float, bool)):
+                    res = "".join([str(item) for item in branch])
+                elif isinstance(branch[0], list):
+                    res = []
+                    [res.extend(item) for item in branch]
+                elif isinstance(branch[0], dict):
+                    res = {}
+                    [res.update(item) for item in branch]
+                else:
+                    raise ChoixeProcessingError(f"Invalid loop body: {branch[0]} is not a valid type")
             branches[i] = res
 
         return branches

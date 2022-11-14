@@ -67,14 +67,14 @@ class S3Remote(BaseRemote):
             self._client = None
 
     def _maybe_create_bucket(self, target_base_path: str):
-        if not self._client.bucket_exists(target_base_path):  # type: ignore
+        if not self._client.bucket_exists(target_base_path):  # type: ignore  # pragma: no branch
             logger.info(
                 f"Creating bucket '{target_base_path}' on S3 remote {self.netloc}."
             )
             self._client.make_bucket(target_base_path)  # type: ignore
 
     def _get_hash_fn(self, target_base_path: str) -> t.Any:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 self._maybe_create_bucket(target_base_path)
                 tags = self._client.get_bucket_tags(target_base_path)  # type: ignore
@@ -102,7 +102,7 @@ class S3Remote(BaseRemote):
         return None
 
     def target_exists(self, target_base_path: str, target_name: str) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 objlist = self._client.list_objects(  # type: ignore
                     target_base_path, prefix=target_name
@@ -122,7 +122,7 @@ class S3Remote(BaseRemote):
         target_base_path: str,
         target_name: str,
     ) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 self._maybe_create_bucket(target_base_path)
                 self._client.put_object(  # type: ignore
@@ -145,7 +145,7 @@ class S3Remote(BaseRemote):
         source_name: str,
         source_offset: int,
     ) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             if not self._client.bucket_exists(source_base_path):  # type: ignore
                 logger.debug(
                     f"Bucket '{source_base_path}' does not exist "

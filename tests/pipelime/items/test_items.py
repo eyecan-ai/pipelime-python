@@ -73,8 +73,10 @@ class TestItems:
         w_item.serialize(value_path)
         assert eq_fn(value, w_item())
 
-        r_item = item_cls(value_path.with_suffix(item_cls.file_extensions()[0]))
+        value_path = value_path.with_suffix(item_cls.file_extensions()[0])
+        r_item = item_cls(value_path)
         assert eq_fn(w_item(), r_item())
+        assert r_item.local_sources == [value_path]
 
     def test_read_write_jpeg(self, tmp_path: Path):
         import imageio.v3 as iio
@@ -126,16 +128,24 @@ class TestItems:
         _check((True, True), (True, True))
         _check((False, False), (False, False))
 
-        with pli.no_data_cache(pli.NumpyItem):
+        with pli.no_data_cache(pli.ImageItem):
             _check((True, True), (True, True))
+            _check((False, False), (False, False))
             _check((None, None), (False, True))
 
-        with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
-            pli.enable_item_data_cache(pli.NumpyItem)
+        with pli.no_data_cache(pli.ImageItem, pli.JsonMetadataItem):
+            pli.enable_item_data_cache(pli.ImageItem)
             _check((True, True), (True, True))
-            _check((False, True), (False, True))
+            _check((False, False), (False, False))
             _check((None, None), (True, False))
             _check((None, None), (True, False))
+
+        with pli.no_data_cache():
+            with pli.data_cache(pli.JsonMetadataItem):
+                _check((True, True), (True, True))
+                _check((False, False), (False, False))
+                _check((None, None), (False, True))
+                _check((None, None), (False, True))
 
     def test_set_data_twice(self):
         with pytest.raises(ValueError):
