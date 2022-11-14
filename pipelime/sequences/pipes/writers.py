@@ -85,7 +85,7 @@ class UnderfolderWriter(
                         try:
                             with lock.acquire(timeout=1):
                                 # check again to avoid races
-                                if not any(
+                                if not any(  # pragma: no branch
                                     f.exists() for f in v.get_all_names(filepath)
                                 ):
                                     v.serialize(filepath)

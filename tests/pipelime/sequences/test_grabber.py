@@ -24,7 +24,7 @@ def test_grabber(
 ):
     from copy import deepcopy
 
-    source = pls.SamplesSequence.from_underfolder(  # type: ignore
+    source = pls.SamplesSequence.from_underfolder(
         folder=minimnist_dataset["path"], merge_root_items=True
     )
     proc = (
@@ -51,7 +51,7 @@ def test_grabber(
         assert not f.is_symlink()
         assert not f.is_file() or f.stat().st_nlink == 1
 
-    dest = pls.SamplesSequence.from_underfolder(  # type: ignore
+    dest = pls.SamplesSequence.from_underfolder(
         folder=tmp_path / "output", merge_root_items=True
     )
 

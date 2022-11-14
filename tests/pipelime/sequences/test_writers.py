@@ -9,12 +9,12 @@ class TestSamplesSequenceWriters:
     def _read_write_data(
         self, source_dataset, out_folder, **writer_kwargs
     ) -> t.Tuple[pls.SamplesSequence, pls.SamplesSequence]:
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=source_dataset["path"], merge_root_items=True
         )
         for _ in source.to_underfolder(folder=out_folder, **writer_kwargs):
             pass
-        dest = pls.SamplesSequence.from_underfolder(  # type: ignore
+        dest = pls.SamplesSequence.from_underfolder(
             folder=out_folder, merge_root_items=True
         )
         return source, dest

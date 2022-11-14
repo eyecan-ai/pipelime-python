@@ -4,11 +4,20 @@ import pipelime.sequences as pls
 
 
 class TestSamplesSequenceOperations:
+    def test_base(self):
+        from pipelime.sequences import SamplesSequence, Sample
+        from pipelime.sequences.pipes import PipedSequenceBase
+
+        src = SamplesSequence.from_list([Sample({}) for _ in range(10)])
+        seq = PipedSequenceBase(source=src)
+        assert len(seq) == len(src)
+        assert all(s1 is s2 for s1, s2 in zip(seq, src))
+
     def test_map(self, minimnist_dataset: dict):
         import pipelime.items as pli
         import pipelime.stages as plst
 
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         ).map(
             plst.StageLambda(
@@ -29,7 +38,7 @@ class TestSamplesSequenceOperations:
                 assert raw["the_answer"] == 42
 
     def test_zip(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
 
@@ -83,7 +92,7 @@ class TestSamplesSequenceOperations:
             )
 
     def _cat_test(self, minimnist_dataset: dict, fn):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         double_source = fn(source)
@@ -101,7 +110,7 @@ class TestSamplesSequenceOperations:
         self._cat_test(minimnist_dataset, lambda x: x + x)
 
     def test_filter(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         filtered = source.filter(lambda x: x["label"] == 0)
@@ -113,17 +122,19 @@ class TestSamplesSequenceOperations:
             assert sample["label"] == 0
 
     def test_sort(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
-        ).sort(lambda x: -1 * x["label"]())
+        ).sort(
+            lambda x: -1 * x["label"]()  # type: ignore
+        )
 
         last_label = 9
         for sample in source:
-            assert sample["label"]() <= last_label
+            assert sample["label"]() <= last_label  # type: ignore
             last_label = sample["label"]()
 
     def test_slice(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         start, stop, step = 4, 13, 3
@@ -135,7 +146,7 @@ class TestSamplesSequenceOperations:
             assert s1 is s2
 
     def test_slice_get(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         start, stop, step = 7, 18, 2
@@ -148,7 +159,7 @@ class TestSamplesSequenceOperations:
 
     def test_shuffle(self, minimnist_dataset: dict):
         seed = 42
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         shuffled_1 = source.shuffle(seed=seed)
@@ -168,7 +179,7 @@ class TestSamplesSequenceOperations:
     def test_enumerate(self, minimnist_dataset: dict):
         import pipelime.items as pli
 
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         enum_seq = source.enumerate(
@@ -182,7 +193,7 @@ class TestSamplesSequenceOperations:
             assert all(v == e_sample[k] for k, v in s_sample.items())
 
     def test_repeat(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         repeat_seq = source.repeat(3)
@@ -195,7 +206,7 @@ class TestSamplesSequenceOperations:
                 assert next(riter) is s
 
     def test_select(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         idxs = [1, 2, 5, 9]
@@ -223,7 +234,7 @@ class TestSamplesSequenceOperations:
 
         local_stage = LocalStage()
         source = (
-            pls.SamplesSequence.from_underfolder(  # type: ignore
+            pls.SamplesSequence.from_underfolder(
                 folder=minimnist_dataset["path"], merge_root_items=False
             )
             .map(local_stage)
@@ -234,8 +245,8 @@ class TestSamplesSequenceOperations:
         for idx, x in enumerate(source):
             s = saved_samples[idx]
             assert x is not s
-            assert x["image"]().size != 0
-            assert x["img2"]().size != 0
-            assert np.array_equal(x["image"](), s["image"](), equal_nan=True)
-            assert np.array_equal(x["img2"](), s["img2"](), equal_nan=True)
+            assert x["image"]().size != 0  # type: ignore
+            assert x["img2"]().size != 0  # type: ignore
+            assert np.array_equal(x["image"](), s["image"](), equal_nan=True)  # type: ignore
+            assert np.array_equal(x["img2"](), s["img2"](), equal_nan=True)  # type: ignore
         assert local_stage.counter == len(source)

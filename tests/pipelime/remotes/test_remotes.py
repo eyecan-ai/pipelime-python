@@ -25,9 +25,7 @@ class TestRemotes:
 
         # upload
         source_to_remote: t.Mapping[Path, ParseResult] = {}
-        reader = pls.SamplesSequence.from_underfolder(  # type: ignore
-            source, merge_root_items=False
-        )
+        reader = pls.SamplesSequence.from_underfolder(source, merge_root_items=False)
         for sample in reader:
             for k, itm in sample.items():
                 rm_url = remote.upload_file(itm._file_sources[0], remote_base_path)

@@ -206,7 +206,7 @@ class TestItems:
             bucket=(tmp_path / "rmbucket"),
         )
 
-        input_seq = SamplesSequence.from_underfolder(  # type: ignore
+        input_seq = SamplesSequence.from_underfolder(
             minimnist_private_dataset["path"], merge_root_items=True
         )
 

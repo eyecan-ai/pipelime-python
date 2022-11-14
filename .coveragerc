@@ -7,6 +7,7 @@ exclude_lines =
     def __str__
     def __repr__
     def __piper_repr__
+    def __pl_pretty__
 
     # Have to re-enable the standard pragma
     pragma: no cover
@@ -20,3 +21,9 @@ exclude_lines =
 
     # Don't complain about abstract methods and properties, they aren't run:
     @(abc\.)?abstract
+
+    # Overload functions are not run
+    @(typing\.|t\.|T\.)?overload
+
+    # SamplesSequence stubs are not run
+    @samples_sequence_stub

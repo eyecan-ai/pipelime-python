@@ -313,3 +313,14 @@ class TestSample:
 
     def test_update(self):
         self._merge_test(lambda x1, x2: x1.update(x2))
+
+    def test_direct_access(self):
+        sample, data = self._np_sample()
+        dsmpl = sample.direct_access()
+
+        assert len(dsmpl) == len(sample) == len(data)
+        assert all(k in sample for k in data)
+        assert all(k in dsmpl for k in data)
+        assert all(k in sample for k in dsmpl)
+        assert all(_np_eq(sample[k](), v) for k, v in dsmpl.items())
+        assert sample.to_dict() == {k: v for k, v in dsmpl.items()}

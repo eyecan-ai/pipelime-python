@@ -37,9 +37,7 @@ class TestRemotes:
         if isinstance(remote_urls, ParseResult):
             remote_urls = [remote_urls]
 
-        filtered_seq = SamplesSequence.from_underfolder(  # type: ignore
-            inpath, merge_root_items=False
-        )
+        filtered_seq = SamplesSequence.from_underfolder(inpath, merge_root_items=False)
         if filter_fn:
             filtered_seq = filtered_seq.filter(filter_fn)
 
@@ -64,12 +62,10 @@ class TestRemotes:
 
         # high-level check
         if check_data:
-            org_seq = SamplesSequence.from_underfolder(  # type: ignore
-                inpath, merge_root_items=False
-            )
+            org_seq = SamplesSequence.from_underfolder(inpath, merge_root_items=False)
             if filter_fn:
                 org_seq = org_seq.filter(filter_fn)
-            reader_out = SamplesSequence.from_underfolder(  # type: ignore
+            reader_out = SamplesSequence.from_underfolder(
                 outpath, merge_root_items=False
             )
             for org_sample, out_sample in zip(org_seq, reader_out):
@@ -179,14 +175,12 @@ class TestRemotes:
         # manually merge odd and even samples
         even_odd_partial_output = tmp_path / "even_odd_partial"
 
-        even_seq = SamplesSequence.from_underfolder(  # type: ignore
-            even_output, merge_root_items=False
-        )
+        even_seq = SamplesSequence.from_underfolder(even_output, merge_root_items=False)
         even_count = len(even_seq)
         assert even_count == minimnist_private_dataset["len"] // 2
 
         even_odd_partial_seq = even_seq.cat(
-            SamplesSequence.from_underfolder(  # type: ignore
+            SamplesSequence.from_underfolder(
                 minimnist_private_dataset["path"], merge_root_items=False
             ).filter(lambda x: int(x["label"]()) % 2 == 1)
         )
@@ -214,7 +208,7 @@ class TestRemotes:
         )
 
         # only the odd samples are on the remote
-        even_odd_reader = SamplesSequence.from_underfolder(  # type: ignore
+        even_odd_reader = SamplesSequence.from_underfolder(
             even_odd_output, merge_root_items=False
         )
         assert len(even_odd_reader) == minimnist_private_dataset["len"]
@@ -287,7 +281,7 @@ class TestRemotes:
         # now remove remote_a and check again the data
         rmtree(remote_a_root, ignore_errors=True)
 
-        input_seq = SamplesSequence.from_underfolder(  # type: ignore
+        input_seq = SamplesSequence.from_underfolder(
             minimnist_private_dataset["path"], merge_root_items=False
         )
         output_seq = SamplesSequence.from_underfolder(output_a_and_b)  # type: ignore

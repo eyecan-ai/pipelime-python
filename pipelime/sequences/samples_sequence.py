@@ -9,6 +9,17 @@ from pipelime.sequences.sample import Sample
 
 if t.TYPE_CHECKING:
     from pipelime.utils.pydantic_types import SampleValidationInterface
+    from pipelime.sequences.direct_access import DirectAccessSequence
+
+
+def _sseq_stub_dummy(*args, **kwargs):
+    raise NotImplementedError(
+        "This is a stub function. It is not supposed to be called."
+    )
+
+
+def samples_sequence_stub(func):
+    return _sseq_stub_dummy
 
 
 class SamplesSequenceBase(t.Sequence[Sample]):
@@ -97,7 +108,7 @@ class SamplesSequence(
             return cls.__config__.title
         return cls.__name__
 
-    def direct_access(self) -> t.Sequence[t.Mapping[str, t.Any]]:
+    def direct_access(self) -> "DirectAccessSequence":
         """Returns a sequence of key-to-value mappings,
         with no intermediate Sample and Item classes.
         """
@@ -146,7 +157,7 @@ class SamplesSequence(
         samples: t.List[Sample] = []
 
         def _store_sample(x: Sample, idx: int):
-            if len(samples) <= idx:
+            if len(samples) <= idx:  # pragma: no branch
                 samples.extend([Sample() for _ in range(idx - len(samples) + 1)])
             samples[idx] = x
 
@@ -262,6 +273,7 @@ class SamplesSequence(
     # FUNCTION STUBS FOR TYPE CHECKING AND AUTO-COMPLETION
     ###########################################################################
 
+    @samples_sequence_stub
     @staticmethod
     def from_callable(
         *,
@@ -273,6 +285,7 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     @staticmethod
     def from_list(samples: t.Sequence[Sample]) -> SamplesSequence:
         """A SamplesSequence from a list of Samples.
@@ -280,6 +293,7 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     @staticmethod
     def from_underfolder(
         folder: "pathlib.Path",  # type: ignore # noqa: E602,F821
@@ -293,6 +307,7 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     @staticmethod
     def toy_dataset(
         length: int,
@@ -314,6 +329,7 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def map(
         self,
         stage: t.Union[
@@ -326,30 +342,35 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def zip(self, to_zip: SamplesSequence, *, key_format: str = "*") -> SamplesSequence:
         """Zips two Sequences by merging each Sample.
         Run `pipelime help zip` to read the complete documentation.
         """
         ...
 
+    @samples_sequence_stub
     def cat(self, to_cat: SamplesSequence) -> SamplesSequence:
         """Concatenates two SamplesSequences.
         Run `pipelime help cat` to read the complete documentation.
         """
         ...
 
+    @samples_sequence_stub
     def filter(self, filter_fn: t.Callable[[Sample], bool]) -> SamplesSequence:
         """A filtered view of a SamplesSequence.
         Run `pipelime help filter` to read the complete documentation.
         """
         ...
 
+    @samples_sequence_stub
     def sort(self, key_fn: t.Callable[[Sample], t.Any]) -> SamplesSequence:
         """A sorted view of an input SamplesSequence.
         Run `pipelime help sort` to read the complete documentation.
         """
         ...
 
+    @samples_sequence_stub
     def slice(
         self,
         *,
@@ -362,6 +383,7 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def select(
         self, indexes: t.Sequence[int], *, negate: bool = False
     ) -> SamplesSequence:
@@ -371,12 +393,14 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def shuffle(self, *, seed: t.Optional[int] = None) -> SamplesSequence:
         """Shuffles samples in the input SamplesSequence.
         Run `pipelime help shuffle` to read the complete documentation.
         """
         ...
 
+    @samples_sequence_stub
     def enumerate(
         self,
         *,
@@ -388,12 +412,14 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def repeat(self, count: int) -> SamplesSequence:
         """Repeat this sequence so each sample is seen multiple times.
         Run `pipelime help repeat` to read the complete documentation.
         """
         ...
 
+    @samples_sequence_stub
     def cache(
         self,
         cache_folder: t.Optional["pathlib.Path"] = None,  # type: ignore # noqa: E602,F821
@@ -405,18 +431,21 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def data_cache(
         self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
     ) -> SamplesSequence:
         """Enables item data caching on previous pipeline steps."""
         ...
 
+    @samples_sequence_stub
     def no_data_cache(
         self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
     ) -> SamplesSequence:
         """Disables item data caching on previous pipeline steps."""
         ...
 
+    @samples_sequence_stub
     def to_underfolder(
         self,
         folder: "pathlib.Path",  # type: ignore # noqa: E602,F821
@@ -434,6 +463,7 @@ class SamplesSequence(
         """
         ...
 
+    @samples_sequence_stub
     def validate_samples(
         self, *, sample_schema: "SampleValidationInterface"
     ) -> SamplesSequence:

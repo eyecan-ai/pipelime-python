@@ -232,6 +232,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             worker_init_fn=worker_init_fn,
         )
 
+
 class InputDatasetInterface(
     PydanticFieldNoDefaultMixin,
     pyd.BaseModel,
@@ -316,7 +317,7 @@ class InputDatasetInterface(
     def create_reader(self):
         from pipelime.sequences import SamplesSequence
 
-        reader = SamplesSequence.from_underfolder(  # type: ignore
+        reader = SamplesSequence.from_underfolder(
             folder=self.folder, merge_root_items=self.merge_root_items, must_exist=True
         )
         if self.skip_empty:

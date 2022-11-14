@@ -6,9 +6,9 @@ from pipelime.sequences import SamplesSequence
 class TestValidation:
     def _schema_check(self, dataset, schema_def, should_fail):
         try:
-            seq = SamplesSequence.from_underfolder(  # type: ignore
-                dataset
-            ).validate_samples(sample_schema=schema_def)
+            seq = SamplesSequence.from_underfolder(dataset).validate_samples(
+                sample_schema=schema_def
+            )
             try:
                 for _ in seq:
                     pass
