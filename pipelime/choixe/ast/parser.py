@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
 
 import astunparse
+import numpy as np
 import schema as S
 
 import pipelime.choixe.ast.nodes as c_ast
@@ -90,6 +91,30 @@ class Scanner:
 
         return Token(token_name, args, kwargs)
 
+    def _tokenize(self, data: str) -> List[str]:
+        # replace all non first order parentheses with illegal characters
+        count = 0
+        replaced = ""
+        for ch in data:
+            if ch == "(":
+                if count > 0:
+                    ch = "\n"
+                count += 1
+            elif ch == ")":
+                count -= 1
+                if count > 0:
+                    ch = "\t"
+            replaced += ch
+
+        # Find all tokens
+        tokens = re.findall(self.DIRECTIVE_RE, replaced)
+
+        # replace illegal characters with parentheses
+        for i, token in enumerate(tokens):
+            tokens[i] = token.replace("\n", "(").replace("\t", ")")
+
+        return tokens
+
     def scan(self, data: str) -> List[Token]:
         """Transforms a string into a list of parsed tokens.
 
@@ -101,11 +126,7 @@ class Scanner:
         """
         res = []
 
-        # TODO: replace all non first order parentheses with illegal characters
-
-        tokens = re.findall(self.DIRECTIVE_RE, data)
-
-        # TODO: replace illegal characters with parentheses
+        tokens = self._tokenize(data)
 
         for token in tokens:
             if len(token) == 0:
