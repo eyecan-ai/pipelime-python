@@ -306,13 +306,21 @@ class Processor(ast.NodeVisitor):
         return paths
 
     def visit_rand(self, node: ast.RandNode) -> Any:
-        args_branches = self._branches([x.accept(self) for x in node.args])
-        n_branches = node.n.accept(self) if node.n else [0]
-        pdf_branches = node.pdf.accept(self) if node.pdf else [None]
-        branches = self._branches(args_branches, n_branches, pdf_branches)
+        args_branches = [
+            node.args[i].accept(self) if i < len(node.args) else [...] for i in range(3)
+        ]
+        n_branches = node.n.accept(self) if node.n else [...]
+        pdf_branches = node.pdf.accept(self) if node.pdf else [...]
+        branches = self._branches(*args_branches, n_branches, pdf_branches)
         randoms = []
         for branch in branches:
-            randoms.append(rand(*branch[0], n=branch[1], pdf=branch[2]))
+            args = [x for x in branch[:3] if x is not ...]
+            kwargs = {}
+            if branch[3] is not ...:
+                kwargs["n"] = branch[3]
+            if branch[4] is not ...:
+                kwargs["pdf"] = branch[4]
+            randoms.append(rand(*args, **kwargs))
         return randoms
 
 

@@ -9,6 +9,23 @@ from pydantic import BaseModel
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors import process
+import pytest
+import pipelime.choixe.visitors.processor as processor_module
+
+
+@pytest.fixture()
+def mock_rand(monkeypatch):
+    class MockRand:
+        def __init__(self) -> None:
+            self.invoked = []
+
+        def __call__(self, *args, **kwargs) -> float:
+            self.invoked.append((args, kwargs))
+            return 0.5
+
+    mock_rand = MockRand()
+    monkeypatch.setattr(processor_module, "rand", mock_rand)
+    return mock_rand
 
 
 class MyCompositeClass:
@@ -464,6 +481,34 @@ class TestProcessor:
         data = "$tmp(my_tmp)"
         processed = process(parse(data))
         assert len(processed) == 1 and isinstance(processed[0], str)
+
+    def test_rand(self, mock_rand):
+        data = "$rand()"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert len(mock_rand.invoked[0][0]) == 0
+        assert len(mock_rand.invoked[0][1]) == 0
+
+    def test_rand_with_args(self, mock_rand):
+        data = "$rand(5, 10)"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert tuple(mock_rand.invoked[0][0]) == (5, 10)
+        assert len(mock_rand.invoked[0][1]) == 0
+
+    def test_rand_with_kwargs(self, mock_rand):
+        data = "$rand(n=5, pdf=[0.1, 0.2, 0.3, 0.4])"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert len(mock_rand.invoked[0][0]) == 0
+        assert mock_rand.invoked[0][1] == {"n": 5, "pdf": [0.1, 0.2, 0.3, 0.4]}
+
+    def test_rand_with_args_and_kwargs(self, mock_rand):
+        data = "$rand(5, 10, n=5, pdf=[0.1, 0.2, 0.3, 0.4])"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert tuple(mock_rand.invoked[0][0]) == (5, 10)
+        assert mock_rand.invoked[0][1] == {"n": 5, "pdf": [0.1, 0.2, 0.3, 0.4]}
 
     def test_for_mindfuck(self):
         data = {

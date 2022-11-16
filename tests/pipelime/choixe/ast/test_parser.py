@@ -380,7 +380,12 @@ class TestStringParse:
                 ast.RandNode(
                     ast.LiteralNode(data=10),
                     ast.LiteralNode(data=20),
-                    pdf=ast.LiteralNode(data=[10, 20, 5, 4]),
+                    pdf=ast.ListNode(
+                        ast.LiteralNode(data=10),
+                        ast.LiteralNode(data=20),
+                        ast.LiteralNode(data=5),
+                        ast.LiteralNode(data=4),
+                    ),
                 ),
             ],
             [
@@ -389,13 +394,29 @@ class TestStringParse:
                     ast.LiteralNode(data=10),
                     ast.LiteralNode(data=20),
                     n=ast.LiteralNode(data=10),
-                    pdf=ast.LiteralNode(
-                        data=[
-                            [0.0, 0.1],
-                            [2.5, [1.0, 0.4]],
-                            [5.0, 2.0],
-                            [7.5, [0.0, 0.2]],
-                        ]
+                    pdf=ast.ListNode(
+                        ast.ListNode(
+                            ast.LiteralNode(data=0.0),
+                            ast.LiteralNode(data=0.1),
+                        ),
+                        ast.ListNode(
+                            ast.LiteralNode(data=2.5),
+                            ast.ListNode(
+                                ast.LiteralNode(data=1.0),
+                                ast.LiteralNode(data=0.4),
+                            ),
+                        ),
+                        ast.ListNode(
+                            ast.LiteralNode(data=5.0),
+                            ast.LiteralNode(data=2.0),
+                        ),
+                        ast.ListNode(
+                            ast.LiteralNode(data=7.5),
+                            ast.ListNode(
+                                ast.LiteralNode(data=0.0),
+                                ast.LiteralNode(data=0.2),
+                            ),
+                        ),
                     ),
                 ),
             ],
@@ -420,10 +441,10 @@ class TestParserRaise:
         with pytest.raises(ChoixeParsingError):
             parse(expr)
 
-    def test_arg_too_complex(self):
-        expr = "$sweep(lots, of, {arguments, '10'})"
-        with pytest.raises(ChoixeParsingError):
-            parse(expr)
+    # def test_arg_too_complex(self):
+    #     expr = "$sweep(lots, of, {'arguments', '10'})"
+    #     with pytest.raises(ChoixeParsingError):
+    #         parse(expr)
 
     @pytest.mark.parametrize(
         ["expr"],

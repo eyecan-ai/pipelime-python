@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
@@ -141,7 +141,7 @@ class ListNode(Node):
         return visitor.visit_list(self)
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, unsafe_hash=False)
 class LiteralNode(HashNode):
     """An `LiteralNode` contains a single generic hashable python object, like a built-in
     int, float or str."""
@@ -150,6 +150,11 @@ class LiteralNode(HashNode):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_literal(self)
+
+    def __hash__(self) -> int:
+        if callable(self.data):
+            return hash(self.data.__code__)
+        return hash(self.data)
 
 
 @dataclass(init=False, eq=False)
@@ -325,8 +330,8 @@ class TmpDirNode(HashNode):
         return visitor.visit_tmp_dir(self)
 
 
-@dataclass(init=False, eq=False)
-class RandNode(HashNode):
+@dataclass(init=False)
+class RandNode(Node):
     """A `RandNode` represents the creation of a random number."""
 
     args: Sequence[HashNode] = tuple()

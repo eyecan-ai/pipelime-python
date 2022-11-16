@@ -134,7 +134,7 @@ class Unparser(ast.NodeVisitor):
             else:
                 return f'"{unparsed}"'
         elif callable(unparsed) and callable.__name__ == "<lambda>":  # pragma: no cover
-            raise ValueError("Cannot unparse lambda expressions.")
+            raise ValueError("Cannot unparse lambda expressions to string.")
         else:
             return str(unparsed)
 

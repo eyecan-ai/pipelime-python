@@ -188,6 +188,16 @@ class Inspector(ast.NodeVisitor):
             insp = insp + sub_insp + Inspection(variables=variables)
         return insp
 
+    def visit_rand(self, node: ast.RandNode) -> Any:
+        insp = Inspection()
+        for arg in node.args:
+            insp = insp + arg.accept(self)
+        if node.n:
+            insp = insp + node.n.accept(self)
+        if node.pdf:
+            insp = insp + node.pdf.accept(self)
+        return insp
+
 
 def inspect(node: ast.Node, cwd: Optional[Path] = None) -> Inspection:
     inspector = Inspector(cwd=cwd)

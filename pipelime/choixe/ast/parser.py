@@ -53,7 +53,7 @@ class Scanner:
             return str(py_arg.id)
         elif isinstance(py_arg, ast.List):
             return [self._scan_argument(x) for x in py_arg.elts]
-        elif isinstance(py_arg, ast.Lambda):
+        elif isinstance(py_arg, ast.expr):
             return eval(astunparse.unparse(py_arg))
         else:
             raise ChoixeSyntaxError(py_arg.__class__)
@@ -100,7 +100,13 @@ class Scanner:
             List[Token]: The list of parsed tokens.
         """
         res = []
+
+        # TODO: replace all non first order parentheses with illegal characters
+
         tokens = re.findall(self.DIRECTIVE_RE, data)
+
+        # TODO: replace illegal characters with parentheses
+
         for token in tokens:
             if len(token) == 0:
                 continue

@@ -182,7 +182,7 @@ class PiecewiseFn(RealFn):
             return piece
         elif isinstance(piece, float):
             return ConstantFn(piece)
-        elif isinstance(piece, tuple):
+        elif isinstance(piece, (tuple, list)):
             m = (piece[1] - piece[0]) / (stop - start)
             q = piece[0] - m * start
             return LinearFn(m, q)
@@ -209,7 +209,7 @@ class PiecewiseFn(RealFn):
                 segments[cur] = cls.parse_piece(piece, cur, cur + step)  # type: ignore
                 cur += step
             segments[stop_] = ConstantFn(0.0)
-        elif all(isinstance(piece, tuple) for piece in fn):
+        elif all(isinstance(piece, (tuple, list)) for piece in fn):
             segments = {}
             keysteps = [x[0] for x in fn]  # type: ignore
             start_, stop_ = start or keysteps[0], stop or keysteps[-1]
@@ -385,7 +385,7 @@ def _rand(
     stop: Optional[float] = None,
     n: Union[int, Sequence[int]] = 0,
     pdf: Optional[t_pdf] = None,
-    dtype: Optional[Any] = None,
+    integer: bool = False,
 ) -> Union[float, Sequence[float]]:
     if pdf is None:
         start_, stop_, n_ = start or 0.0, stop or 1.0, n or 1
@@ -395,8 +395,8 @@ def _rand(
         n_ = prod(n) if isinstance(n, Sequence) else (n or 1)
         results = distribution.sample(n_)
 
-    if dtype is not None:
-        results = results.astype(dtype)
+    if integer:
+        results = np.floor(results).astype(np.int32)
 
     if n == 0:
         return results.item()
@@ -411,12 +411,11 @@ def rand(*args, n: Union[int, Sequence[int]] = 0, pdf: Optional[t_pdf] = None) -
         return _rand(n=n, pdf=pdf)
     elif len(args) == 1:
         a = args[0]
-        dtype = np.float64 if isinstance(a, float) else np.int32
-        return _rand(stop=a, n=n, pdf=pdf, dtype=dtype)
+        return _rand(stop=a, n=n, pdf=pdf, integer=isinstance(a, int))
     elif len(args) == 2:
         a, b = args
-        dtype = np.float64 if isinstance(a, float) or isinstance(b, float) else np.int32
-        return _rand(start=a, stop=b, n=n, pdf=pdf, dtype=dtype)
+        integer = isinstance(a, int) and isinstance(b, int)
+        return _rand(start=a, stop=b, n=n, pdf=pdf, integer=integer)
 
     raise ValueError("Invalid arguments")
 
@@ -438,11 +437,11 @@ if __name__ == "__main__":  # pragma: no cover
     # pdf = [0.1, 1.0, 2.0, 0.2]
     # samples = rand(0.0, 10.0, n=n, pdf=pdf)
 
-    # pdf = [(0.0, 0.1), (0.5, 1.0), (2.0, 2.0), (2.7, 0.2), (8.0, 1.0)]
-    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
-
-    pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
+    pdf = [[0.0, 0.1], [0.5, 1.0], [2.0, 2.0], (2.7, 0.2), (8.0, 1.0)]
     samples = rand(0.0, 10.0, n=n, pdf=pdf)
+
+    # pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
+    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
 
     # pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
     # samples = rand(-5.0, 10.0, n=n, pdf=pdf)

@@ -365,7 +365,7 @@ class TestPiecewiseFn:
         assert isinstance(fn, GenericFn)
         assert fn.fn is piece
 
-    @pytest.mark.parametrize("piece", [10, "ciao", [1, 2, 3]])
+    @pytest.mark.parametrize("piece", [10, "ciao", ...])
     def test_parse_piece_raise(self, piece) -> None:
         with pytest.raises(TypeError):
             PiecewiseFn.parse_piece(piece, 0.0, 1.0)
