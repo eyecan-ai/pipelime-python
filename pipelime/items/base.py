@@ -453,7 +453,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         if not dont_check_paths:
             self._check_source(source)
         if isinstance(source, Path):
-            source = source.resolve()
+            source = source.resolve().absolute()
             if source not in self._file_sources:
                 self._file_sources.append(source)
                 return True
@@ -473,7 +473,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                     pass
             return False
 
-        target_path = path.resolve()
+        target_path = path.resolve().absolute()
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
         # At this point if smode is REMOTE_FILE, then REMOTE_FILE is not disabled.
@@ -591,7 +591,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     def remove_data_source(self, *sources: _item_data_source) -> Item:
         def _normalize_source(src: _item_data_source) -> t.List[_item_data_source]:
             if isinstance(src, Path):
-                src = src.resolve()
+                src = src.resolve().absolute()
                 # Path.parents supports slicing only from 3.10 onwards
                 pp = [src] + [p for p in src.parents]
                 pp.pop()  # remove last element, which is `.`, `/`, `c:\` etc.

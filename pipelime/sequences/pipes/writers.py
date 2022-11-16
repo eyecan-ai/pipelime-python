@@ -1,5 +1,6 @@
 import typing as t
 from pathlib import Path
+import re
 
 import pydantic as pyd
 from filelock import FileLock, Timeout
@@ -69,8 +70,8 @@ class UnderfolderWriter(
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self.source[idx]
 
-        id_str = str(idx)
-        id_str = id_str.zfill(self._effective_zfill)
+        id_str_nofill = str(idx)
+        id_str = id_str_nofill.zfill(self._effective_zfill)
 
         for k, v in sample.items():
             with _serialization_mode_override(
@@ -92,6 +93,23 @@ class UnderfolderWriter(
                         except Timeout:  # pragma: no cover
                             pass
                 else:
+                    # when overwriting, check for existing items with the same name
+                    if self.exists_ok:
+                        if self._check_existing_items(v, id_str_nofill, k):
+                            continue
                     v.serialize(self._data_folder / f"{id_str}_{k}")
 
         return sample
+
+    def _check_existing_items(self, item: Item, id_nofill: str, key: str):
+        local_srcs = item.local_sources
+        skip_serialization = False
+        x = re.compile(r"^(0)*{}_{}\.[a-zA-Z]+$".format(id_nofill, key))
+        for p in self._data_folder.glob(f"*{id_nofill}_{key}.*"):
+            if x.fullmatch(p.name):
+                p = p.resolve().absolute()
+                if p in local_srcs:
+                    skip_serialization = True
+                else:
+                    p.unlink()
+        return skip_serialization

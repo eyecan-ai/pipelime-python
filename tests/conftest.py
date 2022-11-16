@@ -65,12 +65,14 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
 @pytest.fixture(scope="function")
 def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
     from shutil import copytree
+    from copy import deepcopy
 
+    minimnist_private = deepcopy(minimnist_dataset)
     dest = Path(
-        copytree(str(minimnist_dataset["path"]), str(tmp_path / "minimnist_private"))
+        copytree(str(minimnist_private["path"]), str(tmp_path / "minimnist_private"))
     )
-    minimnist_dataset["path"] = dest
-    return minimnist_dataset
+    minimnist_private["path"] = dest
+    return minimnist_private
 
 
 @pytest.fixture(scope="session")
