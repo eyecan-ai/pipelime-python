@@ -23,9 +23,7 @@ class TestBaseStages:
     def test_lambda(self):
         from pipelime.stages import StageLambda
 
-        stage = StageLambda(
-            func=(lambda x: x.set_item("a", UnknownItem(x["a"]() * 2)))  # type: ignore
-        )
+        stage = StageLambda(func=(lambda x: x.set_item("a", UnknownItem(x["a"]() * 2))))
         self._check_target_pred(
             Sample({"a": UnknownItem(20)}), stage(Sample({"a": UnknownItem(10)}))
         )
@@ -36,17 +34,32 @@ class TestBaseStages:
         stage = StageCompose(
             [
                 StageLambda(
-                    func=(
-                        lambda x: x.set_item("a", UnknownItem(x["a"]() * 2))  # type: ignore
-                    )
+                    func=(lambda x: x.set_item("a", UnknownItem(x["a"]() * 2)))
                 ),
                 StageLambda(
-                    func=(
-                        lambda x: x.set_item("a", UnknownItem(x["a"]() + 5))  # type: ignore
-                    )
+                    func=(lambda x: x.set_item("a", UnknownItem(x["a"]() + 5)))
                 ),
             ]
         )
         self._check_target_pred(
             Sample({"a": UnknownItem(25)}), stage(Sample({"a": UnknownItem(10)}))
         )
+
+    def test_shift(self):
+        from pipelime.stages import StageCompose, StageLambda
+
+        first_stage = StageLambda(
+            func=(lambda x: x.set_item("a", UnknownItem(x["a"]() * 2)))
+        )
+        second_stage = StageLambda(
+            func=(lambda x: x.set_item("a", UnknownItem(x["a"]() + 5)))
+        )
+        target = Sample({"a": UnknownItem(25)})
+
+        self._check_target_pred(
+            target, (first_stage >> second_stage)(Sample({"a": UnknownItem(10)}))
+        )
+        self._check_target_pred(
+            target, (second_stage << first_stage)(Sample({"a": UnknownItem(10)}))
+        )
+
