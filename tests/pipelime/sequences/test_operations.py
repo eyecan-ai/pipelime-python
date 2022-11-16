@@ -271,6 +271,11 @@ class TestSamplesSequenceOperations:
             minimnist_dataset["path"], cache_folder=cache_folder, reuse_cache=True
         )
 
+        with pytest.raises(FileExistsError):
+            self._seq_cache(
+                minimnist_dataset["path"], cache_folder=cache_folder, reuse_cache=False
+            )
+
     def test_item_data_cache(self, minimnist_dataset: dict):
         from pipelime.stages import StageLambda
 

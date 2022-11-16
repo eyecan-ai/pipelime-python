@@ -4,9 +4,23 @@ import numpy as np
 import typing as t
 
 import trimesh
-import trimesh.creation
 
 import pipelime.items as pli
+
+
+def _generic_mesh():
+    import trimesh.creation
+    import math
+
+    c, s = math.cos(30 * math.pi / 180), math.sin(30 * math.pi / 180)
+    rz = np.array([[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+    return trimesh.creation.cone(radius=1.0, height=2.0, sections=5, transform=rz)
+
+
+def _generic_scene():
+    mesh = _generic_mesh()
+    return trimesh.Scene(mesh)
 
 
 def _np_eq(x, y) -> bool:
@@ -17,24 +31,51 @@ def _np_eq_1d(x, y) -> bool:
     return np.array_equal(np.atleast_1d(x), y, equal_nan=True)
 
 
-def _mesh_eq(x, y, exact: bool, sort_vertices: bool) -> bool:
+def _to_mesh(x):
     if isinstance(x, trimesh.Scene):
-        if len(x.geometry) != 1:
-            return False
-        x = next(iter(x.geometry.values()))
-    if isinstance(y, trimesh.Scene):
-        if len(y.geometry) != 1:
-            return False
-        y = next(iter(y.geometry.values()))
+        if len(x.geometry) == 1:
+            x = next(iter(x.geometry.values()))
+    if isinstance(x, trimesh.Trimesh):
+        return x
+    return None
 
-    faces_eq = True if sort_vertices else _np_eq(x.faces, y.faces)
 
-    vx, vy = (
-        (np.sort(x.vertices, axis=None), np.sort(y.vertices, axis=None))
-        if sort_vertices
-        else (x.vertices, y.vertices)
+def _sorted_faces(sortidx, faces):
+    def _sorted_faces_col(sortidx, faces, col):
+        return np.array(
+            [np.argwhere(sortidx == idx).squeeze() for idx in faces[:, col]]
+        )
+
+    return np.stack(
+        [
+            _sorted_faces_col(sortidx, faces, 0),
+            _sorted_faces_col(sortidx, faces, 1),
+            _sorted_faces_col(sortidx, faces, 2),
+        ],
+        axis=-1,
     )
-    return faces_eq and (
+
+
+def _mesh_eq(x, y, exact: bool, sort_vertices: bool) -> bool:
+    x, y = _to_mesh(x), _to_mesh(y)
+    if x is None or y is None:
+        return False
+
+    print("vs-before", x.vertices, y.vertices, sep="\n")
+
+    if sort_vertices:
+        x_sort, y_sort = x.vertices[:, 0].argsort(), y.vertices[:, 0].argsort()
+        vx, vy = x.vertices[x_sort], y.vertices[y_sort]
+        fx, fy = _sorted_faces(x_sort, x.faces), _sorted_faces(y_sort, y.faces)
+    else:
+        vx, vy = x.vertices, y.vertices
+        fx, fy = x.faces, y.faces
+
+    print("vs-after", vx, vy, sep="\n")
+    print("vs", vx - vy, sep="\n")
+    print("fs", fx - fy, sep="\n")
+
+    return _np_eq(fx, fy) and (
         _np_eq(vx, vy) if exact else np.allclose(vx, vy, equal_nan=True)
     )
 
@@ -115,28 +156,28 @@ class TestItems:
             ),
             (
                 pli.STLModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=True),
+                _generic_mesh(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=True),
             ),
             (
                 pli.OBJModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+                _generic_mesh(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
             (
                 pli.PLYModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+                _generic_mesh(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
             (
                 pli.OFFModel3DItem,
-                trimesh.creation.box(),
+                _generic_mesh(),
                 lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
             (
                 pli.GLBModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+                _generic_scene(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
         ],
     )
