@@ -33,4 +33,7 @@ from pipelime.items.model3d_item import (
     Model3DItem,
     STLModel3DItem,
     OBJModel3DItem,
+    PLYModel3DItem,
+    OFFModel3DItem,
+    GLBModel3DItem,
 )

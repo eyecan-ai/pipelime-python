@@ -3,6 +3,9 @@ from pathlib import Path
 import numpy as np
 import typing as t
 
+import trimesh
+import trimesh.creation
+
 import pipelime.items as pli
 
 
@@ -14,6 +17,28 @@ def _np_eq_1d(x, y) -> bool:
     return np.array_equal(np.atleast_1d(x), y, equal_nan=True)
 
 
+def _mesh_eq(x, y, exact: bool, sort_vertices: bool) -> bool:
+    if isinstance(x, trimesh.Scene):
+        if len(x.geometry) != 1:
+            return False
+        x = next(iter(x.geometry.values()))
+    if isinstance(y, trimesh.Scene):
+        if len(y.geometry) != 1:
+            return False
+        y = next(iter(y.geometry.values()))
+
+    faces_eq = True if sort_vertices else _np_eq(x.faces, y.faces)
+
+    vx, vy = (
+        (np.sort(x.vertices, axis=None), np.sort(y.vertices, axis=None))
+        if sort_vertices
+        else (x.vertices, y.vertices)
+    )
+    return faces_eq and (
+        _np_eq(vx, vy) if exact else np.allclose(vx, vy, equal_nan=True)
+    )
+
+
 class TestItems:
     def test_reference_items(self, items_folder: Path):
         from pipelime.items.base import ItemFactory
@@ -21,21 +46,45 @@ class TestItems:
         checked_items = set()
         for fp in items_folder.iterdir():
             if fp not in checked_items:
+                print("reference item:", fp)
                 checked_items.add(fp)
-                ref_item = ItemFactory.get_instance(fp)()
-                for other in items_folder.glob(fp.stem + ".*"):
-                    if other not in checked_items:
-                        checked_items.add(other)
-                        trg_item = ItemFactory.get_instance(other)()
+                ref_item = ItemFactory.get_instance(fp)
+                ref_value = ref_item()
 
-                        if isinstance(ref_item, np.ndarray):
-                            assert _np_eq(ref_item, trg_item)
-                        elif isinstance(ref_item, tuple):  # the pickle file is a tuple
-                            assert ref_item[3] == trg_item
-                        elif isinstance(trg_item, tuple):
-                            assert ref_item == trg_item[3]
+                trg_files = list(items_folder.glob(fp.stem + ".*")) + list(
+                    items_folder.glob(fp.stem + "[a-z].*")
+                )
+                for other in trg_files:
+                    if other not in checked_items:
+                        print("target item:", other)
+                        checked_items.add(other)
+                        trg_item = ItemFactory.get_instance(other)
+                        trg_value = trg_item()
+
+                        if isinstance(ref_value, np.ndarray):
+                            assert _np_eq(ref_value, trg_value)
+                        elif isinstance(ref_value, tuple):  # the pickle file is a tuple
+                            assert ref_value[3] == trg_value
+                        elif isinstance(trg_value, tuple):
+                            assert ref_value == trg_value[3]
+                        elif isinstance(ref_item, pli.STLModel3DItem) or isinstance(
+                            trg_item, pli.STLModel3DItem
+                        ):
+                            assert _mesh_eq(
+                                ref_value, trg_value, exact=True, sort_vertices=True
+                            )
+                        elif isinstance(ref_item, pli.OFFModel3DItem) or isinstance(
+                            trg_item, pli.OFFModel3DItem
+                        ):
+                            assert _mesh_eq(
+                                ref_value, trg_value, exact=False, sort_vertices=False
+                            )
+                        elif isinstance(ref_item, pli.Model3DItem):
+                            assert _mesh_eq(
+                                ref_value, trg_value, exact=True, sort_vertices=False
+                            )
                         else:
-                            assert ref_item == trg_item
+                            assert ref_value == trg_value
 
     @pytest.mark.parametrize(
         ["item_cls", "value", "eq_fn"],
@@ -64,6 +113,31 @@ class TestItems:
                 {"a": [1, 2, 3], "b": 3.14, "c": [True, False]},
                 lambda x, y: x == y,
             ),
+            (
+                pli.STLModel3DItem,
+                trimesh.creation.box(),
+                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=True),
+            ),
+            (
+                pli.OBJModel3DItem,
+                trimesh.creation.box(),
+                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+            ),
+            (
+                pli.PLYModel3DItem,
+                trimesh.creation.box(),
+                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+            ),
+            (
+                pli.OFFModel3DItem,
+                trimesh.creation.box(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
+            ),
+            (
+                pli.GLBModel3DItem,
+                trimesh.creation.box(),
+                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+            ),
         ],
     )
     def test_read_write(self, tmp_path: Path, item_cls: t.Type[pli.Item], value, eq_fn):
@@ -73,8 +147,13 @@ class TestItems:
         w_item.serialize(value_path)
         assert eq_fn(value, w_item())
 
-        r_item = item_cls(value_path.with_suffix(item_cls.file_extensions()[0]))
+        value_path = value_path.with_suffix(item_cls.file_extensions()[0])
+        r_item = item_cls(value_path)
         assert eq_fn(w_item(), r_item())
+
+        with value_path.open("rb") as f:
+            br_item = item_cls(f)
+            assert eq_fn(w_item(), br_item())
 
     def test_read_write_jpeg(self, tmp_path: Path):
         import imageio.v3 as iio
