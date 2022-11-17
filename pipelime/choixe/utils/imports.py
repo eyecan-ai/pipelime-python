@@ -107,9 +107,25 @@ def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
         if ":" in symbol_path:
             module_path, _, symbol_name = symbol_path.rpartition(":")
             module_ = import_module_from_file(module_path, cwd)
+            symbol_name = symbol_name.split(".")
         else:
             module_path, _, symbol_name = symbol_path.rpartition(".")
-            module_ = import_module_from_path(module_path)
-        return getattr(module_, symbol_name)
+            symbol_name = [symbol_name]
+            module_ = None
+            while module_path:
+                try:
+                    module_ = import_module_from_path(module_path)
+                    module_path = None
+                except ModuleNotFoundError:
+                    module_path, _, cl_path = module_path.rpartition(".")
+                    symbol_name.insert(0, cl_path)
+
+        if module_ is None:
+            raise ModuleNotFoundError("Module path not found")
+
+        symbol = module_
+        for name in symbol_name:
+            symbol = getattr(symbol, name)
+        return symbol
     except Exception as e:
         raise ImportError(f"Cannot import {symbol_path}") from e

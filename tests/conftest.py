@@ -6,8 +6,13 @@ import pytest
 
 
 @pytest.fixture(scope="session")
-def data_folder() -> Path:
-    return Path(__file__).parent / "sample_data"
+def tests_folder() -> Path:
+    return Path(__file__).parent.resolve().absolute()
+
+
+@pytest.fixture(scope="session")
+def data_folder(tests_folder: Path) -> Path:
+    return tests_folder / "sample_data"
 
 
 @pytest.fixture(scope="session")
@@ -64,8 +69,8 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
 
 @pytest.fixture(scope="function")
 def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
-    from shutil import copytree
     from copy import deepcopy
+    from shutil import copytree
 
     minimnist_private = deepcopy(minimnist_dataset)
     dest = Path(
@@ -82,8 +87,8 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
 
 @pytest.fixture(scope="session")
 def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
-    from pipelime.choixe import XConfig
     import pipelime.choixe.utils.io as choixe_io
+    from pipelime.choixe import XConfig
 
     def _add_if_exists(out, path, key):
         if path.exists():

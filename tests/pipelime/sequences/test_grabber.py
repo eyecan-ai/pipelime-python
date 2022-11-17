@@ -22,7 +22,7 @@ class TestGrabber:
         )
         proc = (
             source.slice(stop=10)
-            .repeat(10)
+            .repeat(3)
             .enumerate(idx_key="ii")
             .to_underfolder(folder=output)
         )

@@ -79,7 +79,7 @@ class TestKeyStages:
         from pipelime.stages import StageReplaceItem
         from pipelime.items import NpyNumpyItem
 
-        stage = StageReplaceItem(key_item_map={"a": NpyNumpyItem})
+        stage = StageReplaceItem(key_item_map={"a": NpyNumpyItem})  # type: ignore
         self._check_target_pred(
             Sample({"a": NpyNumpyItem(10), "c": UnknownItem(20)}),
             stage(Sample({"a": UnknownItem(10), "c": UnknownItem(20)})),
