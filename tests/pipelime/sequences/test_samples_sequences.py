@@ -45,11 +45,9 @@ class TestSamplesSequences:
         from pipelime.stages import StageIdentity
         from pathlib import Path
 
-        a = (
-            pls.SamplesSequence.from_underfolder(folder="no-path", must_exist=False)
-            .map(StageIdentity())
-            .slice(start=10)
-        )
+        a = pls.SamplesSequence.from_underfolder(
+            folder="no-path", must_exist=False
+        ).slice(start=10)
         b = pls.SamplesSequence.from_underfolder(
             folder="no-path-2", must_exist=False
         ).shuffle()
@@ -64,14 +62,13 @@ class TestSamplesSequences:
                     "watch": False,
                 }
             },
-            {"map": {"stage": StageIdentity()}},
             {"slice": {"start": 10, "stop": None, "step": None}},
             {"cat": {"to_cat": b}},
         ]
 
         assert a.to_pipe(recursive=False, objs_to_str=False) == expected_pipe
 
-        expected_pipe[3]["cat"]["to_cat"] = [
+        expected_pipe[2]["cat"]["to_cat"] = [
             {
                 "from_underfolder": {
                     "folder": Path("no-path-2"),

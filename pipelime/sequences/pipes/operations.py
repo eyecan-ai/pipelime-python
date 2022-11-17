@@ -5,8 +5,7 @@ import pydantic as pyd
 
 import pipelime.sequences as pls
 from pipelime.utils.pydantic_types import ItemType
-from pipelime.stages.base import SampleStage, StageInput
-from pipelime.stages import StageKeyFormat
+from pipelime.stages import SampleStage, StageInput, StageKeyFormat
 from pipelime.sequences.pipes import PipedSequenceBase
 
 
