@@ -52,7 +52,7 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
 
     def __init__(self, to_zip: pls.SamplesSequence, **data):
         super().__init__(to_zip=to_zip, **data)  # type: ignore
-        self._key_formatting_stage = StageKeyFormat(key_format=self.key_format)
+        self._key_formatting_stage = StageKeyFormat(key_format=self.key_format)  # type: ignore
 
     def size(self) -> int:
         return min(len(self.source), len(self.to_zip))
@@ -268,7 +268,7 @@ class EnumeratedSequence(
         "~idx", description="The new key containing the index item."
     )
     item_cls: ItemType = pyd.Field(
-        ItemType.make_default("TxtNumpyItem"),
+        default_factory=lambda: ItemType.create("TxtNumpyItem"),
         description="The item class holding the index.",
     )
 

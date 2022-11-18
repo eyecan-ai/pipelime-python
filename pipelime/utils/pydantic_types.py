@@ -2,11 +2,112 @@ from __future__ import annotations
 import typing as t
 from pathlib import Path
 import pydantic as pyd
+import numpy as np
 
 from pipelime.items import Item
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import SamplesSequence
+    from numpy.typing import ArrayLike
+
+
+class NumpyType(
+    pyd.BaseModel,
+    extra="forbid",
+    copy_on_model_validation="none",
+    arbitrary_types_allowed=True,
+):
+    """Numpy array type for stages, commands and any other pydantic model.
+    Any argument accepted by `numpy.array()` is a valid value. Also, any mapping
+    will be treated as keyword arguments for `numpy.array()`.
+
+    Examples:
+        Create a new NumpyType instance::
+
+            npt = NumpyType.create([[1, 2, 3], [4, 5, 6]])
+            npt = NumpyType.create(
+                {
+                    "object": [[1, 2, 3], [4, 5, 6]],
+                    "dtype": "float32",
+                    "order": "F",
+                }
+            )
+
+        Access the numpy array::
+
+            npt.value  # numpy array
+
+        Serialize to dict or json::
+
+            npt_dict = npt.dict()
+            npt_json_str = npt.json()
+
+        Get the object back from dict or json::
+
+            npt_again = pydantic.parse_obj_as(NumpyType, npt_dict["__root__"])
+            npt_again = pydantic.parse_raw_as(NumpyType, npt_json_str)
+
+        Use this type within another model::
+
+            class MyModel(pydantic.BaseModel):
+                tensor: NumpyType = pydantic.Field(
+                    default_factory=lambda: NumpyType.create([1, 2, 3])
+                )
+
+        Everything still works::
+
+            mm = MyModel()
+            mm = MyModel.parse_obj({"tensor": [1, 2, 3]})
+            mm = MyModel.parse_obj({"tensor": {"object": [1,2,3], "dtype": "float32"}})
+            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+    """
+
+    __root__: np.ndarray
+
+    @classmethod
+    def create(
+        cls, value: t.Union[NumpyType, "ArrayLike", t.Mapping[str, t.Any]]
+    ) -> NumpyType:
+        return cls.validate(value)
+
+    @property
+    def value(self):
+        return self.__root__
+
+    def _iter(self, *args, **kwargs):
+        for k, v in super()._iter(*args, **kwargs):
+            assert k == "__root__"
+            assert isinstance(v, np.ndarray)
+            v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
+            yield k, {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
+
+    def __str__(self) -> str:
+        return str(self.__root__)
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        return repr(self.__root__)
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, NumpyType):
+            return value
+        try:
+            return NumpyType(
+                __root__=(
+                    np.array(**value)
+                    if isinstance(value, t.Mapping)
+                    else np.array(value)
+                )
+            )
+        except Exception as e:
+            raise ValueError(f"Invalid numpy input: {value}") from e
 
 
 yaml_any_type = t.Union[None, str, int, float, bool, t.Mapping[str, t.Any], t.Sequence]
@@ -82,37 +183,84 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return all(isinstance(k, str) for k in value)
 
 
-def _item_type_to_string(item_type: t.Type[Item]) -> str:
-    return (
-        item_type.__name__
-        if item_type.__module__.startswith("pipelime.items")
-        else item_type.__module__ + "." + item_type.__qualname__
-    )
+class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+    """Item type definition. It accepts both type names and string.
+    When a string is given, it can be a class path (`pipelime.items` can be omitted)
+    or a `path/to/file.py:ClassName`.
 
+    Examples:
+        Create a new ItemType instance::
 
-class ItemType(pyd.BaseModel):
-    """Item type definition."""
+            it = ItemType.create(pipelime.items.ImageItem)
+            it = ItemType.create("ImageItem")
+
+        Access the internal type::
+
+            it.itype  # item type
+
+        Serialize to dict or json::
+
+            it_dict = it.dict()
+            it_json_str = it.json()
+
+        Get the object back from dict or json::
+
+            it_again = pydantic.parse_obj_as(ItemType, it_dict["__root__"])
+            it_again = pydantic.parse_raw_as(ItemType, it_json_str)
+
+        Use this type within another model::
+
+            class MyModel(pydantic.BaseModel):
+                item_type: ItemType = pydantic.Field(
+                    default_factory=lambda: ItemType.create("ImageItem")
+                )
+
+        Everything still works::
+
+            mm = MyModel()
+            mm = MyModel.parse_obj({"item_type": pipelime.items.MetadataItem})
+            mm = MyModel.parse_obj({"item_type": "MetadataItem"})
+            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+    """
 
     __root__: t.Type[Item]
 
-    class Config:
-        extra = "forbid"
-        copy_on_model_validation = "none"
-        json_encoders = {Item: _item_type_to_string}
-
     @classmethod
-    def make_default(cls, itype: t.Any) -> ItemType:
+    def create(cls, itype: t.Any) -> ItemType:
         return cls.validate(itype)
 
     @property
     def itype(self) -> t.Type[Item]:
         return self.__root__
 
+    def _iter(self, *args, **kwargs):
+        for k, v in super()._iter(*args, **kwargs):
+            assert k == "__root__"
+            assert issubclass(v, Item)
+            yield k, ItemType._item_type_to_string(v)
+
+    @staticmethod
+    def _item_type_to_string(item_type: t.Type[Item]) -> str:
+        return (
+            item_type.__name__
+            if item_type.__module__.startswith("pipelime.items")
+            else item_type.__module__ + "." + item_type.__qualname__
+        )
+
+    @staticmethod
+    def _string_to_item_type(item_type_str: t.Union[str, bytes]) -> t.Type[Item]:
+        from pipelime.choixe.utils.imports import import_symbol
+
+        item_type_str = str(item_type_str)
+        if "." not in item_type_str:
+            item_type_str = "pipelime.items." + item_type_str
+        return import_symbol(item_type_str)
+
     def __call__(self, *args, **kwargs) -> Item:
         return self.__root__(*args, **kwargs)
 
     def __str__(self) -> str:
-        return _item_type_to_string(self.__root__)
+        return ItemType._item_type_to_string(self.__root__)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
@@ -127,17 +275,13 @@ class ItemType(pyd.BaseModel):
     @classmethod
     def validate(cls, value):
         import inspect
-        from pipelime.choixe.utils.imports import import_symbol
 
         if isinstance(value, ItemType):
             return value
         if inspect.isclass(value) and issubclass(value, Item):
             return ItemType(__root__=value)
         if isinstance(value, (str, bytes)):
-            value = str(value)
-            if "." not in value:
-                value = "pipelime.items." + value
-            return ItemType(__root__=import_symbol(value))
+            return ItemType(__root__=ItemType._string_to_item_type(value))
         raise ValueError(f"Invalid item type: {value}")
 
 
