@@ -1,6 +1,13 @@
 import pytest
 import pipelime.sequences as pls
-import typing as t
+
+
+def _try_import_torch():
+    try:
+        import torch
+    except ImportError:
+        return False
+    return True
 
 
 class TestSamplesSequences:
@@ -40,6 +47,23 @@ class TestSamplesSequences:
         assert sseq.is_normalized(1)
         assert sseq.is_normalized(5)
         assert not sseq.is_normalized()
+
+    @pytest.mark.parametrize(
+        ("length", "zfill"),
+        [
+            (5, 1),
+            (50, 2),
+            (500, 3),
+            (5000, 4),
+            (10, 1),
+            (100, 2),
+            (1000, 3),
+            (10000, 4),
+        ],
+    )
+    def test_best_zfill(self, length: int, zfill: int):
+        seq = pls.SamplesSequence.from_list([pls.Sample()] * length)
+        assert seq.best_zfill() == zfill
 
     def test_to_pipe(self):
         from pipelime.stages import StageIdentity
@@ -198,8 +222,6 @@ class TestSamplesSequences:
 
     def test_run(self, minimnist_dataset: dict):
         from pipelime.stages import StageLambda
-        from pipelime.items import NumpyItem
-        import numpy as np
 
         sseq = (
             pls.SamplesSequence.from_underfolder(folder=minimnist_dataset["path"])
@@ -209,3 +231,18 @@ class TestSamplesSequences:
         out_seq = sseq.run(
             sample_fn=lambda x, idx: self._assert_samples_equal(x, sseq[idx])
         )
+
+    @pytest.mark.skipif(not _try_import_torch(), reason="PyTorch not installed")
+    def test_torch_dataset(self, minimnist_dataset: dict):
+        from torch.utils.data import Dataset
+
+        seq = pls.SamplesSequence.from_underfolder(folder=minimnist_dataset["path"])
+        torch_dataset = seq.torch_dataset()
+
+        assert isinstance(torch_dataset, Dataset)
+        assert len(torch_dataset) == len(seq)  # type: ignore
+
+        for sample in torch_dataset:
+            assert isinstance(sample, dict)
+
+        self._direct_access_check_results(seq, torch_dataset)
