@@ -62,6 +62,16 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
         "path": datasets_folder / "underfolder_minimnist",
         "root_keys": ["cfg", "numbers", "pose"],
         "item_keys": ["image", "label", "mask", "metadata", "points"],
+        "item_types": {
+            "cfg": "YamlMetadataItem",
+            "numbers": "TxtNumpyItem",
+            "pose": "TxtNumpyItem",
+            "image": "PngImageItem",
+            "label": "TxtNumpyItem",
+            "mask": "PngImageItem",
+            "metadata": "JsonMetadataItem",
+            "points": "TxtNumpyItem",
+        },
         "image_keys": ["image", "mask"],
         "len": 20,
     }

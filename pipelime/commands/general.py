@@ -567,7 +567,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
                 is_optional=(info.count_ != len(seq)),
                 is_shared=info.is_shared,
             ).dict(by_alias=True)
-            for k, info in item_info.items_info().items()
+            for k, info in item_info.items_info.items()
         }
 
         sample_validation = pl_types.SampleValidationInterface(

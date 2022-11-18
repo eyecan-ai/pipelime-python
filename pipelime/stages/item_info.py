@@ -26,6 +26,7 @@ class StageItemInfo(SampleStage, title="item-info"):
 
     _items_info: t.MutableMapping[str, ItemInfo] = pyd.PrivateAttr(default_factory=dict)
 
+    @property
     def items_info(self):
         return self._items_info
 
