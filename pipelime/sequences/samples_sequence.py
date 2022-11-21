@@ -407,7 +407,7 @@ class SamplesSequence(
         """
         ...
 
-    def repeat(self, count: int) -> SamplesSequence:
+    def repeat(self, count: int, interleave: bool = False) -> SamplesSequence:
         """Repeat this sequence so each sample is seen multiple times.
         Run `pipelime help repeat` to read the complete documentation.
         """
