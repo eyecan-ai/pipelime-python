@@ -376,7 +376,7 @@ class EnableItemDataCache(PipedSequenceBase, title="data_cache"):
     def __init__(self, *items, **data):
         super().__init__(items=items, **data)  # type: ignore
         self._item_cls = [
-            it.itype
+            it.value
             for it in (
                 self.items if isinstance(self.items, t.Sequence) else [self.items]
             )
@@ -403,7 +403,7 @@ class DisableItemDataCache(PipedSequenceBase, title="no_data_cache"):
     def __init__(self, *items, **data):
         super().__init__(items=items, **data)  # type: ignore
         self._item_cls = [
-            it.itype
+            it.value
             for it in (
                 self.items if isinstance(self.items, t.Sequence) else [self.items]
             )

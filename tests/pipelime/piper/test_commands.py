@@ -1,7 +1,17 @@
+import pytest
 import typing as t
 from pathlib import Path
 
 
+def _try_import_graphviz():
+    try:
+        import pygraphviz
+    except ImportError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _try_import_graphviz(), reason="PyGraphviz not installed")
 def test_draw(all_dags: t.Sequence[t.Mapping[str, t.Any]], tmp_path: Path):
     from pipelime.commands.piper import DrawCommand
 

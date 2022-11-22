@@ -24,6 +24,7 @@ class NumpyType(
     Examples:
         Create a new NumpyType instance::
 
+            npt = NumpyType.create(numpy.array([1,2,3]))
             npt = NumpyType.create([[1, 2, 3], [4, 5, 6]])
             npt = NumpyType.create(
                 {
@@ -57,6 +58,7 @@ class NumpyType(
         Everything still works::
 
             mm = MyModel()
+            mm = MyModel(tensor=np.array([1,2,3]))
             mm = MyModel.parse_obj({"tensor": [1, 2, 3]})
             mm = MyModel.parse_obj({"tensor": {"object": [1,2,3], "dtype": "float32"}})
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
@@ -110,14 +112,74 @@ class NumpyType(
             raise ValueError(f"Invalid numpy input: {value}") from e
 
 
-yaml_any_type = t.Union[None, str, int, float, bool, t.Mapping[str, t.Any], t.Sequence]
+yaml_any_type = t.Union[
+    None,
+    pyd.StrictBool,
+    pyd.StrictInt,
+    pyd.StrictFloat,
+    pyd.StrictStr,
+    t.Mapping[str, t.Any],
+    t.Sequence,
+]
 
 
 class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     """General yaml/json data (str, number, mapping, list...) optionally loaded from
-    a yaml/json file, possibly with key path (format <filepath>[:<key>])."""
+    a yaml/json file, possibly with key path (format <filepath>[:<key>]).
+
+    Examples:
+        Create a new YamlInput from local data::
+
+            yml = YamlInput.create(None)
+            yml = YamlInput.create("some string")
+            yml = YamlInput.create(4.2)
+            yml = YamlInput.create([1, True, "string"])
+            yml = YamlInput.create({"a": 1, "b": {"c": [1, 2, 3]}})
+
+        Create a new YamlInput from a file::
+
+            yml = YamlInput.create("path/to/file.yaml")
+            yml = YamlInput.create("path/to/file.json")
+
+        Create a new YamlInput from a pydash-like address within a file::
+
+            yml = YamlInput.create("path/to/file.yaml:my.key.path")
+            yml = YamlInput.create("path/to/file.json:my.key.path")
+
+        Access the data::
+
+            yml.value
+
+        Serialize to dict or json::
+
+            yml_dict = yml.dict()
+            yml_json_str = yml.json()
+
+        Get the object back from dict or json::
+
+            yml_again = pydantic.parse_obj_as(YamlInput, yml_dict["__root__"])
+            yml_again = pydantic.parse_raw_as(YamlInput, yml_json_str)
+
+        Use this type within another model::
+
+            class MyModel(pydantic.BaseModel):
+                config: YamlInput = pydantic.Field(
+                    default_factory=lambda: YamlInput.create([1, 2, 3])
+                )
+
+        Everything still works::
+
+            mm = MyModel()
+            mm = MyModel(config=[4, 5, 6])
+            mm = MyModel.parse_obj({"config": [4, 5, 6]})
+            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+    """
 
     __root__: yaml_any_type
+
+    @classmethod
+    def create(cls, value: t.Union[YamlInput, yaml_any_type]) -> YamlInput:
+        return cls.validate(value)
 
     @property
     def value(self):
@@ -140,40 +202,22 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     def validate(cls, value):
         if isinstance(value, YamlInput):
             return value
-        if isinstance(value, (str, bytes)):
-            value = str(value)
-            filepath, _, root_key = (
-                value.rpartition(":") if ":" in value else (value, None, None)
-            )
-            filepath = Path(filepath)
+        if isinstance(value, str):
+            pval = Path(value)
+            filepath, _, root_key = pval.name.partition(":")
+            filepath = Path(pval.parent / filepath)
             if filepath.exists():
                 import yaml
                 import pydash as py_
 
                 with filepath.open() as f:
                     value = yaml.safe_load(f)
-                    if root_key is not None:
+                    if root_key:
                         value = py_.get(value, root_key, default=None)
             return YamlInput(__root__=value)  # type: ignore
         if cls._check_any_type(value):
             return YamlInput(__root__=value)
         raise ValueError(f"Invalid yaml data input: {value}")
-
-    # @classmethod
-    # def _check_mapping(cls, value):
-    #     for k, v in value.items():
-    #         if not isinstance(k, str):
-    #             return False
-    #         if not cls._check_any_type(v):
-    #             return False
-    #     return True
-    #
-    # @classmethod
-    # def _check_sequence(cls, value):
-    #     for v in value:
-    #         if not cls._check_any_type(v):
-    #             return False
-    #     return True
 
     @classmethod
     def _check_any_type(cls, value):
@@ -196,7 +240,7 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 
         Access the internal type::
 
-            it.itype  # item type
+            it.value  # item type
 
         Serialize to dict or json::
 
@@ -226,11 +270,11 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     __root__: t.Type[Item]
 
     @classmethod
-    def create(cls, itype: t.Any) -> ItemType:
-        return cls.validate(itype)
+    def create(cls, value: t.Union[ItemType, t.Type[Item], str]) -> ItemType:
+        return cls.validate(value)
 
     @property
-    def itype(self) -> t.Type[Item]:
+    def value(self) -> t.Type[Item]:
         return self.__root__
 
     def _iter(self, *args, **kwargs):
@@ -248,10 +292,9 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
         )
 
     @staticmethod
-    def _string_to_item_type(item_type_str: t.Union[str, bytes]) -> t.Type[Item]:
+    def _string_to_item_type(item_type_str: str) -> t.Type[Item]:
         from pipelime.choixe.utils.imports import import_symbol
 
-        item_type_str = str(item_type_str)
         if "." not in item_type_str:
             item_type_str = "pipelime.items." + item_type_str
         return import_symbol(item_type_str)
@@ -280,7 +323,7 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return value
         if inspect.isclass(value) and issubclass(value, Item):
             return ItemType(__root__=value)
-        if isinstance(value, (str, bytes)):
+        if isinstance(value, str):
             return ItemType(__root__=ItemType._string_to_item_type(value))
         raise ValueError(f"Invalid item type: {value}")
 
@@ -325,8 +368,8 @@ class ItemValidationModel(
 
     def make_field(self, key_name: str):
         return (
-            self.class_path.itype,
-            pyd.Field(default_factory=self.class_path.itype, alias=key_name)
+            self.class_path.value,
+            pyd.Field(default_factory=self.class_path.value, alias=key_name)
             if self.is_optional
             else pyd.Field(..., alias=key_name),
         )
@@ -401,8 +444,6 @@ class SampleValidationInterface(
         from pipelime.choixe.utils.imports import import_symbol
 
         imported_schema = import_symbol(schema_path)
-        if not issubclass(imported_schema, pyd.BaseModel):
-            raise ValueError(f"`{schema_path}` is not a pydantic model.")
         return imported_schema
 
     def _make_schema(self, schema_def: t.Mapping[str, ItemValidationModel]):
@@ -427,17 +468,17 @@ class SampleValidationInterface(
         )
 
     def __init__(self, **data):
-        import inspect
-
         super().__init__(**data)
-        if inspect.isclass(self.sample_schema) and issubclass(
-            self.sample_schema, pyd.BaseModel
-        ):
-            self._schema_model = self.sample_schema
-        elif isinstance(self.sample_schema, str):
+
+        if isinstance(self.sample_schema, str):
             self._schema_model = self._import_schema(self.sample_schema)
+        elif isinstance(self.sample_schema, t.Mapping):
+            self._schema_model = self._make_schema(self.sample_schema)
         else:
-            self._schema_model = self._make_schema(self.sample_schema)  # type: ignore
+            self._schema_model = self.sample_schema
+
+        if not issubclass(self._schema_model, pyd.BaseModel):
+            raise ValueError(f"`{self.sample_schema}` is not a pydantic model.")
 
     @property
     def schema_model(self) -> t.Type[pyd.BaseModel]:

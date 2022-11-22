@@ -3,7 +3,7 @@ from typing import Optional
 from pathlib import Path
 import pydantic as pyd
 import pipelime.items as pli
-from pipelime.sequences import SamplesSequence
+from pipelime.sequences import SamplesSequence, SampleValidationInterface
 
 
 class TestValidation:
@@ -30,27 +30,49 @@ class TestValidation:
     class MyFullSchemaForbidExtra(MyFullSchemaBase, extra=pyd.Extra.forbid):
         pass
 
+    class MyInvalidSchema:
+        cfg: pli.MetadataItem
+
+    def _schema_check_helper(self, sequence, is_lazy, should_fail):
+        try:
+            for _ in sequence:
+                pass
+            assert not should_fail
+        except ValueError:
+            assert should_fail and is_lazy
+
     def _schema_check(self, dataset, schema_def, should_fail):
         try:
-            seq = SamplesSequence.from_underfolder(dataset).validate_samples(
-                sample_schema=schema_def
+            self._schema_check_helper(
+                SamplesSequence.from_underfolder(dataset).validate_samples(
+                    sample_schema=schema_def
+                ),
+                schema_def.lazy,
+                should_fail,
             )
-            try:
-                for _ in seq:
-                    pass
-                assert not should_fail
-            except ValueError:
-                assert should_fail and schema_def.lazy
         except ValueError:
             assert should_fail and not schema_def.lazy
+
+        try:
+            self._schema_check_helper(
+                schema_def.append_validator(SamplesSequence.from_underfolder(dataset)),
+                schema_def.lazy,
+                should_fail,
+            )
+        except ValueError:
+            assert should_fail and not schema_def.lazy
+
+        assert schema_def.as_pipe() == {
+            "validate_samples": {
+                "sample_schema": schema_def.dict(by_alias=True),
+            }
+        }
 
     @pytest.mark.parametrize("lazy", [True, False])
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_full_schema(
         self, minimnist_dataset: dict, tests_folder: Path, lazy, ignore_extra_keys
     ):
-        from pipelime.utils.pydantic_types import SampleValidationInterface
-
         self._schema_check(
             minimnist_dataset["path"],
             SampleValidationInterface(
@@ -84,11 +106,8 @@ class TestValidation:
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
     ):
         from typing import Optional
-
         import pydantic as pyd
-
         import pipelime.items as pli
-        from pipelime.utils.pydantic_types import SampleValidationInterface
 
         class MySchema(
             pyd.BaseModel,
@@ -112,11 +131,8 @@ class TestValidation:
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
     ):
         from typing import Optional
-
         import pydantic as pyd
-
         import pipelime.items as pli
-        from pipelime.utils.pydantic_types import SampleValidationInterface
 
         class MySchema(
             pyd.BaseModel,
@@ -142,8 +158,6 @@ class TestValidation:
     def test_validate_schema_from_dict(
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
     ):
-        from pipelime.utils.pydantic_types import SampleValidationInterface
-
         schema_dict = {
             "cfg": {
                 "class_path": "YamlMetadataItem",
@@ -186,3 +200,11 @@ class TestValidation:
             ),
             should_fail=not ignore_extra_keys,
         )
+
+    def test_invalid_schema_class(self):
+        with pytest.raises(ValueError):
+            SampleValidationInterface(
+                sample_schema=(
+                    f"{Path(__file__).as_posix()}:TestValidation.MyInvalidSchema"
+                )
+            )
