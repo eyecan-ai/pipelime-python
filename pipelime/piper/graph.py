@@ -309,7 +309,7 @@ class DAGNodesGraph:
         """
         g = nx.DiGraph()
 
-        for node_name, node in dag_model.nodes.items():
+        for node_name, node in dag_model.nodes.value.items():
             node: PipelimeCommand
 
             inputs = node.get_inputs()

@@ -17,4 +17,4 @@ class DAGParserFactory:
 
     @classmethod
     def get_parser(cls, parser_name: str = DEFAULT_PARSER, **kwargs) -> DAGParser:
-        return cls._parsers_map[parser_name](**kwargs)
+        return cls._parsers_map[parser_name](**kwargs)  # type: ignore

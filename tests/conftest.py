@@ -108,13 +108,16 @@ def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
     with os.scandir(str(piper_folder / "dags")) as dirit:
         for entry in dirit:
             if entry.is_dir():
-                cfg = XConfig(choixe_io.load(Path(entry.path) / "dag.yml"))
+                dag_path = Path(entry.path) / "dag.yml"
+                cfg = XConfig(choixe_io.load(dag_path))
 
                 ctx_path = Path(entry.path) / "ctx.yml"
                 ctx = XConfig(choixe_io.load(ctx_path)) if ctx_path.exists() else None
                 cfg = cfg.process(ctx).to_dict()
 
                 dag = {}
+                dag["cfg_path"] = dag_path
+                dag["ctx_path"] = ctx_path
                 dag["config"] = cfg
                 _add_if_exists(dag, Path(entry.path) / "dag.dot", "dot")
 
