@@ -1,3 +1,6 @@
+import pytest
+
+
 class TestCliBase:
     def _base_launch(self, args: list):
         from typer.testing import CliRunner
@@ -99,3 +102,115 @@ class TestCliBase:
                     if isinstance(v, NpyNumpyItem)
                     else path.stat().st_nlink > 1
                 )
+
+    @pytest.mark.parametrize(
+        ["cmd_line", "parsed_cfg", "parsed_ctx", "should_fail"],
+        [
+            [
+                ["+arg1", "++arg2", "@arg1", "@@arg2"],
+                {"arg1": True, "arg2": True},
+                {"arg1": True, "arg2": True},
+                False,
+            ],
+            [
+                [
+                    "@arg1.arg2",
+                    "41.3",
+                    '+arg1.arg2="42.3"',
+                    "++arg1.arg2",
+                    "43",
+                    "@@arg1.arg3=44",
+                ],
+                {"arg1": {"arg2": ["42.3", 43]}},
+                {"arg1": {"arg2": 41.3, "arg3": 44}},
+                False,
+            ],
+            [
+                [
+                    "+arg1.arg2",
+                    "42",
+                    "++arg1.arg3",
+                    "'43'",
+                    "//",
+                    "+arg3.arg4",
+                    "strval",
+                    "++arg3.arg4",
+                    "45",
+                ],
+                {"arg1": {"arg2": 42, "arg3": "43"}},
+                {"arg3": {"arg4": ["strval", 45]}},
+                False,
+            ],
+            [["+arg1[2]", "42"], {"arg1": [None, None, 42]}, {}, False],
+            [
+                [
+                    "+arg1",
+                    "+arg2",
+                    "true",
+                    "+arg3",
+                    "True",
+                    "+arg4",
+                    "TRUE",
+                    "+arg5",
+                    "TrUe",
+                    "+arg6",
+                    "tRuE",
+                ],
+                {f"arg{i+1}": True for i in range(6)},
+                {},
+                False,
+            ],
+            [
+                [
+                    "+arg1",
+                    "false",
+                    "+arg2",
+                    "False",
+                    "+arg3",
+                    "FALSE",
+                    "+arg4",
+                    "FaLsE",
+                    "+arg5",
+                    "fAlSe",
+                ],
+                {f"arg{i+1}": False for i in range(5)},
+                {},
+                False,
+            ],
+            [
+                [
+                    "+arg1",
+                    "none",
+                    "+arg2",
+                    "NoNe",
+                    "+arg3",
+                    "null",
+                    "+arg4",
+                    "nUlL",
+                    "+arg5",
+                    "nul",
+                    "+arg6",
+                    "NuL",
+                ],
+                {f"arg{i+1}": None for i in range(6)},
+                {},
+                False,
+            ],
+            [["+arg1", "+arg1.arg2", "42", "++arg1.arg2", "43"], None, None, True],
+            [["@arg.", "42"], None, None, True],
+            [["+arg.[2]", "42"], None, None, True],
+            [["+arg1..arg2", "42"], None, None, True],
+            [["--arg"], None, None, True],
+        ],
+    )
+    def test_cli_parser(self, cmd_line, parsed_cfg, parsed_ctx, should_fail):
+        from pipelime.cli.parser import parse_pipelime_cli, CLIParsingError
+
+        try:
+            cmdline_cfg, cmdline_ctx = parse_pipelime_cli(cmd_line)
+        except CLIParsingError:
+            assert should_fail
+        else:
+            assert not should_fail
+            assert cmdline_cfg == parsed_cfg
+            assert cmdline_ctx == parsed_ctx
