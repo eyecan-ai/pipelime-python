@@ -286,6 +286,9 @@ class RepeatedSequence(PipedSequenceBase, title="repeat"):
     count_: pyd.NonNegativeInt = pyd.Field(
         ..., alias="count", description="The number of repetition."
     )
+    interleave: bool = pyd.Field(
+        False, description="If TRUE, interleaves samples from this sequence."
+    )
 
     def __init__(self, count: pyd.NonNegativeInt, **data):
         super().__init__(count=count, **data)  # type: ignore
@@ -296,7 +299,11 @@ class RepeatedSequence(PipedSequenceBase, title="repeat"):
     def get_sample(self, idx: int) -> pls.Sample:
         if idx < 0 or idx >= len(self):
             raise IndexError(f"Sample index `{idx}` is out of range.")
-        return self.source[idx % len(self.source)]
+
+        final_idx = (
+            (idx // self.count_) if self.interleave else (idx % len(self.source))
+        )
+        return self.source[final_idx]
 
 
 @pls.piped_sequence

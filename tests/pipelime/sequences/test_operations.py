@@ -184,18 +184,25 @@ class TestSamplesSequenceOperations:
             assert int(e_sample["custom_id"]()) == idx  # type: ignore
             assert all(v == e_sample[k] for k, v in s_sample.items())
 
-    def test_repeat(self, minimnist_dataset: dict):
+    @pytest.mark.parametrize("n", [1, 4, 10])
+    @pytest.mark.parametrize("interleave", [True, False])
+    def test_repeat(self, minimnist_dataset: dict, n: int, interleave: bool):
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        repeat_seq = source.repeat(3)
+        repeat_seq = source.repeat(n, interleave=interleave)
 
-        assert len(repeat_seq) == 3 * len(source)
+        assert len(repeat_seq) == n * len(source)
 
         riter = iter(repeat_seq)
-        for i in range(3):
+        if interleave:
             for s in source:
-                assert next(riter) is s
+                for i in range(n):
+                    assert next(riter) is s
+        else:
+            for i in range(n):
+                for s in source:
+                    assert next(riter) is s
 
         with pytest.raises(IndexError):
             repeat_seq[len(repeat_seq)]
