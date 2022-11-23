@@ -42,3 +42,19 @@ def test_draw(all_dags: t.Sequence[t.Mapping[str, t.Any]], tmp_path: Path):
             assert g_ref is not None
             assert g_out is not None
             assert g_ref == g_out
+
+
+def test_run(all_dags: t.Sequence[t.Mapping[str, t.Any]], tmp_path: Path):
+    from pipelime.commands.piper import RunCommand
+
+    for dag in all_dags:
+        cmd = RunCommand(**(dag["config"]))
+        cmd()
+        assert cmd.successful
+
+        # output folders now exist, so the commands should fail
+        # when creating the output pipes
+        cmd = RunCommand(**(dag["config"]))
+        with pytest.raises(RuntimeError) as excinfo:
+            cmd()
+        assert not cmd.successful

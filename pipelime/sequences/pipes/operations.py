@@ -15,11 +15,7 @@ class MappedSequence(PipedSequenceBase, title="map"):
 
     stage: StageInput = pyd.Field(...)
 
-    def __init__(
-        self,
-        stage: t.Union[SampleStage, str, t.Mapping[str, t.Mapping[str, t.Any]]],
-        **data,
-    ):
+    def __init__(self, stage: StageInput, **data):
         super().__init__(stage=stage, **data)  # type: ignore
 
     def get_sample(self, idx: int) -> pls.Sample:

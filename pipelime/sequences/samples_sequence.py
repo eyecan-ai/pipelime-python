@@ -10,6 +10,7 @@ from pipelime.sequences.sample import Sample
 if t.TYPE_CHECKING:
     from pipelime.utils.pydantic_types import SampleValidationInterface
     from pipelime.sequences.direct_access import DirectAccessSequence
+    from pipelime.stages import SampleStage, StageInput
 
 
 def _sseq_stub_dummy(*args, **kwargs):
@@ -352,7 +353,10 @@ class SamplesSequence(
     def map(
         self,
         stage: t.Union[
-            "pipelime.stages.SampleStage",  # type: ignore # noqa: E602,F821
+            "StageInput",
+            "SampleStage",
+            str,
+            bytes,
             t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]],
         ],
     ) -> SamplesSequence:

@@ -638,7 +638,7 @@ class MapCommand(PipelimeCommand, title="map"):
     def run(self):
         seq = self.input.create_reader()
         seq = seq.map(
-            self.stage if isinstance(self.stage, t.Mapping) else {self.stage: {}}
+            {self.stage: {}} if isinstance(self.stage, (str, bytes)) else self.stage
         )
         self.grabber.grab_all(
             self.output.append_writer(seq),

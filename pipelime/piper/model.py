@@ -55,7 +55,7 @@ class PipelimeCommand(
         return self._get_fields_by_flag("piper_port", PiperPortType.OUTPUT)
 
     def _get_piper_tracker(self) -> Tracker:
-        if self._tracker is None:
+        if self._tracker is None:  # pragma: no branch
             from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
 
             cb = TrackCallbackFactory.get_callback()
