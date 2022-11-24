@@ -5,7 +5,7 @@ from urllib.parse import ParseResult
 
 import pydantic as pyd
 
-from pipelime.utils.pydantic_types import SampleValidationInterface
+from pipelime.utils.pydantic_types import SampleValidationInterface, ItemType
 
 
 class PydanticFieldMixinBase:
@@ -20,11 +20,11 @@ class PydanticFieldMixinBase:
         desc_list = []
         if user_desc is None:
             user_desc = cls._default_type_description
-        if user_desc is not None:
+        if user_desc is not None:  # pragma: no branch
             desc_list.append(user_desc)
-        elif cls._compact_form is None:
+        elif cls._compact_form is None:  # pragma: no cover
             return None
-        if cls._compact_form is not None:
+        if cls._compact_form is not None:  # pragma: no branch
             desc_list.append(f"{_short_line()} Compact form: `{cls._compact_form}`")
         return "\n".join(desc_list)
 
@@ -109,7 +109,8 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
                 data["num_workers"] = value
             else:
                 wrks, _, pf = str(value).partition(",")
-                data["num_workers"] = int(wrks)
+                if wrks:
+                    data["num_workers"] = int(wrks)
                 if pf:
                     data["prefetch"] = int(pf)
             value = data
@@ -333,6 +334,12 @@ class InputDatasetInterface(
         return self.folder.as_posix()
 
 
+any_serialization = t.Literal[
+    "CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HARD_LINK", "REMOTE_FILE"
+]
+any_item = t.Union[None, t.Literal["_"], ItemType, t.Sequence[ItemType]]
+
+
 class SerializationModeInterface(
     pyd.BaseModel,
     extra="forbid",
@@ -341,15 +348,17 @@ class SerializationModeInterface(
 ):
     """Serialization modes for items and keys."""
 
-    override: t.Mapping[str, t.Optional[t.Union[str, t.Sequence[str]]]] = pyd.Field(
+    override: t.Mapping[any_serialization, any_item] = pyd.Field(
         default_factory=dict,
         description=(
             "Serialization modes overridden for specific item types, "
             "eg, `{CREATE_NEW_FILE: [ImageItem, my.package.MyItem, "
-            "my/module.py:OtherItem]}`. A Null value applies to all items."
+            "my/module.py:OtherItem]}`. `None` or `_` applies to all items."
         ),
     )
-    disable: t.Mapping[str, t.Union[str, t.Sequence[str]]] = pyd.Field(
+    disable: t.Mapping[
+        any_item, t.Union[any_serialization, t.Sequence[any_serialization]]
+    ] = pyd.Field(
         default_factory=dict,
         description=(
             "Serialization modes disabled for specific item types, "
@@ -357,7 +366,7 @@ class SerializationModeInterface(
             "The special key `_` applies to all items."
         ),
     )
-    keys: t.Mapping[str, str] = pyd.Field(
+    keys: t.Mapping[str, any_serialization] = pyd.Field(
         default_factory=dict,
         description=(
             "Serialization modes overridden for specific sample keys, "
@@ -368,19 +377,12 @@ class SerializationModeInterface(
     _overridden_modes_cms: t.List[t.ContextManager]
     _disabled_modes_cms: t.List[t.ContextManager]
 
-    def _get_class_list(
-        self, cls_paths: t.Optional[t.Union[str, t.Sequence[str]]]
-    ) -> list:
-        from pipelime.choixe.utils.imports import import_symbol
-
-        if not cls_paths:
+    def _get_class_list(self, cls_paths: any_item):
+        if not cls_paths or "_" == cls_paths:
             return []
-        if isinstance(cls_paths, str):
+        if not isinstance(cls_paths, t.Sequence):
             cls_paths = [cls_paths]
-        if "_" in cls_paths:
-            return []
-        cls_paths = [c if "." in c else f"pipelime.items.{c}" for c in cls_paths]
-        return [import_symbol(c) for c in cls_paths]
+        return [c.value for c in cls_paths]
 
     def __init__(self, **data):
         import pipelime.items as pli
@@ -445,7 +447,9 @@ class OutputDatasetInterface(
     ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
-    zfill: t.Optional[int] = pyd.Field(None, description="Custom index zero-filling.")
+    zfill: t.Optional[pyd.NonNegativeInt] = pyd.Field(
+        None, description="Custom index zero-filling."
+    )
     exists_ok: bool = pyd.Field(
         False, description="If False raises an error when `folder` exists."
     )
@@ -617,7 +621,9 @@ class ToyDatasetInterface(
 ):
     """Toy dataset creation options."""
 
-    length: int = pyd.Field(..., description="The number of samples to generate.")
+    length: pyd.PositiveInt = pyd.Field(
+        ..., description="The number of samples to generate."
+    )
     with_images: bool = pyd.Field(True, description="Whether to generate images.")
     with_masks: bool = pyd.Field(
         True, description="Whether to generate masks with object labels."
@@ -632,7 +638,9 @@ class ToyDatasetInterface(
     with_kpts: bool = pyd.Field(
         True, description="Whether to generate objects' keypoints."
     )
-    image_size: int = pyd.Field(256, description="The size of the generated images.")
+    image_size: pyd.PositiveInt = pyd.Field(
+        256, description="The size of the generated images."
+    )
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -643,10 +651,10 @@ class ToyDatasetInterface(
             "`imageMyKey`. If empty, the base key name will be used."
         ),
     )
-    max_labels: int = pyd.Field(
-        5, description="The maximum number of object labels in the dataset."
+    max_labels: pyd.NonNegativeInt = pyd.Field(
+        5, description="The maximum number assigned to object labels in the dataset."
     )
-    objects_range: t.Tuple[int, int] = pyd.Field(
+    objects_range: t.Tuple[pyd.NonNegativeInt, pyd.NonNegativeInt] = pyd.Field(
         (1, 5), description="The (min, max) number of objects in each sample."
     )
     seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")

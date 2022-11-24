@@ -35,7 +35,9 @@ class UnderfolderWriter(
     """Writes samples to an underfolder dataset while iterating over them."""
 
     folder: Path = pyd.Field(..., description="The output folder.")
-    zfill: t.Optional[int] = pyd.Field(None, description="Custom index zero-filling.")
+    zfill: t.Optional[pyd.NonNegativeInt] = pyd.Field(
+        None, description="Custom index zero-filling."
+    )
     key_serialization_mode: t.Optional[
         t.Mapping[str, t.Union[SerializationMode, str]]
     ] = pyd.Field(None, description="Forced serialization mode for each key.")
