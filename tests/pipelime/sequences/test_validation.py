@@ -71,11 +71,11 @@ class TestValidation:
     @pytest.mark.parametrize("lazy", [True, False])
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_full_schema(
-        self, minimnist_dataset: dict, tests_folder: Path, lazy, ignore_extra_keys
+        self, minimnist_dataset: dict, lazy, ignore_extra_keys
     ):
         self._schema_check(
             minimnist_dataset["path"],
-            SampleValidationInterface(
+            SampleValidationInterface(  # type: ignore
                 sample_schema=TestValidation.MyFullSchemaIgnoreExtra
                 if ignore_extra_keys
                 else TestValidation.MyFullSchemaForbidExtra,
@@ -86,7 +86,7 @@ class TestValidation:
 
         self._schema_check(
             minimnist_dataset["path"],
-            SampleValidationInterface(
+            SampleValidationInterface(  # type: ignore
                 sample_schema=(
                     f"{Path(__file__).as_posix()}:TestValidation."
                     + (
@@ -121,7 +121,7 @@ class TestValidation:
 
         self._schema_check(
             minimnist_dataset["path"],
-            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),
+            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),  # type: ignore
             should_fail=not ignore_extra_keys,
         )
 
@@ -149,14 +149,14 @@ class TestValidation:
 
         self._schema_check(
             minimnist_dataset["path"],
-            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),
+            SampleValidationInterface(sample_schema=MySchema, lazy=lazy),  # type: ignore
             should_fail=not ignore_extra_keys,
         )
 
     @pytest.mark.parametrize("lazy", [True, False])
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_schema_from_dict(
-        self, minimnist_dataset: dict, lazy, ignore_extra_keys
+        self, minimnist_dataset: dict, lazy: bool, ignore_extra_keys: bool
     ):
         schema_dict = {
             "cfg": {
@@ -193,7 +193,7 @@ class TestValidation:
 
         self._schema_check(
             minimnist_dataset["path"],
-            SampleValidationInterface(
+            SampleValidationInterface(  # type: ignore
                 sample_schema=schema_dict,
                 ignore_extra_keys=ignore_extra_keys,
                 lazy=lazy,
@@ -203,8 +203,9 @@ class TestValidation:
 
     def test_invalid_schema_class(self):
         with pytest.raises(ValueError):
-            SampleValidationInterface(
-                sample_schema=(
+            svi = SampleValidationInterface(
+                sample_schema=(  # type: ignore
                     f"{Path(__file__).as_posix()}:TestValidation.MyInvalidSchema"
                 )
             )
+            _ = svi.schema_model

@@ -239,6 +239,7 @@ class InputDatasetInterface(
     pyd.BaseModel,
     extra="forbid",
     copy_on_model_validation="none",
+    allow_population_by_field_name=True,
 ):
     """Input dataset options.
 
@@ -337,7 +338,7 @@ class InputDatasetInterface(
 any_serialization = t.Literal[
     "CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HARD_LINK", "REMOTE_FILE"
 ]
-any_item = t.Union[None, t.Literal["_"], ItemType, t.Sequence[ItemType]]
+any_item = t.Union[None, t.Literal["_"], ItemType]
 
 
 class SerializationModeInterface(
@@ -348,7 +349,9 @@ class SerializationModeInterface(
 ):
     """Serialization modes for items and keys."""
 
-    override: t.Mapping[any_serialization, any_item] = pyd.Field(
+    override: t.Mapping[
+        any_serialization, t.Union[any_item, t.Sequence[ItemType]]
+    ] = pyd.Field(
         default_factory=dict,
         description=(
             "Serialization modes overridden for specific item types, "
@@ -377,7 +380,7 @@ class SerializationModeInterface(
     _overridden_modes_cms: t.List[t.ContextManager]
     _disabled_modes_cms: t.List[t.ContextManager]
 
-    def _get_class_list(self, cls_paths: any_item):
+    def _get_class_list(self, cls_paths: t.Union[any_item, t.Sequence[ItemType]]):
         if not cls_paths or "_" == cls_paths:
             return []
         if not isinstance(cls_paths, t.Sequence):
@@ -412,6 +415,7 @@ class OutputDatasetInterface(
     pyd.BaseModel,
     extra="forbid",
     copy_on_model_validation="none",
+    allow_population_by_field_name=True,
 ):
     """Output dataset options.
 

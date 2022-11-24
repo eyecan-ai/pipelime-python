@@ -227,7 +227,9 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return all(isinstance(k, str) for k in value)
 
 
-class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class ItemType(
+    pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
+):
     """Item type definition. It accepts both type names and string.
     When a string is given, it can be a class path (`pipelime.items` can be omitted)
     or a `path/to/file.py:ClassName`.
@@ -302,6 +304,9 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     def __call__(self, *args, **kwargs) -> Item:
         return self.__root__(*args, **kwargs)
 
+    def __hash__(self) -> int:
+        return hash(self.__root__)
+
     def __str__(self) -> str:
         return ItemType._item_type_to_string(self.__root__)
 
@@ -326,6 +331,11 @@ class ItemType(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
         if isinstance(value, str):
             return ItemType(__root__=ItemType._string_to_item_type(value))
         raise ValueError(f"Invalid item type: {value}")
+
+
+# This is defined here to make it picklable
+def _identity_fn_helper(x):
+    return x
 
 
 class ItemValidationModel(
@@ -358,12 +368,8 @@ class ItemValidationModel(
         from pipelime.choixe.utils.imports import import_symbol
 
         super().__init__(**data)
-
-        def _identity(v):
-            return v
-
         self._validator_callable = (
-            import_symbol(self.validator_) if self.validator_ else _identity
+            import_symbol(self.validator_) if self.validator_ else _identity_fn_helper
         )
 
     def make_field(self, key_name: str):
@@ -438,7 +444,7 @@ class SampleValidationInterface(
         ),
     )
 
-    _schema_model: t.Type[pyd.BaseModel] = pyd.PrivateAttr()
+    _schema_model: t.Optional[t.Type[pyd.BaseModel]] = pyd.PrivateAttr(None)
 
     def _import_schema(self, schema_path: str):
         from pipelime.choixe.utils.imports import import_symbol
@@ -467,22 +473,24 @@ class SampleValidationInterface(
             **_item_map,
         )
 
-    def __init__(self, **data):
-        super().__init__(**data)
-
-        if isinstance(self.sample_schema, str):
-            self._schema_model = self._import_schema(self.sample_schema)
-        elif isinstance(self.sample_schema, t.Mapping):
-            self._schema_model = self._make_schema(self.sample_schema)
-        else:
-            self._schema_model = self.sample_schema
-
-        if not issubclass(self._schema_model, pyd.BaseModel):
-            raise ValueError(f"`{self.sample_schema}` is not a pydantic model.")
-
     @property
     def schema_model(self) -> t.Type[pyd.BaseModel]:
-        return self._schema_model
+        sm = self._schema_model
+        if sm is None:
+            if isinstance(self.sample_schema, str):
+                sm = self._import_schema(self.sample_schema)
+            elif isinstance(self.sample_schema, t.Mapping):
+                sm = self._make_schema(self.sample_schema)
+            else:
+                sm = self.sample_schema
+
+            if not issubclass(sm, pyd.BaseModel):
+                raise ValueError(f"`{self.sample_schema}` is not a pydantic model.")
+
+            # cache the model for later use
+            if self.lazy:
+                self._schema_model = sm
+        return sm
 
     def append_validator(self, sequence: "SamplesSequence") -> "SamplesSequence":
         return sequence.validate_samples(sample_schema=self)

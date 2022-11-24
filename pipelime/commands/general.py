@@ -566,7 +566,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
                 class_path=info.item_type,
                 is_optional=(info.count_ != len(seq)),
                 is_shared=info.is_shared,
-            ).dict(by_alias=True)
+            )
             for k, info in item_info.items_info.items()
         }
 
@@ -637,9 +637,7 @@ class MapCommand(PipelimeCommand, title="map"):
 
     def run(self):
         seq = self.input.create_reader()
-        seq = seq.map(
-            {self.stage: {}} if isinstance(self.stage, (str, bytes)) else self.stage
-        )
+        seq = seq.map(self.stage)
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),

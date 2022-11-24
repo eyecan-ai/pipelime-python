@@ -16,6 +16,11 @@ import typing as t
 import pipelime.remotes as plr
 
 
+# IMPORTANT: IF YOU CHANGE THIS ENUM, YOU MUST ALSO CHANGE THE
+#   ACCEPTED VALUES IN THE SERIALIZATION INTERFACE
+# SEE: pipelime\commands\interfaces.py
+#   -> SerializationModeInterface
+#   -> any_serialization
 class SerializationMode(IntEnum):
     """Standard resolution is REMOTE FILE -> HARD LINK -> FILE COPY -> NEW FILE
     or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour by setting
