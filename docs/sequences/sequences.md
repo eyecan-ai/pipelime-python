@@ -318,6 +318,10 @@ This pipe is designed to be used with multiple processes, so it safe to share th
 
 ## Advanced API
 
+We have seen so far a bunch of methods to modify a `Sample`:
+- `set_item`, `set_value`, `set_value_as`: to add/replace items.
+- `remove_keys`, `extract_keys`, `rename_key`, `duplicate_key`: to modify keys.
+
 Beside the mehods above, `Sample` includes an advanced API to access and process the data.
 
 Serialization:
@@ -337,8 +341,15 @@ Querying:
 - `match`: applies a [`dictquery`](https://github.com/cyberlis/dictquery) query to the sample and returns the result.
 
 Combining samples:
-- `update`: returns a new sample with all the items of the current sample *updated* with the ones of the other sample, i.e., items with the same key are replaced with the ones of the other sample.
-- `merge`: same as `update`
+- `merge`, `update`, `zip`: returns a new sample with all the items of the current sample *updated* with the ones of the other sample, i.e., items with the same key are replaced with the ones of the other sample.
+
+Operators:
+- `__add__`: `s1 + s2` is equivalent to `s1.merge(s2)`
+- `__sub__`: `s1 - s2` is equivalent to `s1.remove_keys(*s2.keys())`
+- `__and__`: `s1 & s2` is equivalent to `s1.extract_keys(*s2.keys())`
+- `__or__`: `s1 | s2` is equivalent to `s1.merge(s2)`
+- `__xor__`: `s1 ^ s2` is equivalent to `(self | other) - (self & other)`
+
 
 Likewise, `SamplesSequence` includes some advanced methods as well:
 - `__add__`: you can concatenate two sequences with the `+` operator.

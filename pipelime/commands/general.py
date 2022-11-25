@@ -169,10 +169,11 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         alias="g"
     )
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        if not self.operations:
-            raise ValueError(f"Invalid pipeline: {self.operations}")
+    @pyd.validator("operations")
+    def _validate_operations(cls, v: pl_types.YamlInput) -> pl_types.YamlInput:
+        if not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
+            raise ValueError(f"Invalid pipeline: {v.value}")
+        return v
 
     def run(self):
         from pipelime.sequences import build_pipe, SamplesSequence
@@ -276,11 +277,11 @@ class ZipCommand(PipelimeCommand, title="zip"):
     key_format: t.Union[str, t.Sequence[str]] = pyd.Field(
         "*",
         description=(
-            "The zipped samples' key format. Any `*` will be replaced with the "
-            "source key, eg, `my_*_key` on [`image`, `mask`] generates "
-            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
-            "suffixed to source key, ie, `MyKey` on `image` gives "
-            "`imageMyKey`. If empty, the source key will be used as-is."
+            "The zipped samples' key format FOR EACH INPUT SEQUENCE EXCEPT THE FIRST "
+            "ONE. Any `*` will be replaced with the source key, eg, `my_*_key` on "
+            "[`image`, `mask`] generates `my_image_key` and `my_mask_key`. If no `*` "
+            "is found, the string is suffixed to source key, ie, `MyKey` on `image` "
+            "gives `imageMyKey`. If empty, the source key will be used as-is."
         ),
     )
 
@@ -292,12 +293,15 @@ class ZipCommand(PipelimeCommand, title="zip"):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
 
         key_formats = (
-            [self.key_format] * len(inputs)
+            [self.key_format] * (len(inputs) - 1)
             if isinstance(self.key_format, str)
             else self.key_format
         )
-        if len(key_formats) != len(inputs):
-            raise ValueError(f"Number of inputs and key formats do not match.")
+        if len(key_formats) != (len(inputs) - 1):
+            raise ValueError(
+                f"{len(key_formats)} key format string are provided, "
+                f"but {len(inputs)} are required."
+            )
 
         input_it = iter(inputs)
         seq = next(input_it).create_reader()
