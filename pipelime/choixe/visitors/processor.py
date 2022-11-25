@@ -120,21 +120,29 @@ class Processor(ast.NodeVisitor):
         data = []
 
         for id_, default, env in branches:
-            if py_.has(self._context, id_):
-                data.append(py_.get(self._context, id_))
-                continue
+            var_value = None
+            found = False
 
-            if env:
+            if py_.has(self._context, id_):
+                var_value = py_.get(self._context, id_)
+                found = True
+            if not found and env:
                 value = os.getenv(id_)
                 if value is not None:
-                    data.append(value)
-                    continue
+                    var_value = value
+                    found = True
+            if not found and node.default:
+                var_value = default
+                found = True
 
-            if node.default:
-                data.append(default)
-                continue
+            if not found:
+                raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
-            raise ChoixeProcessingError(f"Variable not found: `{id_}`")
+            # Recursively process the variable value
+            re_parsed = parse(var_value)
+            re_processed = re_parsed.accept(self)
+
+            data.extend(re_processed)
 
         return data
 
