@@ -57,6 +57,13 @@ class TestProcessor:
         "collection2": [str(x) for x in range(100, 105)],
         "collection3": list(range(50, 52)),
         "collection4": [str(x) for x in range(100, 102)],
+        "nested_stuff": {
+            "a": 10,
+            "b": {
+                "sweep": "$sweep(10, 20, 30)",
+                "c": 20,
+            },
+        },
     }
     env = {"VAR1": "yellow", "VAR2": "snake"}
 
@@ -159,6 +166,11 @@ class TestProcessor:
             {"a": "40", "b": {"a": "hello", "b": "world", "c": "world", "d": 10}},
             {"a": "red", "b": {"a": "hello", "b": "world", "c": "world", "d": 10}},
         ]
+        self._expectation_test(data, expected)
+
+    def test_sweep_in_context(self):
+        data = {"a": "$var(nested_stuff.b.sweep)"}
+        expected = [{"a": 10}, {"a": 20}, {"a": 30}]
         self._expectation_test(data, expected)
 
     def test_sweep_no_branching(self):
