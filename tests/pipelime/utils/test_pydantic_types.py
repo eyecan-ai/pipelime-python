@@ -2,12 +2,10 @@ import numpy as np
 import pytest
 import pydantic
 import pipelime.utils.pydantic_types as plt
+from ... import TestUtils
 
 
 class TestNumpyType:
-    def _np_eq(self, a, b):
-        return np.array_equal(a, b, equal_nan=True)
-
     def test_create(self):
         with pytest.raises(pydantic.ValidationError):
             _ = plt.NumpyType()  # type: ignore
@@ -16,10 +14,10 @@ class TestNumpyType:
         src_list = [[[0, 1], [2, 3], [4, 5]], [[6, 7], [8, 9], [10, 11]]]
 
         nt = plt.NumpyType(__root__=np.array(src_list))
-        assert self._np_eq(nt.value, target)
+        assert TestUtils.numpy_eq(nt.value, target)
 
         nt = plt.NumpyType.create(src_list)  # type: ignore
-        assert self._np_eq(nt.value, target)
+        assert TestUtils.numpy_eq(nt.value, target)
 
         nt = plt.NumpyType.create(
             {
@@ -27,10 +25,10 @@ class TestNumpyType:
                 "dtype": "float16",
             }
         )
-        assert self._np_eq(nt.value, target.astype("float16"))
+        assert TestUtils.numpy_eq(nt.value, target.astype("float16"))
 
         nt2 = plt.NumpyType.create(nt)
-        assert self._np_eq(nt.value, nt2.value)
+        assert TestUtils.numpy_eq(nt.value, nt2.value)
 
         with pytest.raises(ValueError):
             _ = plt.NumpyType.create(
@@ -46,11 +44,11 @@ class TestNumpyType:
 
         nt_again = pydantic.parse_raw_as(plt.NumpyType, nt.json())
         assert nt.value.flags == nt_again.value.flags
-        assert self._np_eq(nt.value, nt_again.value)
+        assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
         nt_again = pydantic.parse_obj_as(plt.NumpyType, nt.dict()["__root__"])
         assert nt.value.flags == nt_again.value.flags
-        assert self._np_eq(nt.value, nt_again.value)
+        assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
 
 class TestYamlInput:

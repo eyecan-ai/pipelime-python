@@ -1,28 +1,9 @@
 import pytest
 import pipelime.sequences as pls
-
-
-def _try_import_torch():
-    try:
-        import torch
-    except ImportError:
-        return False
-    return True
+from ... import TestUtils, TestAssert
 
 
 class TestSamplesSequences:
-    def _assert_samples_equal(self, s1: pls.Sample, s2: pls.Sample):
-        from pipelime.items import NumpyItem
-
-        assert s1.keys() == s2.keys()
-        for k, v1 in s1.items():
-            v2 = s2[k]
-            assert v1.__class__ == v2.__class__
-            if isinstance(v1, NumpyItem):
-                assert np.array_equal(v1(), v2(), equal_nan=True)  # type: ignore
-            else:
-                assert v1() == v2()
-
     def test_name(self):
         from pipelime.sequences.pipes import PipedSequenceBase
         from pipelime.sequences.pipes.operations import MappedSequence
@@ -148,6 +129,9 @@ class TestSamplesSequences:
         with pytest.raises(TypeError):
             pls.build_pipe("shuffle")
 
+        with pytest.raises(ValueError):
+            pls.build_pipe(pipe_list=[])
+
     def _direct_access_check_results(self, sseq, da_seq):
         import numpy as np
 
@@ -218,7 +202,7 @@ class TestSamplesSequences:
         out_seq = sseq.apply()
 
         for s1, s2 in zip(sseq, out_seq):
-            self._assert_samples_equal(s1, s2)
+            TestAssert.samples_equal(s1, s2)
 
     def test_run(self, minimnist_dataset: dict):
         from pipelime.stages import StageLambda
@@ -229,10 +213,10 @@ class TestSamplesSequences:
             .map(StageLambda(lambda x: x.extract_keys(minimnist_dataset["image_keys"])))
         )
         out_seq = sseq.run(
-            sample_fn=lambda x, idx: self._assert_samples_equal(x, sseq[idx])
+            sample_fn=lambda x, idx: TestAssert.samples_equal(x, sseq[idx])
         )
 
-    @pytest.mark.skipif(not _try_import_torch(), reason="PyTorch not installed")
+    @pytest.mark.skipif(not TestUtils.has_torch(), reason="PyTorch not installed")
     def test_torch_dataset(self, minimnist_dataset: dict):
         from torch.utils.data import Dataset
 

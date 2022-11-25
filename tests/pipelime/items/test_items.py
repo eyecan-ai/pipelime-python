@@ -6,6 +6,7 @@ import typing as t
 import trimesh
 
 import pipelime.items as pli
+from ... import TestUtils
 
 
 def _generic_mesh():
@@ -21,14 +22,6 @@ def _generic_mesh():
 def _generic_scene():
     mesh = _generic_mesh()
     return trimesh.Scene(mesh)
-
-
-def _np_eq(x, y) -> bool:
-    return np.array_equal(x, y, equal_nan=True)
-
-
-def _np_eq_1d(x, y) -> bool:
-    return np.array_equal(np.atleast_1d(x), y, equal_nan=True)
 
 
 def _to_mesh(x):
@@ -75,8 +68,8 @@ def _mesh_eq(x, y, exact: bool, sort_vertices: bool) -> bool:
     print("vs", vx - vy, sep="\n")
     print("fs", fx - fy, sep="\n")
 
-    return _np_eq(fx, fy) and (
-        _np_eq(vx, vy) if exact else np.allclose(vx, vy, equal_nan=True)
+    return TestUtils.numpy_eq(fx, fy) and (
+        TestUtils.numpy_eq(vx, vy) if exact else np.allclose(vx, vy, equal_nan=True)
     )
 
 
@@ -103,7 +96,7 @@ class TestItems:
                         trg_value = trg_item()
 
                         if isinstance(ref_value, np.ndarray):
-                            assert _np_eq(ref_value, trg_value)
+                            assert TestUtils.numpy_eq(ref_value, trg_value)
                         elif isinstance(ref_value, tuple):  # the pickle file is a tuple
                             assert ref_value[3] == trg_value
                         elif isinstance(trg_value, tuple):
@@ -132,13 +125,13 @@ class TestItems:
         [
             (pli.PickleItem, (42, "asdf", 3.14), lambda x, y: x == y),
             (pli.BinaryItem, b"asdfiasodifoj123124214", lambda x, y: x == y),
-            (pli.NpyNumpyItem, (np.random.rand(3, 4) * 100), _np_eq),
-            (pli.TxtNumpyItem, (np.random.rand(3, 4) * 100), _np_eq_1d),
-            (pli.NpyNumpyItem, 42.42, _np_eq),
-            (pli.TxtNumpyItem, 42.42, _np_eq_1d),
-            (pli.BmpImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), _np_eq),
-            (pli.PngImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), _np_eq),
-            (pli.TiffImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), _np_eq),
+            (pli.NpyNumpyItem, (np.random.rand(3, 4) * 100), TestUtils.numpy_eq),
+            (pli.TxtNumpyItem, (np.random.rand(3, 4) * 100), lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y)),
+            (pli.NpyNumpyItem, 42.42, TestUtils.numpy_eq),
+            (pli.TxtNumpyItem, 42.42, lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y)),
+            (pli.BmpImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
+            (pli.PngImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
+            (pli.TiffImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
             (
                 pli.JsonMetadataItem,
                 {"a": [1, 2, 3], "b": 3.14, "c": [True, False]},
@@ -206,7 +199,7 @@ class TestItems:
 
         w_item = pli.JpegImageItem(data)
         w_item.serialize(data_path)
-        assert _np_eq(data, w_item())
+        assert TestUtils.numpy_eq(data, w_item())
 
         jpeg_suffix = pli.JpegImageItem.file_extensions()[0]
         r_item = pli.JpegImageItem(data_path.with_suffix(jpeg_suffix))
@@ -218,7 +211,7 @@ class TestItems:
         encoded.seek(0)
         decoded = np.array(iio.imread(encoded, extension=jpeg_suffix))
 
-        assert _np_eq(r_item(), decoded)
+        assert TestUtils.numpy_eq(r_item(), decoded)
 
     def test_data_cache(self, items_folder: Path):
         from pipelime.items.base import ItemFactory

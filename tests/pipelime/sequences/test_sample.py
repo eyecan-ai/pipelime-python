@@ -2,10 +2,7 @@ import numpy as np
 import pytest
 
 import pipelime.sequences as pls
-
-
-def _np_eq(x, y) -> bool:
-    return np.array_equal(x, y, equal_nan=True)
+from ... import TestUtils
 
 
 class TestSample:
@@ -30,7 +27,7 @@ class TestSample:
 
         assert len(sample) == len(data)
         assert all(k in sample for k in data)
-        assert all(_np_eq(sample[k](), v()) for k, v in data.items())
+        assert all(TestUtils.numpy_eq(sample[k](), v()) for k, v in data.items())
         assert sample.to_dict() == {k: v() for k, v in data.items()}
 
     def test_to_schema(self):
@@ -139,7 +136,7 @@ class TestSample:
             else isinstance(v, sample[ref_key].__class__)
             for k, v in other_sample.items()
         )
-        assert _np_eq(other_sample[target_key](), new_value)
+        assert TestUtils.numpy_eq(other_sample[target_key](), new_value)
 
     def test_set_value(self):
         import pipelime.items as pli
@@ -157,7 +154,7 @@ class TestSample:
             else isinstance(v, sample[target_key].__class__)
             for k, v in other_sample.items()
         )
-        assert _np_eq(other_sample[target_key](), new_value)
+        assert TestUtils.numpy_eq(other_sample[target_key](), new_value)
 
     def test_deep_set(self):
         import pipelime.items as pli
@@ -322,5 +319,5 @@ class TestSample:
         assert all(k in sample for k in data)
         assert all(k in dsmpl for k in data)
         assert all(k in sample for k in dsmpl)
-        assert all(_np_eq(sample[k](), v) for k, v in dsmpl.items())
+        assert all(TestUtils.numpy_eq(sample[k](), v) for k, v in dsmpl.items())
         assert sample.to_dict() == {k: v for k, v in dsmpl.items()}

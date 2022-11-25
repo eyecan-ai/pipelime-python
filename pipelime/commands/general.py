@@ -52,15 +52,15 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
     )
 
     skip_first: pyd.NonNegativeInt = pyd.Field(
-        1, alias="s", description="Skip the first n samples."
+        1, alias="s", description="Skip the first n samples, then start the timer."
     )
     max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
         None,
         alias="m",
         description="Grab at most `max_samples` and take the average time.",
     )
-    repeat: pyd.NonNegativeInt = pyd.Field(
-        0, alias="r", description="Repeat the measurement `repeat` times."
+    repeat: pyd.PositiveInt = pyd.Field(
+        1, alias="r", description="Repeat the measurement `repeat` times."
     )
     process: bool = pyd.Field(
         False,
@@ -68,6 +68,9 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         description=(
             "Measure process time instead of using a performance counter clock."
         ),
+    )
+    clear_output_folder: bool = pyd.Field(
+        True, alias="c", description="Remove the output folder before each run."
     )
 
     average_time: t.Optional[OutputTime] = pyd.Field(
@@ -80,6 +83,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
 
     def run(self):
         import time
+        import shutil
         from pipelime.sequences import build_pipe, SamplesSequence
 
         if self.input is None and self.operations is None:
@@ -88,33 +92,42 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         clock_fn = time.process_time_ns if self.process else time.perf_counter_ns
 
         elapsed_times = []
-        for r in range(self.repeat + 1):
+        num_samples = 0
+        for r in range(self.repeat):
             seq = SamplesSequence if self.input is None else self.input.create_reader()
             if self.operations is not None:
                 seq = build_pipe(self.operations.value, seq)  # type: ignore
-
             assert isinstance(seq, SamplesSequence)
+
             if self.output is not None:
+                if self.clear_output_folder:
+                    shutil.rmtree(
+                        self.output.folder.resolve().absolute().as_posix(),
+                        ignore_errors=True,
+                    )
                 seq = self.output.append_writer(seq)
 
             seqit = iter(seq)
             for s in range(self.skip_first):
                 _ = next(seqit)
 
+            available_samples = len(seq) - self.skip_first
             if self.max_samples is None:
                 start = clock_fn()
                 for _ in seqit:
                     pass
                 end = clock_fn()
             else:
+                available_samples = min(self.max_samples, available_samples)
                 start = clock_fn()
-                for s in range(self.max_samples):
+                for s in range(available_samples):
                     _ = next(seqit)
                 end = clock_fn()
+            num_samples += available_samples
             elapsed_times.append(end - start)
 
         self.average_time = TimeItCommand.OutputTime(
-            nanosec=int(sum(elapsed_times) // len(elapsed_times))
+            nanosec=int(sum(elapsed_times) // num_samples)
         )
 
 

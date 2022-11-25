@@ -63,11 +63,11 @@ def build_pipe(
         else [pipe_list]
     ):
         source = _build_op(source, op_item)
-    return (
-        source
-        if isinstance(source, SamplesSequence)
-        else SamplesSequence.from_list([])  # type: ignore
-    )
+    if not isinstance(source, SamplesSequence):
+        raise ValueError(
+            f"Pipe `{repr(pipe_list)}` does not return a samples sequence instance."
+        )
+    return source
 
 
 class DataStream(
