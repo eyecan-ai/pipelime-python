@@ -131,7 +131,7 @@ class Splits(pl_interfaces.PydanticFieldNoDefaultMixin):
     _default_type_description: t.ClassVar[t.Optional[str]] = "Splits definition."
     _compact_form: t.ClassVar[t.Optional[str]] = "<fraction|length>[,<folder>]"
 
-    any_split = t.Union[
+    any_split_t = t.Union[
         PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
     ]
 
@@ -159,7 +159,7 @@ class SplitCommand(PipelimeCommand, title="split"):
         description="Take 1-every-nth input sample. Applied after shuffling.",
     )
 
-    splits: Splits.any_split = Splits.pyd_field(
+    splits: Splits.any_split_t = Splits.pyd_field(
         alias="s", piper_port=PiperPortType.OUTPUT
     )
 

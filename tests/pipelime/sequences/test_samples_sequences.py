@@ -6,7 +6,7 @@ from ... import TestUtils, TestAssert
 class TestSamplesSequences:
     def test_name(self):
         from pipelime.sequences.pipes import PipedSequenceBase
-        from pipelime.sequences.pipes.operations import MappedSequence
+        from pipelime.sequences.pipes.mapping import MappedSequence
 
         assert not PipedSequenceBase.__config__.title
         assert PipedSequenceBase.name() == PipedSequenceBase.__name__

@@ -4,22 +4,8 @@ from pathlib import Path
 import pydantic as pyd
 
 import pipelime.sequences as pls
-from pipelime.utils.pydantic_types import ItemType
-from pipelime.stages import SampleStage, StageInput, StageKeyFormat
 from pipelime.sequences.pipes import PipedSequenceBase
-
-
-@pls.piped_sequence
-class MappedSequence(PipedSequenceBase, title="map"):
-    """Applies a stage on all samples."""
-
-    stage: StageInput = pyd.Field(...)
-
-    def __init__(self, stage: StageInput, **data):
-        super().__init__(stage=stage, **data)  # type: ignore
-
-    def get_sample(self, idx: int) -> pls.Sample:
-        return self.stage(self.source[idx])
+from pipelime.utils.pydantic_types import ItemType
 
 
 @pls.piped_sequence
@@ -38,7 +24,7 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
         ),
     )
 
-    _key_formatting_stage: StageKeyFormat = pyd.PrivateAttr()
+    _key_formatting_stage = pyd.PrivateAttr()
 
     @pyd.validator("key_format")
     def validate_key_format(cls, v):
@@ -47,6 +33,8 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
         return "*" + v
 
     def __init__(self, to_zip: pls.SamplesSequence, **data):
+        from pipelime.stages import StageKeyFormat
+
         super().__init__(to_zip=to_zip, **data)  # type: ignore
         self._key_formatting_stage = StageKeyFormat(key_format=self.key_format)  # type: ignore
 
@@ -178,11 +166,14 @@ class SlicedSequence(
     def _normalized(self, idx: int) -> int:
         return idx if idx >= 0 else len(self.source) + idx
 
+    def source_index(self, idx: int) -> int:
+        return self._sliced_idxs[idx]
+
     def size(self) -> int:
         return len(self._sliced_idxs)
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[self._sliced_idxs[idx]]
+        return self.source[self.source_index(idx)]
 
 
 @pls.piped_sequence

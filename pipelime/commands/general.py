@@ -338,23 +338,30 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
         description="Keys to upload. Leave empty to upload all the keys.",
     )
 
-    start: t.Optional[int] = pyd.Field(
-        None, description="The first sample (included), defaults to the first element."
+    start: int = pyd.Field(
+        0,
+        description=(
+            "The first sample to upload (included), defaults to the first element. "
+            "Can be negative, in which case it counts from the end."
+        ),
     )
     stop: t.Optional[int] = pyd.Field(
-        None, description="The last sample (excluded), defaults to the whole sequence."
+        None,
+        description=(
+            "The last sample to upload (excluded), defaults to the whole sequence."
+            "Can be negative, in which case it counts from the end."
+        ),
     )
-    step: t.Optional[int] = pyd.Field(
-        None, description="The slice step, defaults to 1."
+    step: int = pyd.Field(
+        1, description="The upload slice step, defaults to 1. Can be negative."
     )
 
-    output: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="o",
-        is_required=False,
-        description="Optional output dataset with remote items.",
-        piper_port=PiperPortType.OUTPUT,
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o",
+            description="Output dataset with remote items.",
+            piper_port=PiperPortType.OUTPUT,
+        )
     )
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
@@ -369,37 +376,26 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
 
     def run(self):
         from pipelime.stages import StageUploadToRemote
+        from pipelime.sequences.pipes.mapping import MappingConditionIndexRange
 
-        original = self.input.create_reader()
-        seq = original.slice(start=self.start, stop=self.stop, step=self.step).map(
-            StageUploadToRemote(
+        seq = self.input.create_reader().map_if(
+            stage=StageUploadToRemote(
                 remotes=[r.get_url() for r in self.remotes],  # type: ignore
                 keys_to_upload=self.keys,
-            )
+            ),
+            condition=MappingConditionIndexRange(
+                start=self.start,
+                stop=self.stop,
+                step=self.step,
+            ),
         )
 
-        if self.output is None:
-            self._grab_all(seq, None)
-        else:
-            # NB: we should always write the whole dataset,
-            # even if we are uploading only a slice
-            if self.start is None and self.stop is None and self.step is None:
-                self._grab_all(
-                    self.output.append_writer(seq), self.output.serialization_cm()
-                )
-            else:
-                self._grab_all(seq, None)
-                self._grab_all(
-                    self.output.append_writer(original), self.output.serialization_cm()
-                )
-
-    def _grab_all(self, seq, sm):
         self.grabber.grab_all(
-            seq,
-            grab_context_manager=sm,
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
             keep_order=False,
             parent_cmd=self,
-            track_message=f"Uploading data ({len(seq)} samples)",
+            track_message=f"Uploading data",
         )
 
 

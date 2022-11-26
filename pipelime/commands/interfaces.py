@@ -335,10 +335,10 @@ class InputDatasetInterface(
         return self.folder.as_posix()
 
 
-any_serialization = t.Literal[
+any_serialization_t = t.Literal[
     "CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HARD_LINK", "REMOTE_FILE"
 ]
-any_item = t.Union[None, t.Literal["_"], ItemType]
+any_item_t = t.Union[None, t.Literal["_"], ItemType]
 
 
 class SerializationModeInterface(
@@ -350,7 +350,7 @@ class SerializationModeInterface(
     """Serialization modes for items and keys."""
 
     override: t.Mapping[
-        any_serialization, t.Union[any_item, t.Sequence[ItemType]]
+        any_serialization_t, t.Union[any_item_t, t.Sequence[ItemType]]
     ] = pyd.Field(
         default_factory=dict,
         description=(
@@ -360,7 +360,7 @@ class SerializationModeInterface(
         ),
     )
     disable: t.Mapping[
-        any_item, t.Union[any_serialization, t.Sequence[any_serialization]]
+        any_item_t, t.Union[any_serialization_t, t.Sequence[any_serialization_t]]
     ] = pyd.Field(
         default_factory=dict,
         description=(
@@ -369,7 +369,7 @@ class SerializationModeInterface(
             "The special key `_` applies to all items."
         ),
     )
-    keys: t.Mapping[str, any_serialization] = pyd.Field(
+    keys: t.Mapping[str, any_serialization_t] = pyd.Field(
         default_factory=dict,
         description=(
             "Serialization modes overridden for specific sample keys, "
@@ -380,7 +380,7 @@ class SerializationModeInterface(
     _overridden_modes_cms: t.List[t.ContextManager]
     _disabled_modes_cms: t.List[t.ContextManager]
 
-    def _get_class_list(self, cls_paths: t.Union[any_item, t.Sequence[ItemType]]):
+    def _get_class_list(self, cls_paths: t.Union[any_item_t, t.Sequence[ItemType]]):
         if not cls_paths or "_" == cls_paths:
             return []
         if not isinstance(cls_paths, t.Sequence):

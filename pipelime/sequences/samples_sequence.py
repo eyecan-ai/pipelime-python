@@ -225,7 +225,7 @@ class SamplesSequence(
         grabber = Grabber(
             num_workers=num_workers, prefetch=prefetch, keep_order=keep_order
         )
-        grab_all(grabber, self, sample_fn=sample_fn, track_fn=track_fn)
+        grab_all(grabber, self, sample_fn=sample_fn, track_fn=track_fn)  # type: ignore
 
     def to_pipe(
         self, recursive: bool = True, objs_to_str: bool = True
@@ -362,6 +362,28 @@ class SamplesSequence(
     ) -> SamplesSequence:
         """Applies a stage on all samples.
         Run `pipelime help map` to read the complete documentation.
+        """
+        ...
+
+    @samples_sequence_stub
+    def map_if(
+        self,
+        stage: t.Union[
+            "StageInput",
+            "SampleStage",
+            str,
+            bytes,
+            t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]],
+        ],
+        condition: t.Union[
+            t.Callable[[], bool],
+            t.Callable[[int], bool],
+            t.Callable[[int, Sample], bool],
+            t.Callable[[int, Sample, SamplesSequence], bool],
+        ],
+    ) -> SamplesSequence:
+        """Applies a stage on all samples if a condition returns True.
+        Run `pipelime help map_if` to read the complete documentation.
         """
         ...
 

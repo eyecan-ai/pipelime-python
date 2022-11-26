@@ -15,30 +15,6 @@ class TestSamplesSequenceOperations:
         assert len(seq) == len(src)
         assert all(s1 is s2 for s1, s2 in zip(seq, src))
 
-    def test_map(self, minimnist_dataset: dict):
-        import pipelime.items as pli
-        import pipelime.stages as plst
-
-        source = pls.SamplesSequence.from_underfolder(
-            folder=minimnist_dataset["path"], merge_root_items=False
-        ).map(
-            plst.StageLambda(
-                lambda x: pls.Sample(
-                    {k: pli.JsonMetadataItem({"the_answer": 42}) for k in x}
-                )
-            )
-        )
-        for sample in source:
-            assert all(k in sample for k in minimnist_dataset["item_keys"])
-            for k, v in sample.items():
-                assert k in minimnist_dataset["item_keys"]
-                assert isinstance(v, pli.JsonMetadataItem)
-
-                raw = v()
-                assert isinstance(raw, t.Mapping)
-                assert "the_answer" in raw
-                assert raw["the_answer"] == 42
-
     @pytest.mark.parametrize("key_format", ["prefix*", "suffix"])
     def test_zip(self, minimnist_dataset: dict, key_format: str):
         source = pls.SamplesSequence.from_underfolder(

@@ -144,5 +144,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
                     for k, v in sample.items()
                 }
             )
+            if self.merge_root_items:
+                sample = self.root_sample.merge(sample)
             self._samples[idx] = sample
-        return self.root_sample.merge(sample) if self.merge_root_items else sample
+        return sample
