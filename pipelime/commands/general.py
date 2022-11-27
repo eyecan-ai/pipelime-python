@@ -316,12 +316,7 @@ class ZipCommand(PipelimeCommand, title="zip"):
         )
 
 
-class AddRemoteCommand(PipelimeCommand, title="remote-add"):
-    """Upload samples to one or more remotes.
-    Slicing options filter the samples to upload,
-    but the whole dataset is always written out.
-    """
-
+class RemoteCommandBase(PipelimeCommand):
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
             alias="i", piper_port=PiperPortType.INPUT
@@ -335,90 +330,25 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         default_factory=list,
         alias="k",
-        description="Keys to upload. Leave empty to upload all the keys.",
+        description="Affected keys. Leave empty to take all the keys.",
     )
 
     start: int = pyd.Field(
         0,
         description=(
-            "The first sample to upload (included), defaults to the first element. "
+            "The first sample (included), defaults to the first element. "
             "Can be negative, in which case it counts from the end."
         ),
     )
     stop: t.Optional[int] = pyd.Field(
         None,
         description=(
-            "The last sample to upload (excluded), defaults to the whole sequence."
+            "The last sample (excluded), defaults to the whole sequence."
             "Can be negative, in which case it counts from the end."
         ),
     )
     step: int = pyd.Field(
-        1, description="The upload slice step, defaults to 1. Can be negative."
-    )
-
-    output: pl_interfaces.OutputDatasetInterface = (
-        pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o",
-            description="Output dataset with remote items.",
-            piper_port=PiperPortType.OUTPUT,
-        )
-    )
-
-    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
-        alias="g"
-    )
-
-    @pyd.validator("remotes", "keys")
-    def validate_remotes(cls, v):
-        return (
-            v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
-        )
-
-    def run(self):
-        from pipelime.stages import StageUploadToRemote
-        from pipelime.sequences.pipes.mapping import MappingConditionIndexRange
-
-        seq = self.input.create_reader().map_if(
-            stage=StageUploadToRemote(
-                remotes=[r.get_url() for r in self.remotes],  # type: ignore
-                keys_to_upload=self.keys,
-            ),
-            condition=MappingConditionIndexRange(
-                start=self.start,
-                stop=self.stop,
-                step=self.step,
-            ),
-        )
-
-        self.grabber.grab_all(
-            self.output.append_writer(seq),
-            grab_context_manager=self.output.serialization_cm(),
-            keep_order=False,
-            parent_cmd=self,
-            track_message=f"Uploading data",
-        )
-
-
-class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
-    """Remove one or more remote from a dataset.
-    NB: data is not removed from the remote data lake."""
-
-    input: pl_interfaces.InputDatasetInterface = (
-        pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="i", piper_port=PiperPortType.INPUT
-        )
-    )
-
-    remotes: t.Union[
-        pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
-    ] = pl_interfaces.RemoteInterface.pyd_field(alias="r")
-
-    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
-        default_factory=list,
-        alias="k",
-        description=(
-            "Remove remotes on these keys only. Leave empty to affect all the keys."
-        ),
+        1, description="The slice step, defaults to 1. Can be negative."
     )
 
     output: pl_interfaces.OutputDatasetInterface = (
@@ -437,6 +367,52 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
             v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
         )
 
+    def _run_remote_op(self, stage, message):
+        from pipelime.sequences.pipes.mapping import MappingConditionIndexRange
+
+        seq = self.input.create_reader().map_if(
+            stage=stage,
+            condition=MappingConditionIndexRange(
+                start=self.start,
+                stop=self.stop,
+                step=self.step,
+            ),
+        )
+
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=message,
+        )
+
+
+class AddRemoteCommand(RemoteCommandBase, title="remote-add"):
+    """Upload samples to one or more remotes.
+    Slicing and key options filter the samples to upload,
+    but the whole dataset is always written out.
+    """
+
+    def run(self):
+        from pipelime.stages import StageUploadToRemote
+
+        self._run_remote_op(
+            StageUploadToRemote(
+                remotes=[r.get_url() for r in self.remotes],  # type: ignore
+                keys_to_upload=self.keys,
+            ),
+            "Uploading data",
+        )
+
+
+class RemoveRemoteCommand(RemoteCommandBase, title="remote-remove"):
+    """Remove one or more remote from a dataset.
+    Slicing and key options filter the samples,
+    but the whole dataset is always written out.
+    NB: data is not removed from the remote data lake.
+    """
+
     def run(self):
         from pipelime.stages import StageForgetSource
 
@@ -444,15 +420,8 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
         remove_all = remotes if not self.keys else []
         remove_by_key = {k: remotes for k in self.keys}
 
-        seq = self.input.create_reader().map(
-            StageForgetSource(*remove_all, **remove_by_key)
-        )
-        self.grabber.grab_all(
-            self.output.append_writer(seq),
-            grab_context_manager=self.output.serialization_cm(),
-            keep_order=False,
-            parent_cmd=self,
-            track_message=f"Removing remotes ({len(seq)} samples)",
+        self._run_remote_op(
+            StageForgetSource(*remove_all, **remove_by_key), "Removing remote sources"
         )
 
 
