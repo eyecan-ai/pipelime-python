@@ -47,9 +47,7 @@ class Scanner:
         if isinstance(py_arg, ast.Constant):
             return py_arg.value
         elif isinstance(py_arg, ast.Attribute):
-            name = astunparse.unparse(py_arg)
-            if name.endswith("\n"):  # Remove trailing newline
-                name = name[:-1]
+            name = astunparse.unparse(py_arg).strip()  # Remove trailing newline
             return str(name)
         elif isinstance(py_arg, ast.Name):
             return str(py_arg.id)
@@ -240,10 +238,12 @@ class Parser:
             pairs = self._key_value_pairs_by_token_name(entry)
             if "default" in pairs:
                 default = self.parse(pairs["default"][1])
-            elif "case" in pairs:
+            elif "case" in pairs and "then" in pairs:
                 case_set = self.parse(pairs["case"][1])
                 case_body = self.parse(pairs["then"][1])
                 cases.append((case_set, case_body))
+            else:
+                raise ChoixeStructValidationError(entry)
         return c_ast.SwitchNode(value=value, cases=cases, default=default)
 
     def _parse_dict(self, data: dict) -> Union[c_ast.DictNode, c_ast.DictBundleNode]:

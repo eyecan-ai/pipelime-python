@@ -49,10 +49,9 @@ class RunCommand(PipelimeCommand, title="run"):
     def run(self):
         import uuid
 
-        from pipelime.cli.utils import get_pipelime_command
         from pipelime.piper.executors.factory import NodesGraphExecutorFactory
         from pipelime.piper.graph import DAGNodesGraph
-        from pipelime.piper.model import DAGModel
+        from pipelime.piper.model import DAGModel, NodesDefinition
 
         if not self.token:
             self.token = uuid.uuid1().hex
@@ -65,12 +64,8 @@ class RunCommand(PipelimeCommand, title="run"):
                 exc_n is None or node not in exc_n
             )
 
-        nodes = {
-            name: get_pipelime_command(cmd)
-            for name, cmd in self.nodes.items()
-            if _node_to_run(name)
-        }
-        dag = DAGModel(nodes=nodes)
+        nodes = {name: cmd for name, cmd in self.nodes.items() if _node_to_run(name)}
+        dag = DAGModel(nodes=NodesDefinition.create(nodes))
         graph = DAGNodesGraph.build_nodes_graph(dag)
         executor = NodesGraphExecutorFactory.get_executor(watch=self.watch)
         self.successful = executor.exec(graph, token=self.token)
@@ -87,6 +82,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
         START = "start"
         MIDDLE = "middle"
         END = "end"
+        REGEX = "regex"
 
     nodes: t.Mapping[
         str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
@@ -161,10 +157,9 @@ class DrawCommand(PipelimeCommand, title="draw"):
         import platform
         import subprocess
 
-        from pipelime.cli.utils import get_pipelime_command
         from pipelime.piper.drawing.factory import NodesGraphDrawerFactory
         from pipelime.piper.graph import DAGNodesGraph
-        from pipelime.piper.model import DAGModel
+        from pipelime.piper.model import DAGModel, NodesDefinition
 
         def start_file(filename: str):
             if platform.system() == "Darwin":  # macOS
@@ -182,12 +177,8 @@ class DrawCommand(PipelimeCommand, title="draw"):
                 exc_n is None or node not in exc_n
             )
 
-        nodes = {
-            name: get_pipelime_command(cmd)
-            for name, cmd in self.nodes.items()
-            if _node_to_draw(name)
-        }
-        dag = DAGModel(nodes=nodes)
+        nodes = {name: cmd for name, cmd in self.nodes.items() if _node_to_draw(name)}
+        dag = DAGModel(nodes=NodesDefinition.create(nodes))
         graph = DAGNodesGraph.build_nodes_graph(
             dag,
             data_max_width=self.data_max_width,

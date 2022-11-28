@@ -6,13 +6,25 @@ exclude_lines =
     pass
     def __str__
     def __repr__
+    def __piper_repr__
+    def __pl_pretty__
+    def pl_pretty_data
+
     # Have to re-enable the standard pragma
     pragma: no cover
+
+    # Type checking imports cannot be covered
+    if .*TYPE_CHECKING:
 
     # Don't complain if tests don't hit defensive assertion code:
     raise AssertionError
     raise NotImplementedError
 
-    # Don't complain about abstract methods, they aren't run:
-    @(abc\.)?abstractmethod
-    @(abc\.)?abstractclassmethod
+    # Don't complain about abstract methods and properties, they aren't run:
+    @(abc\.)?abstract
+
+    # Overload functions are not run
+    @(typing\.|t\.|T\.)?overload
+
+    # SamplesSequence stubs are not run
+    @samples_sequence_stub

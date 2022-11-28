@@ -1,9 +1,49 @@
+import pytest
 from pathlib import Path
 from pipelime.sequences import Sample
 import typing as t
 
 
 class TestAugmentationStages:
+    def _albumentations_transform(self):
+        import albumentations as A
+
+        return A.Compose(
+            [
+                A.Resize(height=50, width=50, interpolation=1, always_apply=False, p=1),
+                A.Equalize(mode="cv", by_channels=True, always_apply=False, p=1),
+            ]
+        )
+
+    def _transformation_dict(self):
+        return {
+            "__version__": "1.0.3",
+            "transform": {
+                "__class_fullname__": "Compose",
+                "p": 1.0,
+                "transforms": [
+                    {
+                        "__class_fullname__": "Resize",
+                        "always_apply": False,
+                        "p": 1,
+                        "height": 50,
+                        "width": 50,
+                        "interpolation": 1,
+                    },
+                    {
+                        "__class_fullname__": "Equalize",
+                        "always_apply": False,
+                        "p": 1,
+                        "mode": "cv",
+                        "by_channels": True,
+                    },
+                ],
+                "bbox_params": None,
+                "keypoint_params": None,
+                "additional_targets": {},
+            },
+        }
+
     def _load_sample(self, idx: int, folder: Path) -> t.Tuple[Sample, Sample, dict]:
         from pipelime.items import PngImageItem
 
@@ -41,26 +81,27 @@ class TestAugmentationStages:
             assert keyaug not in sample_gt
             assert keyaug in sample_aug
 
-            assert np.array_equal(sample[key](), sample_aug[key](), equal_nan=True)
             assert np.array_equal(
-                sample_gt[key](), sample_aug[keyaug](), equal_nan=True
+                sample[key](), sample_aug[key](), equal_nan=True  # type: ignore
+            )
+            assert np.array_equal(
+                sample_gt[key](), sample_aug[keyaug](), equal_nan=True  # type: ignore
             )
 
     def _stage_albumentations_test(self, folder, transform):
         self._stage_albumentations_test_helper(folder, transform, "img-*_", "img-*_")
         self._stage_albumentations_test_helper(folder, transform, "Aug", "*Aug")
 
-    def test_albumentation_object(self, augmentations_folder: Path):
-        import albumentations as A
+    def test_transformation_object(self, augmentations_folder: Path):
+        from pipelime.stages.augmentations import Transformation
 
-        tr = A.Compose(
-            [
-                A.Resize(
-                    height=50, width=50, interpolation=1, always_apply=False, p=1.0
-                ),
-                A.Equalize(mode="cv", by_channels=True, always_apply=False, p=1.0),
-            ]
+        dict_tr = self._transformation_dict()
+        self._stage_albumentations_test(
+            augmentations_folder, Transformation(__root__=dict_tr)
         )
+
+    def test_albumentation_object(self, augmentations_folder: Path):
+        tr = self._albumentations_transform()
         self._stage_albumentations_test(augmentations_folder, tr)
 
     def test_albumentation_json(self, augmentations_folder: Path):
@@ -69,31 +110,14 @@ class TestAugmentationStages:
         )
 
     def test_albumentation_dict(self, augmentations_folder: Path):
-        dict_tr = {
-            "__version__": "1.0.3",
-            "transform": {
-                "__class_fullname__": "Compose",
-                "p": 1.0,
-                "transforms": [
-                    {
-                        "__class_fullname__": "Resize",
-                        "always_apply": False,
-                        "p": 1,
-                        "height": 50,
-                        "width": 50,
-                        "interpolation": 1,
-                    },
-                    {
-                        "__class_fullname__": "Equalize",
-                        "always_apply": False,
-                        "p": 1,
-                        "mode": "cv",
-                        "by_channels": True,
-                    },
-                ],
-                "bbox_params": None,
-                "keypoint_params": None,
-                "additional_targets": {},
-            },
-        }
+        dict_tr = self._transformation_dict()
         self._stage_albumentations_test(augmentations_folder, dict_tr)
+
+    def test_invalid_transformation(self):
+        from pipelime.stages import StageAlbumentations
+
+        with pytest.raises(ValueError):
+            _ = StageAlbumentations(
+                transform=42,
+                keys_to_targets={"image": "image"},
+            )

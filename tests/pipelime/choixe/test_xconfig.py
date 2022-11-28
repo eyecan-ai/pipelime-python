@@ -1,3 +1,4 @@
+import pytest
 from copy import deepcopy
 from pathlib import Path
 
@@ -46,7 +47,8 @@ class TestXConfig:
         assert re_cfg.get_cwd() == save_path.parent
         assert not DeepDiff(re_cfg.decode(), cfg.decode())
 
-    def test_with_schema(self, choixe_plain_cfg: Path):
+    @pytest.mark.parametrize("replace", [True, False])
+    def test_with_schema(self, choixe_plain_cfg: Path, replace: bool):
         cfg = XConfig.from_file(choixe_plain_cfg)
         assert cfg.is_valid()  # No schema: always valid
 
@@ -56,32 +58,64 @@ class TestXConfig:
         cfg.set_schema(schema)
         assert cfg.get_schema() == schema
         assert cfg.is_valid()
-        cfg.validate()
+        cfg.validate(replace=replace)
         expected = schema.validate(load(choixe_plain_cfg))
-        assert not DeepDiff(cfg.decode(), expected)
+        assert bool(DeepDiff(cfg.decode(), expected)) != replace
 
-    def test_deep_keys(self, choixe_plain_cfg: Path):
+    @pytest.mark.parametrize("only_valid_keys", [True, False])
+    @pytest.mark.parametrize("append_values", [True, False])
+    def test_deep_keys(
+        self, choixe_plain_cfg: Path, only_valid_keys: bool, append_values: bool
+    ):
         cfg = XConfig.from_file(choixe_plain_cfg)
         assert cfg.deep_get("charlie[2].alpha") == 10.0
         assert cfg.deep_get(["charlie", 2, "beta"]) == 20.0
         assert cfg.deep_get("bob.alpha", default="hello") == "hello"
 
-        cfg.deep_set("charlie[2].alpha", 40, only_valid_keys=False)
-        assert cfg.deep_get("charlie[2].alpha") == 40
+        cfg.deep_set(
+            "charlie[2].alpha",
+            40,
+            only_valid_keys=only_valid_keys,
+            append_values=append_values,
+        )
+        assert cfg.deep_get("charlie[2].alpha") == ([10.0, 40] if append_values else 40)
 
-        cfg.deep_set("charlie[2].alpha", 50, only_valid_keys=True)
-        assert cfg.deep_get("charlie[2].alpha") == 50
+        cfg.deep_set(
+            "charlie[3].foo.bar",
+            [10, 20, 30],
+            only_valid_keys=only_valid_keys,
+            append_values=append_values,
+        )
+        v = cfg.deep_get("charlie[3]")
+        if only_valid_keys:
+            assert v is None
+        else:
+            assert v == {"foo": {"bar": [10, 20, 30]}}
 
-        cfg.deep_set("charlie[3].foo.bar", [10, 20, 30], only_valid_keys=False)
-        assert cfg.deep_get("charlie[3]") == {"foo": {"bar": [10, 20, 30]}}
+        cfg.deep_set(
+            "charlie[3].foo.bar",
+            [40, 50],
+            only_valid_keys=only_valid_keys,
+            append_values=append_values,
+        )
+        v = cfg.deep_get("charlie[3].foo.bar")
+        if only_valid_keys:
+            assert v is None
+        else:
+            assert v == [10, 20, 30, 40, 50] if append_values else [40, 50]
 
-        cfg.deep_set("charlie[4].foo.bar", [10, 20, 30], only_valid_keys=True)
-        assert cfg.deep_get("charlie[4]") is None
-
-        cfg.deep_set("dino[2][3].saur", 42, only_valid_keys=False)
-        assert cfg.deep_get("dino[0]") is None
-        assert cfg.deep_get("dino[2][0]") is None
-        assert cfg.deep_get("dino[2][3].saur") == 42
+        cfg.deep_set(
+            "dino[2][3].saur",
+            42,
+            only_valid_keys=only_valid_keys,
+            append_values=append_values,
+        )
+        if only_valid_keys:
+            assert cfg.deep_get("dino") is None
+        else:
+            assert cfg.deep_get("dino[0]") is None
+            assert cfg.deep_get("dino[2][0]") is None
+            assert cfg.deep_get("dino[2][3].saur") == 42
 
     def test_deep_update(self):
         data = {

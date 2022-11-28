@@ -1,18 +1,18 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Mapping, Optional
 
 from pipelime.piper.model import DAGModel
 
 
 class DAGParser(ABC):
     @abstractmethod
-    def parse_cfg(self, cfg: Dict, params: Optional[Dict] = None) -> DAGModel:
+    def parse_cfg(self, cfg: Mapping, params: Optional[Mapping] = None) -> DAGModel:
         """Parses the given configuration into a DAGModel.
 
         Args:
-            cfg (Dict): The input configuration as dictionary
-            params (Optional[Dict], optional): The parameters dictionary. Defaults to
+            cfg (Mapping): The input configuration as dictionary
+            params (Optional[Mapping], optional): The parameters dictionary. Defaults to
             None.
 
         Returns:
@@ -21,16 +21,18 @@ class DAGParser(ABC):
         pass
 
     @abstractmethod
-    def _read_file(self, path: Path, additional_args: Optional[Dict] = None) -> Dict:
+    def _read_file(
+        self, path: Path, additional_args: Optional[Mapping] = None
+    ) -> Mapping:
         """Reads the given file and returns its content as dictionary.
 
         Args:
             path (Path): The path to the file
-            additional_args (Optional[Dict], optional): Additional parameters that will
-            overwrite the ones specified in the file. Defaults to None.
+            additional_args (Optional[Mapping], optional): Additional parameters that
+            will overwrite the ones specified in the file. Defaults to None.
 
         Returns:
-            Dict: The file content as dictionary
+            Mapping: The file content as dictionary
         """
         pass
 
@@ -38,7 +40,7 @@ class DAGParser(ABC):
         self,
         cfg_file: Path,
         params_file: Optional[Path] = None,
-        additional_args: Optional[Dict] = None,
+        additional_args: Optional[Mapping] = None,
     ) -> DAGModel:
         """Parse the given configuration file into a DAGModel.
 
@@ -46,7 +48,7 @@ class DAGParser(ABC):
             cfg_file (str): The input configuration file
             params_file (Optional[str], optional): The parameters file. Defaults to
             None.
-            additional_args (Optional[Dict], optional): Additional custom parameters
+            additional_args (Optional[Mapping], optional): Additional custom parameters
             that will overwrite the ones specified in params_file. Defaults to None.
 
         Returns:

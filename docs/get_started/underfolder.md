@@ -33,7 +33,7 @@ We currently support many common file formats and others can be added by users:
   * `.yaml/.yml`, `.json` and `.toml/.tml` for metadata
   * `.txt` for numpy 2D matrix notation
   * `.npy` for general numpy arrays
-  * `.pkl/.pickle` for pickable python objects
+  * `.pkl/.pickle` for picklable python objects
   * `.bin` for generic binary data
 
 Root files follow the same convention but they lack the sample identifier part, i.e., `$ITEM.$EXT`

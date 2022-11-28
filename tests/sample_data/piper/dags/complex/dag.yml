@@ -34,7 +34,7 @@ nodes:
           remap-key:
             remap:
               $for(filter_keys, y):
-                - $item(y)_$item(x): $item(y)
+                $item(y)_$item(x): $item(y)
             remove_missing: false
 
   sumup:
@@ -42,4 +42,4 @@ nodes:
       inputs:
         $for(flags):
           - $tmp()/remapped_$item
-      output: $var(output_folder)
+      output: $tmp()/$var(output_folder)

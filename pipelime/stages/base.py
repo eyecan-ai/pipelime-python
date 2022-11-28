@@ -71,13 +71,17 @@ class StageInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none")
     def validate(cls, value):
         from pipelime.cli.utils import create_stage_from_config
 
-        if isinstance(value, SampleStage):
+        if isinstance(value, StageInput):
             return value
+        if isinstance(value, SampleStage):
+            return StageInput(__root__=value)
         if isinstance(value, (str, bytes)):
-            return create_stage_from_config(str(value), None)
+            return StageInput(__root__=create_stage_from_config(str(value), None))
         if isinstance(value, t.Mapping):
-            return create_stage_from_config(*next(iter(value.items())))
-        raise ValueError("Invalid stage definition.")
+            return StageInput(
+                __root__=create_stage_from_config(*next(iter(value.items())))
+            )
+        raise ValueError(f"Invalid stage definition: {value}")
 
 
 class StageCompose(SampleStage, title="compose"):

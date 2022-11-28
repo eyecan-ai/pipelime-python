@@ -52,10 +52,10 @@ class _GrabWorker:
         self._sequence = sequence
 
     def _worker_fn_no_return(self, idx) -> None:
-        _ = self._sequence[idx]  # pragma: no cover
+        _ = self._sequence[idx]
 
     def _worker_fn_sample(self, idx) -> pls.Sample:
-        return self._sequence[idx]  # pragma: no cover
+        return self._sequence[idx]
 
     def _worker_fn_sample_and_index(self, idx) -> t.Tuple[int, pls.Sample]:
         return idx, self._sequence[idx]

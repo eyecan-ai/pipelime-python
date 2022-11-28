@@ -8,7 +8,7 @@ from pipelime.remotes.base import BaseRemote, NetlocData
 
 class S3Remote(BaseRemote):
     _HASH_FN_KEY_ = "__HASH_FN__"
-    _DEFAULT_HASH_FN_ = "sha256"
+    _DEFAULT_HASH_FN_ = "blake2b"
 
     def __init__(self, netloc_data: NetlocData):
         """S3-compatible remote. Credential can be passed or retrieved from:
@@ -67,14 +67,14 @@ class S3Remote(BaseRemote):
             self._client = None
 
     def _maybe_create_bucket(self, target_base_path: str):
-        if not self._client.bucket_exists(target_base_path):  # type: ignore
+        if not self._client.bucket_exists(target_base_path):  # type: ignore  # pragma: no branch
             logger.info(
                 f"Creating bucket '{target_base_path}' on S3 remote {self.netloc}."
             )
             self._client.make_bucket(target_base_path)  # type: ignore
 
     def _get_hash_fn(self, target_base_path: str) -> t.Any:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 self._maybe_create_bucket(target_base_path)
                 tags = self._client.get_bucket_tags(target_base_path)  # type: ignore
@@ -97,12 +97,12 @@ class S3Remote(BaseRemote):
 
                 hash_fn = getattr(hashlib, self._DEFAULT_HASH_FN_)
                 return hash_fn()
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
         return None
 
     def target_exists(self, target_base_path: str, target_name: str) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 objlist = self._client.list_objects(  # type: ignore
                     target_base_path, prefix=target_name
@@ -111,7 +111,7 @@ class S3Remote(BaseRemote):
                 return True
             except StopIteration:
                 return False
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
         return False
 
@@ -122,7 +122,7 @@ class S3Remote(BaseRemote):
         target_base_path: str,
         target_name: str,
     ) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 self._maybe_create_bucket(target_base_path)
                 self._client.put_object(  # type: ignore
@@ -132,7 +132,7 @@ class S3Remote(BaseRemote):
                     length=local_stream_size,
                 )
                 return True
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
                 return False
 
@@ -145,7 +145,7 @@ class S3Remote(BaseRemote):
         source_name: str,
         source_offset: int,
     ) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             if not self._client.bucket_exists(source_base_path):  # type: ignore
                 logger.debug(
                     f"Bucket '{source_base_path}' does not exist "
@@ -164,7 +164,7 @@ class S3Remote(BaseRemote):
                 for data in response.stream(amt=1024 * 1024):
                     local_stream.write(data)
                 ok = True
-            except Exception as exc:
+            except Exception as exc:  # pragma: no cover
                 logger.debug(str(exc))
                 return False
             finally:

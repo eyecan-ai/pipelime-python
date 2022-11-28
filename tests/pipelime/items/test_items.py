@@ -4,38 +4,72 @@ import numpy as np
 import typing as t
 
 import trimesh
-import trimesh.creation
 
 import pipelime.items as pli
+from ... import TestUtils
 
 
-def _np_eq(x, y) -> bool:
-    return np.array_equal(x, y, equal_nan=True)
+def _generic_mesh():
+    import trimesh.creation
+    import math
+
+    c, s = math.cos(30 * math.pi / 180), math.sin(30 * math.pi / 180)
+    rz = np.array([[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+    return trimesh.creation.cone(radius=1.0, height=2.0, sections=5, transform=rz)
 
 
-def _np_eq_1d(x, y) -> bool:
-    return np.array_equal(np.atleast_1d(x), y, equal_nan=True)
+def _generic_scene():
+    mesh = _generic_mesh()
+    return trimesh.Scene(mesh)
+
+
+def _to_mesh(x):
+    if isinstance(x, trimesh.Scene):
+        if len(x.geometry) == 1:
+            x = next(iter(x.geometry.values()))
+    if isinstance(x, trimesh.Trimesh):
+        return x
+    return None
+
+
+def _sorted_faces(sortidx, faces):
+    def _sorted_faces_col(sortidx, faces, col):
+        return np.array(
+            [np.argwhere(sortidx == idx).squeeze() for idx in faces[:, col]]
+        )
+
+    return np.stack(
+        [
+            _sorted_faces_col(sortidx, faces, 0),
+            _sorted_faces_col(sortidx, faces, 1),
+            _sorted_faces_col(sortidx, faces, 2),
+        ],
+        axis=-1,
+    )
 
 
 def _mesh_eq(x, y, exact: bool, sort_vertices: bool) -> bool:
-    if isinstance(x, trimesh.Scene):
-        if len(x.geometry) != 1:
-            return False
-        x = next(iter(x.geometry.values()))
-    if isinstance(y, trimesh.Scene):
-        if len(y.geometry) != 1:
-            return False
-        y = next(iter(y.geometry.values()))
+    x, y = _to_mesh(x), _to_mesh(y)
+    if x is None or y is None:
+        return False
 
-    faces_eq = True if sort_vertices else _np_eq(x.faces, y.faces)
+    print("vs-before", x.vertices, y.vertices, sep="\n")
 
-    vx, vy = (
-        (np.sort(x.vertices, axis=None), np.sort(y.vertices, axis=None))
-        if sort_vertices
-        else (x.vertices, y.vertices)
-    )
-    return faces_eq and (
-        _np_eq(vx, vy) if exact else np.allclose(vx, vy, equal_nan=True)
+    if sort_vertices:
+        x_sort, y_sort = x.vertices[:, 0].argsort(), y.vertices[:, 0].argsort()
+        vx, vy = x.vertices[x_sort], y.vertices[y_sort]
+        fx, fy = _sorted_faces(x_sort, x.faces), _sorted_faces(y_sort, y.faces)
+    else:
+        vx, vy = x.vertices, y.vertices
+        fx, fy = x.faces, y.faces
+
+    print("vs-after", vx, vy, sep="\n")
+    print("vs", vx - vy, sep="\n")
+    print("fs", fx - fy, sep="\n")
+
+    return TestUtils.numpy_eq(fx, fy) and (
+        TestUtils.numpy_eq(vx, vy) if exact else np.allclose(vx, vy, equal_nan=True)
     )
 
 
@@ -62,7 +96,7 @@ class TestItems:
                         trg_value = trg_item()
 
                         if isinstance(ref_value, np.ndarray):
-                            assert _np_eq(ref_value, trg_value)
+                            assert TestUtils.numpy_eq(ref_value, trg_value)
                         elif isinstance(ref_value, tuple):  # the pickle file is a tuple
                             assert ref_value[3] == trg_value
                         elif isinstance(trg_value, tuple):
@@ -91,13 +125,13 @@ class TestItems:
         [
             (pli.PickleItem, (42, "asdf", 3.14), lambda x, y: x == y),
             (pli.BinaryItem, b"asdfiasodifoj123124214", lambda x, y: x == y),
-            (pli.NpyNumpyItem, (np.random.rand(3, 4) * 100), _np_eq),
-            (pli.TxtNumpyItem, (np.random.rand(3, 4) * 100), _np_eq_1d),
-            (pli.NpyNumpyItem, 42.42, _np_eq),
-            (pli.TxtNumpyItem, 42.42, _np_eq_1d),
-            (pli.BmpImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), _np_eq),
-            (pli.PngImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), _np_eq),
-            (pli.TiffImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), _np_eq),
+            (pli.NpyNumpyItem, (np.random.rand(3, 4) * 100), TestUtils.numpy_eq),
+            (pli.TxtNumpyItem, (np.random.rand(3, 4) * 100), lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y)),
+            (pli.NpyNumpyItem, 42.42, TestUtils.numpy_eq),
+            (pli.TxtNumpyItem, 42.42, lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y)),
+            (pli.BmpImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
+            (pli.PngImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
+            (pli.TiffImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
             (
                 pli.JsonMetadataItem,
                 {"a": [1, 2, 3], "b": 3.14, "c": [True, False]},
@@ -115,28 +149,28 @@ class TestItems:
             ),
             (
                 pli.STLModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=True),
+                _generic_mesh(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=True),
             ),
             (
                 pli.OBJModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+                _generic_mesh(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
             (
                 pli.PLYModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+                _generic_mesh(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
             (
                 pli.OFFModel3DItem,
-                trimesh.creation.box(),
+                _generic_mesh(),
                 lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
             (
                 pli.GLBModel3DItem,
-                trimesh.creation.box(),
-                lambda x, y: _mesh_eq(x, y, exact=True, sort_vertices=False),
+                _generic_scene(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
         ],
     )
@@ -150,6 +184,7 @@ class TestItems:
         value_path = value_path.with_suffix(item_cls.file_extensions()[0])
         r_item = item_cls(value_path)
         assert eq_fn(w_item(), r_item())
+        assert r_item.local_sources == [value_path]
 
         with value_path.open("rb") as f:
             br_item = item_cls(f)
@@ -164,7 +199,7 @@ class TestItems:
 
         w_item = pli.JpegImageItem(data)
         w_item.serialize(data_path)
-        assert _np_eq(data, w_item())
+        assert TestUtils.numpy_eq(data, w_item())
 
         jpeg_suffix = pli.JpegImageItem.file_extensions()[0]
         r_item = pli.JpegImageItem(data_path.with_suffix(jpeg_suffix))
@@ -176,7 +211,7 @@ class TestItems:
         encoded.seek(0)
         decoded = np.array(iio.imread(encoded, extension=jpeg_suffix))
 
-        assert _np_eq(r_item(), decoded)
+        assert TestUtils.numpy_eq(r_item(), decoded)
 
     def test_data_cache(self, items_folder: Path):
         from pipelime.items.base import ItemFactory
@@ -205,16 +240,24 @@ class TestItems:
         _check((True, True), (True, True))
         _check((False, False), (False, False))
 
-        with pli.no_data_cache(pli.NumpyItem):
+        with pli.no_data_cache(pli.ImageItem):
             _check((True, True), (True, True))
+            _check((False, False), (False, False))
             _check((None, None), (False, True))
 
-        with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
-            pli.enable_item_data_cache(pli.NumpyItem)
+        with pli.no_data_cache(pli.ImageItem, pli.JsonMetadataItem):
+            pli.enable_item_data_cache(pli.ImageItem)
             _check((True, True), (True, True))
-            _check((False, True), (False, True))
+            _check((False, False), (False, False))
             _check((None, None), (True, False))
             _check((None, None), (True, False))
+
+        with pli.no_data_cache():
+            with pli.data_cache(pli.JsonMetadataItem):
+                _check((True, True), (True, True))
+                _check((False, False), (False, False))
+                _check((None, None), (False, True))
+                _check((None, None), (False, True))
 
     def test_set_data_twice(self):
         with pytest.raises(ValueError):
@@ -285,7 +328,7 @@ class TestItems:
             bucket=(tmp_path / "rmbucket"),
         )
 
-        input_seq = SamplesSequence.from_underfolder(  # type: ignore
+        input_seq = SamplesSequence.from_underfolder(
             minimnist_private_dataset["path"], merge_root_items=True
         )
 

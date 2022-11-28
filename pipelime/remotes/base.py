@@ -300,14 +300,14 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
 
         :param stream: the stream to hash.
         :type stream: BinaryIO
-        :param hash_fn: the hash funtion, if None `hashlib.sha256()` will be used,
+        :param hash_fn: the hash funtion, if None `hashlib.blake2b()` will be used,
             defaults to None
         :type hash_fn: Any, optional
         :return: the computed hash
         :rtype: str
         """
         if hash_fn is None:
-            hash_fn = hashlib.sha256()  # pragma: no cover
+            hash_fn = hashlib.blake2b()  # pragma: no cover
         b = bytearray(1024 * 1024)
         mv = memoryview(b)
         fpos = stream.tell()
@@ -339,7 +339,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
 
         :param target_base_path: the remote base path, eg, the bucket name.
         :type target_base_path: str
-        :return: the hash function, eg, `hashlib.sha256()`.
+        :return: the hash function, eg, `hashlib.blake2b()`.
         :rtype: Any
         """
         pass
