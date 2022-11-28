@@ -146,8 +146,8 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             track_message (str, optional): a message shown next to the progress bar.
                 Defaults to "".
             sample_fn (_type_, optional): an optional function to run on each grabbed
-                element, usually a Sample. The signature may be (elem) or (elem, index).
-                Defaults to None.
+                element, usually a Sample. The signature may be (sample) or
+                (sample, index). Defaults to None.
             size (t.Optional[int], optional): the size of the sequence. If not given,
                 `len(sequence)` is evaluated. Defaults to None.
             grab_context_manager (ContextManager, optional): a context manager wrapping
@@ -197,8 +197,8 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             track_message (str, optional): a message shown next to the progress bar.
                 Defaults to "".
             sample_fn (_type_, optional): an optional function to run on each grabbed
-                element, usually a Sample. The signature may be (elem) or (elem, index).
-                Defaults to None.
+                element, usually a Sample. The signature may be (sample)
+                or (sample, index). Defaults to None.
             size (t.Optional[int], optional): the size of the sequence. If not given,
                 `len(sequence)` is evaluated. Defaults to None.
             grab_context_manager (ContextManager, optional): a context manager wrapping

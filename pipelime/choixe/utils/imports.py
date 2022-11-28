@@ -52,12 +52,24 @@ class add_to_sys_module(ContextDecorator):
 def import_module_from_file(
     module_file_path: Union[str, Path], cwd: Optional[Path] = None
 ) -> ModuleType:
-    module_path = Path(module_file_path)
-    if not module_path.is_absolute():
-        cwd = Path(os.getcwd()) if cwd is None else cwd
-        module_path = cwd / module_path
+    """Import a python module from a file.
 
-    with add_to_sys_path(module_path.parent):
+    Args:
+        module_file_path (Union[str, Path]): the path to the `.py` module file.
+        cwd (Optional[Path], optional): the folder to use for relative module import.
+            If None, the file parent folder will be used. Defaults to None.
+
+    Raises:
+        ImportError: _description_
+
+    Returns:
+        ModuleType: _description_
+    """
+    module_path = Path(module_file_path)
+    if cwd is None:
+        cwd = module_path.parent if module_path.is_absolute() else Path(os.getcwd())
+
+    with add_to_sys_path(cwd):
         id_ = uuid1().hex
         spec = importlib.util.spec_from_file_location(id_, str(module_path))
         if spec is None or spec.loader is None:
@@ -95,7 +107,8 @@ def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
     Args:
         symbol_path (str): The symbol to import
         cwd (Optional[Path], optional): The current working directory to resolve
-        relative imports. If None, the system cwd will be used. Defaults to None.
+            relative imports when loading from file. If None, the file parent folder
+            will be used. Defaults to None.
 
     Raises:
         ImportError: If anything goes wrong with the import.

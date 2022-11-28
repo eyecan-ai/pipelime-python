@@ -402,14 +402,21 @@ class SamplesSequence(
         ...
 
     @samples_sequence_stub
-    def filter(self, filter_fn: t.Callable[[Sample], bool]) -> SamplesSequence:
+    def filter(
+        self,
+        filter_fn: t.Callable[[Sample], bool],
+        lazy: bool = True,
+        insert_empty_samples: bool = False,
+    ) -> SamplesSequence:
         """A filtered view of a SamplesSequence.
         Run `pipelime help filter` to read the complete documentation.
         """
         ...
 
     @samples_sequence_stub
-    def sort(self, key_fn: t.Callable[[Sample], t.Any]) -> SamplesSequence:
+    def sort(
+        self, key_fn: t.Callable[[Sample], t.Any], lazy: bool = True
+    ) -> SamplesSequence:
         """A sorted view of an input SamplesSequence.
         Run `pipelime help sort` to read the complete documentation.
         """

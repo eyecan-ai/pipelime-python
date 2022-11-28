@@ -28,7 +28,7 @@ class Sample(t.Mapping[str, Item]):
 
     def __init__(self, data: t.Optional[t.Mapping[str, Item]] = None):
         super().__init__()
-        self._data = data if data is not None else {}
+        self._data = {} if data is None else data
 
     def to_schema(self) -> t.Mapping[str, t.Type[Item]]:
         """Returns a mapping of the keys to the item types."""

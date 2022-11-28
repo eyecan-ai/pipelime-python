@@ -77,29 +77,39 @@ class TestSamplesSequenceOperations:
     def test_add(self, minimnist_dataset: dict):
         self._cat_test(minimnist_dataset, lambda x: x + x)
 
-    def test_filter(self, minimnist_dataset: dict):
+    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("empty_smpls", [True, False])
+    def test_filter(self, minimnist_dataset: dict, lazy, empty_smpls):
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        filtered = source.filter(lambda x: x["label"] == 0)
-
-        raw_count = len([sample for sample in source if sample["label"] == 0])
-        assert raw_count == len(filtered)
-
-        for sample in filtered:
-            assert sample["label"] == 0
-
-    def test_sort(self, minimnist_dataset: dict):
-        source = pls.SamplesSequence.from_underfolder(
-            folder=minimnist_dataset["path"], merge_root_items=False
-        ).sort(
-            lambda x: -1 * x["label"]()  # type: ignore
+        filtered = source.filter(
+            lambda x: x["label"]() == 0, lazy=lazy, insert_empty_samples=empty_smpls
         )
 
-        last_label = 9
+        if not empty_smpls:
+            raw_count = len([sample for sample in source if sample["label"]() == 0])
+            assert raw_count == len(filtered)
+            for sample in filtered:
+                assert sample["label"]() == 0
+        else:
+            assert len(source) == len(filtered)
+            for fs, ss in zip(filtered, source):
+                if ss["label"]() == 0:
+                    assert fs["label"]() == 0
+                else:
+                    assert len(fs) == 0
+
+    @pytest.mark.parametrize("lazy", [True, False])
+    def test_sort(self, minimnist_dataset: dict, lazy):
+        source = pls.SamplesSequence.from_underfolder(
+            folder=minimnist_dataset["path"], merge_root_items=False
+        ).sort(lambda x: x.deep_get("metadata.random"), lazy=lazy)
+
+        last_random = 0.0
         for sample in source:
-            assert sample["label"]() <= last_label  # type: ignore
-            last_label = sample["label"]()
+            assert sample.deep_get("metadata.random") > last_random
+            last_random = sample.deep_get("metadata.random")
 
     def test_slice(self, minimnist_dataset: dict):
         source = pls.SamplesSequence.from_underfolder(

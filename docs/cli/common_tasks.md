@@ -39,7 +39,15 @@ Common operations on datasets. To get the most out of any commands, please show 
 | Reset indexes (remove missing samples) | `pipelime clone +i <input>,true +o <output>` |
 | Dataset concatenation | `pipelime cat +o <output> +i <input_1> +i <input_2> +i <input_3> ...` |
 | Sample zipping (items are merged) | `pipelime zip +o <output> +i <input_1> +i <input_2> +i <input_3> ...` |
+
+### Sorting and Filtering
+
+| Description | Command |
+| ---- | ---- |
 | Sort by classification score [^cscore] | `pipelime sort +i <input> +o <output> +k metadata.classification.score` |
+| Sort according to a callable [^fnsort] | `pipelime sort +i <input> +o <output> +f class.path.to.callable` |
+| Filter by [dictquery match](https://github.com/cyberlis/dictquery) | ``pipelime filter +i <input> +o <output> +q `metadata.classification.score > 0.5` `` |
+| Filter according to a callable `(Sample) -> bool` | `pipelime filter +i <input> +o <output> +f class.path.to.callable` |
 
 [^cscore]: Here we assume to have a metadata item such as
 
@@ -49,6 +57,8 @@ Common operations on datasets. To get the most out of any commands, please show 
         ...
     ...
     ```
+
+[^fnsort]: The callable must accept a sample and return a value to be used for sorting. You may use `functools.cmp_to_key` to convert a comparison function to a key function.
 
 ### Data Manipulation
 

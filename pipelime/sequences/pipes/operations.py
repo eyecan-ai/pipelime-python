@@ -66,21 +66,31 @@ class ConcatSequences(PipedSequenceBase, title="cat"):
 
 
 @pls.piped_sequence
-class FilteredSequence(
-    PipedSequenceBase, title="filter", underscore_attrs_are_private=True
-):
+class FilteredSequence(PipedSequenceBase, title="filter"):
     """A filtered view of a SamplesSequence."""
 
     filter_fn: t.Callable[[pls.Sample], bool] = pyd.Field(
         ..., description="A callable returning True for any valid sample."
     )
+    lazy: bool = pyd.Field(
+        True, description="Defer the sample sorting to first-time access."
+    )
+    insert_empty_samples: bool = pyd.Field(
+        False,
+        description=(
+            "If True, empty samples are inserted in place of invalid samples. "
+            "This makes the filtering real-time and multi-processing friendly."
+        ),
+    )
 
-    _valid_idxs: t.Optional[t.Sequence[int]] = None
+    _valid_idxs: t.Optional[t.Sequence[int]] = pyd.PrivateAttr(None)
 
     def __init__(self, filter_fn: t.Callable[[pls.Sample], bool], **data):
         super().__init__(filter_fn=filter_fn, **data)  # type: ignore
+        if not self.insert_empty_samples and not self.lazy:
+            self._get_valid_indexes()
 
-    def _get_valid_idxs(self) -> t.Sequence[int]:
+    def _get_valid_indexes(self) -> t.Sequence[int]:
         if self._valid_idxs is None:
             self._valid_idxs = [
                 idx for idx, sample in enumerate(self.source) if self.filter_fn(sample)
@@ -88,24 +98,18 @@ class FilteredSequence(
         return self._valid_idxs
 
     def size(self) -> int:
-        return len(self._get_valid_idxs())
+        if self.insert_empty_samples:
+            return len(self.source)
+        return len(self._get_valid_indexes())
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[self._get_valid_idxs()[idx]]
-
-    def __iter__(self) -> t.Iterator[pls.Sample]:
-        _src_idx = 0
-        while _src_idx < len(self.source):
-            x = self.source[_src_idx]
-            if self.filter_fn(x):
-                yield x
-            _src_idx += 1
-
+        if self.insert_empty_samples:
+            x = self.source[idx]
+            return x if self.filter_fn(x) else pls.Sample()
+        return self.source[self._get_valid_indexes()[idx]]
 
 @pls.piped_sequence
-class SortedSequence(
-    PipedSequenceBase, title="sort", underscore_attrs_are_private=True
-):
+class SortedSequence(PipedSequenceBase, title="sort"):
     """A sorted view of an input SamplesSequence."""
 
     key_fn: t.Callable[[pls.Sample], t.Any] = pyd.Field(
@@ -116,17 +120,26 @@ class SortedSequence(
             "function."
         ),
     )
+    lazy: bool = pyd.Field(
+        True, description="Defer the sample sorting to first-time access."
+    )
 
-    _sorted_idxs: t.Sequence[int]
+    _sorted_idxs: t.Optional[t.Sequence[int]] = pyd.PrivateAttr(None)
 
     def __init__(self, key_fn: t.Callable[[pls.Sample], t.Any], **data):
         super().__init__(key_fn=key_fn, **data)  # type: ignore
-        self._sorted_idxs = sorted(
-            range(len(self.source)), key=lambda k: self.key_fn(self.source[k])
-        )
+        if not self.lazy:
+            self._get_sorted_indexes()
+
+    def _get_sorted_indexes(self):
+        if self._sorted_idxs is None:
+            self._sorted_idxs = sorted(
+                range(len(self.source)), key=lambda k: self.key_fn(self.source[k])
+            )
+        return self._sorted_idxs
 
     def get_sample(self, idx: int) -> pls.Sample:
-        return self.source[self._sorted_idxs[idx]]
+        return self.source[self._get_sorted_indexes()[idx]]  # type: ignore
 
 
 @pls.piped_sequence

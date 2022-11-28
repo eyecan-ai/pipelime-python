@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 from pydantic import ValidationError
-from ... import TestAssert
+from ... import TestAssert, TestUtils
 
 
 class TestGeneralCommands:
@@ -415,3 +415,157 @@ class TestGeneralCommands:
                 else:
                     assert len(v.remote_sources) == 0
             TestAssert.samples_equal(s, o)
+
+    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    @pytest.mark.parametrize("max_samples", [0, -10, 5])
+    def test_validate(self, minimnist_dataset, nproc, prefetch, max_samples):
+        import yaml
+        import io
+        import pydash as py_
+        from pipelime.commands import ValidateCommand
+        from pipelime.sequences import SamplesSequence
+        from pipelime.commands.interfaces import SampleValidationInterface
+
+        # compute the validation schema
+        params = {
+            "input": {"folder": minimnist_dataset["path"]},
+            "max_samples": max_samples,
+            "grabber": f"{nproc},{prefetch}",
+        }
+        cmd = ValidateCommand.parse_obj(params)
+        cmd()
+
+        # apply the schema on the input dataset
+        assert cmd.output_schema_def is not None
+        outschema = repr(cmd.output_schema_def)
+        outschema = yaml.safe_load(io.StringIO(outschema))
+        sample_schema = py_.get(outschema, cmd.root_key_path)
+        assert sample_schema is not None
+        py_.set_(params, cmd.root_key_path, sample_schema)
+        cmd = ValidateCommand.parse_obj(params)
+        cmd()
+
+        # validate using standard piping as well
+        seq = SamplesSequence.from_underfolder(
+            params["input"]["folder"]
+        ).validate_samples(
+            sample_schema=SampleValidationInterface.parse_obj(sample_schema)
+        )
+        seq.run(num_workers=nproc, prefetch=prefetch)
+
+        # check the schema-to-cmdline converter
+        params["root_key_path"] = ""
+        cmd = ValidateCommand.parse_obj(params)
+        cmd()
+        assert cmd.output_schema_def is not None
+        assert cmd.output_schema_def.schema_def == outschema["input"]["schema"]
+
+        # test the dictionary flatting
+        outschema = ValidateCommand.OutputCmdLineSchema(
+            schema_def={"a": 42, "b": [True, [1, 2], {1: {"c": None}}]}
+        )
+        assert (
+            repr(outschema) == "+a 42 +b[0] True +b[1][0] 1 +b[1][1] 2 +b[2].1.c None"
+        )
+
+    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    def test_map(self, minimnist_dataset, nproc, prefetch, tmp_path):
+        from pipelime.commands import MapCommand
+        from pipelime.sequences import SamplesSequence
+
+        params = {
+            "input": minimnist_dataset["path"].as_posix(),
+            "output": (tmp_path / "output").as_posix(),
+            "grabber": f"{nproc},{prefetch}",
+            "stage": {"filter-keys": {"key_list": minimnist_dataset["image_keys"]}},
+        }
+        cmd = MapCommand.parse_obj(params)
+        cmd()
+
+        # check output
+        outseq = SamplesSequence.from_underfolder(params["output"])
+        srcseq = SamplesSequence.from_underfolder(params["input"])
+        for o, s in zip(outseq, srcseq):
+            assert list(o.keys()) == minimnist_dataset["image_keys"]
+            for k, v in o.items():
+                assert TestUtils.numpy_eq(v(), s[k]())
+
+    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    def test_sort(self, minimnist_dataset, nproc, prefetch, tmp_path):
+        from pipelime.commands import SortCommand
+        from pipelime.sequences import SamplesSequence
+
+        def _check_output(path, deep_key):
+            last_random = 0.0
+            outseq = SamplesSequence.from_underfolder(path)
+            for x in outseq:
+                assert x.deep_get(deep_key) > last_random
+                last_random = x.deep_get(deep_key)
+
+        params = {
+            "input": minimnist_dataset["path"].as_posix(),
+            "output": (tmp_path / "output_key").as_posix(),
+            "grabber": f"{nproc},{prefetch}",
+            "sort_key": "metadata.random",
+        }
+        cmd = SortCommand.parse_obj(params)
+        cmd()
+        _check_output(params["output"], params["sort_key"])
+
+        params["output"] = (tmp_path / "output_fn").as_posix()
+        params["sort_fn"] = f"{Path(__file__).with_name('helper.py')}:sort_fn"
+        cmd = SortCommand.parse_obj(params)
+        with pytest.raises(ValueError):
+            cmd()
+
+        del params["sort_key"]
+        cmd = SortCommand.parse_obj(params)
+        if nproc == 0:
+            cmd()
+            _check_output(params["output"], "metadata.random")
+
+        del params["sort_fn"]
+        cmd = SortCommand.parse_obj(params)
+        with pytest.raises(ValueError):
+            cmd()
+
+    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    def test_filter(self, minimnist_dataset, nproc, prefetch, tmp_path):
+        from pipelime.commands import FilterCommand
+        from pipelime.sequences import SamplesSequence
+
+        def _check_output(path):
+            outseq = SamplesSequence.from_underfolder(path)
+            for x in outseq:
+                assert x.deep_get("metadata.double") == 6
+
+        params = {
+            "input": minimnist_dataset["path"].as_posix(),
+            "output": (tmp_path / "output_key").as_posix(),
+            "grabber": f"{nproc},{prefetch}",
+            "filter_query": "`metadata.double` == 6",
+        }
+        cmd = FilterCommand.parse_obj(params)
+        cmd()
+        _check_output(params["output"])
+
+        params["output"] = (tmp_path / "output_fn").as_posix()
+        params["filter_fn"] = f"{Path(__file__).with_name('helper.py')}:filter_fn"
+        cmd = FilterCommand.parse_obj(params)
+        with pytest.raises(ValueError):
+            cmd()
+
+        del params["filter_query"]
+        cmd = FilterCommand.parse_obj(params)
+        if nproc == 0:
+            cmd()
+            _check_output(params["output"])
+
+        del params["filter_fn"]
+        cmd = FilterCommand.parse_obj(params)
+        with pytest.raises(ValueError):
+            cmd()

@@ -448,7 +448,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         def __piper_repr__(self) -> str:
             return " ".join(self._flatten_dict(self.schema_def))
 
-        def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):
+        def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="+"):
             cmd_line = []
             for k, v in dict_.items():
                 new_key = f"{parent_key}{sep}{k}" if parent_key else f"{prefix}{k}"
@@ -469,7 +469,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
                     cmd_line.append(str(v))
             return cmd_line
 
-        def _flatten_list(self, list_, parent_key, sep=".", prefix="--"):
+        def _flatten_list(self, list_, parent_key, sep=".", prefix="+"):
             cmd_line = []
             for i, v in enumerate(list_):
                 new_key = f"{parent_key}[{i}]"
@@ -500,8 +500,8 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         0,
         alias="m",
         description=(
-            "Max number of samples to consider when creating the schema.  "
-            "Set to 0 to check all the samples."
+            "Max number of samples to consider when creating the schema. "
+            "Negative values count from the end, while if 0 all samples are checked."
         ),
     )
     root_key_path: str = pyd.Field(
@@ -559,21 +559,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             max_samples=self.max_samples,
         ).dict(by_alias=True)
 
-        def _type2str(data):
-            import inspect
-            from pipelime.items import Item
-            from pipelime.utils.pydantic_types import ItemType
-
-            for k, v in data.items():
-                if inspect.isclass(v) and issubclass(v, Item):
-                    data[k] = str(ItemType(__root__=v))
-                elif isinstance(v, t.Mapping):
-                    _type2str(v)
-            return data
-
-        sample_validation = _type2str(sample_validation)
-
-        if self.root_key_path:
+        if self.root_key_path:  # pragma: no branch
             import pydash as py_
 
             tmp_dict = {}
@@ -630,15 +616,24 @@ class MapCommand(PipelimeCommand, title="map"):
 
 
 class SortCommand(PipelimeCommand, title="sort"):
-    """Sort a dataset based on metadata values."""
+    """Sort a dataset by metadata values or according to a custom sorting function."""
 
-    key_path: str = pyd.Field(
-        ...,
+    sort_key: t.Optional[str] = pyd.Field(
+        None,
         alias="k",
         description=(
             "A pydash-like key path. The path is built by splitting the mapping "
             "keys by `.` and enclosing list indexes within `[]`. "
             "Use `\\` to escape the `.` character."
+        ),
+    )
+    sort_fn: t.Optional[str] = pyd.Field(
+        None,
+        alias="f",
+        description=(
+            "A class path to a callable `(Sample) -> Any` to be used as key-function. "
+            "Use `functools.cmp_to_key` to convert a compare function, "
+            "ie, accepting two arguments, to a key function."
         ),
     )
 
@@ -658,16 +653,100 @@ class SortCommand(PipelimeCommand, title="sort"):
         alias="g"
     )
 
+    def _sort_key_fn(self, x):
+        return x.deep_get(self.sort_key)
+
     def run(self):
-        def _sort_key_fn(x):
-            return x.deep_get(self.key_path)
+        from pipelime.choixe.utils.imports import import_symbol
+
+        if (self.sort_key is None) == (self.sort_fn is None):
+            raise ValueError("You should define either `sort_key` or `sort_fn`")
+
+        sort_fn = (
+            self._sort_key_fn
+            if self.sort_key is not None
+            else import_symbol(self.sort_fn)  # type: ignore
+        )
 
         seq = self.input.create_reader()
-        seq = seq.sort(_sort_key_fn)
+        seq = seq.sort(sort_fn, lazy=False)
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),
             keep_order=False,
             parent_cmd=self,
             track_message=f"Sorting data ({len(seq)} samples)",
+        )
+
+
+class FilterCommand(PipelimeCommand, title="filter"):
+    """Filter samples by metadata values or according to a custom sorting function."""
+
+    filter_query: t.Optional[str] = pyd.Field(
+        None,
+        alias="q",
+        description=("A dictquery (cfr. https://github.com/cyberlis/dictquery)."),
+    )
+    filter_fn: t.Optional[str] = pyd.Field(
+        None,
+        alias="f",
+        description=(
+            "A class path to a callable `(Sample) -> bool` "
+            "returning True for any valid sample."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def _filter_key_fn(self, x):
+        return x.match(self.filter_query)
+
+    def run(self):
+        from pipelime.choixe.utils.imports import import_symbol
+        from pipelime.sequences import DataStream
+
+        if (self.filter_query is None) == (self.filter_fn is None):
+            raise ValueError("You should define either `filter_query` or `filter_fn`")
+
+        filter_fn = (
+            self._filter_key_fn
+            if self.filter_query is not None
+            else import_symbol(self.filter_fn)  # type: ignore
+        )
+
+        # multi-processing friendly filtering
+        class _WriterHelper:
+            def __init__(self, output_pipe):
+                self.stream = DataStream(output_pipe=output_pipe)
+                self.curr_idx = 0
+
+            def __call__(self, sample):
+                if bool(sample):
+                    self.stream.set_output(self.curr_idx, sample)
+                    self.curr_idx += 1
+
+        writer_helper = _WriterHelper(output_pipe=self.output.as_pipe())
+
+        seq = self.input.create_reader()
+        seq = seq.filter(filter_fn, lazy=True, insert_empty_samples=True)
+        self.grabber.grab_all(
+            seq,
+            keep_order=True,
+            parent_cmd=self,
+            sample_fn=writer_helper,
+            track_message=f"Filtering data ({len(seq)} samples)",
         )
