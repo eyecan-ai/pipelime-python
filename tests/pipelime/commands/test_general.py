@@ -488,7 +488,7 @@ class TestGeneralCommands:
         outseq = SamplesSequence.from_underfolder(params["output"])
         srcseq = SamplesSequence.from_underfolder(params["input"])
         for o, s in zip(outseq, srcseq):
-            assert list(o.keys()) == minimnist_dataset["image_keys"]
+            assert set(o.keys()) == set(minimnist_dataset["image_keys"])
             for k, v in o.items():
                 assert TestUtils.numpy_eq(v(), s[k]())
 
