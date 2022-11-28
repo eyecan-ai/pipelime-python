@@ -96,13 +96,13 @@ class TestSamplesSequenceWriters:
             )
         self._check_data_and_outputs(source, dest, lambda key: 1)
 
-    def test_symlink(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_symlink(self, minimnist_private_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
         import platform
 
         with pli.item_serialization_mode(pli.SerializationMode.SYM_LINK):
             source, dest = self._read_write_data(
-                minimnist_dataset, tmp_path / "outfolder"
+                minimnist_private_dataset, tmp_path / "outfolder"
             )
         self._check_data_and_outputs(source, dest, lambda key: 1)
 
