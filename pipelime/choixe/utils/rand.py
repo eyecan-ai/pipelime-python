@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence, Tuple, TypeVar, U
 import numpy as np
 
 
-T = TypeVar("T", float, Sequence[float], np.ndarray)
+T = TypeVar("T", float, int, bool, Sequence[float], np.ndarray)
 
 
 class RealFn(ABC):
@@ -18,6 +18,7 @@ class RealFn(ABC):
             return self._call(np.array(x)).tolist()
         elif isinstance(x, np.ndarray):
             return self._call(x)
+        raise ValueError(f"Unsupported type {type(x)}")
 
     def __repr__(self) -> str:
         return f"f(x) = {self._repr()}"
@@ -307,39 +308,6 @@ class PiecewiseFn(RealFn):
         return "piecewise"
 
 
-def plot(
-    start: float, stop: float, *fn: Optional[RealFn], steps: int = 1000
-) -> None:  # pragma: no cover
-    import matplotlib.pyplot as plt
-
-    start = max(start, -1e3)
-    stop = min(stop, 1e3)
-
-    span = stop - start
-    input_start = start - span / 5
-    input_stop = stop + span / 5
-    x = np.linspace(input_start, input_stop, steps)
-    y_min, y_max = np.inf, -np.inf
-    for f in fn:
-        if f is None:
-            continue
-        y = f(x)
-        y_min = min(y_min, np.min(y))
-        y_max = max(y_max, np.max(y))
-
-        plt.plot(x, y, linewidth=4)
-
-    y_med = (y_min + y_max) / 2
-    y_min = y_med - span / 2
-    y_max = y_med + span / 2
-
-    plt.grid()
-    plt.axhline(y=0, color="k")
-    plt.axvline(x=0, color="k")
-    plt.xlim(start, stop)
-    plt.show()
-
-
 class Distribution:
     def __init__(self, fn: RealFn, start: float, stop: float) -> None:
         self.start = start
@@ -418,35 +386,3 @@ def rand(*args, n: Union[int, Sequence[int]] = 0, pdf: Optional[t_pdf] = None) -
         return _rand(start=a, stop=b, n=n, pdf=pdf, integer=integer)
 
     raise ValueError("Invalid arguments")
-
-
-if __name__ == "__main__":  # pragma: no cover
-    import matplotlib.pyplot as plt
-
-    n = int(1e5)
-
-    # Uniform random sampling
-    # samples = rand(n=n)
-
-    # # Uniform between 1 and 4
-    # samples = rand(1.0, 4.0, n=n)
-
-    # Uniform between 0 and 10, but integers
-    # samples = rand(0, 10, n=n)
-
-    # pdf = [0.1, 1.0, 2.0, 0.2]
-    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
-
-    pdf = [[0.0, 0.1], [0.5, 1.0], [2.0, 2.0], (2.7, 0.2), (8.0, 1.0)]
-    samples = rand(0.0, 10.0, n=n, pdf=pdf)
-
-    # pdf = [(0.0, 0.1), (2.5, (1.0, 0.4)), (5.0, 2.0), (7.5, (0.0, 0.2))]
-    # samples = rand(0.0, 10.0, n=n, pdf=pdf)
-
-    # pdf = lambda x: np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
-    # samples = rand(-5.0, 10.0, n=n, pdf=pdf)
-
-    # pdf = [(0.0, (0.0, 0.5)), (0.5, lambda x: 1 / x), (1.0, 0.5)]
-    # samples = rand(0.0, 2.0, n=n, pdf=pdf)
-
-    plt.hist(samples, bins=100), plt.show()  # type: ignore

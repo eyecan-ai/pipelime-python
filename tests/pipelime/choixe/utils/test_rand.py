@@ -11,7 +11,6 @@ from pipelime.choixe.utils.rand import (
     QuadraticFn,
     RealFn,
     GenericFn,
-    plot,
     rand,
 )
 
