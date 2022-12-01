@@ -1,1 +1,6 @@
-{"sample_id": 16, "double": 32.0, "half": 8.0}
+{
+    "sample_id": 16,
+    "double": 32.0,
+    "half": 8.0,
+    "random": 0.278
+}

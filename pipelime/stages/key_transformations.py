@@ -37,10 +37,10 @@ class StageKeyFormat(SampleStage, title="format-key"):
             "`imageMyKey`. If empty, the source key will not be changed."
         ),
     )
-    apply_to: t.Sequence[str] = pyd.Field(
-        default_factory=list,
+    apply_to: t.Optional[t.Sequence[str]] = pyd.Field(
+        None,
         description=(
-            "The keys to apply the new format to. Leave empty to apply to all keys."
+            "The keys to apply the new format to. `None` applies to all the keys."
         ),
     )
 
@@ -51,8 +51,7 @@ class StageKeyFormat(SampleStage, title="format-key"):
         return "*" + v
 
     def __call__(self, x: "Sample") -> "Sample":
-        keys = list(x.keys())
-        for k in keys:
+        for k in x.keys() if self.apply_to is None else self.apply_to:
             x = x.rename_key(k, self.key_format.replace("*", k))
         return x
 

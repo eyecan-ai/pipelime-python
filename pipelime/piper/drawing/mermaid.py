@@ -44,7 +44,7 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
             str: shape of the node
         """
 
-        name = node.short_repr
+        name = node.readable_repr
         sep = ("[", "]") if self._is_node_file(node) else ("(", ")")
         return f"{name}[{sep[0]}{name}{sep[1]}]"
 
@@ -63,7 +63,7 @@ class MermaidNodesGraphDrawer(NodesGraphDrawer):
 
         out = ""
         if isinstance(node, GraphNodeOperation):
-            out = f"{node.short_repr}:::{MermaidNodesGraphDrawer.OPERATION_NAME}"
+            out = f"{node.readable_repr}:::{MermaidNodesGraphDrawer.OPERATION_NAME}"
         elif isinstance(node, GraphNodeData):
             out = f"{self._data_node_shape(node)}:::{MermaidNodesGraphDrawer.DATA_NAME}"
         else:

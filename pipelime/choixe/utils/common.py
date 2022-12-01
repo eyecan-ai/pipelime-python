@@ -73,7 +73,7 @@ def deep_set_(  # noqa: C901
     """
     from pydash.utilities import to_path
 
-    if key_path is not None:
+    if key_path is not None:  # pragma: no branch
         key_path_tokens = to_path(key_path)
         parent_node = _RefItem(obj, None)
         for tk in key_path_tokens:

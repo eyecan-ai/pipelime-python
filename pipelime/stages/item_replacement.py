@@ -23,6 +23,6 @@ class StageReplaceItem(SampleStage, title="replace-item"):
             if key in x:
                 old_item = x[key]
                 x = x.set_item(
-                    key, item_cls.itype.make_new(old_item, shared=old_item.is_shared)
+                    key, item_cls.value.make_new(old_item, shared=old_item.is_shared)
                 )
         return x

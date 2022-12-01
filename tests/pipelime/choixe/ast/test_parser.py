@@ -278,6 +278,24 @@ class TestParse:
         print(parse(expr))
         assert parse(expr) == expected
 
+    def test_parse_invalid_switch(self):
+        expr = {
+            "$switch(nation)": [
+                {
+                    "$case": ["UK", "USA", "Australia"],
+                    "$then": "hello",
+                },
+                {
+                    "invalid": "value",
+                },
+                {
+                    "$default": "*raise your hand*",
+                },
+            ]
+        }
+        with pytest.raises(ChoixeParsingError):
+            print(parse(expr))
+
 
 class TestStringParse:
     def test_simple(self):

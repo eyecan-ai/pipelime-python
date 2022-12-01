@@ -2,10 +2,7 @@ import numpy as np
 import pytest
 
 import pipelime.sequences as pls
-
-
-def _np_eq(x, y) -> bool:
-    return np.array_equal(x, y, equal_nan=True)
+from ... import TestUtils
 
 
 class TestSample:
@@ -30,7 +27,7 @@ class TestSample:
 
         assert len(sample) == len(data)
         assert all(k in sample for k in data)
-        assert all(_np_eq(sample[k](), v()) for k, v in data.items())
+        assert all(TestUtils.numpy_eq(sample[k](), v()) for k, v in data.items())
         assert sample.to_dict() == {k: v() for k, v in data.items()}
 
     def test_to_schema(self):
@@ -139,7 +136,7 @@ class TestSample:
             else isinstance(v, sample[ref_key].__class__)
             for k, v in other_sample.items()
         )
-        assert _np_eq(other_sample[target_key](), new_value)
+        assert TestUtils.numpy_eq(other_sample[target_key](), new_value)
 
     def test_set_value(self):
         import pipelime.items as pli
@@ -157,7 +154,7 @@ class TestSample:
             else isinstance(v, sample[target_key].__class__)
             for k, v in other_sample.items()
         )
-        assert _np_eq(other_sample[target_key](), new_value)
+        assert TestUtils.numpy_eq(other_sample[target_key](), new_value)
 
     def test_deep_set(self):
         import pipelime.items as pli
@@ -260,11 +257,7 @@ class TestSample:
         assert new_key in other_sample
         assert original_key not in other_sample
 
-    def test_remove_keys(self):
-        sample, data = self._np_sample()
-        keys_to_remove = [list(data.keys())[0], list(data.keys())[-1]]
-        other_sample = sample.remove_keys(*keys_to_remove)
-
+    def _check_removed_keys(self, sample, data, other_sample, keys_to_remove):
         assert all(k in sample for k in data)
         assert all(
             (k in other_sample)
@@ -273,16 +266,42 @@ class TestSample:
             for k in data
         )
 
-    def test_extract_keys(self):
+    def test_remove_keys(self):
         sample, data = self._np_sample()
-        keys_to_extract = [list(data.keys())[0], list(data.keys())[-1]]
-        other_sample = sample.extract_keys(*keys_to_extract)
+        keys_to_remove = [list(data.keys())[0], list(data.keys())[-1]]
+        other_sample = sample.remove_keys(*keys_to_remove)
+        self._check_removed_keys(sample, data, other_sample, keys_to_remove)
 
+    def test_sub(self):
+        from pipelime.items import UnknownItem
+
+        sample, data = self._np_sample()
+        keys_to_remove = [list(data.keys())[0], list(data.keys())[-1]]
+        sub_sample = pls.Sample({k: UnknownItem() for k in keys_to_remove})
+        other_sample = sample - sub_sample
+        self._check_removed_keys(sample, data, other_sample, keys_to_remove)
+
+    def _check_extracted_keys(self, sample, data, other_sample, keys_to_extract):
         assert all(k in sample for k in data)
         assert all(
             (k in other_sample) if (k in keys_to_extract) else (k not in other_sample)
             for k in data
         )
+
+    def test_extract_keys(self):
+        sample, data = self._np_sample()
+        keys_to_extract = [list(data.keys())[0], list(data.keys())[-1]]
+        other_sample = sample.extract_keys(*keys_to_extract)
+        self._check_extracted_keys(sample, data, other_sample, keys_to_extract)
+
+    def test_and(self):
+        from pipelime.items import UnknownItem
+
+        sample, data = self._np_sample()
+        keys_to_extract = [list(data.keys())[0], list(data.keys())[-1]]
+        and_sample = pls.Sample({k: UnknownItem() for k in keys_to_extract})
+        other_sample = sample & and_sample
+        self._check_extracted_keys(sample, data, other_sample, keys_to_extract)
 
     def _merge_test(self, fn):
         sample_1, data_1 = self._np_sample()
@@ -313,3 +332,41 @@ class TestSample:
 
     def test_update(self):
         self._merge_test(lambda x1, x2: x1.update(x2))
+
+    def test_zip(self):
+        self._merge_test(lambda x1, x2: x1.zip(x2))
+
+    def test_add(self):
+        self._merge_test(lambda x1, x2: x1 + x2)
+
+    def test_or(self):
+        self._merge_test(lambda x1, x2: x1 | x2)
+
+    def test_xor(self):
+        from pipelime.items import UnknownItem
+
+        sample, data = self._np_sample()
+        xor_keys = [list(data.keys())[0], list(data.keys())[-1], "new_key"]
+        xor_sample = pls.Sample({k: UnknownItem() for k in xor_keys})
+        other_sample = sample ^ xor_sample
+
+        assert all(k in sample for k in data)
+        assert all(
+            (k in other_sample) if (k not in xor_keys) else (k not in other_sample)
+            for k in data
+        )
+        assert all(
+            (k in other_sample) if (k not in data) else (k not in other_sample)
+            for k in xor_keys
+        )
+
+    def test_direct_access(self):
+        sample, data = self._np_sample()
+        dsmpl = sample.direct_access()
+
+        assert len(dsmpl) == len(sample) == len(data)
+        assert all(k in sample for k in data)
+        assert all(k in dsmpl for k in data)
+        assert all(k in sample for k in dsmpl)
+        assert all(TestUtils.numpy_eq(sample[k](), v) for k, v in dsmpl.items())
+        assert sample.to_dict() == {k: v for k, v in dsmpl.items()}

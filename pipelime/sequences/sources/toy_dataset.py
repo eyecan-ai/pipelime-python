@@ -12,7 +12,9 @@ class ToyDataset(
 ):
     """A fake sequence of generated samples."""
 
-    length: int = pyd.Field(..., description="The number of samples to generate.")
+    length: pyd.PositiveInt = pyd.Field(
+        ..., description="The number of samples to generate."
+    )
     with_images: bool = pyd.Field(True, description="Whether to generate images.")
     with_masks: bool = pyd.Field(
         True, description="Whether to generate masks with object labels."
@@ -27,9 +29,9 @@ class ToyDataset(
     with_kpts: bool = pyd.Field(
         True, description="Whether to generate objects' keypoints."
     )
-    image_size: t.Union[int, t.Tuple[int, int]] = pyd.Field(
-        256, description="The size of the generated images."
-    )
+    image_size: t.Union[
+        pyd.PositiveInt, t.Tuple[pyd.PositiveInt, pyd.PositiveInt]
+    ] = pyd.Field(256, description="The size of the generated images.")
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -40,10 +42,10 @@ class ToyDataset(
             "`imageMyKey`. If empty, the base key name will be used as-is."
         ),
     )
-    max_labels: int = pyd.Field(
-        5, description="The maximum number of object labels in the dataset."
+    max_labels: pyd.NonNegativeInt = pyd.Field(
+        5, description="The maximum number assigned to object labels in the dataset."
     )
-    objects_range: t.Tuple[int, int] = pyd.Field(
+    objects_range: t.Tuple[pyd.NonNegativeInt, pyd.NonNegativeInt] = pyd.Field(
         (1, 5), description="The (min, max) number of objects in each sample."
     )
 

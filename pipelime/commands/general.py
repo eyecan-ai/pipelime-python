@@ -52,15 +52,15 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
     )
 
     skip_first: pyd.NonNegativeInt = pyd.Field(
-        1, alias="s", description="Skip the first n samples."
+        1, alias="s", description="Skip the first n samples, then start the timer."
     )
     max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
         None,
         alias="m",
         description="Grab at most `max_samples` and take the average time.",
     )
-    repeat: pyd.NonNegativeInt = pyd.Field(
-        0, alias="r", description="Repeat the measurement `repeat` times."
+    repeat: pyd.PositiveInt = pyd.Field(
+        1, alias="r", description="Repeat the measurement `repeat` times."
     )
     process: bool = pyd.Field(
         False,
@@ -68,6 +68,9 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         description=(
             "Measure process time instead of using a performance counter clock."
         ),
+    )
+    clear_output_folder: bool = pyd.Field(
+        True, alias="c", description="Remove the output folder before each run."
     )
 
     average_time: t.Optional[OutputTime] = pyd.Field(
@@ -80,6 +83,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
 
     def run(self):
         import time
+        import shutil
         from pipelime.sequences import build_pipe, SamplesSequence
 
         if self.input is None and self.operations is None:
@@ -88,33 +92,42 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         clock_fn = time.process_time_ns if self.process else time.perf_counter_ns
 
         elapsed_times = []
-        for r in range(self.repeat + 1):
+        num_samples = 0
+        for r in range(self.repeat):
             seq = SamplesSequence if self.input is None else self.input.create_reader()
             if self.operations is not None:
                 seq = build_pipe(self.operations.value, seq)  # type: ignore
-
             assert isinstance(seq, SamplesSequence)
+
             if self.output is not None:
+                if self.clear_output_folder:
+                    shutil.rmtree(
+                        self.output.folder.resolve().absolute().as_posix(),
+                        ignore_errors=True,
+                    )
                 seq = self.output.append_writer(seq)
 
             seqit = iter(seq)
             for s in range(self.skip_first):
                 _ = next(seqit)
 
+            available_samples = len(seq) - self.skip_first
             if self.max_samples is None:
                 start = clock_fn()
                 for _ in seqit:
                     pass
                 end = clock_fn()
             else:
+                available_samples = min(self.max_samples, available_samples)
                 start = clock_fn()
-                for s in range(self.max_samples):
+                for s in range(available_samples):
                     _ = next(seqit)
                 end = clock_fn()
+            num_samples += available_samples
             elapsed_times.append(end - start)
 
         self.average_time = TimeItCommand.OutputTime(
-            nanosec=int(sum(elapsed_times) // len(elapsed_times))
+            nanosec=int(sum(elapsed_times) // num_samples)
         )
 
 
@@ -156,10 +169,11 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         alias="g"
     )
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        if not self.operations:
-            raise ValueError(f"Invalid pipeline: {self.operations}")
+    @pyd.validator("operations")
+    def _validate_operations(cls, v: pl_types.YamlInput) -> pl_types.YamlInput:
+        if not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
+            raise ValueError(f"Invalid pipeline: {v.value}")
+        return v
 
     def run(self):
         from pipelime.sequences import build_pipe, SamplesSequence
@@ -263,11 +277,11 @@ class ZipCommand(PipelimeCommand, title="zip"):
     key_format: t.Union[str, t.Sequence[str]] = pyd.Field(
         "*",
         description=(
-            "The zipped samples' key format. Any `*` will be replaced with the "
-            "source key, eg, `my_*_key` on [`image`, `mask`] generates "
-            "`my_image_key` and `my_mask_key`. If no `*` is found, the string is "
-            "suffixed to source key, ie, `MyKey` on `image` gives "
-            "`imageMyKey`. If empty, the source key will be used as-is."
+            "The zipped samples' key format FOR EACH INPUT SEQUENCE EXCEPT THE FIRST "
+            "ONE. Any `*` will be replaced with the source key, eg, `my_*_key` on "
+            "[`image`, `mask`] generates `my_image_key` and `my_mask_key`. If no `*` "
+            "is found, the string is suffixed to source key, ie, `MyKey` on `image` "
+            "gives `imageMyKey`. If empty, the source key will be used as-is."
         ),
     )
 
@@ -279,12 +293,15 @@ class ZipCommand(PipelimeCommand, title="zip"):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
 
         key_formats = (
-            [self.key_format] * len(inputs)
+            [self.key_format] * (len(inputs) - 1)
             if isinstance(self.key_format, str)
             else self.key_format
         )
-        if len(key_formats) != len(inputs):
-            raise ValueError(f"Number of inputs and key formats do not match.")
+        if len(key_formats) != (len(inputs) - 1):
+            raise ValueError(
+                f"{len(key_formats)} key format string are provided, "
+                f"but {len(inputs)} are required."
+            )
 
         input_it = iter(inputs)
         seq = next(input_it).create_reader()
@@ -299,12 +316,7 @@ class ZipCommand(PipelimeCommand, title="zip"):
         )
 
 
-class AddRemoteCommand(PipelimeCommand, title="remote-add"):
-    """Upload samples to one or more remotes.
-    Slicing options filter the samples to upload,
-    but the whole dataset is always written out.
-    """
-
+class RemoteCommandBase(PipelimeCommand):
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
             alias="i", piper_port=PiperPortType.INPUT
@@ -318,94 +330,25 @@ class AddRemoteCommand(PipelimeCommand, title="remote-add"):
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         default_factory=list,
         alias="k",
-        description="Keys to upload. Leave empty to upload all the keys.",
+        description="Affected keys. Leave empty to take all the keys.",
     )
 
-    start: t.Optional[int] = pyd.Field(
-        None, description="The first sample (included), defaults to the first element."
+    start: int = pyd.Field(
+        0,
+        description=(
+            "The first sample (included), defaults to the first element. "
+            "Can be negative, in which case it counts from the end."
+        ),
     )
     stop: t.Optional[int] = pyd.Field(
-        None, description="The last sample (excluded), defaults to the whole sequence."
-    )
-    step: t.Optional[int] = pyd.Field(
-        None, description="The slice step, defaults to 1."
-    )
-
-    output: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="o",
-        is_required=False,
-        description="Optional output dataset with remote items.",
-        piper_port=PiperPortType.OUTPUT,
-    )
-
-    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
-        alias="g"
-    )
-
-    @pyd.validator("remotes", "keys")
-    def validate_remotes(cls, v):
-        return (
-            v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
-        )
-
-    def run(self):
-        from pipelime.stages import StageUploadToRemote
-
-        original = self.input.create_reader()
-        seq = original.slice(start=self.start, stop=self.stop, step=self.step).map(
-            StageUploadToRemote(
-                remotes=[r.get_url() for r in self.remotes],  # type: ignore
-                keys_to_upload=self.keys,
-            )
-        )
-
-        if self.output is None:
-            self._grab_all(seq, None)
-        else:
-            # NB: we should always write the whole dataset,
-            # even if we are uploading only a slice
-            if self.start is None and self.stop is None and self.step is None:
-                self._grab_all(
-                    self.output.append_writer(seq), self.output.serialization_cm()
-                )
-            else:
-                self._grab_all(seq, None)
-                self._grab_all(
-                    self.output.append_writer(original), self.output.serialization_cm()
-                )
-
-    def _grab_all(self, seq, sm):
-        self.grabber.grab_all(
-            seq,
-            grab_context_manager=sm,
-            keep_order=False,
-            parent_cmd=self,
-            track_message=f"Uploading data ({len(seq)} samples)",
-        )
-
-
-class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
-    """Remove one or more remote from a dataset.
-    NB: data is not removed from the remote data lake."""
-
-    input: pl_interfaces.InputDatasetInterface = (
-        pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="i", piper_port=PiperPortType.INPUT
-        )
-    )
-
-    remotes: t.Union[
-        pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
-    ] = pl_interfaces.RemoteInterface.pyd_field(alias="r")
-
-    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
-        default_factory=list,
-        alias="k",
+        None,
         description=(
-            "Remove remotes on these keys only. Leave empty to affect all the keys."
+            "The last sample (excluded), defaults to the whole sequence."
+            "Can be negative, in which case it counts from the end."
         ),
+    )
+    step: int = pyd.Field(
+        1, description="The slice step, defaults to 1. Can be negative."
     )
 
     output: pl_interfaces.OutputDatasetInterface = (
@@ -424,6 +367,52 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
             v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
         )
 
+    def _run_remote_op(self, stage, message):
+        from pipelime.sequences.pipes.mapping import MappingConditionIndexRange
+
+        seq = self.input.create_reader().map_if(
+            stage=stage,
+            condition=MappingConditionIndexRange(
+                start=self.start,
+                stop=self.stop,
+                step=self.step,
+            ),
+        )
+
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=message,
+        )
+
+
+class AddRemoteCommand(RemoteCommandBase, title="remote-add"):
+    """Upload samples to one or more remotes.
+    Slicing and key options filter the samples to upload,
+    but the whole dataset is always written out.
+    """
+
+    def run(self):
+        from pipelime.stages import StageUploadToRemote
+
+        self._run_remote_op(
+            StageUploadToRemote(
+                remotes=[r.get_url() for r in self.remotes],  # type: ignore
+                keys_to_upload=self.keys,
+            ),
+            "Uploading data",
+        )
+
+
+class RemoveRemoteCommand(RemoteCommandBase, title="remote-remove"):
+    """Remove one or more remote from a dataset.
+    Slicing and key options filter the samples,
+    but the whole dataset is always written out.
+    NB: data is not removed from the remote data lake.
+    """
+
     def run(self):
         from pipelime.stages import StageForgetSource
 
@@ -431,15 +420,8 @@ class RemoveRemoteCommand(PipelimeCommand, title="remote-remove"):
         remove_all = remotes if not self.keys else []
         remove_by_key = {k: remotes for k in self.keys}
 
-        seq = self.input.create_reader().map(
-            StageForgetSource(*remove_all, **remove_by_key)
-        )
-        self.grabber.grab_all(
-            self.output.append_writer(seq),
-            grab_context_manager=self.output.serialization_cm(),
-            keep_order=False,
-            parent_cmd=self,
-            track_message=f"Removing remotes ({len(seq)} samples)",
+        self._run_remote_op(
+            StageForgetSource(*remove_all, **remove_by_key), "Removing remote sources"
         )
 
 
@@ -466,7 +448,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         def __piper_repr__(self) -> str:
             return " ".join(self._flatten_dict(self.schema_def))
 
-        def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="--"):
+        def _flatten_dict(self, dict_, parent_key="", sep=".", prefix="+"):
             cmd_line = []
             for k, v in dict_.items():
                 new_key = f"{parent_key}{sep}{k}" if parent_key else f"{prefix}{k}"
@@ -487,7 +469,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
                     cmd_line.append(str(v))
             return cmd_line
 
-        def _flatten_list(self, list_, parent_key, sep=".", prefix="--"):
+        def _flatten_list(self, list_, parent_key, sep=".", prefix="+"):
             cmd_line = []
             for i, v in enumerate(list_):
                 new_key = f"{parent_key}[{i}]"
@@ -518,8 +500,8 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         0,
         alias="m",
         description=(
-            "Max number of samples to consider when creating the schema.  "
-            "Set to 0 to check all the samples."
+            "Max number of samples to consider when creating the schema. "
+            "Negative values count from the end, while if 0 all samples are checked."
         ),
     )
     root_key_path: str = pyd.Field(
@@ -566,8 +548,8 @@ class ValidateCommand(PipelimeCommand, title="validate"):
                 class_path=info.item_type,
                 is_optional=(info.count_ != len(seq)),
                 is_shared=info.is_shared,
-            ).dict(by_alias=True)
-            for k, info in item_info.items_info().items()
+            )
+            for k, info in item_info.items_info.items()
         }
 
         sample_validation = pl_types.SampleValidationInterface(
@@ -577,21 +559,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             max_samples=self.max_samples,
         ).dict(by_alias=True)
 
-        def _type2str(data):
-            import inspect
-            from pipelime.items import Item
-            from pipelime.utils.pydantic_types import ItemType
-
-            for k, v in data.items():
-                if inspect.isclass(v) and issubclass(v, Item):
-                    data[k] = str(ItemType(__root__=v))
-                elif isinstance(v, t.Mapping):
-                    _type2str(v)
-            return data
-
-        sample_validation = _type2str(sample_validation)
-
-        if self.root_key_path:
+        if self.root_key_path:  # pragma: no branch
             import pydash as py_
 
             tmp_dict = {}
@@ -637,9 +605,7 @@ class MapCommand(PipelimeCommand, title="map"):
 
     def run(self):
         seq = self.input.create_reader()
-        seq = seq.map(
-            self.stage if isinstance(self.stage, t.Mapping) else {self.stage: {}}
-        )
+        seq = seq.map(self.stage)
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),
@@ -650,15 +616,24 @@ class MapCommand(PipelimeCommand, title="map"):
 
 
 class SortCommand(PipelimeCommand, title="sort"):
-    """Sort a dataset based on metadata values."""
+    """Sort a dataset by metadata values or according to a custom sorting function."""
 
-    key_path: str = pyd.Field(
-        ...,
+    sort_key: t.Optional[str] = pyd.Field(
+        None,
         alias="k",
         description=(
             "A pydash-like key path. The path is built by splitting the mapping "
             "keys by `.` and enclosing list indexes within `[]`. "
             "Use `\\` to escape the `.` character."
+        ),
+    )
+    sort_fn: t.Optional[str] = pyd.Field(
+        None,
+        alias="f",
+        description=(
+            "A class path to a callable `(Sample) -> Any` to be used as key-function. "
+            "Use `functools.cmp_to_key` to convert a compare function, "
+            "ie, accepting two arguments, to a key function."
         ),
     )
 
@@ -678,16 +653,100 @@ class SortCommand(PipelimeCommand, title="sort"):
         alias="g"
     )
 
+    def _sort_key_fn(self, x):
+        return x.deep_get(self.sort_key)
+
     def run(self):
-        def _sort_key_fn(x):
-            return x.deep_get(self.key_path)
+        from pipelime.choixe.utils.imports import import_symbol
+
+        if (self.sort_key is None) == (self.sort_fn is None):
+            raise ValueError("You should define either `sort_key` or `sort_fn`")
+
+        sort_fn = (
+            self._sort_key_fn
+            if self.sort_key is not None
+            else import_symbol(self.sort_fn)  # type: ignore
+        )
 
         seq = self.input.create_reader()
-        seq = seq.sort(_sort_key_fn)
+        seq = seq.sort(sort_fn, lazy=False)
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),
             keep_order=False,
             parent_cmd=self,
             track_message=f"Sorting data ({len(seq)} samples)",
+        )
+
+
+class FilterCommand(PipelimeCommand, title="filter"):
+    """Filter samples by metadata values or according to a custom sorting function."""
+
+    filter_query: t.Optional[str] = pyd.Field(
+        None,
+        alias="q",
+        description=("A dictquery (cfr. https://github.com/cyberlis/dictquery)."),
+    )
+    filter_fn: t.Optional[str] = pyd.Field(
+        None,
+        alias="f",
+        description=(
+            "A class path to a callable `(Sample) -> bool` "
+            "returning True for any valid sample."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def _filter_key_fn(self, x):
+        return x.match(self.filter_query)
+
+    def run(self):
+        from pipelime.choixe.utils.imports import import_symbol
+        from pipelime.sequences import DataStream
+
+        if (self.filter_query is None) == (self.filter_fn is None):
+            raise ValueError("You should define either `filter_query` or `filter_fn`")
+
+        filter_fn = (
+            self._filter_key_fn
+            if self.filter_query is not None
+            else import_symbol(self.filter_fn)  # type: ignore
+        )
+
+        # multi-processing friendly filtering
+        class _WriterHelper:
+            def __init__(self, output_pipe):
+                self.stream = DataStream(output_pipe=output_pipe)
+                self.curr_idx = 0
+
+            def __call__(self, sample):
+                if bool(sample):
+                    self.stream.set_output(self.curr_idx, sample)
+                    self.curr_idx += 1
+
+        writer_helper = _WriterHelper(output_pipe=self.output.as_pipe())
+
+        seq = self.input.create_reader()
+        seq = seq.filter(filter_fn, lazy=True, insert_empty_samples=True)
+        self.grabber.grab_all(
+            seq,
+            keep_order=True,
+            parent_cmd=self,
+            sample_fn=writer_helper,
+            track_message=f"Filtering data ({len(seq)} samples)",
         )

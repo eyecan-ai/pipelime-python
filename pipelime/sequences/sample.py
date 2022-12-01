@@ -28,21 +28,28 @@ class Sample(t.Mapping[str, Item]):
 
     def __init__(self, data: t.Optional[t.Mapping[str, Item]] = None):
         super().__init__()
-        self._data = data if data is not None else {}
+        self._data = {} if data is None else data
 
     def to_schema(self) -> t.Mapping[str, t.Type[Item]]:
+        """Returns a mapping of the keys to the item types."""
         return {k: type(v) for k, v in self._data.items()}
 
     def to_dict(self) -> t.Dict[str, t.Any]:
+        """Returns a dictionary of the keys to the item values."""
         return {k: v() for k, v in self.items()}
 
     def shallow_copy(self) -> Sample:
+        """Returns a shallow copy of the Sample, ie, the Item instances are shared."""
         return Sample(copy.copy(self._data))
 
     def deep_copy(self) -> Sample:
+        """Returns a deep copy of the Sample, ie, the Item instances are not shared."""
         return Sample(copy.deepcopy(self._data))
 
     def set_item(self, key: str, value: Item) -> Sample:
+        """Sets a new Item in the Sample.
+        If the key already exists, the Item is replaced.
+        """
         new_data = dict(self._data)
         new_data[key] = value
         return Sample(new_data)
@@ -54,6 +61,9 @@ class Sample(t.Mapping[str, Item]):
         value: t.Any,
         shared_item: t.Optional[bool] = None,
     ) -> Sample:
+        """Creates a new Item of the same type of the reference Item and with the
+        given value. Then sets the new Item in the Sample with the target key.
+        """
         ref_item = self._data[reference_key]
         new_data = dict(self._data)
         new_data[target_key] = ref_item.make_new(
@@ -62,6 +72,7 @@ class Sample(t.Mapping[str, Item]):
         return Sample(new_data)
 
     def set_value(self, key: str, value: t.Any) -> Sample:
+        """Sets a new value for the Item with the given key in the Sample."""
         return self.set_value_as(key, key, value)
 
     def deep_set(
@@ -105,7 +116,7 @@ class Sample(t.Mapping[str, Item]):
         return py_.get(self.direct_access(), key_path, default)
 
     def match(self, query: str) -> bool:
-        """Match the Sample against a query.
+        """Match the Sample against a query
         (cfr. https://github.com/cyberlis/dictquery).
         """
         import dictquery as dq
@@ -135,6 +146,9 @@ class Sample(t.Mapping[str, Item]):
         return _DirectAccess(self._data)
 
     def change_key(self, old_key: str, new_key: str, delete_old_key: bool) -> Sample:
+        """Creates a new key in the Sample sharing the same Item as the old key.
+        It does nothing if `old_key` does not exist or `new_key` already exists.
+        """
         if new_key not in self._data and old_key in self._data:
             new_data = dict(self._data)
             new_data[new_key] = new_data[old_key]
@@ -144,22 +158,56 @@ class Sample(t.Mapping[str, Item]):
         return self
 
     def duplicate_key(self, reference_key: str, new_key: str) -> Sample:
+        """Duplicates `reference_key` in the Sample as `new_key`.
+        NB: `reference_key` must exist, while `new_key` must not exist.
+        """
         return self.change_key(reference_key, new_key, False)
 
     def rename_key(self, old_key: str, new_key: str) -> Sample:
+        """Renames `old_key` in the Sample as `new_key`.
+        NB: `old_key` must exist, while `new_key` must not exist.
+        """
         return self.change_key(old_key, new_key, True)
 
     def remove_keys(self, *key_to_remove: str) -> Sample:
+        """Removes the given keys from the Sample."""
         return Sample({k: v for k, v in self._data.items() if k not in key_to_remove})
 
     def extract_keys(self, *keys_to_keep: str) -> Sample:
+        """Creates a new Sample with only the given keys."""
         return Sample({k: v for k, v in self._data.items() if k in keys_to_keep})
 
     def merge(self, other: Sample) -> Sample:
+        """Merges the Items in the given Sample."""
         return Sample({**self._data, **other._data})
 
     def update(self, other: Sample) -> Sample:
+        """Same as `merge`."""
         return self.merge(other)
+
+    def zip(self, other: Sample) -> Sample:
+        """Same as `merge`."""
+        return self.merge(other)
+
+    def __add__(self, other: Sample) -> Sample:
+        """Same as `merge`."""
+        return self.merge(other)
+
+    def __sub__(self, other: Sample) -> Sample:
+        """Removes other's keys from this Sample."""
+        return self.remove_keys(*other.keys())
+
+    def __or__(self, other: Sample) -> Sample:
+        """Same as `merge`."""
+        return self.merge(other)
+
+    def __and__(self, other: Sample) -> Sample:
+        """Creates a new Sample with only the keys that are in both Samples."""
+        return self.extract_keys(*other.keys())
+
+    def __xor__(self, other: Sample) -> Sample:
+        """Creates a new Sample with only the keys that are not in both Samples."""
+        return (self | other) - (self & other)
 
     def __getitem__(self, key: str) -> Item:
         return self._data[key]

@@ -25,14 +25,13 @@ class TestRemotes:
 
         # upload
         source_to_remote: t.Mapping[Path, ParseResult] = {}
-        reader = pls.SamplesSequence.from_underfolder(  # type: ignore
-            source, merge_root_items=False
-        )
+        reader = pls.SamplesSequence.from_underfolder(source, merge_root_items=False)
         for sample in reader:
             for k, itm in sample.items():
-                rm_url = remote.upload_file(itm._file_sources[0], remote_base_path)
+                itm_source = itm.local_sources[0]
+                rm_url = remote.upload_file(itm_source, remote_base_path)
                 assert rm_url is not None
-                source_to_remote[itm._file_sources[0]] = rm_url
+                source_to_remote[itm_source] = rm_url
 
         # download and compare
         local_root = temp_folder / "local"

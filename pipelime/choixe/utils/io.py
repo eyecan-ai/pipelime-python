@@ -19,10 +19,10 @@ def load(path: Path) -> Any:
     """
     with open(path, "r") as fd:
         ext = path.suffix
-        if ext in (".yaml", ".yml"):
-            return yaml.safe_load(fd)
-        elif ext == ".json":
+        if ext == ".json":
             return json.load(fd)
+        else:
+            return yaml.safe_load(fd)
 
 
 def dump(obj: Any, path: Path) -> None:
@@ -37,7 +37,7 @@ def dump(obj: Any, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as fd:
         ext = path.suffix
-        if ext in (".yaml", ".yml"):
-            yaml.safe_dump(obj, fd, sort_keys=False)
-        elif ext == ".json":
+        if ext == ".json":
             json.dump(obj, fd)
+        else:
+            yaml.safe_dump(obj, fd, sort_keys=False)

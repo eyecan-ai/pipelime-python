@@ -92,7 +92,7 @@ class Node(ABC):
     """A generic element of the Choixe AST, all nodes must implement this interface."""
 
     @abstractmethod
-    def accept(self, visitor: NodeVisitor) -> Any:  # pragma: no cover
+    def accept(self, visitor: NodeVisitor) -> Any:
         """Accepts an incoming visitor. This method should simply call the respective
         `visit_<node_type>` method of the visiting object, pass `self` as argument
         and forward the result.
