@@ -69,6 +69,7 @@ choixe/intro.md
 choixe/syntax.md
 choixe/directives.md
 choixe/xconfig.md
+choixe/rand.md
 ```
 
 ```{toctree}

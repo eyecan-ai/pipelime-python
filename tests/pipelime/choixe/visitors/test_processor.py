@@ -9,6 +9,23 @@ from pydantic import BaseModel
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors import process
+import pytest
+import pipelime.choixe.visitors.processor as processor_module
+
+
+@pytest.fixture()
+def mock_rand(monkeypatch):
+    class MockRand:
+        def __init__(self) -> None:
+            self.invoked = []
+
+        def __call__(self, *args, **kwargs) -> float:
+            self.invoked.append((args, kwargs))
+            return 0.5
+
+    mock_rand = MockRand()
+    monkeypatch.setattr(processor_module, "rand", mock_rand)
+    return mock_rand
 
 
 class MyCompositeClass:
@@ -40,6 +57,13 @@ class TestProcessor:
         "collection2": [str(x) for x in range(100, 105)],
         "collection3": list(range(50, 52)),
         "collection4": [str(x) for x in range(100, 102)],
+        "nested_stuff": {
+            "a": 10,
+            "b": {
+                "sweep": "$sweep(10, 20, 30)",
+                "c": 20,
+            },
+        },
     }
     env = {"VAR1": "yellow", "VAR2": "snake"}
 
@@ -142,6 +166,11 @@ class TestProcessor:
             {"a": "40", "b": {"a": "hello", "b": "world", "c": "world", "d": 10}},
             {"a": "red", "b": {"a": "hello", "b": "world", "c": "world", "d": 10}},
         ]
+        self._expectation_test(data, expected)
+
+    def test_sweep_in_context(self):
+        data = {"a": "$var(nested_stuff.b.sweep)"}
+        expected = [{"a": 10}, {"a": 20}, {"a": 30}]
         self._expectation_test(data, expected)
 
     def test_sweep_no_branching(self):
@@ -464,6 +493,34 @@ class TestProcessor:
         data = "$tmp(my_tmp)"
         processed = process(parse(data))
         assert len(processed) == 1 and isinstance(processed[0], str)
+
+    def test_rand(self, mock_rand):
+        data = "$rand()"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert len(mock_rand.invoked[0][0]) == 0
+        assert len(mock_rand.invoked[0][1]) == 0
+
+    def test_rand_with_args(self, mock_rand):
+        data = "$rand(5, 10)"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert tuple(mock_rand.invoked[0][0]) == (5, 10)
+        assert len(mock_rand.invoked[0][1]) == 0
+
+    def test_rand_with_kwargs(self, mock_rand):
+        data = "$rand(n=5, pdf=[0.1, 0.2, 0.3, 0.4])"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert len(mock_rand.invoked[0][0]) == 0
+        assert mock_rand.invoked[0][1] == {"n": 5, "pdf": [0.1, 0.2, 0.3, 0.4]}
+
+    def test_rand_with_args_and_kwargs(self, mock_rand):
+        data = "$rand(5, 10, n=5, pdf=[0.1, 0.2, 0.3, 0.4])"
+        processed = process(parse(data))
+        assert len(processed) == 1
+        assert tuple(mock_rand.invoked[0][0]) == (5, 10)
+        assert mock_rand.invoked[0][1] == {"n": 5, "pdf": [0.1, 0.2, 0.3, 0.4]}
 
     def test_for_mindfuck(self):
         data = {
