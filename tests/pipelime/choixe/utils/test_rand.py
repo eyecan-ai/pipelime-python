@@ -108,6 +108,10 @@ class TestRealFn:
             assert len(fn.call_arg) == 1
             assert fn.call_arg[0] == float(x)
 
+    def test_call_raises(self, mock_fn) -> None:
+        with pytest.raises(ValueError):
+            mock_fn()("invalid_input")
+
     @pytest.mark.parametrize(["x"], [[np.linspace(-10, 10, 1000)]])
     @pytest.mark.parametrize(
         ["dx", "dy"], [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]

@@ -14,7 +14,7 @@ class RealFn(ABC):
     def __call__(self, x: T) -> T:
         if isinstance(x, (float, int, bool)):
             return self._call(np.array([float(x)])).tolist()[0]
-        elif isinstance(x, Sequence):
+        elif isinstance(x, Sequence) and not isinstance(x, str):
             return self._call(np.array(x)).tolist()
         elif isinstance(x, np.ndarray):
             return self._call(x)
@@ -264,7 +264,7 @@ class PiecewiseFn(RealFn):
     def invert(self, start: float, stop: float) -> Optional[PiecewiseFn]:
         segments = {}
         last_start = last_stop = -float("inf")
-        for i in range(len(self.keysteps)):
+        for i in range(len(self.keysteps)):  # pragma: no branch
             cur, nxt = (
                 self.keysteps[i],
                 self.keysteps[i + 1] if i < len(self.keysteps) - 1 else stop,
