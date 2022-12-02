@@ -80,7 +80,7 @@ print(list(sample_7.keys()))
 ['common', 'numbers', 'label', 'maskinv', 'metadata', 'points', 'mask', 'image']
 ```
 
-As you may notice, the keys of `sample_7` match the names of the files inside `datasets/mini_mnist/data`, with the only exception of "common" and "numbers", which are "shared items", i.e. items that are shared across all samples and stored in files outside the `data` subfolder to avoid unnecessary redundancy.
+As you may notice, the keys of `sample_7` match the names of the files inside `datasets/mini_mnist/data`, with the only exception of `common` and `numbers`, which are "shared items", i.e. items that are shared across all samples and stored in files outside the `data` subfolder to avoid unnecessary redundancy.
 
 We can access individual items by subscripting the sample object:
 
@@ -110,7 +110,7 @@ from pipelime.cli import pl_print
 pl_print(sample_7["image"])
 ```
 
-As you can see, the item is a `JpegImageItem`, referencing to a file named `000007_image.jpg`, it is not shared (as "common" and "numbers" are), and it has caching enabled, that is, the item will be loaded from disk only once and then cached in memory.
+As you can see, the item is a `JpegImageItem`, referencing to a file named `000007_image.jpg`, it is not shared (as `common` and `numbers` are), and it has caching enabled, that is, the item will be loaded from disk only once and then cached in memory.
 
 So far, **no** data loading has actually been performed.
 To do so, we need to explicitly tell pipelime to get the data, by **calling** the item:
@@ -147,15 +147,15 @@ However, you should also consider **when** data caching happens: if you are amid
 
 In this section, we will write our first and very simple data pipeline. Please keep in mind that **there are far better ways to do this**, the example here is simply to make you familiar with the core pipelime functionalities.
 
-Pipelime objects should be treated as immutable: i.e. you should not directly modify them, but only create altered copies of them. By "modifying" a sequence we really mean to create a new sequence, new samples and new items that contain altered versions of the original data, without never modifying anything in-place: the old sequence still remains untouched. Be aware, however, that pipelime usually shares any data that is not modified, so the memory footprint of chained operations is usually very low.
+Pipelime objects should be treated as immutable: i.e. you should not directly modify them, but only create altered copies of them. By *modifying* a sequence we really mean to create a new sequence, new samples and new items that contain altered versions of the original data, without never modifying anything in-place: the old sequence still remains untouched. Be aware, however, that pipelime usually shares any data that is not modified, so the memory footprint of chained operations is usually very low.
 
-Why did we just say that pipelime objects *should be treated as* immutable and not that they simply *are* immutable? Well, this is python and there is no actual way to prevent you from, let's say, modifying a numpy array within an item inplace and pretend nothing has happened. We can simply consider this a **bad practice**, and ask you to avoid it, like you would avoid accessing a field that starts with "_".
+Why did we just say that pipelime objects *should be treated as* immutable and not that they simply *are* immutable? Well, this is python and there is no actual way to prevent you from, let's say, modifying a numpy array within an item inplace and pretend nothing has happened. We can simply consider this a **bad practice**, and ask you to avoid it, like you would avoid accessing a field that starts with `_`.
 
 Let's modify the "mini_mnist" dataset by:
 1. Keeping only the samples with even index.
 2. Inverting the color of the images.
-3. Adding a new item called "color" with the average image color.
-4. Deleting the "maskinv" item.
+3. Adding a new item called `color` with the average image color.
+4. Deleting the `maskinv` item.
 
 We assume you already have a sequence from the previous example. If so, start by slicing the sequence to keep only the even samples:
 
@@ -190,11 +190,11 @@ Let's then procede to invert the image item:
 
 First, we explicitly avoided in-place changes to the image array by computing the inverse as `invimage = 255 - image`.
 Then, to replace the previous image with the inverted one we used the method `set_value`. This method, under the hood, follows these steps:
-1. Retrieves the "image" item from the sample.
+1. Retrieves the `image` item from the sample.
 2. Creates a new item of the same type, but with the new data.
 3. Creates a copy of the sample with the new item and returns it.
 
-It is important to note that what we get from `sample.set_value` is actually a **new sample** where all the item objects are shallow copied from the original sample, except for the "image" item, which is a new object of the same type. Therefore, simply calling the `set_value` method alone is completely useless, since you need to store the returned object in a variable. For simplicity, we save the new sample object in the same variable named `sample`, but they are two completely unrelated objects.
+It is important to note that what we get from `sample.set_value` is actually a **new sample** where all the item objects are shallow copied from the original sample, except for the `image` item, which is a new object of the same type. Therefore, simply calling the `set_value` method alone is completely useless, since you need to store the returned object in a variable. For simplicity, we save the new sample object in the same variable named `sample`, but they are two completely unrelated objects.
 
 We proceed by adding a new item with the image average color:
 
@@ -204,7 +204,7 @@ We proceed by adding a new item with the image average color:
 
     # Create a numpy item with the average color and add it to the sample
     avg_color_item = pli.NpyNumpyItem(avg_color)
-    sample = sample.set_item("avg_color", avg_color_item)
+    sample = sample.set_item("color", avg_color_item)
 ```
 
 In this case, we don't have a previously existing item whose value we need to modify, so, we need to create a new item from scratch. The `pli` module contains all sorts of built-in item types that you can use, here we choose `NpyNumpyItem`, i.e., a generic item storing numpy arrays in the npy format. To create it, we simply pass the data to the item constructor.
@@ -217,7 +217,7 @@ Going deeper, to add items you have the following options:
 - `set_value`: when you want to replace the value (the content) of an existing item, without any knowledge of what type of item it is. You have no control over the item creation, and you want to leave that to pipelime.
 - `set_value_as`: when you want to set/replace a value with the same item type of another (possibly unrelated) item. Suppose you want to add a binary mask in a sample that already contains a png image item, and you wish that the mask item has the same type - but different content - as the image, then you can use `set_value_as`.
 
-Back to our example, we then procede to remove the "maskinv" item.
+Back to our example, we then procede to remove the `maskinv` item.
 
 ```python
     # Delete the maskinv item
@@ -263,7 +263,7 @@ for sample in even_samples:
 
     # Create a numpy item with the average color and add it to the sample
     avg_color_item = pli.NpyNumpyItem(avg_color)
-    sample = sample.set_item("avg_color", avg_color_item)
+    sample = sample.set_item("color", avg_color_item)
 
     # Delete the maskinv item
     sample = sample.remove_keys("maskinv")

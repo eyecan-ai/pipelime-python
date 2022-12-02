@@ -73,6 +73,14 @@ def my_annotated_action(x: MyInput0):
     return MyOutput0.merge_with(x, meta=pli.YamlMetadataItem({"john": "doe"}))
 
 
+def my_noparam_action():
+    return None
+
+
+def my_kwonly_action(*, x: MyInput0):
+    return None
+
+
 class TestEntities:
     def create_sample(self):
         return Sample(
@@ -108,7 +116,7 @@ class TestEntities:
             self._check_samples(in_sample, out_sample, extra == "allow", no_input)
 
     def _make_test(self, action_fn, input_cls, extra, no_input):
-        se = StageEntity(eaction=EntityAction(action=action_fn, input_type=input_cls))
+        se = StageEntity(EntityAction(action=action_fn, input_type=input_cls))
         self._make_stage_test(se, extra, no_input)
 
     @pytest.mark.parametrize("input_cls", [MyInput0, MyInput1, MyInput2])
@@ -138,35 +146,35 @@ class TestEntities:
     )
     def test_annotated_action(self, action_fn, input_cls):
         se = StageEntity(
-            eaction=(
-                EntityAction(action=action_fn)  # type: ignore
-                if input_cls is None
-                else EntityAction(action=action_fn, input_type=input_cls)
-            )
+            EntityAction(action=action_fn)  # type: ignore
+            if input_cls is None
+            else EntityAction(action=action_fn, input_type=input_cls)
         )
         self._make_stage_test(se, "allow", False)
 
         se = parse_obj_as(
             StageEntity,
-            {
-                "eaction": (
-                    {"action": action_fn}
-                    if input_cls is None
-                    else {"action": action_fn, "input_type": input_cls}
-                )
-            },
+            action_fn
+            if input_cls is None
+            else {"action": action_fn, "input_type": input_cls},
         )
         self._make_stage_test(se, "allow", False)
 
     def test_invalid_action(self):
         with pytest.raises(ValidationError):
+            StageEntity(EntityAction(action=my_noparam_action))  # type: ignore
+        with pytest.raises(ValidationError):
+            StageEntity(EntityAction(action=my_kwonly_action))  # type: ignore
+        with pytest.raises(ValidationError):
             StageEntity(
-                eaction=EntityAction(action=my_annotated_action, input_type=MyInput1)  # type: ignore
+                EntityAction(action=my_annotated_action, input_type=MyInput1)  # type: ignore
             )
+        with pytest.raises(ValidationError):
+            StageEntity(EntityAction(action=my_action0))  # type: ignore
 
     def test_lambda(self):
         se = StageEntity(
-            eaction=EntityAction(
+            EntityAction(
                 action=(
                     lambda x: MyOutput0.merge_with(  # type: ignore
                         x, meta=pli.YamlMetadataItem({"john": "doe"})

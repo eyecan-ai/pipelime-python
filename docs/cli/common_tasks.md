@@ -31,7 +31,7 @@ as specified in every command help. Here a general reference:
 
 Common operations on datasets. To get the most out of any commands, please show the help with `pipelime help <command>`.
 
-### Copy, Zip, Concatenate, Sort
+### Copy, Zip, Concatenate
 
 | Description | Command |
 | ---- | ---- |

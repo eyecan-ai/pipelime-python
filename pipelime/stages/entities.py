@@ -1,3 +1,4 @@
+import inspect
 import typing as t
 import pydantic as pyd
 from pipelime.utils.pydantic_types import TypeDef, CallableDef
@@ -25,7 +26,9 @@ class BaseEntityType(TypeDef[BaseEntity]):
     """An entity type. It accepts both type names and string."""
 
 
-class EntityAction(pyd.BaseModel):
+class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+    """An action and its associated input entity model."""
+
     action: CallableDef = pyd.Field(
         ...,
         description=(
@@ -45,37 +48,40 @@ class EntityAction(pyd.BaseModel):
 
     @pyd.validator("action")
     def validate_action(cls, v):
-        if not v.args_type:
+        params = v.full_signature.parameters
+        if not params:
             raise ValueError(
-                "The action must have at least one argument, ie, the input model."
+                "The action must have at least one argument, ie, the input model entity."
             )
-        if all(
-            p.kind == p.KEYWORD_ONLY or p.kind == p.VAR_KEYWORD
-            for p in v.full_signature.parameters.values()
+        first_param = next(iter(params.values()))
+        if (
+            first_param.kind == inspect.Parameter.KEYWORD_ONLY
+            or first_param.kind == inspect.Parameter.VAR_KEYWORD
         ):
             raise ValueError(
                 "The action must have at least one positional argument, "
-                "ie, the input model."
+                "ie, the input model entity."
             )
         return v
 
     @pyd.validator("input_type", always=True)
     def validate_input_type(cls, v, values):
-        action = values["action"]
-        if v is None:
-            if action.args_type[0] is None:
-                raise ValueError(
-                    "Cannot infer input model type because no annotation "
-                    "has been found for the first argument of the action."
-                )
-            v = BaseEntityType.create(action.args_type[0])
-        else:
-            first_tp = action.args_type[0]
-            if first_tp is not None and not issubclass(first_tp, v.value):
-                raise ValueError(
-                    "The first argument of the action is not compatible "
-                    "with the given input model type"
-                )
+        if "action" in values:  # if not True, an error has been raised yet
+            action = values["action"]
+            if v is None:
+                if action.args_type[0] is None:
+                    raise ValueError(
+                        "Cannot infer input model type because no annotation "
+                        "has been found for the first argument of the action."
+                    )
+                v = BaseEntityType.create(action.args_type[0])
+            else:
+                first_tp = action.args_type[0]
+                if first_tp is not None and not issubclass(first_tp, v.value):
+                    raise ValueError(
+                        "The first argument of the action is not compatible "
+                        "with the given input model type"
+                    )
         return v
 
     @classmethod
@@ -91,10 +97,13 @@ class EntityAction(pyd.BaseModel):
         return cls(**value)
 
 
-class StageEntity(SampleStage):
-    eaction: EntityAction = pyd.Field(..., description="The entity action to run.")
+class StageEntity(SampleStage, title="entity"):
+    __root__: EntityAction = pyd.Field(..., description="The entity action to run.")
+
+    def __init__(self, __root__, **data):
+        super().__init__(__root__=__root__, **data)  # type: ignore
 
     def __call__(self, x: "Sample") -> "Sample":
         from pipelime.sequences import Sample
 
-        return Sample(self.eaction.action(self.eaction.input_type(**x)).dict())
+        return Sample(self.__root__.action(self.__root__.input_type(**x)).dict())

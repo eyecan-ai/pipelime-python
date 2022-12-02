@@ -1,6 +1,6 @@
-import numpy as np
 import pytest
 import pydantic
+import numpy as np
 import pipelime.utils.pydantic_types as plt
 from ... import TestUtils
 
@@ -133,3 +133,76 @@ class TestItemType:
 
         itp_again = pydantic.parse_obj_as(plt.ItemType, itp.dict()["__root__"])
         assert itp.value == itp_again.value
+
+    def test_hash(self):
+        from pipelime.items import MetadataItem
+
+        itp = plt.ItemType(__root__=MetadataItem)
+        assert hash(itp) == hash(MetadataItem)
+
+        d = {itp: 42}  # type: ignore
+        assert d[itp] == 42
+
+
+def a_callable(a: int, b="c", **kwargs) -> str:
+    return f"{a}{b}{kwargs}"
+
+def b_callable(a: int, b="c", *args) -> str:
+    return f"{a}{b}{args}"
+
+
+class TestCallableDef:
+    def test_create(self):
+        import pipelime.choixe.utils.io
+
+        cd = plt.CallableDef.create(a_callable)
+        assert cd.value is a_callable
+
+        cd = plt.CallableDef.create("pipelime.choixe.utils.io.load")
+        assert cd.value is pipelime.choixe.utils.io.load
+
+        cd2 = plt.CallableDef.create(cd)
+        assert cd.value is cd2.value
+
+        with pytest.raises(ValueError):
+            _ = plt.CallableDef.create(12)  # type: ignore
+
+    def test_signature(self):
+        import inspect
+
+        cd = plt.CallableDef(__root__=a_callable)
+
+        assert cd.full_signature == inspect.signature(a_callable)
+        assert cd.args_type == [int, None, None]
+        assert not cd.has_var_positional
+        assert cd.has_var_keyword
+        assert cd.return_type is str
+
+        cd = plt.CallableDef(__root__=b_callable)
+        assert cd.full_signature == inspect.signature(b_callable)
+        assert cd.args_type == [int, None, None]
+        assert cd.has_var_positional
+        assert not cd.has_var_keyword
+        assert cd.return_type is str
+
+
+    def test_call(self):
+        cd = plt.CallableDef(__root__=a_callable)
+        assert cd(42) == "42c{}"
+        assert cd(49, "d", e=50) == "49d{'e': 50}"
+
+    def test_serialize(self):
+        cd = plt.CallableDef(__root__=a_callable)
+
+        cd_again = pydantic.parse_raw_as(plt.CallableDef, cd.json())
+        assert cd.value == cd_again.value
+
+        cd_again = pydantic.parse_obj_as(plt.CallableDef, cd.dict()["__root__"])
+        assert cd.value == cd_again.value
+
+    def test_hash(self):
+        cd = plt.CallableDef(__root__=a_callable)
+        assert hash(cd) == hash(a_callable)
+
+        d = {cd: 42}
+        assert d[cd] == 42
