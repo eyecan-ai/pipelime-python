@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
-from pydantic import ValidationError, parse_obj_as
+from pydantic import BaseModel, ValidationError, parse_obj_as
+import numpy as np
 from pipelime.stages import BaseEntity, EntityAction, StageEntity
 from pipelime.sequences import Sample
 import pipelime.items as pli
@@ -19,6 +20,23 @@ class MyInput1(BaseEntity, extra="ignore"):
 class MyInput2(BaseEntity, extra="forbid"):
     image: pli.ImageItem
     label: pli.NumpyItem
+
+
+class OtherModel(BaseModel):
+    foo: str
+    car: int = 42
+
+
+class MyInput3(BaseEntity):
+    image: np.ndarray
+    label: np.ndarray
+    other: OtherModel
+
+
+class MyInput4(BaseEntity):
+    image: pli.ImageItem
+    label: pli.NumpyItem
+    other: OtherModel
 
 
 class MyOutput0(MyInput0):
@@ -69,6 +87,19 @@ def my_action5(x):
     return MyOutput5.merge_with(x, meta=pli.YamlMetadataItem({"john": "doe"}))
 
 
+def my_action6(x):
+    return MyOutput0(
+        image=x.image
+        if isinstance(x.image, pli.ImageItem)
+        else pli.PngImageItem(x.image),
+        label=x.label
+        if isinstance(x.label, pli.NumpyItem)
+        else pli.TxtNumpyItem(x.label),
+        meta=pli.YamlMetadataItem({"john": "doe"}),
+        other=pli.JsonMetadataItem(x.other.dict()),  # type: ignore
+    )
+
+
 def my_annotated_action(x: MyInput0):
     return MyOutput0.merge_with(x, meta=pli.YamlMetadataItem({"john": "doe"}))
 
@@ -85,7 +116,9 @@ class TestEntities:
     def create_sample(self):
         return Sample(
             {
-                "image": pli.JpegImageItem("image.jpg"),
+                "image": pli.PngImageItem(
+                    np.random.rand(24).reshape(2, 4, 3).astype(np.uint8)
+                ),
                 "label": pli.TxtNumpyItem([1, 2, 3]),
                 "meta": pli.BinaryItem(b"asdf"),
                 "other": pli.JsonMetadataItem({"foo": "bar"}),
@@ -136,6 +169,26 @@ class TestEntities:
     )
     def test_outputs(self, action_fn, extra, no_input):
         self._make_test(action_fn, MyInput0, extra, no_input)
+
+    @pytest.mark.parametrize("input_cls", [MyInput3, MyInput4])
+    def test_pass_by_value(self, input_cls):
+        from ... import TestUtils
+
+        stage = StageEntity(EntityAction(action=my_action6, input_type=input_cls))  # type: ignore
+        in_sample = self.create_sample()
+        out_sample = stage(in_sample)
+
+        if issubclass(input_cls.__fields__["image"].outer_type_, pli.Item):
+            assert in_sample["image"] is out_sample["image"]
+        else:
+            assert TestUtils.numpy_eq(in_sample["image"](), out_sample["image"]())
+        if issubclass(input_cls.__fields__["label"].outer_type_, pli.Item):
+            assert in_sample["label"] is out_sample["label"]
+        else:
+            assert TestUtils.numpy_eq(in_sample["label"](), out_sample["label"]())
+        assert isinstance(out_sample["meta"], pli.YamlMetadataItem)
+        assert out_sample["meta"]() == {"john": "doe"}
+        assert out_sample["other"]() == {"car": 42, **in_sample["other"]()}  # type: ignore
 
     @pytest.mark.parametrize(
         ("action_fn", "input_cls"),

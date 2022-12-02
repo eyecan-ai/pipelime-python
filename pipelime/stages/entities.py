@@ -17,6 +17,29 @@ class BaseEntity(
     """The base class for all input/output entity models."""
 
     @classmethod
+    def create(cls, x: "Sample"):
+        from pipelime.items import Item
+
+        item_fields = list(
+            issubclass(f.outer_type_, Item) for f in cls.__fields__.values()
+        )
+        if all(item_fields):
+            return cls(**x)
+        if not any(item_fields):
+            return cls(**x.to_dict())
+
+        x_dict = {
+            k: (
+                v()
+                if k in cls.__fields__
+                and not issubclass(cls.__fields__[k].outer_type_, Item)
+                else v
+            )
+            for k, v in x.items()
+        }
+        return cls(**x_dict)
+
+    @classmethod
     def merge_with(cls, other: "BaseEntity", **kwargs) -> "BaseEntity":
         """Creates a new entity by merging `other` entity with extra `kwargs` fields."""
         return cls(**{**other.dict(), **kwargs})
@@ -106,4 +129,6 @@ class StageEntity(SampleStage, title="entity"):
     def __call__(self, x: "Sample") -> "Sample":
         from pipelime.sequences import Sample
 
-        return Sample(self.__root__.action(self.__root__.input_type(**x)).dict())
+        return Sample(
+            self.__root__.action(self.__root__.input_type.value.create(x)).dict()
+        )
