@@ -6,12 +6,17 @@ from io import TextIOWrapper
 import typing as t
 
 from pipelime.items import Item
+from pipelime.items.base import deferred_classattr
 
 _metadata_type = t.Union[str, int, float, bool, None, t.Sequence, t.Mapping]
 
 
 class MetadataItem(Item[_metadata_type]):
     """A common base for items dealing with metadata."""
+
+    @deferred_classattr
+    def default_concrete(cls):
+        return YamlMetadataItem
 
     @classmethod
     def validate(cls, raw_data: t.Any) -> _metadata_type:

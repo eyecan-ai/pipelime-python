@@ -10,6 +10,7 @@ import io
 import shutil
 import os
 import json
+import inspect
 
 import typing as t
 
@@ -33,21 +34,41 @@ class SerializationMode(IntEnum):
     REMOTE_FILE = 4
 
 
+class deferred_classattr:
+    """A class attribute that is set on first access.
+    Useful to resolve circular dependencies.
+    """
+    def __init__(self, fget):
+        if not isinstance(fget, (classmethod, staticmethod)):
+            fget = classmethod(fget)
+        self._fget = fget
+
+    def __get__(self, instance, owner=None):
+        if owner is None:
+            owner = type(instance)
+        src_fn = self._fget.__get__(instance, owner)
+        value = src_fn()
+
+        # replace this descriptor with the actual value
+        setattr(owner, src_fn.__name__, value)
+        return value
+
+
 class ItemFactory(ABCMeta):
     """Item classes register themselves in this factory, so that they can be
     instantiated on request when loading file from disk. To store user-created data a
     specific Item should be explicitly created.
     """
 
-    ITEM_CLASSES: t.Dict[str, t.Type["Item"]] = {}
+    ITEM_CLASSES: t.Dict[str, t.Type[Item]] = {}
     REMOTE_FILE_EXT = ".remote"
-    ITEM_DATA_CACHE_MODE: t.Dict[t.Type["Item"], t.Optional[bool]] = {}
-    ITEM_SERIALIZATION_MODE: t.Dict[t.Type["Item"], SerializationMode] = {}
+    ITEM_DATA_CACHE_MODE: t.Dict[t.Type[Item], t.Optional[bool]] = {}
+    ITEM_SERIALIZATION_MODE: t.Dict[t.Type[Item], SerializationMode] = {}
     ITEM_DISABLED_SERIALIZATION_MODES: t.Dict[
-        t.Type["Item"], t.Set[SerializationMode]
+        t.Type[Item], t.Set[SerializationMode]
     ] = {}
 
-    def __init__(cls, name, bases, dct):
+    def __init__(cls, name, bases, dct, **kwargs):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
             if ext == cls.REMOTE_FILE_EXT:
@@ -58,6 +79,7 @@ class ItemFactory(ABCMeta):
         cls.ITEM_DATA_CACHE_MODE[cls] = None  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
         cls.ITEM_DISABLED_SERIALIZATION_MODES[cls] = set()  # type: ignore
+
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -82,12 +104,12 @@ class ItemFactory(ABCMeta):
 
     @classmethod
     def set_data_cache_mode(
-        cls, item_cls: t.Type["Item"], enable_data_cache: t.Optional[bool]
+        cls, item_cls: t.Type[Item], enable_data_cache: t.Optional[bool]
     ):
         cls.ITEM_DATA_CACHE_MODE[item_cls] = enable_data_cache
 
     @classmethod
-    def is_cache_enabled(cls, item_cls: t.Type["Item"]) -> bool:
+    def is_cache_enabled(cls, item_cls: t.Type[Item]) -> bool:
         for base_cls in item_cls.mro():
             if issubclass(base_cls, Item):
                 value = cls.ITEM_DATA_CACHE_MODE.get(base_cls, None)
@@ -96,11 +118,11 @@ class ItemFactory(ABCMeta):
         return True
 
     @classmethod
-    def set_serialization_mode(cls, item_cls: t.Type["Item"], mode: SerializationMode):
+    def set_serialization_mode(cls, item_cls: t.Type[Item], mode: SerializationMode):
         cls.ITEM_SERIALIZATION_MODE[item_cls] = mode
 
     @classmethod
-    def get_serialization_mode(cls, item_cls: t.Type["Item"]) -> SerializationMode:
+    def get_serialization_mode(cls, item_cls: t.Type[Item]) -> SerializationMode:
         smode = cls.ITEM_SERIALIZATION_MODE[item_cls]
         for base_cls in item_cls.mro():
             if issubclass(base_cls, Item):
@@ -112,14 +134,14 @@ class ItemFactory(ABCMeta):
     @classmethod
     def set_disabled_serialization_modes(
         cls,
-        item_cls: t.Type["Item"],
+        item_cls: t.Type[Item],
         modes: t.Union[t.Set[SerializationMode], t.List[SerializationMode]],
     ):
         cls.ITEM_DISABLED_SERIALIZATION_MODES[item_cls] = set(modes)
 
     @classmethod
     def get_disabled_serialization_modes(
-        cls, item_cls: t.Type["Item"]
+        cls, item_cls: t.Type[Item]
     ) -> t.List[SerializationMode]:
         smodes = set()
         for base_cls in item_cls.mro():
@@ -128,7 +150,7 @@ class ItemFactory(ABCMeta):
         return list(smodes)
 
 
-def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item"]):
+def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type[Item]):
     """Sets serialization mode for some or all items.
     Applies to all items if no item class is given."""
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
@@ -136,7 +158,7 @@ def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type["Item
 
 
 def set_item_disabled_serialization_modes(
-    modes: t.List[SerializationMode], *item_cls: t.Type["Item"]
+    modes: t.List[SerializationMode], *item_cls: t.Type[Item]
 ):
     """Disables serialization modes on selected item classes.
     Applies to all items if no item class is given."""
@@ -144,14 +166,14 @@ def set_item_disabled_serialization_modes(
         ItemFactory.set_disabled_serialization_modes(itc, modes)
 
 
-def disable_item_data_cache(*item_cls: t.Type["Item"]):
+def disable_item_data_cache(*item_cls: t.Type[Item]):
     """Disables data cache on selected item classes.
     Applies to all items if no item class is given."""
     for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, False)
 
 
-def enable_item_data_cache(*item_cls: t.Type["Item"]):
+def enable_item_data_cache(*item_cls: t.Type[Item]):
     """Enables data cache on selected item classes.
     Applies to all items if no item class is given."""
     for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
@@ -180,7 +202,7 @@ class item_serialization_mode(ContextDecorator):
     """
 
     def __init__(
-        self, smode: t.Union[str, SerializationMode], *item_cls: t.Type["Item"]
+        self, smode: t.Union[str, SerializationMode], *item_cls: t.Type[Item]
     ):
         self._target_mode = (
             smode if isinstance(smode, SerializationMode) else SerializationMode[smode]
@@ -230,7 +252,7 @@ class item_disabled_serialization_modes(ContextDecorator):
         smodes: t.Union[
             str, SerializationMode, t.Sequence[t.Union[str, SerializationMode]]
         ],
-        *item_cls: t.Type["Item"],
+        *item_cls: t.Type[Item],
     ):
         if isinstance(smodes, str) or isinstance(smodes, SerializationMode):
             smodes = [smodes]
@@ -277,7 +299,7 @@ class no_data_cache(ContextDecorator):
            ...
     """
 
-    def __init__(self, *item_cls: t.Type["Item"]):
+    def __init__(self, *item_cls: t.Type[Item]):
         self._items = item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys()
 
     def __enter__(self):
@@ -305,7 +327,7 @@ class data_cache(ContextDecorator):
            ...
     """
 
-    def __init__(self, *item_cls: t.Type["Item"]):
+    def __init__(self, *item_cls: t.Type[Item]):
         self._items = item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys()
 
     def __enter__(self):
@@ -331,13 +353,28 @@ def _unclosable_BytesIO():
 
 
 T = t.TypeVar("T")
+DerivedItemTp = t.TypeVar("DerivedItemTp", bound="Item")
 _item_data_source = t.Union[Path, ParseResult]
 _item_init_types = t.Union["Item", Path, ParseResult, t.BinaryIO, t.Any]
 
 
-class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
+class Item(t.Generic[T], metaclass=ItemFactory):
     """Base class for any supported Item. Concrete classes should ideally implement just
-    the abstract methods, leaving ``__init__`` as is.
+    the abstract methods (`file_extensions`, `decode`, `encode`),
+    leaving `__init__` as is. Optionally, `validate` may also be implemented to process
+    any raw data before storing it as type `T`.
+    Finally, derived abstract classes may specify a preferred concrete class to be used
+    when calling `make_new`. To this end, just override the method `default_concrete`
+    (using the `@deferred_classattr` decorator) or add `default_concrete=ItemClass`
+    in the class definition, eg::
+
+        class MyItem(Item, default_concrete=MyItemConcrete):
+            pass
+
+        class MyOtherItem(Item):
+            @deferred_classattr
+            def default_concrete(cls):
+                return MyItemConcrete
     """
 
     _data_cache: t.Optional[T]
@@ -346,6 +383,19 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     _cache_data: t.Optional[bool]
     _shared: bool
     _serialization_mode: t.Optional[SerializationMode]
+
+    @deferred_classattr
+    def default_concrete(cls) -> t.Type[Item]:
+        return UnknownItem
+
+    @classmethod
+    def __init_subclass__(cls, default_concrete: t.Optional[t.Type[Item]] = None):
+        if default_concrete:
+            cls.default_concrete = default_concrete  # type: ignore
+        elif not inspect.isabstract(cls):
+            cls.default_concrete = cls  # type: ignore
+
+        super().__init_subclass__()
 
     def __init__(
         self,
@@ -426,8 +476,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         return mode not in ItemFactory.get_disabled_serialization_modes(self.__class__)
 
     @classmethod
-    def make_new(cls, *sources: _item_init_types, shared: bool = False) -> Item:
-        return cls(*sources, shared=shared)
+    def make_new(cls: t.Type[DerivedItemTp], *sources: _item_init_types, shared: bool = False) -> DerivedItemTp:
+        return cls.default_concrete(*sources, shared=shared)
 
     @classmethod
     def as_default_name(cls, filepath: Path) -> Path:
@@ -593,7 +643,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
             if data_source is not None:
                 self._add_data_source(data_source)
 
-    def remove_data_source(self, *sources: _item_data_source) -> Item:
+    def remove_data_source(self: DerivedItemTp, *sources: _item_data_source) -> DerivedItemTp:
         def _normalize_source(src: _item_data_source) -> t.List[_item_data_source]:
             if isinstance(src, Path):
                 src = src.resolve().absolute()
