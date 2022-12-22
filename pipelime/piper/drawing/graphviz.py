@@ -11,7 +11,7 @@ except ImportError:
     def _raise():
         raise AttributeError(
             "`pygraphviz` not installed! Please follow the documentation "
-            "to install `graphviz`, then `pip instal pipelime[draw]`."
+            "to install `graphviz`, then `pip install -U pipelime-python[draw]`."
         )
 
     class AGraph:

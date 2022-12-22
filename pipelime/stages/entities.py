@@ -1,11 +1,100 @@
 import inspect
 import typing as t
 import pydantic as pyd
+from pydantic.generics import GenericModel
 from pipelime.utils.pydantic_types import TypeDef, CallableDef
 from pipelime.stages import SampleStage
+from pipelime.items import Item
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
+
+
+ItTp = t.TypeVar("ItTp", bound=Item)
+ValTp = t.TypeVar("ValTp")
+
+
+class ParsedItem(
+    GenericModel,
+    t.Generic[ItTp, ValTp],
+    extra="forbid",
+    copy_on_model_validation="none",
+    arbitrary_types_allowed=True,
+):
+    raw_item: ItTp
+    parsed_value: ValTp
+
+    def __call__(self):
+        return self.parsed_value
+
+    @classmethod
+    def raw_item_type(cls) -> t.Type[ItTp]:
+        return cls.__fields__["raw_item"].outer_type_
+
+    @classmethod
+    def parsed_value_type(cls) -> t.Type[ValTp]:
+        return cls.__fields__["parsed_value"].outer_type_
+
+    @classmethod
+    def value_to_item_data(cls, value) -> t.Any:
+        if hasattr(value, "to_item_data"):
+            return value.to_item_data()
+        elif isinstance(value, pyd.BaseModel):
+            return value.dict()
+        return value
+
+    @classmethod
+    def make_raw_item(cls, value) -> ItTp:
+        return cls.raw_item_type().make_new(cls.value_to_item_data(value))
+
+    @classmethod
+    def make_parsed_value(cls, value) -> ValTp:
+        pvtp = cls.parsed_value_type()
+        return (  # type: ignore
+            pyd.parse_obj_as(pvtp, value)
+            if issubclass(pvtp, pyd.BaseModel)
+            else pvtp(value)
+        )
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, cls):
+            return value
+        elif isinstance(value, Item):
+            if isinstance(value, cls.raw_item_type()):
+                return cls(
+                    raw_item=value,
+                    parsed_value=cls.make_parsed_value(value()),
+                )
+        elif isinstance(value, cls.parsed_value_type()):
+            return cls(
+                raw_item=cls.make_raw_item(value),
+                parsed_value=value,
+            )
+        else:
+            try:
+                value = cls.make_parsed_value(value)
+            except Exception:
+                pass
+            else:
+                return cls(
+                    raw_item=cls.make_raw_item(value),
+                    parsed_value=value,
+                )
+        raise TypeError(
+            f"{value} is neither `{cls.raw_item_type()}` nor `{cls.parsed_value_type()}`"
+        )
+
+
+class ParsedData(ParsedItem[Item, ValTp], t.Generic[ValTp]):
+    pass
+
+
+DerivedEntityTp = t.TypeVar("DerivedEntityTp", bound="BaseEntity")
 
 
 class BaseEntity(
@@ -16,33 +105,39 @@ class BaseEntity(
 ):
     """The base class for all input/output entity models."""
 
-    @classmethod
-    def create(cls, x: "Sample"):
-        from pipelime.items import Item
+    def __init__(self, **data):
+        for k, v in data.items():
+            # create an item field from raw values
+            if (
+                k in self.__fields__
+                and not isinstance(v, Item)
+                and issubclass(self.__fields__[k].outer_type_, Item)
+            ):
+                data[k] = self.__fields__[k].outer_type_.make_new(v)
+        super().__init__(**data)
 
-        item_fields = list(
-            issubclass(f.outer_type_, Item) for f in cls.__fields__.values()
-        )
-        if all(item_fields):
-            return cls(**x)
-        if not any(item_fields):
-            return cls(**x.to_dict())
-
-        x_dict = {
-            k: (
-                v()
-                if k in cls.__fields__
-                and not issubclass(cls.__fields__[k].outer_type_, Item)
-                else v
-            )
-            for k, v in x.items()
-        }
-        return cls(**x_dict)
+    def _iter(self, *args, **kwargs):
+        for k, v in super()._iter(*args, **kwargs):
+            if isinstance(v, t.Mapping):
+                yield k, v["raw_item"]
+            else:
+                yield k, v
 
     @classmethod
-    def merge_with(cls, other: "BaseEntity", **kwargs) -> "BaseEntity":
+    def merge(
+        cls: t.Type[DerivedEntityTp], other: "BaseEntity", **kwargs
+    ) -> DerivedEntityTp:
         """Creates a new entity by merging `other` entity with extra `kwargs` fields."""
-        return cls(**{**other.dict(), **kwargs})
+        other_dict = other.dict()
+        for k, v in kwargs.items():
+            if not isinstance(v, Item) and k in other_dict:
+                # v is a raw or parsed value and k was in `other`,
+                # so keep the same type
+                other_item = other_dict[k]
+                v = ParsedItem.value_to_item_data(v)
+                kwargs[k] = other_item.make_new(v)
+
+        return cls(**{**other_dict, **kwargs})
 
 
 class BaseEntityType(TypeDef[BaseEntity]):
@@ -123,12 +218,10 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
 class StageEntity(SampleStage, title="entity"):
     __root__: EntityAction = pyd.Field(..., description="The entity action to run.")
 
-    def __init__(self, __root__, **data):
+    def __init__(self, __root__: EntityAction, **data):
         super().__init__(__root__=__root__, **data)  # type: ignore
 
     def __call__(self, x: "Sample") -> "Sample":
         from pipelime.sequences import Sample
 
-        return Sample(
-            self.__root__.action(self.__root__.input_type.value.create(x)).dict()
-        )
+        return Sample(self.__root__.action(self.__root__.input_type.value(**x)).dict())
