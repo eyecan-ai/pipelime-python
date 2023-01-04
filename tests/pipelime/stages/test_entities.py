@@ -1,4 +1,5 @@
 import pytest
+from typing import Optional
 from pathlib import Path
 from pydantic import BaseModel, ValidationError, parse_obj_as
 import numpy as np
@@ -47,6 +48,15 @@ class MyOutput5(BaseEntity, extra="forbid"):
     meta: pli.MetadataItem
 
 
+class MyModel(BaseModel):
+    john: str
+
+
+class OptionalEntity(BaseEntity):
+    label: Optional[pli.NumpyItem]
+    meta: Optional[ParsedItem[pli.MetadataItem, MyModel]]
+
+
 def my_action0(x):
     return MyOutput0.merge(x, meta=pli.YamlMetadataItem({"john": "doe"}))
 
@@ -83,6 +93,18 @@ def my_kwonly_action(*, x: MyInput0):
     return None
 
 
+def my_parsed_action0(x: MyInput0):
+    return OptionalEntity.merge(x, meta=pli.MetadataItem.make_new({"john": "doe"}))
+
+
+def my_parsed_action1(x: MyInput0):
+    return OptionalEntity.merge(x, meta=pli.MetadataItem.make_new({"jane": "doe"}))
+
+
+def my_parsed_action2(x: MyInput0):
+    return OptionalEntity.merge(x, label=None, meta=None)
+
+
 class TestEntities:
     def create_sample(self):
         return Sample(
@@ -110,18 +132,18 @@ class TestEntities:
         else:
             assert "other" not in output
 
-    def _make_stage_test(self, stage, extra, no_input):
+    def _make_stage_test(self, stage, extra, no_input, should_not_parse=False):
         in_sample = self.create_sample()
         try:
             out_sample = stage(in_sample)
         except ValidationError:
-            assert extra == "forbid"
+            assert extra == "forbid" or should_not_parse
         else:
             self._check_samples(in_sample, out_sample, extra == "allow", no_input)
 
-    def _make_test(self, action_fn, input_cls, extra, no_input):
+    def _make_test(self, action_fn, input_cls, extra, no_input, should_not_parse=False):
         se = StageEntity(EntityAction(action=action_fn, input_type=input_cls))
-        self._make_stage_test(se, extra, no_input)
+        self._make_stage_test(se, extra, no_input, should_not_parse)
 
     @pytest.mark.parametrize("input_cls", [MyInput0, MyInput1, MyInput2])
     def test_inputs(self, input_cls):
@@ -175,6 +197,19 @@ class TestEntities:
             )
         with pytest.raises(ValidationError):
             StageEntity(EntityAction(action=my_action0))  # type: ignore
+
+    def test_parsed_action(self):
+        self._make_test(my_parsed_action0, MyInput0, MyInput0.__config__.extra, False)
+
+        self._make_test(
+            my_parsed_action1, MyInput0, MyInput0.__config__.extra, False, True
+        )
+
+        se = StageEntity(EntityAction(action=my_parsed_action2, input_type=MyInput0))  # type: ignore
+        in_sample = self.create_sample()
+        out_sample = se(in_sample)
+        assert in_sample["image"] is out_sample["image"]
+        assert {"image", "other"} == set(out_sample.keys())
 
     def test_lambda(self):
         se = StageEntity(

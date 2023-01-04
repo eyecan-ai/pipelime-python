@@ -57,6 +57,10 @@ class ParsedItem(
         )
 
     @classmethod
+    def make_new(cls, value) -> ItTp:
+        return cls.make_raw_item(value)
+
+    @classmethod
     def __get_validators__(cls):
         yield cls.validate
 
@@ -108,20 +112,24 @@ class BaseEntity(
     def __init__(self, **data):
         for k, v in data.items():
             # create an item field from raw values
-            if (
-                k in self.__fields__
-                and not isinstance(v, Item)
-                and issubclass(self.__fields__[k].outer_type_, Item)
-            ):
-                data[k] = self.__fields__[k].outer_type_.make_new(v)
+            # NB: if the field is optional, it can be None
+            if k in self.__fields__ and not isinstance(v, Item):
+                k_field = self.__fields__[k]
+                if issubclass(k_field.outer_type_, Item) and (
+                    k_field.required or v is not None
+                ):
+                    data[k] = self.__fields__[k].outer_type_.make_new(v)
         super().__init__(**data)
 
     def _iter(self, *args, **kwargs):
+        # skip None fields and bypass ParsedItem
         for k, v in super()._iter(*args, **kwargs):
-            if isinstance(v, t.Mapping):
-                yield k, v["raw_item"]
-            else:
-                yield k, v
+            if v is not None:
+                if isinstance(v, t.Mapping) and "raw_item" in v:
+                    if v["raw_item"] is not None:
+                        yield k, v["raw_item"]
+                else:
+                    yield k, v
 
     @classmethod
     def merge(
@@ -130,12 +138,17 @@ class BaseEntity(
         """Creates a new entity by merging `other` entity with extra `kwargs` fields."""
         other_dict = other.dict()
         for k, v in kwargs.items():
-            if not isinstance(v, Item) and k in other_dict:
-                # v is a raw or parsed value and k was in `other`,
-                # so keep the same type
-                other_item = other_dict[k]
-                v = ParsedItem.value_to_item_data(v)
-                kwargs[k] = other_item.make_new(v)
+            if not isinstance(v, Item):
+                actual_item = None
+                if k in cls.__fields__:
+                    k_field = cls.__fields__[k]
+                    if k_field.required or v is not None:
+                        actual_item = k_field.outer_type_
+                elif k in other_dict:
+                    actual_item = other_dict[k]
+
+                if actual_item is not None:
+                    kwargs[k] = actual_item.make_new(ParsedItem.value_to_item_data(v))
 
         return cls(**{**other_dict, **kwargs})
 
