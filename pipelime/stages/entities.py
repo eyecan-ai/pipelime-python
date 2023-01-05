@@ -98,6 +98,60 @@ class ParsedData(ParsedItem[Item, ValTp], t.Generic[ValTp]):
     pass
 
 
+class ModelDynamicKey:
+    __slots__ = ("owner", "item_tp", "default", "default_factory", "extra_kwargs")
+
+    def __init__(
+        self,
+        item_tp: t.Union[t.Type[Item], t.Type[ParsedItem]],
+        default: t.Any = ...,
+        default_factory: t.Optional[t.Callable[[], t.Any]] = None,
+        extra_kwargs: t.Mapping[str, t.Any] = {},
+    ):
+        self.item_tp = item_tp
+        self.default = default
+        self.default_factory = default_factory
+        self.extra_kwargs = extra_kwargs
+
+    def validate(self, key) -> t.Union[t.Type[Item], t.Type[ParsedItem]]:
+        class Config(pyd.BaseConfig):
+            arbitrary_types_allowed = True
+
+        parser_model = pyd.create_model(
+            "DynamicKeyParser",
+            __config__=Config,
+            **{
+                key: (
+                    self.item_tp,
+                    pyd.Field(
+                        self.default,
+                        default_factory=self.default_factory,
+                        **self.extra_kwargs,
+                    ),
+                )
+            },
+        )
+        parsed_values = parser_model.parse_obj(
+            {key: getattr(self.owner, key)} if hasattr(self.owner, key) else {}
+        )
+        return getattr(parsed_values, key)
+
+
+def DynamicKey(
+    item_tp: t.Union[t.Type[Item], t.Type[ParsedItem]],
+    default: t.Any = ...,
+    *,
+    default_factory: t.Optional[t.Callable[[], t.Any]] = None,
+    **field_kwargs,
+) -> t.Any:
+    if default is not ... and default_factory is not None:
+        raise ValueError("cannot specify both default and default_factory")
+
+    return pyd.PrivateAttr(
+        ModelDynamicKey(item_tp, default, default_factory, field_kwargs)
+    )
+
+
 DerivedEntityTp = t.TypeVar("DerivedEntityTp", bound="BaseEntity")
 
 
@@ -110,9 +164,9 @@ class BaseEntity(
     """The base class for all input/output entity models."""
 
     def __init__(self, **data):
+        # create an item field from raw values
+        # NB: if the field is optional, it can be None
         for k, v in data.items():
-            # create an item field from raw values
-            # NB: if the field is optional, it can be None
             if k in self.__fields__ and not isinstance(v, Item):
                 k_field = self.__fields__[k]
                 if issubclass(k_field.outer_type_, Item) and (
@@ -120,6 +174,12 @@ class BaseEntity(
                 ):
                     data[k] = self.__fields__[k].outer_type_.make_new(v)
         super().__init__(**data)
+
+        # assign self as the owner of dynamic key fields
+        for k in self.__private_attributes__:
+            v = getattr(self, k)
+            if isinstance(v, ModelDynamicKey):
+                v.owner = self
 
     def _iter(self, *args, **kwargs):
         # skip None fields and bypass ParsedItem

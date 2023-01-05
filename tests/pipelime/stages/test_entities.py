@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError, parse_obj_as
 import numpy as np
 from pipelime.stages import BaseEntity, EntityAction, StageEntity
 from pipelime.sequences import Sample
-from pipelime.stages.entities import ParsedItem
+from pipelime.stages.entities import ParsedItem, DynamicKey
 import pipelime.items as pli
 
 
@@ -57,6 +57,16 @@ class OptionalEntity(BaseEntity):
     meta: Optional[ParsedItem[pli.MetadataItem, MyModel]]
 
 
+class FooBarModel(BaseModel):
+    foo: str
+
+
+class DynamicKeyEntity(BaseEntity):
+    _img2 = DynamicKey(pli.ImageItem)
+    _label2 = DynamicKey(pli.NumpyItem, [4, 5, 6])
+    _other2 = DynamicKey(ParsedItem[pli.MetadataItem, FooBarModel])
+
+
 def my_action0(x):
     return MyOutput0.merge(x, meta=pli.YamlMetadataItem({"john": "doe"}))
 
@@ -103,6 +113,13 @@ def my_parsed_action1(x: MyInput0):
 
 def my_parsed_action2(x: MyInput0):
     return OptionalEntity.merge(x, label=None, meta=None)
+
+
+def my_dynkey_action(x: DynamicKeyEntity):
+    img2 = x._img2.validate("image")
+    lbl2 = x._label2.validate("label")
+    other2 = x._other2.validate("other")
+    return MyInput0(image=img2, label=lbl2, other=other2)  # type: ignore
 
 
 class TestEntities:
@@ -223,3 +240,17 @@ class TestEntities:
             )
         )
         self._make_stage_test(se, "allow", False)
+
+    def test_dynamic_keys(self):
+        from ... import TestUtils
+
+        se = StageEntity(EntityAction(action=my_dynkey_action))  # type: ignore
+        in_sample = self.create_sample().remove_keys("label")
+        out_sample = se(in_sample)
+        assert in_sample["image"] is out_sample["image"]
+        assert TestUtils.numpy_eq(out_sample["label"](), np.array([4, 5, 6]))
+        assert in_sample["other"] is out_sample["other"]
+
+        in_sample = in_sample.set_value("other", {"bar": "baz"})
+        with pytest.raises(ValidationError):
+            se(in_sample)
