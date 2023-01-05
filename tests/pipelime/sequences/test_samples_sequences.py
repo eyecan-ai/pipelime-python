@@ -89,7 +89,7 @@ class TestSamplesSequences:
 
     def test_build_pipe(self):
         from pydantic import ValidationError
-        from pipelime.stages import StageIdentity
+        from pipelime.stages import StageIdentity, StageCompose
 
         input_pipe = [
             {
@@ -101,7 +101,7 @@ class TestSamplesSequences:
             },
             {
                 "slice": {"start": 10, "stop": None, "step": None},
-                "map": {"identity": None},
+                "map": {"compose": ["identity", "identity", "identity"]},
             },
             {"data_cache": ["ImageItem", "MetadataItem"]},
         ]
@@ -111,7 +111,7 @@ class TestSamplesSequences:
                 folder="no-path", merge_root_items=True, must_exist=False
             )
             .slice(start=10)
-            .map(StageIdentity())
+            .map(StageCompose([StageIdentity(), StageIdentity(), StageIdentity()]))
             .data_cache("ImageItem", "MetadataItem")
         )
 
@@ -124,7 +124,7 @@ class TestSamplesSequences:
                 "must_exist": False,
             },
             "slice": {"start": 10, "stop": None, "step": None},
-            "map": StageIdentity(),
+            "map": {"compose": [StageIdentity(), {"identity": None}, StageIdentity()]},
             "data_cache": ["ImageItem", "MetadataItem"],
         }
 

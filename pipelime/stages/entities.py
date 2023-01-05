@@ -193,22 +193,33 @@ class BaseEntity(
 
     @classmethod
     def merge(
-        cls: t.Type[DerivedEntityTp], other: "BaseEntity", **kwargs
+        cls: t.Type[DerivedEntityTp], __other__: "BaseEntity", /, **kwargs
     ) -> DerivedEntityTp:
         """Creates a new entity by merging `other` entity with extra `kwargs` fields."""
-        other_dict = other.dict()
+        other_dict = __other__.dict()
         for k, v in kwargs.items():
             if not isinstance(v, Item):
-                actual_item = None
-                if k in cls.__fields__:
-                    k_field = cls.__fields__[k]
-                    if k_field.required or v is not None:
-                        actual_item = k_field.outer_type_
-                elif k in other_dict:
-                    actual_item = other_dict[k]
+                # NB: None is a valid value for optional fields
+                my_k_field = cls.__fields__.get(k, None)
+                if not my_k_field or my_k_field.required or v is not None:
+                    # user has no preference on the actual Item class,
+                    # so keep the original item type if it is a subclass
+                    # of the declared output item type
+                    actual_item = None
+                    if k in other_dict:
+                        other_item_obj = other_dict[k]
+                        my_item_cls = Item
+                        if my_k_field:
+                            my_item_cls = my_k_field.outer_type_
+                            if issubclass(my_item_cls, ParsedItem):
+                                my_item_cls = my_item_cls.raw_item_type()
+                        if isinstance(other_item_obj, my_item_cls):
+                            actual_item = other_item_obj
 
-                if actual_item is not None:
-                    kwargs[k] = actual_item.make_new(ParsedItem.value_to_item_data(v))
+                    if actual_item is not None:
+                        kwargs[k] = actual_item.make_new(
+                            ParsedItem.value_to_item_data(v)
+                        )
 
         return cls(**{**other_dict, **kwargs})
 

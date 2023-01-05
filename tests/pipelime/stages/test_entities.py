@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError, parse_obj_as
 import numpy as np
 from pipelime.stages import BaseEntity, EntityAction, StageEntity
 from pipelime.sequences import Sample
-from pipelime.stages.entities import ParsedItem, DynamicKey
+from pipelime.stages.entities import ParsedItem, ParsedData, DynamicKey
 import pipelime.items as pli
 
 
@@ -67,6 +67,21 @@ class DynamicKeyEntity(BaseEntity):
     _other2 = DynamicKey(ParsedItem[pli.MetadataItem, FooBarModel])
 
 
+class ForwardInput(BaseEntity):
+    image: pli.ImageItem
+    other: ParsedItem[pli.MetadataItem, FooBarModel]
+
+
+class ForwardOutput0(BaseEntity):
+    image: pli.NumpyItem
+    other: ParsedItem[pli.TomlMetadataItem, FooBarModel]
+
+
+class ForwardOutput1(BaseEntity):
+    image: pli.TiffImageItem
+    other: ParsedData[FooBarModel]
+
+
 def my_action0(x):
     return MyOutput0.merge(x, meta=pli.YamlMetadataItem({"john": "doe"}))
 
@@ -113,6 +128,14 @@ def my_parsed_action1(x: MyInput0):
 
 def my_parsed_action2(x: MyInput0):
     return OptionalEntity.merge(x, label=None, meta=None)
+
+
+def my_forward_action0(x: ForwardInput):
+    return ForwardOutput0.merge(x, image=[4, 5, 6], other={"foo": "john"})
+
+
+def my_forward_action1(x: ForwardInput):
+    return ForwardOutput1.merge(x, image=[4, 5, 6], other={"foo": "john"})
 
 
 def my_dynkey_action(x: DynamicKeyEntity):
@@ -254,3 +277,22 @@ class TestEntities:
         in_sample = in_sample.set_value("other", {"bar": "baz"})
         with pytest.raises(ValidationError):
             se(in_sample)
+
+    def test_items_forwarding(self):
+        from ... import TestUtils
+
+        se = StageEntity(EntityAction(action=my_forward_action0))  # type: ignore
+        in_sample = self.create_sample()
+        out_sample = se(in_sample)
+        assert isinstance(out_sample["image"], in_sample["image"].__class__)
+        assert isinstance(out_sample["other"], pli.TomlMetadataItem)
+        assert TestUtils.numpy_eq(out_sample["image"](), np.array([4, 5, 6]))
+        assert out_sample["other"]() == {"foo": "john"}
+
+        se = StageEntity(EntityAction(action=my_forward_action1))  # type: ignore
+        in_sample = self.create_sample()
+        out_sample = se(in_sample)
+        assert isinstance(out_sample["image"], pli.TiffImageItem)
+        assert isinstance(out_sample["other"], in_sample["other"].__class__)
+        assert TestUtils.numpy_eq(out_sample["image"](), np.array([4, 5, 6]))
+        assert out_sample["other"]() == {"foo": "john"}
