@@ -88,6 +88,7 @@ class TestSamplesSequences:
         assert a.to_pipe(recursive=True, objs_to_str=False) == expected_pipe
 
     def test_build_pipe(self):
+        from pydantic import ValidationError
         from pipelime.stages import StageIdentity
 
         input_pipe = [
@@ -100,8 +101,9 @@ class TestSamplesSequences:
             },
             {
                 "slice": {"start": 10, "stop": None, "step": None},
-                "map": {"stage": {"identity": None}},
+                "map": {"identity": None},
             },
+            {"data_cache": ["ImageItem", "MetadataItem"]},
         ]
 
         expected_seq = (
@@ -110,6 +112,7 @@ class TestSamplesSequences:
             )
             .slice(start=10)
             .map(StageIdentity())
+            .data_cache("ImageItem", "MetadataItem")
         )
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
@@ -121,12 +124,13 @@ class TestSamplesSequences:
                 "must_exist": False,
             },
             "slice": {"start": 10, "stop": None, "step": None},
-            "map": {"stage": StageIdentity()},
+            "map": StageIdentity(),
+            "data_cache": ["ImageItem", "MetadataItem"],
         }
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
 
-        with pytest.raises(TypeError):
+        with pytest.raises(ValidationError):
             pls.build_pipe("shuffle")
 
         with pytest.raises(ValueError):

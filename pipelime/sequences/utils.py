@@ -25,7 +25,11 @@ def _build_op(
             op_name = name
 
         fn = getattr(seq, op_name)
-        return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
+        try:
+            return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
+        except TypeError:
+            # try to call without expanding args
+            return fn(args)
 
     if isinstance(ops, str):
         return _op_call(src, ops, {})

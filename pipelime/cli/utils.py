@@ -466,7 +466,7 @@ def pl_print(
 
 
 def create_stage_from_config(
-    stage_name: str, stage_args: t.Optional[t.Mapping[str, t.Any]]
+    stage_name: str, stage_args: t.Union[t.Mapping[str, t.Any], t.Sequence, None]
 ) -> "SampleStage":  # type: ignore # noqa: E602,F821
     """Creates a stage from a name and arguments.
 
@@ -490,7 +490,21 @@ def create_stage_from_config(
         )
         raise ValueError(f"{stage_name} is not a pipelime stage.")
     stage_cls = stage_cls[1]
-    return stage_cls() if stage_args is None else stage_cls(**stage_args)
+    if stage_args is None:
+        return stage_cls()
+    try:
+        if isinstance(stage_args, (str, bytes)) or not isinstance(
+            stage_args, (t.Sequence, t.Mapping)
+        ):
+            stage_args = [stage_args]
+        return (
+            stage_cls(**stage_args)
+            if isinstance(stage_args, t.Mapping)
+            else stage_cls(*stage_args)
+        )
+    except TypeError:
+        # try to call without expanding args
+        return stage_cls(stage_args)
 
 
 def get_pipelime_command_cls(
