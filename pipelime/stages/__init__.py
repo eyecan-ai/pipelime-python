@@ -9,4 +9,4 @@ from pipelime.stages.key_transformations import (
     StageRemap,
 )
 from pipelime.stages.item_info import StageItemInfo
-from pipelime.stages.entities import BaseEntity, EntityAction, StageEntity
+from pipelime.stages.entities import StageEntity

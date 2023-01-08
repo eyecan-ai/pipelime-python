@@ -3,7 +3,8 @@ from typing import Optional
 from pathlib import Path
 from pydantic import BaseModel, ValidationError, parse_obj_as
 import numpy as np
-from pipelime.stages import BaseEntity, EntityAction, StageEntity
+from pipelime.stages import StageEntity
+from pipelime.stages.entities import BaseEntity, EntityAction
 from pipelime.sequences import Sample
 from pipelime.stages.entities import ParsedItem, ParsedData, DynamicKey
 import pipelime.items as pli

@@ -35,7 +35,7 @@ The entity model fields define the expected item keys and their types.
 Considering the first operation *"Inverting the color of the images"*, they can be implemented as follows:
 
 ```python
-from pipelime.stages import BaseEntity
+from pipelime.stages.entities import BaseEntity
 import pipelime.items as pli
 
 class InvertInput(BaseEntity):
@@ -49,11 +49,12 @@ Then, the action can just be a function that takes an `InvertInput` and returns 
 
 ```python
 def invert_action(x: InvertInput) -> InvertOutput:
-    return InvertOutput.merge_with(x, image=x.image.make_new(255 - x.image()))
+    return InvertOutput.merge(x, image=(255 - x.image()))
 ```
 
-Note how the unrelated items are forwarded to the output using `merge_with`.
-Also, we use `make_new` to replace the image with an item of the same type.
+Note how the unrelated items are forwarded to the output using `merge`.
+Also, since we are overwriting the existing `image` key and we want to use the same item type,
+we just pass the raw numpy array.
 
 The benefit of this approach are multiple:
 - The input and output entities are automatically validated, raising informative errors if the input sample is missing some items or if the items have the wrong type
@@ -81,7 +82,7 @@ map:
 Where `class.path.to.invert_action` can be a `path/to/module.py:invert_action` as well.
 As you can see you don't have to specify the input and output entities: they are automatically inferred from the action signature.
 
-The next operation compute the average color value and adds a new item to the sample:
+The next operation computes the average color value and adds a new item to the sample:
 
 ```python
 from pipelime.stages import BaseEntity
@@ -96,9 +97,16 @@ class AverageColorOutput(BaseEntity):
 
 def avg_color_action(x: AverageColorInput) -> AverageColorOutput:
     avg_color = np.mean(x.image(), axis=(0, 1))
-    avg_color_item = pli.NpyNumpyItem(avg_color)
-    return AverageColorOutput.merge_with(x, color=avg_color_item)
+    return AverageColorOutput.merge(x, color=avg_color)
 ```
+
+The value assigned to `color` is a raw numpy array, which is silently converted to the type stated in `AverageColorOutput`. In general, the actual concrete type is chosen according to the following rules:
+1. if the input entity has an item with the same key and a compatible (covariant) type,
+such type is used
+2. if the output entity is a concrete class, its type is used
+3. if the output entity is an abstract class, its default type is used
+
+In the above example, since we expect not `color` item in the input, the default type for `NumpyItem`, ie, `NpyNumpyItem`, will be used.
 
 Finally, the last operation deletes the `maskinv` item:
 
@@ -106,18 +114,13 @@ Finally, the last operation deletes the `maskinv` item:
 class RemoveMaskinvInput(BaseEntity):
     maskinv: pli.ImageItem
 
-class RemoveMaskinvOutput(BaseEntity):
-    pass
-
-def remove_maskinv_action(x: RemoveMaskinvInput) -> RemoveMaskinvOutput:
-    x_dict = x.dict()
-    del x_dict["maskinv"]
-    return RemoveMaskinvOutput(**x_dict)
+def remove_maskinv_action(x: RemoveMaskinvInput) -> BaseEntity:
+    out_dict = {k: v for k, v in x.dict().items() if k != "maskinv"}
+    return BaseEntity(**out_dict)
 ```
 
 Here we used the `dict` method of the underlying pydantic model to get a dictionary
-representation of the input entity, we deleted the `maskinv` item, then we created
-a new output entity from the remaining data.
+representation of the input entity.
 
 ## Parametrized Actions
 
@@ -137,7 +140,7 @@ class SaturateAction:
     def __call__(self, x: SaturateInputOutput) -> SaturateInputOutput:
         image = x.image().copy()  # make a copy to avoid modifying the original image
         image[image > self._threshold] = self._threshold
-        return SaturateInputOutput.merge_with(x, image=x.image.make_new(image))
+        return SaturateInputOutput.merge(x, image=image)
 ```
 
 Then we can use it as follows:
@@ -147,6 +150,120 @@ from pipelime.stages import StageEntity
 
 new_seq = seq.map(StageEntity(SaturateAction(111)))
 ```
+
+## Optional Items
+
+Sometimes you may want to define an entity that can contain some optional items.
+For instance, we may expect a label in the input, but if not found, we just set it to 0:
+
+```python
+class OptionalLabelInput(BaseEntity):
+    image: pli.ImageItem
+    label: pli.NumpyItem = pli.TxtNumpyItem(0)
+```
+
+Also, if you want to exclude some items from the output when a condition is met,
+just set it as optional and use the special `None` value:
+
+```python
+from typing import Optional
+
+class DebuggableOutput(BaseEntity):
+    image: pli.ImageItem
+    debug: Optional[pli.ImageItem]
+
+class DebuggableAction:
+    def __init__(self, debug: bool):
+        self._debug = debug
+
+    def __call__(self, x):
+        # do some cool processing
+        # ...
+        if self._debug:
+            debug_image = ...
+        else:
+            debug_image = None
+        return DebuggableOutput.merge(x, debug=debug_image)
+```
+
+## Entity Value Parsing
+
+Besides high-level validation, item values can also be parsed and converted to a more convenient type. The most common use case is to parse a JSON/YAML metadata file into a pydantic model:
+
+```python
+from typing import Sequence
+from pydantic import BaseModel
+
+from pipelime.stages.entities import ParsedItem
+
+class MetadataModel(BaseModel):
+    keypoints: t.Sequence[t.Tuple[float, float]]
+    label: int
+    description: str
+
+class EInput(BaseEntity):
+    image: pli.ImageItem
+    metadata: ParsedItem[pli.MetadataItem, MetadataModel]
+```
+
+The `metadata` has been defined as a `ParsedItem` class with two type parameters:
+1. the first one is the type of the item to parse
+2. the second one is the type of the parsed value
+
+So, when the `EInput` entity is created from a sample, the `metadata` item type must be
+covariant with `pli.MetadataItem` and a `MetadataModel` instance is created from the raw
+metadata value. Then, calling `metadata()` will return the parsed value instead the raw
+item value.
+
+`ParsedItem` can be used in output entities as well and can be built from a pipelime item,
+its raw value or the parsed value. In any case, both the item and the parsed value must be
+_constructable_ from the a raw item value, so a full validation is always performed.
+Also, if you don't care about the actual item type, you can just use
+`ParsedData[ParsedType]` instead of `ParsedItem[ItemType, ParsedType]`.
+
+`ParsedItem` and `ParsedData` are fully compatible with the `Optional` and `DynamicKey`
+(see below) features.
+
+## Dynamic Key Names
+
+To make your actions more flexible and reusable, the actual item key names they work on can be defined at runtime. For instance, let's say each input sample is composed of two images
+`image_1` and `image_2` and we'd want to apply the [`SaturateAction`](#parametrized-actions) on both.
+Instead of expecting an item called `image`, we can define a private field with a special
+`DynamicKey` value:
+
+```python
+from pipelime.stages.entities import DynamicKey
+
+class SaturateDynamicInput(BaseEntity):
+    _image = DynamicKey(pli.ImageItem)
+```
+
+Note that the `_image` field will not considered when parsing and validating an input sample.
+
+Then, the new action expects the actual image key name as a parameter and explicitly calls a validation on it:
+
+```python
+class SaturateDynamicAction:
+    def __init__(self, threshold: int, image_key: str = "image"):
+        self._threshold = threshold
+        self._image_key = image_key
+
+    def __call__(self, x: SaturateDynamicInput):
+        image = x._image.validate(self._image_key)
+
+        image = image().copy()  # make a copy to avoid modifying the original image
+        image[image > self._threshold] = self._threshold
+        return BaseEntity.merge(x, **{self._image_key: image})
+```
+
+The `validate` method checks that the given key is present in the input sample
+with the required type, then returns the corresponding item. Note how the kwargs notation
+has been used to overwrite the actual `_image` field with the new value.
+
+`DynamicKey` is fully compatible with the usual field definitions and other features:
+* the full signature is `DynamicKey(item_type, default_value, default_factory, **field_kwargs)`,
+where `field_kwargs` is any other kwarg accepted by `pydantic.Field`
+* `DynamicKey(ParsedItem[ItemType, ParsedType])` is also supported
 
 ## Advanced Entity Features
 
@@ -177,8 +294,8 @@ class ColorImageEntity(BaseEntity):
         return v
 ```
 
-You can even perform advanced transformations on the input items, checkout [pydantic](https://pydantic-docs.helpmanual.io/)
-for more details:
+You can even perform advanced transformations on the input items,
+checkout [pydantic](https://pydantic-docs.helpmanual.io/) for more details:
 
 ```python
 class MaskedGrayImageEntity(BaseEntity):
@@ -186,8 +303,8 @@ class MaskedGrayImageEntity(BaseEntity):
     The grayscale image is computed from the RGB image if not provided.
     """
 
-    image: pli.ImageItem = Field(None)
-    grayscale: pli.ImageItem = Field(None)
+    image: pli.ImageItem = None
+    grayscale: pli.ImageItem = None
     mask: pli.ImageItem
 
     @validator("image")
@@ -231,25 +348,9 @@ a subclass of `BaseEntity`.
 
 ## Full-fledged Stages
 
-Though the previous approach is very powerful, it is not always the best choice.
-For example, the key names are hardcoded into the entity models, so the user is forced to use the same names
-or, at least, to insert a `remap-key` in his pipeline. A possible solution to support dynamic key names could be:
-
-```python
-from pydantic import BaseModel, Field, PrivateAttr, create_model
-
-class SaturateAction(BaseModel):
-    threshold: int = Field(..., description="The saturation threshold")
-    image_key: str = Field("image", description="The key of the image item")
-
-    def __call__(self, x: BaseEntity) -> SaturateInputOutput:
-        image = getattr(x, self.image_key)().copy()
-        image[image > self.threshold] = self.threshold
-        return SaturateInputOutput.merge_with(x, image=getattr(x, self.image_key).make_new(image))
-```
-
-However, in this way we have lost the automatic validation of sample inputs.
-Therefore, we could just derive from `SampleStage` and implement a brand-new `InvertStage` class:
+Though the previous approach is very powerful, sometimes it might not fit all your needs
+and you want to write a full-fledged stage class. The `invert_action` can be converted
+to a stage class as follows:
 
 ```python
 from pydantic import Field
@@ -266,8 +367,8 @@ class InvertStage(SampleStage, title="invert"):
         return x.set_value(self.key, 255 - x[self.key]())  # type: ignore
 ```
 
-Though the items are not automatically parsed and validated, now we can easily support dynamic key names
-as well as easily inject the stage into a pipeline, both programmatically:
+Though the items are not automatically parsed and validated, we can easily support dynamic key names
+as well as inject the stage into a pipeline, both programmatically:
 
 ```python
 stage = InvertStage(key=...)
@@ -290,7 +391,7 @@ The call method here simply reads the image item, inverts the colors and returns
 The dynamic key name is given through the `key` field, that defaults to the string "image", and includes a `description`. Though not essential, you should always set fields' descriptions because they are automatically used by pipelime to display a help message in the [CLI](../cli/overview.md).
 Likewise, the class docstring is extracted and used as a description of the stage.
 
-Using a stage to implement the average color computation is now pretty easy:
+Using a stage to implement the average color computation is pretty easy as well:
 
 ```python
 from pydantic import Field
@@ -339,5 +440,5 @@ new_seq = seq.map(StageCompose([InvertStage(), AverageColor(), StageKeysFilter(k
 ```{tip}
 When using built-in stages, you can use their titles as well:
 
-`new_seq = seq.map({"compose": {"stages": [InvertStage(), AverageColor(), {"filter-keys": {"key_list": ["maskinv"], "negate": True}}]}})`
+`new_seq = seq.map({"compose": ["invert", "avg_color", {"filter-keys": {"key_list": ["maskinv"], "negate": True}}]}})`
 ```
