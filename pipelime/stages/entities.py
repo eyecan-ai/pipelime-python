@@ -10,6 +10,16 @@ if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
+def register_action(title: str):
+    def _decorator(func):
+        from pipelime.cli.utils import PipelimeSymbolsHelper
+
+        PipelimeSymbolsHelper.register_action(title, func)
+        return func
+
+    return _decorator
+
+
 ItTp = t.TypeVar("ItTp", bound=Item)
 ValTp = t.TypeVar("ValTp")
 
@@ -228,10 +238,28 @@ class BaseEntityType(TypeDef[BaseEntity]):
     """An entity type. It accepts both type names and string."""
 
 
+class ActionDef(CallableDef):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate_action
+
+    @classmethod
+    def validate_action(cls, value: t.Union[CallableDef, t.Callable, str]) -> "ActionDef":
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            from pipelime.cli.utils import PipelimeSymbolsHelper
+
+            action = PipelimeSymbolsHelper.registered_actions.get(value, None)
+            if action is not None:
+                return cls(__root__=action)
+        return cls.validate(value)  # type: ignore
+
+
 class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     """An action and its associated input entity model."""
 
-    action: CallableDef = pyd.Field(
+    action: ActionDef = pyd.Field(
         ...,
         description=(
             "The action callable to run (can be a class path). The expected signature "

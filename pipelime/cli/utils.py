@@ -14,6 +14,8 @@ class PipelimeSymbolsHelper:
     cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
     cached_stages: t.Dict[t.Tuple[str, str], t.Dict] = {}
 
+    registered_actions: t.Dict[str, t.Union[t.Type, t.Callable]] = {}
+
     @classmethod
     def complete_name(
         cls,
@@ -52,6 +54,10 @@ class PipelimeSymbolsHelper:
         return all(
             m in cls.cached_modules for m in (cls.std_modules + cls.extra_modules)
         )
+
+    @classmethod
+    def register_action(cls, title: str, action: t.Union[t.Type, t.Callable]):
+        cls.registered_actions[title] = action
 
     @classmethod
     def _symbol_name(cls, symbol):
@@ -169,6 +175,10 @@ class PipelimeSymbolsHelper:
     def get_sample_stages(cls):
         cls.import_everything()
         return cls.cached_stages
+
+    @classmethod
+    def get_actions(cls):
+        return cls.registered_actions
 
     @classmethod
     def get_symbol(
