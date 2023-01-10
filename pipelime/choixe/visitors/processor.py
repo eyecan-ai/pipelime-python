@@ -14,6 +14,7 @@ import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
 from pipelime.choixe.utils.io import load
+from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
 
@@ -119,21 +120,29 @@ class Processor(ast.NodeVisitor):
         data = []
 
         for id_, default, env in branches:
-            if py_.has(self._context, id_):
-                data.append(py_.get(self._context, id_))
-                continue
+            var_value = None
+            found = False
 
-            if env:
+            if py_.has(self._context, id_):
+                var_value = py_.get(self._context, id_)
+                found = True
+            if not found and env:
                 value = os.getenv(id_)
                 if value is not None:
-                    data.append(value)
-                    continue
+                    var_value = value
+                    found = True
+            if not found and node.default:
+                var_value = default
+                found = True
 
-            if node.default:
-                data.append(default)
-                continue
+            if not found:
+                raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
-            raise ChoixeProcessingError(f"Variable not found: `{id_}`")
+            # Recursively process the variable value
+            re_parsed = parse(var_value)
+            re_processed = re_parsed.accept(self)
+
+            data.extend(re_processed)
 
         return data
 
@@ -304,6 +313,24 @@ class Processor(ast.NodeVisitor):
             path.parent.mkdir(exist_ok=True, parents=True)
             paths.append(str(path))
         return paths
+
+    def visit_rand(self, node: ast.RandNode) -> Any:
+        args_branches = [
+            node.args[i].accept(self) if i < len(node.args) else [...] for i in range(3)
+        ]
+        n_branches = node.n.accept(self) if node.n else [...]
+        pdf_branches = node.pdf.accept(self) if node.pdf else [...]
+        branches = self._branches(*args_branches, n_branches, pdf_branches)
+        randoms = []
+        for branch in branches:
+            args = [x for x in branch[:3] if x is not ...]
+            kwargs = {}
+            if branch[3] is not ...:
+                kwargs["n"] = branch[3]
+            if branch[4] is not ...:
+                kwargs["pdf"] = branch[4]
+            randoms.append(rand(*args, **kwargs))
+        return randoms
 
 
 def process(

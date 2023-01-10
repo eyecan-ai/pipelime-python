@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import typing as t
 import functools
 from pathlib import Path
+
 import typer
 
 from pipelime.cli.subcommands import SubCommands as subc
-
 from pipelime.cli.parser import parse_pipelime_cli, CLIParsingError
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
@@ -24,6 +25,7 @@ def _complete_yaml(incomplete: str):
 
 def _print_dict(name, data):
     import json
+
     from pipelime.cli.pretty_print import print_info
 
     print_info(f"\n{name}:")
@@ -79,6 +81,7 @@ def _process_cfg_or_die(
 ) -> t.List["XConfig"]:
     from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
+    from pipelime.cli.pretty_print import print_error
 
     try:
         effective_configs = (
@@ -348,9 +351,9 @@ def pl_main(  # noqa: C901
             verbose, show_cmds=False, show_ops=False, show_stages=True
         )
     elif command:
-        from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
-        from pipelime.cli.pretty_print import print_error, print_warning, print_info
+        from pipelime.choixe import XConfig
+        from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
         if config and context is None and ctx_autoload:
             context = []
@@ -428,6 +431,7 @@ def pl_main(  # noqa: C901
 
         if command in subc.AUDIT[0]:
             from dataclasses import fields
+
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
             print_info("\n📄 CONFIGURATION AUDIT\n")
@@ -451,7 +455,8 @@ def pl_main(  # noqa: C901
                     base_cfg, effective_ctx, output, run_all, False, verbose
                 )
             except ChoixeProcessingError as e:
-                from rich.prompt import Prompt, Confirm
+                from rich.prompt import Confirm, Prompt
+
                 from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")

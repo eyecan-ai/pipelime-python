@@ -486,3 +486,8 @@ You can get the path to a temporary directory with a custom name, on Linux, this
 `$tmp(name: str = None)`
 
 Where name is the name of the subfolder. If no name is specified, a random name unique for this specific configuration will be generated.
+
+### Random number generator
+
+Choixe provides the `rand` directive to generate random numbers.
+You can choose whether to generate single numbers, lists or numpy arrays; you can switch between float/int type and also control the distribution of random numbers using a PDF of your choice. Check out the "rand" examples section for a brief tutorial on how to use it.
