@@ -10,11 +10,37 @@ if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-def register_action(title: str):
+def register_action(title: str, *, description: t.Optional[str] = None):
     def _decorator(func):
-        from pipelime.cli.utils import PipelimeSymbolsHelper
+        from pathlib import Path
+        from pipelime.cli.utils import ActionInfo, PipelimeSymbolsHelper
 
-        PipelimeSymbolsHelper.register_action(title, func)
+        name = title or func.__name__
+        try:
+            source_path = inspect.getfile(func)
+            class_path = Path(source_path).resolve().as_posix()
+
+            if (func.__module__.replace(".", "/") + ".py") in class_path:
+                class_path = func.__module__ + "." + func.__name__
+            else:
+                class_path = class_path + ":" + func.__name__
+        except (TypeError, OSError):
+            # this happens when the class does not come from a file
+            class_path = "__main__." + func.__name__
+
+        docs = description
+        if docs is None:
+            docs = inspect.getdoc(func) or ""
+
+        PipelimeSymbolsHelper.register_action(
+            name,
+            ActionInfo(
+                action=func,
+                name=name,
+                description=docs,
+                classpath=class_path,
+            ),
+        )
         return func
 
     return _decorator
@@ -234,26 +260,39 @@ class BaseEntity(
         return cls(**{**other_dict, **kwargs})
 
 
-class BaseEntityType(TypeDef[BaseEntity]):
-    """An entity type. It accepts both type names and string."""
-
-
 class ActionDef(CallableDef):
     @classmethod
     def __get_validators__(cls):
         yield cls.validate_action
 
     @classmethod
-    def validate_action(cls, value: t.Union[CallableDef, t.Callable, str]) -> "ActionDef":
+    def validate_action(
+        cls, value: t.Union[CallableDef, t.Callable, str]
+    ) -> "ActionDef":
+        from pipelime.cli.utils import PipelimeSymbolsHelper
+
         if isinstance(value, cls):
             return value
         if isinstance(value, str):
-            from pipelime.cli.utils import PipelimeSymbolsHelper
-
-            action = PipelimeSymbolsHelper.registered_actions.get(value, None)
-            if action is not None:
-                return cls(__root__=action)
+            act = PipelimeSymbolsHelper.registered_actions.get(value, None)
+            if act is not None:
+                return cls(__root__=act.action)
+        if isinstance(value, t.Mapping):
+            name, args = next(iter(value.items()))
+            act = PipelimeSymbolsHelper.registered_actions.get(name, None)
+            if act is not None:
+                if isinstance(args, t.Mapping):
+                    act = act.action(**args)
+                elif isinstance(args, t.Sequence) and not isinstance(args, str):
+                    act = act.action(*args)
+                else:
+                    act = act.action(args)
+                return cls(__root__=act)
         return cls.validate(value)  # type: ignore
+
+
+class BaseEntityType(TypeDef[BaseEntity]):
+    """An entity type. It accepts both type names and string."""
 
 
 class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
@@ -262,17 +301,16 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
     action: ActionDef = pyd.Field(
         ...,
         description=(
-            "The action callable to run (can be a class path). The expected signature "
-            "is (BaseEntity) -> BaseEntityLike (ie, the return type should provide "
-            "a compatible interface). If properly annotated, input_type "
-            "definition could be skipped."
+            "The action callable to run (can be a class path). The expected annotation "
+            "is `(BaseEntitySubClass) -> BaseEntityLike`. Return type annotation "
+            "is not mandatory."
         ),
     )
     input_type: BaseEntityType = pyd.Field(
-        None,
+        BaseEntity,
         description=(
             "The input type of the action (can be a string). If None, "
-            "it is inferred from the callable's annotations."
+            "it is inferred from the callable's annotations or set to BaseEntity."
         ),
     )
 
@@ -296,22 +334,18 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
 
     @pyd.validator("input_type", always=True)
     def validate_input_type(cls, v, values):
-        if "action" in values:  # if not True, an error has been raised yet
-            action = values["action"]
+        if "action" in values:  # if not True, an error should have been raised yet
+            action_t = values["action"].args_type[0]
             if v is None:
-                if action.args_type[0] is None:
-                    raise ValueError(
-                        "Cannot infer input model type because no annotation "
-                        "has been found for the first argument of the action."
-                    )
-                v = BaseEntityType.create(action.args_type[0])
+                v = BaseEntityType.create(action_t or BaseEntity)
             else:
-                first_tp = action.args_type[0]
-                if first_tp is not None and not issubclass(first_tp, v.value):
-                    raise ValueError(
-                        "The first argument of the action is not compatible "
-                        "with the given input model type"
-                    )
+                if action_t is not None and not issubclass(v.value, action_t):
+                    if not issubclass(action_t, v.value):
+                        raise ValueError(
+                            "Action annotation is incompatible with the input type."
+                        )
+                    v = BaseEntityType.create(action_t)  # use the more specific type
+
         return v
 
     @classmethod
@@ -320,9 +354,12 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
 
     @classmethod
     def validate(cls, value):
+        print("inside")
         if isinstance(value, cls):
             return value
         if not isinstance(value, t.Mapping):
+            value = {"action": value}
+        if "action" not in value:
             value = {"action": value}
         return cls(**value)
 

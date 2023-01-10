@@ -265,6 +265,57 @@ has been used to overwrite the actual `_image` field with the new value.
 where `field_kwargs` is any other kwarg accepted by `pydantic.Field`
 * `DynamicKey(ParsedItem[ItemType, ParsedType])` is also supported
 
+## Action Registration
+
+Action functions and classes can be registered to ease their use in a configuration file.
+To this end, add the `@pipelime.stages.entities.register_action` decorator:
+
+```python
+import pipelime.stages.entities as ple
+
+@ple.register_action("FnAction", description="My function action help")
+def my_fn_action(x):
+    ...
+    return x
+
+@ple.register_action("ClassAction", description="My class action help")
+class MyAction:
+    def __init__(self, param1, param2):
+        ...
+
+    def __call__(self, x):
+        ...
+        return x
+
+@ple.register_action("ModelAction", description="My model action help")
+class MyModelAction(pydantic.BaseModel):
+    param1: int
+    param2: str
+
+    def __call__(self, x):
+        ...
+        return x
+```
+
+Note that when no annotation is provided, the input type defaults to `BaseEntity`.
+
+Once an action is registered, it can be recalled in a configuration file by its name, eg:
+
+```yaml
+- map:
+    entity: FnAction
+- map:
+    entity:
+        ClassAction: [..., ...]  # positional arguments
+- map:
+    entity:
+        MyModelAction:
+            param1: ...
+            param2: ...
+```
+
+Finally, the registered actions can be listed together with the `Sample Stages` with `$ pipelime list`.
+
 ## Advanced Entity Features
 
 Leveraging the power of pydantic models, you can define more complex entities that fit your needs.
@@ -330,21 +381,19 @@ class MaskedGrayImageEntity(BaseEntity):
         return v
 ```
 
-Finally, you can let the user change the input entity type among a set of possible subclasses
-of your annotated entity, or even more freely if you do not annotate your action callable.
-Indeed, the concrete type of the input entity to use can be specified as:
+Finally, you can even use lambda functions as actions and define your input type
+through the `input_type` parameter:
 
 ```python
 from pipelime.stages import StageEntity
 
-new_seq = seq.map(StageEntity(action=your_action, input_type=YourInputEntity))
+new_seq = seq.map(StageEntity(action=lambda x: ..., input_type=YourInputEntity))
 
 # or, equivalently
 new_seq = seq.map(StageEntity(action="class.path.to.your_action", input_type="class.path.to.YourInputEntity"))
 ```
 
-where `YourInputEntity` must be a subclass of the annotated input entity or, at least,
-a subclass of `BaseEntity`.
+where `YourInputEntity` must be a subclass of `BaseEntity`.
 
 ## Full-fledged Stages
 

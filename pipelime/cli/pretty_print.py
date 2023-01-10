@@ -10,6 +10,9 @@ from rich import print as rprint
 from rich.pretty import Pretty
 from rich.table import Table, Column
 
+if t.TYPE_CHECKING:
+    from pipelime.cli.utils import ActionInfo
+
 
 def _input_icon():
     return "📥"
@@ -128,9 +131,22 @@ def print_command_outputs(command: "PipelimeCommand"):  # type: ignore # noqa: E
     print_model_field_values(command.__fields__, command.get_outputs(), _output_icon())
 
 
+def print_actions_short_help(*actions_info: "ActionInfo", show_class_path: bool = True):
+    grid = Table.grid(
+        *([Column(overflow="fold") for _ in range(2 + int(show_class_path))]),
+        padding=(0, 1),
+    )
+    for a in actions_info:
+        col_vals = [escape(a.name)]
+        if show_class_path:
+            col_vals.append(f"[italic grey50]{escape(a.classpath)}[/]")
+        col_vals.append(escape(a.description))
+        grid.add_row(*col_vals)
+    rprint(grid)
+
+
 def print_models_short_help(
-    *model_cls: t.Type[BaseModel],
-    show_class_path: bool = True,
+    *model_cls: t.Type[BaseModel], show_class_path: bool = True
 ):
     grid = Table.grid(
         *([Column(overflow="fold") for _ in range(2 + int(show_class_path))]),

@@ -361,7 +361,7 @@ class TypeDef(
             value = cls._string_to_type(value)
         if inspect.isclass(value) and issubclass(value, cls.wrapped_type()):
             return cls(__root__=value)
-        raise ValueError(f"Invalid item type: {value}")
+        raise ValueError(f"Type `{value}` is not a subclass of `{cls.wrapped_type()}`")
 
 
 class ItemType(TypeDef[Item]):

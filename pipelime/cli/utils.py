@@ -1,8 +1,16 @@
 import typing as t
 from types import ModuleType
+from pydantic import BaseModel
 
 if t.TYPE_CHECKING:
     from pipelime.piper.model import PipelimeCommand
+
+
+class ActionInfo(BaseModel):
+    action: t.Union[t.Type, t.Callable]
+    name: str
+    description: str
+    classpath: str
 
 
 class PipelimeSymbolsHelper:
@@ -14,7 +22,7 @@ class PipelimeSymbolsHelper:
     cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
     cached_stages: t.Dict[t.Tuple[str, str], t.Dict] = {}
 
-    registered_actions: t.Dict[str, t.Union[t.Type, t.Callable]] = {}
+    registered_actions: t.Dict[str, ActionInfo] = {}
 
     @classmethod
     def complete_name(
@@ -56,8 +64,10 @@ class PipelimeSymbolsHelper:
         )
 
     @classmethod
-    def register_action(cls, title: str, action: t.Union[t.Type, t.Callable]):
-        cls.registered_actions[title] = action
+    def register_action(cls, name: str, info: ActionInfo):
+        if name in cls.registered_actions:
+            raise ValueError(f"Action `{name}` already registered")
+        cls.registered_actions[name] = info
 
     @classmethod
     def _symbol_name(cls, symbol):
@@ -383,7 +393,15 @@ def print_commands_ops_stages_list(
     show_stages: bool = True,
 ):
     """Print a list of all available sequence operators and pipelime commands."""
-    from pipelime.cli.pretty_print import get_model_classpath
+    from pipelime.cli.pretty_print import (
+        get_model_classpath,
+        print_info,
+        print_actions_short_help,
+        _short_line,
+    )
+    from pipelime.stages.entities import EntityAction
+    from pydantic import create_model
+    import inspect
 
     def _filter_symbols(smbls):
         if not PipelimeSymbolsHelper.extra_modules:
@@ -417,6 +435,11 @@ def print_commands_ops_stages_list(
             show_class_path=True,
             show_piper_port=False,
         )
+        if PipelimeSymbolsHelper.get_actions():
+            print_info(f"\n{_short_line()} Actions")
+            print_actions_short_help(
+                *PipelimeSymbolsHelper.get_actions().values(), show_class_path=True
+            )
 
 
 def print_commands_list(show_details: bool = False):

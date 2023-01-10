@@ -236,8 +236,6 @@ class TestEntities:
             StageEntity(
                 EntityAction(action=my_annotated_action, input_type=MyInput1)  # type: ignore
             )
-        with pytest.raises(ValidationError):
-            StageEntity(EntityAction(action=my_action0))  # type: ignore
 
     def test_parsed_action(self):
         self._make_test(my_parsed_action0, MyInput0, MyInput0.__config__.extra, False)
