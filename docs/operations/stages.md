@@ -215,9 +215,59 @@ covariant with `pli.MetadataItem` and a `MetadataModel` instance is created from
 metadata value. Then, calling `metadata()` will return the parsed value instead the raw
 item value.
 
-`ParsedItem` can be used in output entities as well and can be built from a pipelime item,
+Another use case is to parse and convert a file into a structured object.
+For instance, you may want to access a RGB image as 3 separate numpy arrays,
+one for each channel. In this case, you can define a custom class to validate and split an input image:
+
+```python
+import numpy as np
+
+class PlanarRGBImage:
+    def __init__(self, image: np.ndarray):
+        if image.ndim != 3 or image.shape[2] != 3:
+            raise ValueError("Expected a 3-channel RGB image")
+        self._image = image
+
+    @classmethod
+    def create_from_planes(cls, r: np.ndarray, g: np.ndarray, b: np.ndarray) -> "PlanarRGBImage":
+        return cls(np.stack([r, g, b], axis=-1))
+
+    @property
+    def r(self) -> np.ndarray:
+        return self._image[:, :, 0]
+
+    @property
+    def g(self) -> np.ndarray:
+        return self._image[:, :, 1]
+
+    @property
+    def b(self) -> np.ndarray:
+        return self._image[:, :, 2]
+
+    def to_item_data(self) -> np.ndarray:
+        return self._image
+```
+
+Note that the special `to_item_data` method is required to convert a parsed value back to a raw item value. Then, you can use it as follows:
+
+```python
+import pipelime.stages.entities as ple
+import pipelime.items as pli
+
+class PlanarIO(ple.BaseEntity):
+    image: ple.ParsedItem[pli.ImageItem, PlanarRGBImage]
+
+def my_action(x: PlanarIO):
+    r = x.image().r
+    g = x.image().g
+    b = x.image().b
+    # ... do some processing
+    return PlanarIO(image=PlanarRGBImage.create_from_planes(r, g, b))
+```
+
+As shown in the last example, `ParsedItem` can be used in output entities as well and can be built from a pipelime item,
 its raw value or the parsed value. In any case, both the item and the parsed value must be
-_constructable_ from the a raw item value, so a full validation is always performed.
+_constructable_ from the raw item value, so a full validation is always performed.
 Also, if you don't care about the actual item type, you can just use
 `ParsedData[ParsedType]` instead of `ParsedItem[ItemType, ParsedType]`.
 
@@ -262,7 +312,7 @@ has been used to overwrite the actual `_image` field with the new value.
 
 `DynamicKey` is fully compatible with the usual field definitions and other features:
 * the full signature is `DynamicKey(item_type, default_value, default_factory, **field_kwargs)`,
-where `field_kwargs` is any other kwarg accepted by `pydantic.Field`
+where `field_kwargs` is any other keyword argument accepted by `pydantic.Field`
 * `DynamicKey(ParsedItem[ItemType, ParsedType])` is also supported
 
 ## Action Registration
