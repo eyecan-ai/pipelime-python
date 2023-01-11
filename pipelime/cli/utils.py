@@ -237,32 +237,34 @@ class PipelimeSymbolsHelper:
         from pipelime.cli.pretty_print import print_error, print_warning, print_info
         from difflib import get_close_matches
 
-        should_be = []
         names_list = []
         if should_be_cmd:
-            should_be.append("a pipelime command")
             names_list += [
                 v2 for v1 in cls.get_pipelime_commands().values() for v2 in v1.keys()
             ]
         if should_be_op:
-            should_be.append("a sequence operator")
             names_list += [
                 v2 for v1 in cls.get_sequence_operators().values() for v2 in v1.keys()
             ]
         if should_be_stage:
-            should_be.append("a sample stage")
             names_list += [
                 v2 for v1 in cls.get_sample_stages().values() for v2 in v1.keys()
             ]
         similar_names = get_close_matches(name, names_list, cutoff=0.3)
 
-        print_error(f"{name} is not {' nor '.join(should_be)}!")
+        print_error(f"{name} is not a pipelime object and cannot be imported.")
         print_warning("Have you added the module with `--module/-m`?")
         if similar_names:
             print_info(f"Similar entries: {', '.join(similar_names)}")
 
 
-def _print_info(info_cls, show_class_path=True, show_piper_port=True):
+def _print_info(
+    info_cls,
+    show_class_path=True,
+    show_piper_port=True,
+    show_description=True,
+    recursive=True,
+):
     from pipelime.cli.pretty_print import print_info, print_model_info, _short_line
 
     if info_cls is not None:
@@ -271,40 +273,67 @@ def _print_info(info_cls, show_class_path=True, show_piper_port=True):
             info_cls[1],
             show_class_path=show_class_path,
             show_piper_port=show_piper_port,
+            show_description=show_description,
+            recursive=recursive,
         )
 
 
-def print_command_op_stage_info(command_operator_stage: str):
+def print_command_op_stage_info(
+    command_operator_stage: str, show_description: bool = True, recursive: bool = True
+):
     """
     Prints detailed info about a pipelime command, a sequence operator or a sample
     stage.
     """
     from pipelime.cli.pretty_print import print_info
+    from pipelime.choixe.utils.imports import import_symbol
 
-    info_stg_op_cmd: t.List[t.Any] = [(None, {}), (None, {}), (None, {})]
+    available_defs = []
 
     try:
-        info_stg_op_cmd[0] = (
-            PipelimeSymbolsHelper.get_stage(command_operator_stage),
-            {"show_class_path": True, "show_piper_port": False},
+        available_defs.append(
+            (
+                PipelimeSymbolsHelper.get_stage(command_operator_stage),
+                {"show_class_path": True, "show_piper_port": False},
+            )
         )
     except ValueError:
         pass
 
-    info_stg_op_cmd[1] = (
-        PipelimeSymbolsHelper.get_operator(command_operator_stage),
-        {"show_class_path": False, "show_piper_port": False},
+    available_defs.append(
+        (
+            PipelimeSymbolsHelper.get_operator(command_operator_stage),
+            {"show_class_path": False, "show_piper_port": False},
+        )
     )
 
     try:
-        info_stg_op_cmd[2] = (
-            PipelimeSymbolsHelper.get_command(command_operator_stage),
-            {"show_class_path": True, "show_piper_port": True},
+        available_defs.append(
+            (
+                PipelimeSymbolsHelper.get_command(command_operator_stage),
+                {"show_class_path": True, "show_piper_port": True},
+            )
         )
     except ValueError:
         pass
 
-    available_defs = [x for x in info_stg_op_cmd if x[0] is not None]
+    # Remove None entries, if any
+    available_defs = [x for x in available_defs if x[0] is not None]
+
+    if not available_defs:
+        # Try a generic import
+        try:
+            available_defs.append(
+                (
+                    (
+                        ("Imported Symbol", "Imported Symbols"),
+                        import_symbol(command_operator_stage),
+                    ),
+                    {"show_class_path": True, "show_piper_port": False},
+                )
+            )
+        except ImportError:
+            pass
 
     if not available_defs:
         PipelimeSymbolsHelper.show_error_and_help(
@@ -314,8 +343,7 @@ def print_command_op_stage_info(command_operator_stage: str):
             should_be_stage=True,
         )
         raise ValueError(
-            f"{command_operator_stage} is not a pipelime command, "
-            "nor a sequence operator nor a sample stage!"
+            f"{command_operator_stage} is not a pipelime object and cannot be imported."
         )
 
     if len(available_defs) > 1:
@@ -334,10 +362,12 @@ def print_command_op_stage_info(command_operator_stage: str):
             available_defs = [available_defs[idx]]
 
     for d in available_defs:
-        _print_info(d[0], **d[1])
+        _print_info(
+            d[0], **d[1], show_description=show_description, recursive=recursive
+        )
 
 
-def _print_details(info, show_class_path, show_piper_port):
+def _print_details(info, show_class_path, show_piper_port, show_description, recursive):
     from pipelime.cli.pretty_print import _short_line, print_info, print_model_info
 
     for info_type, info_map in info.items():
@@ -347,6 +377,8 @@ def _print_details(info, show_class_path, show_piper_port):
                 info_cls,
                 show_class_path=show_class_path,
                 show_piper_port=show_piper_port,
+                show_description=show_description,
+                recursive=recursive,
             )
 
 
@@ -371,6 +403,8 @@ def print_commands_ops_stages_list(
     show_cmds: bool = True,
     show_ops: bool = True,
     show_stages: bool = True,
+    show_description: bool = True,
+    recursive: bool = True,
 ):
     """Print a list of all available sequence operators and pipelime commands."""
     from pipelime.cli.pretty_print import get_model_classpath
@@ -394,18 +428,24 @@ def print_commands_ops_stages_list(
             _filter_symbols(PipelimeSymbolsHelper.get_pipelime_commands()),
             show_class_path=True,
             show_piper_port=True,
+            show_description=show_description,
+            recursive=recursive,
         )
     if show_ops:
         print_fn(
             _filter_symbols(PipelimeSymbolsHelper.get_sequence_operators()),
             show_class_path=False,
             show_piper_port=False,
+            show_description=show_description,
+            recursive=recursive,
         )
     if show_stages:
         print_fn(
             _filter_symbols(PipelimeSymbolsHelper.get_sample_stages()),
             show_class_path=True,
             show_piper_port=False,
+            show_description=show_description,
+            recursive=recursive,
         )
 
 
