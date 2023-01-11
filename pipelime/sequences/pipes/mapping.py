@@ -46,15 +46,11 @@ class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
     _call_condition = pyd.PrivateAttr()
 
     @staticmethod
-    def _call0(
-        fn: t.Callable[[], bool], idx: int, x: pls.Sample, s: pls.SamplesSequence
-    ) -> bool:
+    def _call0(fn: t.Callable[[], bool], *args, **kwargs) -> bool:
         return fn()
 
     @staticmethod
-    def _call1(
-        fn: t.Callable[[int], bool], idx: int, x: pls.Sample, s: pls.SamplesSequence
-    ) -> bool:
+    def _call1(fn: t.Callable[[int], bool], idx: int, *args, **kwargs) -> bool:
         return fn(idx)
 
     @staticmethod
@@ -62,7 +58,8 @@ class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
         fn: t.Callable[[int, pls.Sample], bool],
         idx: int,
         x: pls.Sample,
-        s: pls.SamplesSequence,
+        *args,
+        **kwargs,
     ) -> bool:
         return fn(idx, x)
 
@@ -72,6 +69,8 @@ class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
         idx: int,
         x: pls.Sample,
         s: pls.SamplesSequence,
+        *args,
+        **kwargs,
     ) -> bool:
         return fn(idx, x, s)
 

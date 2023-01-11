@@ -151,24 +151,27 @@ def print_model_info(
     indent_offs: int = 2,
     show_class_path: bool = True,
     show_piper_port: bool = True,
+    show_description: bool = True,
+    recursive: bool = True,
 ):
+    model_docs = (inspect.getdoc(model_cls) or "") if show_description else ""
+
+    # * Fields, [Description], Type, [Piper Port], Default
+    cols = [Column("Fields", overflow="fold")]
+    if show_description:
+        cols.append(Column("Description", overflow="fold"))
+    cols.append(Column("Type", overflow="fold"))
+    if show_piper_port:
+        cols.append(Column("Piper Port", overflow="fold"))
+    cols.append(Column("Default", overflow="fold"))
+
     grid = Table(
-        *(
-            [
-                Column("Fields", overflow="fold"),
-                Column("Description", overflow="fold"),
-                Column("Type", overflow="fold"),
-            ]
-            + ([Column("Piper Port", overflow="fold")] if show_piper_port else [])
-            + [
-                Column("Default", overflow="fold"),
-            ]
-        ),
+        *cols,
         box=box.SIMPLE_HEAVY,
         title=(
             f"[bold dark_red]{escape(get_model_title(model_cls))}[/]\n"
             f"[blue]{escape(_get_signature(model_cls))}[/]\n"
-            f"[italic grey23]{escape(inspect.getdoc(model_cls) or '')}[/]"
+            f"[italic grey23]{escape(model_docs)}[/]"
         ),
         caption=escape(get_model_classpath(model_cls)) if show_class_path else None,
         title_style="on white",
@@ -181,6 +184,8 @@ def print_model_info(
         indent=0,
         indent_offs=indent_offs,
         show_piper_port=show_piper_port,
+        show_description=show_description,
+        recursive=recursive,
         add_blank_row=True,
     )
 
@@ -188,21 +193,28 @@ def print_model_info(
 
 
 def _field_row(
-    grid: Table, field, indent: int, indent_offs: int, show_piper_port: bool
+    grid: Table,
+    field,
+    indent: int,
+    indent_offs: int,
+    show_piper_port: bool,
+    show_description: bool,
+    recursive: bool,
 ):
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
 
-    # NB: docs should not come from the inner __root__ type
-    if field.field_info.description:
-        field_docs = field.field_info.description
-    elif hasattr(field.outer_type_, "__doc__") and field.outer_type_.__doc__:
-        field_docs = str(inspect.getdoc(field.outer_type_))
-    else:
-        field_docs = ""
+    if show_description:
+        # NB: docs should not come from the inner __root__ type
+        if field.field_info.description:
+            field_docs = field.field_info.description
+        elif hasattr(field.outer_type_, "__doc__") and field.outer_type_.__doc__:
+            field_docs = str(inspect.getdoc(field.outer_type_))
+        else:
+            field_docs = ""
 
-    field_docs = " ".join(field_docs.split())
+        field_docs = " ".join(field_docs.split())
 
     has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
     field_outer_type = (
@@ -224,72 +236,77 @@ def _field_row(
             fport = f"{_output_icon()} [cyan]{fport}[/]"
         else:
             fport = f"{_parameter_icon()} {fport}"
-    else:
-        fport = None
 
-    line = (
-        [
-            # Field name & alias
-            (" " * indent)
-            + ("[bold salmon1]" if indent == 0 else "")
-            + (
-                f"{escape(field.name)} / "
-                if field.model_config.allow_population_by_field_name and field.has_alias
-                else ""
-            )
-            + f"{escape(field.alias)}"
-            + ("[/]" if indent == 0 else ""),
-            # Description
-            ("▶ " + escape(field_docs)),
-            # Type
-            (
-                ""
-                if is_model and not has_root_item
-                else _human_readable_type(field_outer_type).replace(
-                    "[", r"\["
-                )  # noqa: W605
-            ),
-        ]
-        # Piper port
-        + ([fport] if fport else [])
-        # Default value
-        + (["[red]✗[/]"] if field.required else [f"[green]{field.get_default()}[/]"])
+    # Field name & alias
+    line = [
+        (" " * indent)
+        + ("[bold salmon1]" if indent == 0 else "")
+        + (
+            f"{escape(field.name)} / "
+            if field.model_config.allow_population_by_field_name and field.has_alias
+            else ""
+        )
+        + f"{escape(field.alias)}"
+        + ("[/]" if indent == 0 else "")
+    ]
+
+    # Description
+    if show_description:
+        line.append("▶ " + escape(field_docs))  # type: ignore
+
+    # Type
+    line.append(
+        ""
+        if is_model and not has_root_item and recursive
+        else _human_readable_type(field_outer_type).replace("[", r"\[")  # noqa: W605
     )
+
+    # Piper port
+    if show_piper_port:
+        line.append(fport)  # type: ignore
+
+    # Default value
+    line.append("[red]✗[/]" if field.required else f"[green]{field.get_default()}[/]")
 
     grid.add_row(*line)
 
-    if is_model and not has_root_item:
-        _iterate_model_fields(
-            model_cls=field_outer_type,
-            grid=grid,
-            indent=indent + indent_offs,
-            indent_offs=indent_offs,
-            show_piper_port=show_piper_port,
-            add_blank_row=False,
-        )
-    else:
-        inner_types = _get_inner_args(field_outer_type)
-        last_types = inner_types
-        while last_types:
-            last_types = _get_inner_args(*last_types)
-            inner_types |= last_types
-        inner_types = {
-            arg for arg in inner_types if _is_model(arg) and arg is not BaseModel
-        }
-
-        for arg in inner_types:
-            grid.add_row(
-                (" " * indent)
-                + f"[grey50]{_short_line()} {arg.__name__}[/]"  # type:ignore
-            )
+    if recursive:
+        if is_model and not has_root_item:
             _iterate_model_fields(
-                model_cls=arg,
+                model_cls=field_outer_type,
                 grid=grid,
                 indent=indent + indent_offs,
                 indent_offs=indent_offs,
                 show_piper_port=show_piper_port,
+                show_description=show_description,
+                recursive=recursive,
                 add_blank_row=False,
             )
+        else:
+            inner_types = _get_inner_args(field_outer_type)
+            last_types = inner_types
+            while last_types:
+                last_types = _get_inner_args(*last_types)
+                inner_types |= last_types
+            inner_types = {
+                arg for arg in inner_types if _is_model(arg) and arg is not BaseModel
+            }
+
+            for arg in inner_types:
+                grid.add_row(
+                    (" " * indent)
+                    + f"[grey50]{_short_line()} {arg.__name__}[/]"  # type:ignore
+                )
+                _iterate_model_fields(
+                    model_cls=arg,
+                    grid=grid,
+                    indent=indent + indent_offs,
+                    indent_offs=indent_offs,
+                    show_piper_port=show_piper_port,
+                    show_description=show_description,
+                    recursive=recursive,
+                    add_blank_row=False,
+                )
 
 
 def _get_signature(model_cls: t.Type[BaseModel]) -> str:
@@ -342,7 +359,14 @@ def _get_inner_args(*type_):
 
 
 def _iterate_model_fields(
-    model_cls, grid, indent, indent_offs, show_piper_port, add_blank_row
+    model_cls,
+    grid,
+    indent,
+    indent_offs,
+    show_piper_port,
+    show_description,
+    recursive,
+    add_blank_row,
 ):
     no_data = True
     for field in model_cls.__fields__.values():  # type: ignore
@@ -354,6 +378,8 @@ def _iterate_model_fields(
                 indent=indent,
                 indent_offs=indent_offs,
                 show_piper_port=show_piper_port,
+                show_description=show_description,
+                recursive=recursive,
             )
             if add_blank_row:
                 grid.add_row()

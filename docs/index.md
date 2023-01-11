@@ -36,6 +36,13 @@ get_started/underfolder.md
 
 ```{toctree}
 :maxdepth: 4
+:caption: "Tutorials:"
+
+tutorials/convert_to_underfolder.md
+```
+
+```{toctree}
+:maxdepth: 4
 :caption: "Core Components: "
 
 sequences/sequences.md
