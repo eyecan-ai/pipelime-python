@@ -101,21 +101,18 @@ class TestItems:
                             assert ref_value[3] == trg_value
                         elif isinstance(trg_value, tuple):
                             assert ref_value == trg_value[3]
-                        elif isinstance(ref_item, pli.STLModel3DItem) or isinstance(
-                            trg_item, pli.STLModel3DItem
-                        ):
-                            assert _mesh_eq(
-                                ref_value, trg_value, exact=True, sort_vertices=True
-                            )
-                        elif isinstance(ref_item, pli.OFFModel3DItem) or isinstance(
-                            trg_item, pli.OFFModel3DItem
-                        ):
-                            assert _mesh_eq(
-                                ref_value, trg_value, exact=False, sort_vertices=False
-                            )
                         elif isinstance(ref_item, pli.Model3DItem):
+                            exact = not isinstance(
+                                ref_item, pli.OFFModel3DItem
+                            ) and not isinstance(trg_item, pli.OFFModel3DItem)
+                            sort_vtx = isinstance(
+                                ref_item, pli.STLModel3DItem
+                            ) or isinstance(trg_item, pli.STLModel3DItem)
                             assert _mesh_eq(
-                                ref_value, trg_value, exact=True, sort_vertices=False
+                                ref_value,
+                                trg_value,
+                                exact=exact,
+                                sort_vertices=sort_vtx,
                             )
                         else:
                             assert ref_value == trg_value
@@ -126,12 +123,32 @@ class TestItems:
             (pli.PickleItem, (42, "asdf", 3.14), lambda x, y: x == y),
             (pli.BinaryItem, b"asdfiasodifoj123124214", lambda x, y: x == y),
             (pli.NpyNumpyItem, (np.random.rand(3, 4) * 100), TestUtils.numpy_eq),
-            (pli.TxtNumpyItem, (np.random.rand(3, 4) * 100), lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y)),
+            (
+                pli.TxtNumpyItem,
+                (np.random.rand(3, 4) * 100),
+                lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y),
+            ),
             (pli.NpyNumpyItem, 42.42, TestUtils.numpy_eq),
-            (pli.TxtNumpyItem, 42.42, lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y)),
-            (pli.BmpImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
-            (pli.PngImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
-            (pli.TiffImageItem, (np.random.rand(3, 4) * 100).astype(np.uint8), TestUtils.numpy_eq),
+            (
+                pli.TxtNumpyItem,
+                42.42,
+                lambda x, y: TestUtils.numpy_eq(np.atleast_1d(x), y),
+            ),
+            (
+                pli.BmpImageItem,
+                (np.random.rand(3, 4) * 100).astype(np.uint8),
+                TestUtils.numpy_eq,
+            ),
+            (
+                pli.PngImageItem,
+                (np.random.rand(3, 4) * 100).astype(np.uint8),
+                TestUtils.numpy_eq,
+            ),
+            (
+                pli.TiffImageItem,
+                (np.random.rand(3, 4) * 100).astype(np.uint8),
+                TestUtils.numpy_eq,
+            ),
             (
                 pli.JsonMetadataItem,
                 {"a": [1, 2, 3], "b": 3.14, "c": [True, False]},

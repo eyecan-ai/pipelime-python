@@ -45,16 +45,15 @@ Common operations on datasets. To get the most out of any commands, please show 
 | Description | Command |
 | ---- | ---- |
 | Sort by classification score [^cscore] | `pipelime sort +i <input> +o <output> +k metadata.classification.score` |
-| Sort according to a callable [^fnsort] | `pipelime sort +i <input> +o <output> +f class.path.to.callable` |
-| Filter by [dictquery match](https://github.com/cyberlis/dictquery) | ``pipelime filter +i <input> +o <output> +q `metadata.classification.score > 0.5` `` |
-| Filter according to a callable `(Sample) -> bool` | `pipelime filter +i <input> +o <output> +f class.path.to.callable` |
+| Sort according to a callable `(Sample) -> Any` [^fnsort][^call] | `pipelime sort +i <input> +o <output> +f class.path.to.callable` |
+| Filter by [dictquery match](https://github.com/cyberlis/dictquery) | ``pipelime filter +i <input> +o <output> +q "`metadata.classification.score` > 0.5"`` |
+| Filter according to a callable `(Sample) -> bool` [^call] | `pipelime filter +i <input> +o <output> +f class.path.to.callable` |
 
 [^cscore]: Here we assume to have a metadata item such as
 
     ```yaml
     classification:
         score: 0.9
-        ...
     ...
     ```
 

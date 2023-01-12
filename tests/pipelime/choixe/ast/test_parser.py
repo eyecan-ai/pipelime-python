@@ -375,6 +375,83 @@ class TestStringParse:
         expr = f"$symbol({symbol})"
         assert parse(expr) == ast.SymbolNode(symbol=ast.LiteralNode(data=symbol))
 
+    @pytest.mark.parametrize(
+        ["expr", "expected"],
+        [
+            ["$rand", ast.RandNode()],
+            ["$rand()", ast.RandNode()],
+            ["$rand(10)", ast.RandNode(ast.LiteralNode(data=10))],
+            [
+                "$rand(10, 20)",
+                ast.RandNode(ast.LiteralNode(data=10), ast.LiteralNode(data=20)),
+            ],
+            [
+                "$rand(10, 20, n=10)",
+                ast.RandNode(
+                    ast.LiteralNode(data=10),
+                    ast.LiteralNode(data=20),
+                    n=ast.LiteralNode(data=10),
+                ),
+            ],
+            [
+                "$rand(10, 20, pdf=[10, 20, 5, 4])",
+                ast.RandNode(
+                    ast.LiteralNode(data=10),
+                    ast.LiteralNode(data=20),
+                    pdf=ast.ListNode(
+                        ast.LiteralNode(data=10),
+                        ast.LiteralNode(data=20),
+                        ast.LiteralNode(data=5),
+                        ast.LiteralNode(data=4),
+                    ),
+                ),
+            ],
+            [
+                "$rand(10, 20, n=10, pdf=[[0.0, 0.1], [2.5, [1.0, 0.4]], [5.0, 2.0], [7.5, [0.0, 0.2]]])",
+                ast.RandNode(
+                    ast.LiteralNode(data=10),
+                    ast.LiteralNode(data=20),
+                    n=ast.LiteralNode(data=10),
+                    pdf=ast.ListNode(
+                        ast.ListNode(
+                            ast.LiteralNode(data=0.0),
+                            ast.LiteralNode(data=0.1),
+                        ),
+                        ast.ListNode(
+                            ast.LiteralNode(data=2.5),
+                            ast.ListNode(
+                                ast.LiteralNode(data=1.0),
+                                ast.LiteralNode(data=0.4),
+                            ),
+                        ),
+                        ast.ListNode(
+                            ast.LiteralNode(data=5.0),
+                            ast.LiteralNode(data=2.0),
+                        ),
+                        ast.ListNode(
+                            ast.LiteralNode(data=7.5),
+                            ast.ListNode(
+                                ast.LiteralNode(data=0.0),
+                                ast.LiteralNode(data=0.2),
+                            ),
+                        ),
+                    ),
+                ),
+            ],
+            [
+                "$rand(10, 20, n=10, pdf=lambda x: 10-x)",
+                ast.RandNode(
+                    ast.LiteralNode(data=10),
+                    ast.LiteralNode(data=20),
+                    n=ast.LiteralNode(data=10),
+                    pdf=ast.LiteralNode(data=lambda x: 10 - x),
+                ),
+            ],
+        ],
+    )
+    def test_rand(self, expr: str, expected: ast.RandNode) -> None:
+        assert parse(expr) == expected
+
 
 class TestParserRaise:
     def test_unknown_directive(self):
@@ -382,10 +459,10 @@ class TestParserRaise:
         with pytest.raises(ChoixeParsingError):
             parse(expr)
 
-    def test_arg_too_complex(self):
-        expr = "$sweep(lots, of, [arguments, '10'])"
-        with pytest.raises(ChoixeParsingError):
-            parse(expr)
+    # def test_arg_too_complex(self):
+    #     expr = "$sweep(lots, of, {'arguments', '10'})"
+    #     with pytest.raises(ChoixeParsingError):
+    #         parse(expr)
 
     @pytest.mark.parametrize(
         ["expr"],

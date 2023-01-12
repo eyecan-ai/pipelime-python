@@ -141,6 +141,16 @@ class TestInspector:
                     }
                 ),
             ],
+            [
+                {
+                    "a": "$rand()",
+                    "b": "$rand(10)",
+                    "c": "$rand(10, 20)",
+                    "d": "$rand(10, 20, n=2)",
+                    "e": "$rand(10, 20, n=2, pdf=lambda x: x + 1)",
+                },
+                Inspection(),
+            ],
         ],
     )
     def test_inspector(self, expr, expected):

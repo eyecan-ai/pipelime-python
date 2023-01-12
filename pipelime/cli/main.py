@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import typing as t
 import functools
 from pathlib import Path
+
 import typer
 
 from pipelime.cli.subcommands import SubCommands as subc
-
 from pipelime.cli.parser import parse_pipelime_cli, CLIParsingError
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
@@ -24,6 +25,7 @@ def _complete_yaml(incomplete: str):
 
 def _print_dict(name, data):
     import json
+
     from pipelime.cli.pretty_print import print_info
 
     print_info(f"\n{name}:")
@@ -79,6 +81,7 @@ def _process_cfg_or_die(
 ) -> t.List["XConfig"]:
     from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
+    from pipelime.cli.pretty_print import print_error
 
     try:
         effective_configs = (
@@ -248,7 +251,13 @@ def pl_main(  # noqa: C901
         resolve_path=True,
         help="Save final processed context to json/yaml.",
     ),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+    verbose: int = typer.Option(
+        0,
+        "--verbose",
+        "-v",
+        help="Verbose output. Can be specified multiple times.",
+        count=True,
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
     command: str = typer.Argument(
         "",
@@ -318,9 +327,13 @@ def pl_main(  # noqa: C901
     ):
         try:
             if command and command not in subc.HELP[0]:
-                print_command_op_stage_info(command)
+                print_command_op_stage_info(
+                    command, show_description=verbose > 0, recursive=verbose > 1
+                )
             elif command_args:
-                print_command_op_stage_info(command_args[0])
+                print_command_op_stage_info(
+                    command_args[0], show_description=verbose > 0, recursive=verbose > 1
+                )
             else:
                 print(ctx.get_help())
         except ValueError:
@@ -333,24 +346,44 @@ def pl_main(  # noqa: C901
         Wizard.model_cfg_wizard(command_args[0])
     elif command in subc.LIST[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=True, show_ops=True, show_stages=True
+            verbose > 0,
+            show_cmds=True,
+            show_ops=True,
+            show_stages=True,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command in subc.LIST_CMDS[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=True, show_ops=False, show_stages=False
+            verbose > 0,
+            show_cmds=True,
+            show_ops=False,
+            show_stages=False,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command in subc.LIST_OPS[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=False, show_ops=True, show_stages=False
+            verbose > 0,
+            show_cmds=False,
+            show_ops=True,
+            show_stages=False,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command in subc.LIST_STGS[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=False, show_ops=False, show_stages=True
+            verbose > 0,
+            show_cmds=False,
+            show_ops=False,
+            show_stages=True,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command:
-        from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
-        from pipelime.cli.pretty_print import print_error, print_warning, print_info
+        from pipelime.choixe import XConfig
+        from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
         if config and context is None and ctx_autoload:
             context = []
@@ -359,7 +392,7 @@ def pl_main(  # noqa: C901
                     if p.suffix in (".yaml", ".yml", ".json"):
                         context += [p]
 
-        if verbose:
+        if verbose > 0:
 
             def _print_file_list(files: t.Sequence[Path], name: str):
                 if config:
@@ -389,7 +422,7 @@ def pl_main(  # noqa: C901
             e.rich_print()
             raise typer.Exit(1)
 
-        if verbose:
+        if verbose > 0:
             _print_dict(
                 f"Loaded configuration file{'s' if len(config) > 1 else ''}", base_cfg
             )
@@ -408,7 +441,9 @@ def pl_main(  # noqa: C901
 
         # process contexts to resolve imports and local loops
         effective_ctx = [
-            _process_cfg_or_die(c, None, "context", run_all, output_ctx, True, verbose)
+            _process_cfg_or_die(
+                c, None, "context", run_all, output_ctx, True, verbose > 0
+            )
             for c in base_ctx
             if c.to_dict()
         ]
@@ -422,12 +457,13 @@ def pl_main(  # noqa: C901
         else:
             effective_ctx = XConfig()
 
-        if verbose:
+        if verbose > 0:
             print_info("\nFinal effective context:")
             print_info(effective_ctx.to_dict(), pretty=True)
 
         if command in subc.AUDIT[0]:
             from dataclasses import fields
+
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
             print_info("\n📄 CONFIGURATION AUDIT\n")
@@ -448,10 +484,11 @@ def pl_main(  # noqa: C901
 
             try:
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, False, verbose
+                    base_cfg, effective_ctx, output, run_all, False, verbose > 0
                 )
             except ChoixeProcessingError as e:
-                from rich.prompt import Prompt, Confirm
+                from rich.prompt import Confirm, Prompt
+
                 from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
@@ -489,7 +526,7 @@ def pl_main(  # noqa: C901
 
             with show_spinning_status("Processing configuration and context..."):
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, True, verbose
+                    base_cfg, effective_ctx, output, run_all, True, verbose > 0
                 )
 
             cmd_name = command
@@ -497,7 +534,7 @@ def pl_main(  # noqa: C901
             for idx, cfg in enumerate(effective_configs):
                 cfg_dict = cfg.to_dict()
 
-                if verbose:
+                if verbose > 0:
                     print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
                     print_info(cfg_dict, pretty=True)
 
@@ -522,7 +559,7 @@ def pl_main(  # noqa: C901
         raise typer.Exit(1)
 
 
-def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool):
+def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     """
     Run a pipelime command.
     """
@@ -538,7 +575,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     except ValueError:
         raise typer.Exit(1)
 
-    if verbose:
+    if verbose > 0:
         print_info(f"\nCreating command `{command}` with options:")
         print_info(cmd_args, pretty=True)
 
@@ -562,11 +599,11 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
                 err["loc"] = tuple(_replace_alias(l) for l in err["loc"])
         raise e
 
-    if verbose:
+    if verbose > 0:
         print_info(f"\nCreated command `{command}`:")
         print_info(cmd_obj.dict(), pretty=True)
 
-    if verbose:
+    if verbose > 0:
         print_info(f"\nRunning `{command}`...")
 
     start_time = time.perf_counter_ns()
