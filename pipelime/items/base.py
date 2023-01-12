@@ -16,6 +16,11 @@ import typing as t
 import pipelime.remotes as plr
 
 
+# IMPORTANT: IF YOU CHANGE THIS ENUM, YOU MUST ALSO CHANGE THE
+#   ACCEPTED VALUES IN THE SERIALIZATION INTERFACE
+# SEE: pipelime\commands\interfaces.py
+#   -> SerializationModeInterface
+#   -> any_serialization
 class SerializationMode(IntEnum):
     """Standard resolution is REMOTE FILE -> HARD LINK -> FILE COPY -> NEW FILE
     or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour by setting
@@ -46,7 +51,9 @@ class ItemFactory(ABCMeta):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
             if ext == cls.REMOTE_FILE_EXT:
-                raise ValueError(f"{cls.REMOTE_FILE_EXT} file extension is reserved")
+                raise ValueError(f"`{cls.REMOTE_FILE_EXT}` file extension is reserved")
+            if ext in cls.ITEM_CLASSES:
+                raise ValueError(f"File extension `{ext}` is already registered")
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = None  # type: ignore
         cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
@@ -451,7 +458,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
         if not dont_check_paths:
             self._check_source(source)
         if isinstance(source, Path):
-            source = source.resolve()
+            source = source.resolve().absolute()
             if source not in self._file_sources:
                 self._file_sources.append(source)
                 return True
@@ -471,7 +478,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
                     pass
             return False
 
-        target_path = path.resolve()
+        target_path = path.resolve().absolute()
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
         # At this point if smode is REMOTE_FILE, then REMOTE_FILE is not disabled.
@@ -589,7 +596,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):  # type: ignore
     def remove_data_source(self, *sources: _item_data_source) -> Item:
         def _normalize_source(src: _item_data_source) -> t.List[_item_data_source]:
             if isinstance(src, Path):
-                src = src.resolve()
+                src = src.resolve().absolute()
                 # Path.parents supports slicing only from 3.10 onwards
                 pp = [src] + [p for p in src.parents]
                 pp.pop()  # remove last element, which is `.`, `/`, `c:\` etc.
@@ -790,8 +797,8 @@ class UnknownItem(Item[t.Any]):
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
-        raise NotImplementedError(f"{cls.__name__}: cannot decode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot decode.")
 
     @classmethod
     def encode(cls, value: t.Any, fp: t.BinaryIO):
-        raise NotImplementedError(f"{cls.__name__}: cannot encode.")  # pragma: no cover
+        raise NotImplementedError(f"{cls.__name__}: cannot encode.")

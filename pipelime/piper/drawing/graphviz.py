@@ -143,7 +143,7 @@ class GraphvizNodesGraphDrawer(NodesGraphDrawer):
         """
         content = '<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20">'
         content += "<TR>"
-        content += f"<TD>{node.short_repr}</TD>"
+        content += f"<TD>{node.readable_repr}</TD>"
         content += "</TR>"
         content += "</TABLE>>"
         return content

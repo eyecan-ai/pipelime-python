@@ -6,8 +6,13 @@ import pytest
 
 
 @pytest.fixture(scope="session")
-def data_folder() -> Path:
-    return Path(__file__).parent / "sample_data"
+def tests_folder() -> Path:
+    return Path(__file__).parent.resolve().absolute()
+
+
+@pytest.fixture(scope="session")
+def data_folder(tests_folder: Path) -> Path:
+    return tests_folder / "sample_data"
 
 
 @pytest.fixture(scope="session")
@@ -57,6 +62,16 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
         "path": datasets_folder / "underfolder_minimnist",
         "root_keys": ["cfg", "numbers", "pose"],
         "item_keys": ["image", "label", "mask", "metadata", "points"],
+        "item_types": {
+            "cfg": "YamlMetadataItem",
+            "numbers": "TxtNumpyItem",
+            "pose": "TxtNumpyItem",
+            "image": "PngImageItem",
+            "label": "TxtNumpyItem",
+            "mask": "PngImageItem",
+            "metadata": "JsonMetadataItem",
+            "points": "TxtNumpyItem",
+        },
         "image_keys": ["image", "mask"],
         "len": 20,
     }
@@ -64,13 +79,15 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
 
 @pytest.fixture(scope="function")
 def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
+    from copy import deepcopy
     from shutil import copytree
 
+    minimnist_private = deepcopy(minimnist_dataset)
     dest = Path(
-        copytree(str(minimnist_dataset["path"]), str(tmp_path / "minimnist_private"))
+        copytree(str(minimnist_private["path"]), str(tmp_path / "minimnist_private"))
     )
-    minimnist_dataset["path"] = dest
-    return minimnist_dataset
+    minimnist_private["path"] = dest
+    return minimnist_private
 
 
 @pytest.fixture(scope="session")
@@ -79,19 +96,33 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
-def complex_dag(piper_folder: Path) -> t.Mapping:
-    from pipelime.choixe import XConfig
+def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
     import pipelime.choixe.utils.io as choixe_io
+    from pipelime.choixe import XConfig
 
-    dag_folder = piper_folder / "dags" / "complex"
-    dag = XConfig(choixe_io.load(dag_folder / "dag.yml"))
-    ctx = XConfig(choixe_io.load(dag_folder / "ctx.yml"))
-    return dag.process(ctx).to_dict()
+    def _add_if_exists(out, path, key):
+        if path.exists():
+            out[key] = path
 
+    all_dags = []
+    with os.scandir(str(piper_folder / "dags")) as dirit:
+        for entry in dirit:
+            if entry.is_dir():
+                dag_path = Path(entry.path) / "dag.yml"
+                cfg = XConfig(choixe_io.load(dag_path))
 
-@pytest.fixture(scope="session")
-def complex_dag_dot(piper_folder: Path) -> Path:
-    return piper_folder / "dags" / "complex" / "dag.dot"
+                ctx_path = Path(entry.path) / "ctx.yml"
+                ctx = XConfig(choixe_io.load(ctx_path)) if ctx_path.exists() else None
+                cfg = cfg.process(ctx).to_dict()
+
+                dag = {}
+                dag["cfg_path"] = dag_path
+                dag["ctx_path"] = ctx_path
+                dag["config"] = cfg
+                _add_if_exists(dag, Path(entry.path) / "dag.dot", "dot")
+
+                all_dags.append(dag)
+    return all_dags
 
 
 @pytest.fixture(scope="function")

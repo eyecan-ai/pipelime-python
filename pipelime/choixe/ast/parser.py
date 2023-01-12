@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
 
 import astunparse
+import numpy as np
 import schema as S
 
 import pipelime.choixe.ast.nodes as c_ast
@@ -41,18 +42,18 @@ class Scanner:
     DIRECTIVE_RE = r"(?:\$[^\)\( \.\,\$]+\([^\(\)]*\))|(?:\$[^\)\( \.\,\$]+)|(?:[^\$]*)"
     """Regex used to check if a string is a Choixe directive."""
 
-    def _scan_argument(
-        self, py_arg: Union[ast.Constant, ast.Attribute, ast.Name]
-    ) -> Any:
+    def _scan_argument(self, py_arg: ast.expr) -> Any:
         if isinstance(py_arg, ast.Constant):
             return py_arg.value
         elif isinstance(py_arg, ast.Attribute):
-            name = astunparse.unparse(py_arg)
-            if name.endswith("\n"):  # Remove trailing newline
-                name = name[:-1]
+            name = astunparse.unparse(py_arg).strip()  # Remove trailing newline
             return str(name)
         elif isinstance(py_arg, ast.Name):
             return str(py_arg.id)
+        elif isinstance(py_arg, ast.List):
+            return [self._scan_argument(x) for x in py_arg.elts]
+        elif isinstance(py_arg, ast.expr):
+            return eval(astunparse.unparse(py_arg))
         else:
             raise ChoixeSyntaxError(py_arg.__class__)
 
@@ -88,6 +89,30 @@ class Scanner:
 
         return Token(token_name, args, kwargs)
 
+    def _tokenize(self, data: str) -> List[str]:
+        # replace all non first order parentheses with illegal characters
+        count = 0
+        replaced = ""
+        for ch in data:
+            if ch == "(":
+                if count > 0:
+                    ch = "\n"
+                count += 1
+            elif ch == ")":
+                count -= 1
+                if count > 0:
+                    ch = "\t"
+            replaced += ch
+
+        # Find all tokens
+        tokens = re.findall(self.DIRECTIVE_RE, replaced)
+
+        # replace illegal characters with parentheses
+        for i, token in enumerate(tokens):
+            tokens[i] = token.replace("\n", "(").replace("\t", ")")
+
+        return tokens
+
     def scan(self, data: str) -> List[Token]:
         """Transforms a string into a list of parsed tokens.
 
@@ -98,7 +123,9 @@ class Scanner:
             List[Token]: The list of parsed tokens.
         """
         res = []
-        tokens = re.findall(self.DIRECTIVE_RE, data)
+
+        tokens = self._tokenize(data)
+
         for token in tokens:
             if len(token) == 0:
                 continue
@@ -134,6 +161,7 @@ class Parser:
             self._token_schema("cmd"): c_ast.CmdNode,
             self._token_schema("tmp"): c_ast.TmpDirNode,
             self._token_schema("symbol"): c_ast.SymbolNode,
+            self._token_schema("rand"): c_ast.RandNode,
         }
 
         self._extended_and_special_forms = {
@@ -240,10 +268,12 @@ class Parser:
             pairs = self._key_value_pairs_by_token_name(entry)
             if "default" in pairs:
                 default = self.parse(pairs["default"][1])
-            elif "case" in pairs:
+            elif "case" in pairs and "then" in pairs:
                 case_set = self.parse(pairs["case"][1])
                 case_body = self.parse(pairs["then"][1])
                 cases.append((case_set, case_body))
+            else:
+                raise ChoixeStructValidationError(entry)
         return c_ast.SwitchNode(value=value, cases=cases, default=default)
 
     def _parse_dict(self, data: dict) -> Union[c_ast.DictNode, c_ast.DictBundleNode]:

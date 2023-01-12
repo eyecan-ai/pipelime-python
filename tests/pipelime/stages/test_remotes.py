@@ -37,9 +37,7 @@ class TestRemotes:
         if isinstance(remote_urls, ParseResult):
             remote_urls = [remote_urls]
 
-        filtered_seq = SamplesSequence.from_underfolder(  # type: ignore
-            inpath, merge_root_items=False
-        )
+        filtered_seq = SamplesSequence.from_underfolder(inpath, merge_root_items=False)
         if filter_fn:
             filtered_seq = filtered_seq.filter(filter_fn)
 
@@ -64,12 +62,10 @@ class TestRemotes:
 
         # high-level check
         if check_data:
-            org_seq = SamplesSequence.from_underfolder(  # type: ignore
-                inpath, merge_root_items=False
-            )
+            org_seq = SamplesSequence.from_underfolder(inpath, merge_root_items=False)
             if filter_fn:
                 org_seq = org_seq.filter(filter_fn)
-            reader_out = SamplesSequence.from_underfolder(  # type: ignore
+            reader_out = SamplesSequence.from_underfolder(
                 outpath, merge_root_items=False
             )
             for org_sample, out_sample in zip(org_seq, reader_out):
@@ -79,14 +75,17 @@ class TestRemotes:
                     assert out_item._data_cache is None
                     if not keys_to_upload or key in keys_to_upload:
                         actual_remotes = set(
-                            org_sample[key]._remote_sources + remote_urls
+                            list(org_sample[key].remote_sources) + remote_urls
                         )
 
-                        assert len(out_item._file_sources) == 0
-                        assert len(out_item._remote_sources) == len(actual_remotes)
-                        print(out_item._remote_sources)
+                        out_file_sources = out_item.local_sources
+                        out_rm_sources = out_item.remote_sources
+
+                        assert len(out_file_sources) == 0
+                        assert len(out_rm_sources) == len(actual_remotes)
+                        print(out_rm_sources)
                         print(actual_remotes)
-                        for rm_src in out_item._remote_sources:
+                        for rm_src in out_rm_sources:
                             for rm_trg in actual_remotes:
                                 if self._normalized_url(rm_src) == self._normalized_url(
                                     rm_trg
@@ -95,8 +94,8 @@ class TestRemotes:
                             else:
                                 assert False
                     else:
-                        assert len(out_item._file_sources) == 1
-                        assert len(out_item._remote_sources) == 0
+                        assert len(out_item.local_sources) == 1
+                        assert len(out_item.remote_sources) == 0
 
                 for k, v in org_sample.items():
                     if isinstance(v, pli.NumpyItem):
@@ -179,16 +178,16 @@ class TestRemotes:
         # manually merge odd and even samples
         even_odd_partial_output = tmp_path / "even_odd_partial"
 
-        even_seq = SamplesSequence.from_underfolder(  # type: ignore
-            even_output, merge_root_items=False
-        )
+        even_seq = SamplesSequence.from_underfolder(even_output, merge_root_items=False)
         even_count = len(even_seq)
         assert even_count == minimnist_private_dataset["len"] // 2
 
         even_odd_partial_seq = even_seq.cat(
-            SamplesSequence.from_underfolder(  # type: ignore
+            SamplesSequence.from_underfolder(
                 minimnist_private_dataset["path"], merge_root_items=False
-            ).filter(lambda x: int(x["label"]()) % 2 == 1)
+            ).filter(
+                lambda x: int(x["label"]()) % 2 == 1  # type: ignore
+            )  # type: ignore
         )
 
         # NB: `to_underfolder` generates a new sequence, but Items are shallow-copied.
@@ -214,38 +213,41 @@ class TestRemotes:
         )
 
         # only the odd samples are on the remote
-        even_odd_reader = SamplesSequence.from_underfolder(  # type: ignore
+        even_odd_reader = SamplesSequence.from_underfolder(
             even_odd_output, merge_root_items=False
         )
         assert len(even_odd_reader) == minimnist_private_dataset["len"]
 
         for s1, s2 in zip(even_odd_reader, even_odd_partial_seq):
-            is_even = int(s1["label"]()) % 2 == 0
+            is_even = int(s1["label"]()) % 2 == 0  # type: ignore
             assert s1.keys() == s2.keys()
 
             for k, v1 in s1.items():
                 v2 = s2[k]
                 assert v1.__class__ == v2.__class__
 
+                v1_file_sources, v1_rm_sources = v1.local_sources, v1.remote_sources
+                v2_file_sources, v2_rm_sources = v2.local_sources, v2.remote_sources
+
                 if (k in minimnist_private_dataset["image_keys"]) and is_even:
                     assert v1() is None
                     assert v2() is None
-                    assert len(v1._file_sources) == 0
-                    assert len(v1._remote_sources) == 1
-                    assert len(v1._file_sources) == len(v2._file_sources)
-                    assert len(v1._remote_sources) == len(v2._remote_sources)
+                    assert len(v1_file_sources) == 0
+                    assert len(v1_rm_sources) == 1
+                    assert len(v1_file_sources) == len(v2_file_sources)
+                    assert len(v1_rm_sources) == len(v2_rm_sources)
                 else:
                     assert v2() is not None
                     if k in minimnist_private_dataset["image_keys"]:
-                        assert len(v1._file_sources) == 0
-                        assert len(v1._remote_sources) == 1
+                        assert len(v1_file_sources) == 0
+                        assert len(v1_rm_sources) == 1
                     else:
-                        assert len(v1._file_sources) == 1
-                        assert len(v1._remote_sources) == 0
+                        assert len(v1_file_sources) == 1
+                        assert len(v1_rm_sources) == 0
                     # NB: when we called `to_underfolder` a new file source has been
                     # added (see above)
-                    assert len(v2._file_sources) == 2
-                    assert len(v2._remote_sources) == 0
+                    assert len(v2_file_sources) == 2
+                    assert len(v2_rm_sources) == 0
                     if isinstance(v1, pli.NumpyItem):
                         assert np.array_equal(
                             v1(), v1(), equal_nan=True  # type: ignore
@@ -287,7 +289,7 @@ class TestRemotes:
         # now remove remote_a and check again the data
         rmtree(remote_a_root, ignore_errors=True)
 
-        input_seq = SamplesSequence.from_underfolder(  # type: ignore
+        input_seq = SamplesSequence.from_underfolder(
             minimnist_private_dataset["path"], merge_root_items=False
         )
         output_seq = SamplesSequence.from_underfolder(output_a_and_b)  # type: ignore
@@ -380,25 +382,27 @@ class TestRemotes:
         for org_sample, out_sample in zip(org_seq, out_seq):
             assert org_sample.keys() == out_sample.keys()
             for k, vout in out_sample.items():
+                vout_file_srcs, vout_rm_srcs = vout.local_sources, vout.remote_sources
+
                 if k in (key_noup_rm, key_up_rm):
                     # this item should be a deep copy
-                    assert len(vout._remote_sources) == 0
-                    path = Path(vout._file_sources[0])
+                    assert len(vout_rm_srcs) == 0
+                    path = Path(vout_file_srcs[0])
                     assert not path.is_symlink()
                     assert path.is_file()
                     assert path.stat().st_nlink == 1
                 elif k == key_noup_norm:
                     # this item should be a hard link
-                    assert len(vout._remote_sources) == 0
-                    path = Path(vout._file_sources[0])
+                    assert len(vout_rm_srcs) == 0
+                    path = Path(vout_file_srcs[0])
                     assert not path.is_symlink()
                     assert path.is_file()
                     assert path.stat().st_nlink == 3
                 else:
-                    norm_rm = [self._normalized_url(u) for u in vout._remote_sources]
+                    norm_rm = [self._normalized_url(u) for u in vout_rm_srcs]
                     assert normalized_a not in norm_rm
                     assert normalized_b in norm_rm
-                    assert len(vout._file_sources) == 0
+                    assert len(vout_file_srcs) == 0
 
                 if isinstance(vout, pli.NumpyItem):
                     assert np.array_equal(

@@ -55,7 +55,7 @@ class PipelimeCommand(
         return self._get_fields_by_flag("piper_port", PiperPortType.OUTPUT)
 
     def _get_piper_tracker(self) -> Tracker:
-        if self._tracker is None:
+        if self._tracker is None:  # pragma: no branch
             from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
 
             cb = TrackCallbackFactory.get_callback()
@@ -106,12 +106,72 @@ class PipelimeCommand(
         self.run()
 
 
+class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"):
+    """A simple interface to parse a DAG node configuration."""
+
+    __root__: t.Mapping[str, PipelimeCommand]
+
+    @classmethod
+    def create(
+        cls,
+        value: t.Union[
+            "NodesDefinition",
+            t.Mapping[
+                str,
+                t.Union[
+                    t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]], "PipelimeCommand"
+                ],
+            ],
+        ],
+    ):
+        return cls.validate(value)
+
+    @property
+    def value(self):
+        return self.__root__
+
+    def _iter(self, *args, **kwargs):
+        for k, v in super()._iter(*args, **kwargs):
+            # NB: `v` is the dict of params of the actual pipelime commands
+            assert k == "__root__"
+            assert isinstance(v, t.Mapping)
+            yield k, {
+                node_name: {self.__root__[node_name].command_title(): cmd_args}
+                for node_name, cmd_args in v.items()
+            }
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(
+        cls,
+        value: t.Union[
+            "NodesDefinition",
+            t.Mapping[
+                str,
+                t.Union[
+                    t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]], "PipelimeCommand"
+                ],
+            ],
+        ],
+    ):
+        from pipelime.cli.utils import get_pipelime_command
+
+        if isinstance(value, NodesDefinition):
+            return value
+        return cls(
+            __root__={name: get_pipelime_command(cmd) for name, cmd in value.items()}
+        )
+
+
 class DAGModel(BaseModel, extra="forbid", copy_on_model_validation="none"):
     """A Piper DAG as a `<node>: <command>` mapping."""
 
-    nodes: t.Mapping[str, PipelimeCommand]
+    nodes: NodesDefinition
 
     def purged_dict(self):
         from pipelime.choixe import XConfig
 
-        return XConfig(data={"nodes": self.nodes}).decode()
+        return XConfig(data={"nodes": self.nodes.value}).decode()

@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 import typing as t
 import functools
 from pathlib import Path
-from abc import ABC, abstractmethod
+
 import typer
 
 from pipelime.cli.subcommands import SubCommands as subc
-
+from pipelime.cli.parser import parse_pipelime_cli, CLIParsingError
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
     print_command_op_stage_info,
@@ -17,185 +18,6 @@ if t.TYPE_CHECKING:
     from pipelime.choixe import XConfig
 
 
-class CLISpecialChars:
-    @staticmethod
-    def assignment():
-        return ("=",)
-
-    @staticmethod
-    def config():
-        # MUST BE SORTED FROM THE LONGEST TO THE SHORTEST
-        return ("++", "+")
-
-    @staticmethod
-    def context():
-        # MUST BE SORTED FROM THE LONGEST TO THE SHORTEST
-        return ("@@", "@")
-
-    @staticmethod
-    def ctx_start():
-        return ("//",)
-
-
-class CLIParserState(ABC):
-    def __init__(
-        self,
-        cfg_opts: t.Dict[str, t.Any] = {},
-        ctx_opts: t.Dict[str, t.Any] = {},
-        ctx_started: bool = False,
-    ):
-        self.cfg_opts = cfg_opts
-        self.ctx_opts = ctx_opts
-        self.ctx_started = ctx_started
-
-    @abstractmethod
-    def process_token(self, token: str) -> CLIParserState:
-        pass
-
-    @abstractmethod
-    def close(self):
-        pass
-
-
-class CLIParserHoldState(CLIParserState):
-    def process_token(self, token: str) -> CLIParserState:
-        from pipelime.cli.pretty_print import print_error
-
-        if token in CLISpecialChars.ctx_start():
-            return CLIParserHoldState(self.cfg_opts, self.ctx_opts, True)
-        if not self.ctx_started and token.startswith(CLISpecialChars.config()):
-            opt, val = self._process_key_arg(token)
-            cli_state = CLIParserExpectingCfgValue(
-                opt, self.cfg_opts, self.ctx_opts, self.ctx_started
-            )
-            if val is not None:
-                return cli_state.process_token(val)
-            return cli_state
-        if (
-            self.ctx_started and token.startswith(CLISpecialChars.config())
-        ) or token.startswith(CLISpecialChars.context()):
-            opt, val = self._process_key_arg(token)
-            cli_state = CLIParserExpectingCtxValue(
-                opt, self.cfg_opts, self.ctx_opts, self.ctx_started
-            )
-            if val is not None:
-                return cli_state.process_token(val)
-            return cli_state
-
-        print_error(f"Unexpected token: `{token}`")
-        raise typer.Exit(1)
-
-    def close(self):
-        return
-
-    def _process_key_arg(self, token: str):
-        from pipelime.cli.pretty_print import print_error, print_warning
-
-        opt, val = token, None
-        for char in CLISpecialChars.config() + CLISpecialChars.context():
-            if token.startswith(char):
-                opt = token[len(char) :]  # noqa: E203
-                break
-
-        for char in CLISpecialChars.assignment():
-            if char in opt:
-                opt, _, val = opt.partition(char)
-                break
-
-        if opt.endswith(".") or ".." in opt or ".[" in opt:
-            print_error(f"Invalid key path: `{opt}`")
-            print_warning(
-                "Remember: Bash and other shells want the choixe's dollar sign (`$`) "
-                "escaped! Try with single quotes or backslash."
-            )
-            print_warning("For example:")
-            print_warning(
-                "bash/zsh: +operations.map.$model => '+operations.map.$model'"
-            )
-            print_warning(r"zsh: +operations.map.$model => +operations.map.\$model")
-            raise typer.Exit(1)
-
-        return opt, val
-
-
-class CLIParserExpectingValue(CLIParserState):
-    def __init__(
-        self,
-        key_name: str,
-        cfg_opts: t.Dict[str, t.Any] = {},
-        ctx_opts: t.Dict[str, t.Any] = {},
-        ctx_started: bool = False,
-    ):
-        super().__init__(cfg_opts, ctx_opts, ctx_started)
-        self.key_name = key_name
-
-    @abstractmethod
-    def target_cfg(self) -> t.Dict[str, t.Any]:
-        pass
-
-    def process_token(self, token: str) -> CLIParserState:
-        from pipelime.choixe.utils.common import deep_set_
-
-        if token in CLISpecialChars.ctx_start() or token.startswith(
-            CLISpecialChars.config() + CLISpecialChars.context()
-        ):
-            self._set_boolean_flag()
-            cli_state = CLIParserHoldState(
-                self.cfg_opts, self.ctx_opts, self.ctx_started
-            )
-            return cli_state.process_token(token)
-
-        deep_set_(
-            self.target_cfg(),
-            key_path=self.key_name,
-            value=self._convert_val(token),
-            append=True,
-        )
-        return CLIParserHoldState(self.cfg_opts, self.ctx_opts, self.ctx_started)
-
-    def close(self):
-        self._set_boolean_flag()
-
-    def _set_boolean_flag(self):
-        from pipelime.choixe.utils.common import deep_set_
-
-        deep_set_(
-            self.target_cfg(),
-            key_path=self.key_name,
-            value=True,
-            append=True,
-        )
-
-    def _convert_val(self, val: str):
-        if val.lower() == "true":
-            return True
-        if val.lower() == "false":
-            return False
-        if val.lower() in ("none", "null", "nul"):
-            return None
-        try:
-            num = int(val)
-            return num
-        except ValueError:
-            pass
-        try:
-            num = float(val)
-            return num
-        except ValueError:
-            pass
-        return val
-
-
-class CLIParserExpectingCfgValue(CLIParserExpectingValue):
-    def target_cfg(self) -> t.Dict[str, t.Any]:
-        return self.cfg_opts
-
-
-class CLIParserExpectingCtxValue(CLIParserExpectingValue):
-    def target_cfg(self) -> t.Dict[str, t.Any]:
-        return self.ctx_opts
-
-
 def _complete_yaml(incomplete: str):
     for v in Path(".").glob(f"{incomplete}*.yaml"):
         yield str(v)
@@ -203,6 +25,7 @@ def _complete_yaml(incomplete: str):
 
 def _print_dict(name, data):
     import json
+
     from pipelime.cli.pretty_print import print_info
 
     print_info(f"\n{name}:")
@@ -258,6 +81,7 @@ def _process_cfg_or_die(
 ) -> t.List["XConfig"]:
     from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
+    from pipelime.cli.pretty_print import print_error
 
     try:
         effective_configs = (
@@ -427,7 +251,13 @@ def pl_main(  # noqa: C901
         resolve_path=True,
         help="Save final processed context to json/yaml.",
     ),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+    verbose: int = typer.Option(
+        0,
+        "--verbose",
+        "-v",
+        help="Verbose output. Can be specified multiple times.",
+        count=True,
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
     command: str = typer.Argument(
         "",
@@ -497,9 +327,13 @@ def pl_main(  # noqa: C901
     ):
         try:
             if command and command not in subc.HELP[0]:
-                print_command_op_stage_info(command)
+                print_command_op_stage_info(
+                    command, show_description=verbose > 0, recursive=verbose > 1
+                )
             elif command_args:
-                print_command_op_stage_info(command_args[0])
+                print_command_op_stage_info(
+                    command_args[0], show_description=verbose > 0, recursive=verbose > 1
+                )
             else:
                 print(ctx.get_help())
         except ValueError:
@@ -512,24 +346,44 @@ def pl_main(  # noqa: C901
         Wizard.model_cfg_wizard(command_args[0])
     elif command in subc.LIST[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=True, show_ops=True, show_stages=True
+            verbose > 0,
+            show_cmds=True,
+            show_ops=True,
+            show_stages=True,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command in subc.LIST_CMDS[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=True, show_ops=False, show_stages=False
+            verbose > 0,
+            show_cmds=True,
+            show_ops=False,
+            show_stages=False,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command in subc.LIST_OPS[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=False, show_ops=True, show_stages=False
+            verbose > 0,
+            show_cmds=False,
+            show_ops=True,
+            show_stages=False,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command in subc.LIST_STGS[0]:
         print_commands_ops_stages_list(
-            verbose, show_cmds=False, show_ops=False, show_stages=True
+            verbose > 0,
+            show_cmds=False,
+            show_ops=False,
+            show_stages=True,
+            show_description=verbose > 0,
+            recursive=verbose > 1,
         )
     elif command:
-        from pipelime.choixe import XConfig
         import pipelime.choixe.utils.io as choixe_io
-        from pipelime.cli.pretty_print import print_error, print_warning, print_info
+        from pipelime.choixe import XConfig
+        from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
         if config and context is None and ctx_autoload:
             context = []
@@ -538,7 +392,7 @@ def pl_main(  # noqa: C901
                     if p.suffix in (".yaml", ".yml", ".json"):
                         context += [p]
 
-        if verbose:
+        if verbose > 0:
 
             def _print_file_list(files: t.Sequence[Path], name: str):
                 if config:
@@ -562,13 +416,13 @@ def pl_main(  # noqa: C901
         base_ctx = [choixe_io.load(c) for c in context]
 
         # process extra args
-        cli_state = CLIParserHoldState()
-        for token in command_args:
-            cli_state = cli_state.process_token(token)
-        cli_state.close()
-        cmdline_cfg, cmdline_ctx = cli_state.cfg_opts, cli_state.ctx_opts
+        try:
+            cmdline_cfg, cmdline_ctx = parse_pipelime_cli(command_args)
+        except CLIParsingError as e:
+            e.rich_print()
+            raise typer.Exit(1)
 
-        if verbose:
+        if verbose > 0:
             _print_dict(
                 f"Loaded configuration file{'s' if len(config) > 1 else ''}", base_cfg
             )
@@ -587,7 +441,9 @@ def pl_main(  # noqa: C901
 
         # process contexts to resolve imports and local loops
         effective_ctx = [
-            _process_cfg_or_die(c, None, "context", run_all, output_ctx, True, verbose)
+            _process_cfg_or_die(
+                c, None, "context", run_all, output_ctx, True, verbose > 0
+            )
             for c in base_ctx
             if c.to_dict()
         ]
@@ -601,12 +457,13 @@ def pl_main(  # noqa: C901
         else:
             effective_ctx = XConfig()
 
-        if verbose:
+        if verbose > 0:
             print_info("\nFinal effective context:")
             print_info(effective_ctx.to_dict(), pretty=True)
 
         if command in subc.AUDIT[0]:
             from dataclasses import fields
+
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
             print_info("\n📄 CONFIGURATION AUDIT\n")
@@ -627,10 +484,11 @@ def pl_main(  # noqa: C901
 
             try:
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, False, verbose
+                    base_cfg, effective_ctx, output, run_all, False, verbose > 0
                 )
             except ChoixeProcessingError as e:
-                from rich.prompt import Prompt, Confirm
+                from rich.prompt import Confirm, Prompt
+
                 from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
@@ -668,7 +526,7 @@ def pl_main(  # noqa: C901
 
             with show_spinning_status("Processing configuration and context..."):
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, True, verbose
+                    base_cfg, effective_ctx, output, run_all, True, verbose > 0
                 )
 
             cmd_name = command
@@ -676,7 +534,7 @@ def pl_main(  # noqa: C901
             for idx, cfg in enumerate(effective_configs):
                 cfg_dict = cfg.to_dict()
 
-                if verbose:
+                if verbose > 0:
                     print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
                     print_info(cfg_dict, pretty=True)
 
@@ -701,7 +559,7 @@ def pl_main(  # noqa: C901
         raise typer.Exit(1)
 
 
-def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool):
+def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     """
     Run a pipelime command.
     """
@@ -717,7 +575,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
     except ValueError:
         raise typer.Exit(1)
 
-    if verbose:
+    if verbose > 0:
         print_info(f"\nCreating command `{command}` with options:")
         print_info(cmd_args, pretty=True)
 
@@ -741,11 +599,11 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: bool, dry_run: bool)
                 err["loc"] = tuple(_replace_alias(l) for l in err["loc"])
         raise e
 
-    if verbose:
+    if verbose > 0:
         print_info(f"\nCreated command `{command}`:")
         print_info(cmd_obj.dict(), pretty=True)
 
-    if verbose:
+    if verbose > 0:
         print_info(f"\nRunning `{command}`...")
 
     start_time = time.perf_counter_ns()

@@ -82,7 +82,7 @@ class Inspector(ast.NodeVisitor):
         env_insp = node.env.accept(self) if node.env else Inspection(processed=True)
         insp = id_insp + default_insp + env_insp
 
-        if insp.processed:
+        if insp.processed:  # pragma: no branch
             id_ = node.identifier.data  # type: ignore
             default = None if node.default is None else node.default.data  # type: ignore
             variables = py_.set_({}, id_, default)
@@ -104,9 +104,9 @@ class Inspector(ast.NodeVisitor):
     def visit_import(self, node: ast.ImportNode) -> Inspection:
         insp = node.path.accept(self)
 
-        if insp.processed:
+        if insp.processed:  # pragma: no branch
             path = Path(node.path.data)  # type: ignore
-            if not path.is_absolute():
+            if not path.is_absolute():  # pragma: no branch
                 path = self._cwd / path
 
             if path.exists():
@@ -131,7 +131,7 @@ class Inspector(ast.NodeVisitor):
 
     def visit_symbol(self, node: ast.SymbolNode) -> Any:
         insp = node.symbol.accept(self)
-        if insp.processed:
+        if insp.processed:  # pragma: no branch
             insp = insp + Inspection(symbols={str(node.symbol.data)})  # type: ignore
         return insp
 
@@ -145,7 +145,7 @@ class Inspector(ast.NodeVisitor):
         return self.visit_instance(node)
 
     def visit_for(self, node: ast.ForNode) -> Inspection:
-        if node.identifier is not None:
+        if node.identifier is not None:  # pragma: no branch
             self._named_for_loops[node.identifier.data] = node.iterable.data
         iterable_insp = (
             Inspection(variables=py_.set_({}, node.iterable.data, None))
@@ -157,7 +157,7 @@ class Inspector(ast.NodeVisitor):
 
     def visit_switch(self, node: ast.SwitchNode) -> Inspection:
         insp = node.value.accept(self)
-        if insp.processed:
+        if insp.processed:  # pragma: no branch
             insp = Inspection(variables=py_.set_({}, node.value.data, None))  # type: ignore
         cases_insp = sum(
             [x.accept(self) + y.accept(self) for x, y in node.cases],
@@ -170,22 +170,32 @@ class Inspector(ast.NodeVisitor):
 
     def visit_index(self, node: ast.IndexNode) -> Inspection:
         insp = Inspection()
-        if node.identifier is not None:
+        if node.identifier is not None:  # pragma: no branch
             insp = insp + node.identifier.accept(self)
         return insp
 
     def visit_item(self, node: ast.ItemNode) -> Inspection:
         insp = Inspection()
         variables = {}
-        if node.identifier is not None:
+        if node.identifier is not None:  # pragma: no branch
             sub_insp = node.identifier.accept(self)
-            if sub_insp.processed:
+            if sub_insp.processed:  # pragma: no branch
                 loop_id, _, key = node.identifier.data.partition(".")  # type: ignore
                 if key:
                     iterable_name = self._named_for_loops[loop_id]
                     full_path = f"{iterable_name}.{key}"
                     py_.set_(variables, full_path, None)
             insp = insp + sub_insp + Inspection(variables=variables)
+        return insp
+
+    def visit_rand(self, node: ast.RandNode) -> Any:
+        insp = Inspection()
+        for arg in node.args:
+            insp = insp + arg.accept(self)
+        if node.n:
+            insp = insp + node.n.accept(self)
+        if node.pdf:
+            insp = insp + node.pdf.accept(self)
         return insp
 
 

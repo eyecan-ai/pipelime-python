@@ -83,23 +83,30 @@ piped_dataset = dataset.repeat(100).shuffle()
 
 No pipe makes changes to the source dataset, but only provides a new view of it.
 In the example above, you can still access the original data (not repeated nor shuffled) through the `dataset` variable.
-Also, pipes are usually designed to be *lazy* as much as possible, i.e., they defer the computation when an item is requested, instead of filling up the `__init__` method with heavy computations. This way, they can take advantage of the multiprocessing capabilities of the `SamplesSequence` class (more on this in the following).
+Also, pipes are usually designed to be *lazy* as much as possible, i.e., they defer the processing when an item is requested, instead of filling up the `__init__` method with heavy computations. This way, they can take advantage of the multiprocessing capabilities of the `SamplesSequence` class (more on this in the following).
 
-These are the most common pipes:
-- `to_underfolder`: writes sample to disk in underfolder format
-- `map`: applies a [stage](#stages) to each sample
-- `zip`: merges samples from two sequences
-- `cat`: concatenates samples
-- `filter`: applies a filter on samples, possibly reducing the length
-- `sort`: sorts samples by a [key-function](https://docs.python.org/3/howto/sorting.html#key-functions)
-- `shuffle`: puts the sample in random order
-- `enumerate`: adds an item to each sample with its index within the sequence
-- `repeat`: repeats the same sequence a given number of times
-- `cache`: the first time a sample is accessed, it's value is written to a cache folder
-- `no_data_cache`: disables item data caching on previous steps
-- `data_cache`: enables item data caching on previous steps
+These are the most common pipes, grouped by category:
+- reshaping and selection:
+  - `filter`: applies a filter on samples, possibly reducing the length
+  - `sort`: sorts samples by a [key-function](https://docs.python.org/3/howto/sorting.html#key-functions)
+  - `shuffle`: puts the sample in random order
+  - `select`: selects a subset of samples by index
+- combining multiple sequences:
+  - `cat`: concatenates two sequences
+  - `repeat`: repeats the same sequence a given number of times
+  - `zip`: merges samples from two sequences
+- sample processing:
+  - `map`: applies a [stage](#stages) to each sample
+  - `map_if`: applies a [stage](#stages) to each sample if a given condition is met
+  - `enumerate`: adds an item to each sample with its index within the sequence
+- data caching:
+  - `cache`: the first time a sample is accessed, it's value is written to a cache folder
+  - `no_data_cache`: disables item data caching on previous steps
+  - `data_cache`: enables item data caching on previous steps
+- writing to disk:
+  - `to_underfolder`: writes the samples to disk in underfolder format
 
-Moreover, to filter the samples by index you can pass a list to `dataset.select([2,9,14])` or simply extract a slice as `dataset[start:stop:step]`.
+Moreover, to filter the samples by index you can simply extract a slice as `dataset[start:stop:step]`.
 
 Now it's time to talk about `map` and stages, but if you are eager to create your own sequence generator or pipe, jump to [Pipes](../operations/pipes.md).
 
@@ -112,7 +119,7 @@ Stages are classes derived from `SampleStage` and are built to process samples i
 - The input and output sequences have the same length (use `filter/select/[start:stop:step]` to remove samples).
 - Each sample of the output sequence should depend solely on the corresponding sample of the input sequence.
 
-Pipelime provides some common stages off-the-shelf:
+Pipelime provides some common stages off-the-shelf (run `$ pipelime lstg` to see the full list):
 - `compose`: applies a sequence of stages
 - `identity`: returns the input sample
 - `lambda`: applies a callable to the sample
@@ -176,7 +183,44 @@ def _count_valid_samples(x):
 dataset.run(num_workers=4, sample_fn=_count_valid_sample)
 ```
 
-Checkout section [Stages](../operations/stages.md) to see how to create a custom stage.
+Incidentally, calling `apply` or `run` will print a nice trackbar on your terminal that you can customize in several ways:
+
+```python
+dataset.run(..., track_fn=True)             # (default) prints a trackbar with no message
+dataset.run(..., track_fn="Processing")     # prints a trackbar with message "Processing"
+dataset.run(..., track_fn=lambda x: ...)    # a custom callable accepting and returning an iterable
+dataset.run(..., track_fn=None)             # disables the trackbar
+```
+
+In the previous examples we used the `map` method to attach a stage to the sequence.
+Checkout section [Stages](../operations/stages.md) to see how to create your custom stage.
+
+### Conditional Mapping
+
+Sometimes you want to apply a stage only to a subset of samples, eg, only to samples
+with a given label. To do so, you can call the `map_if` method, which accepts a condition
+function and a stage. Such condition function is a callable having one the following signatures:
+- no parameters: `() -> bool`
+- just the sample index: `(int) -> bool`
+- the index and the sample itself: `(int, Sample) -> bool`
+- the index, the sample and the source sequence: `(int, Sample, SamplesSequence) -> bool`
+
+In the following example we filter the items only to samples with label `1`:
+
+```python
+from pipelime.sequences import SamplesSequence
+from pipelime.stages import StageKeysFilter
+
+def is_valid_sample(idx, sample):
+    return sample["label"]() == 1
+
+seq = SamplesSequence.toy_dataset(10)
+seq = seq.map_if(stage=StageKeysFilter(key_list=["image", "mask"]), condition=is_valid_sample)
+```
+
+As for the `condition`, from `pipelime.sequences.pipes.mapping` you can import the following:
+- `MappingConditionProbability`: applies the stage with a given probability
+- `MappingConditionIndexRange`: applies the stage to samples within a given index range
 
 ## De/Serialization
 

@@ -11,3 +11,5 @@ import pipelime.sequences.pipes
 
 from pipelime.sequences.grabber import Grabber, grab_all
 from pipelime.sequences.utils import build_pipe, DataStream
+
+from pipelime.utils.pydantic_types import SampleValidationInterface, ItemValidationModel

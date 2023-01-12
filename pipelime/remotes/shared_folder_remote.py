@@ -13,7 +13,7 @@ class SharedFolderRemote(BaseRemote):
     _PL_FOLDER_ = ".pl"
     _TAGS_FILE_ = "tags.json"
     _HASH_FN_KEY_ = "__HASH_FN__"
-    _DEFAULT_HASH_FN_ = "sha256"
+    _DEFAULT_HASH_FN_ = "blake2b"
 
     def __init__(self, netloc_data: NetlocData):
         """Filesystem-based remote.
@@ -26,15 +26,15 @@ class SharedFolderRemote(BaseRemote):
         super().__init__(netloc_data)
 
     def _maybe_create_root(self, target_base_path: Path):
-        if not target_base_path.exists():
+        if not target_base_path.exists():  # pragma: no branch
             logger.info(f"Creating folder tree '{target_base_path}'.")
             target_base_path.mkdir(parents=True, exist_ok=True)
         pldir = target_base_path / self._PL_FOLDER_
-        if not pldir.is_dir():
+        if not pldir.is_dir():  # pragma: no branch
             pldir.mkdir(parents=True, exist_ok=True)
 
     def _get_hash_fn(self, target_base_path: str) -> t.Any:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 import json
 
@@ -73,7 +73,7 @@ class SharedFolderRemote(BaseRemote):
         return None
 
     def target_exists(self, target_base_path: str, target_name: str) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             return self._make_file_path(target_base_path, target_name).exists()
         return False
 
@@ -84,7 +84,7 @@ class SharedFolderRemote(BaseRemote):
         target_base_path: str,
         target_name: str,
     ) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 target_full_path = self._make_file_path(target_base_path, target_name)
                 self._maybe_create_root(target_full_path.parent)
@@ -106,7 +106,7 @@ class SharedFolderRemote(BaseRemote):
         source_name: str,
         source_offset: int,
     ) -> bool:
-        if self.is_valid:
+        if self.is_valid:  # pragma: no branch
             try:
                 source_full_path = self._make_file_path(source_base_path, source_name)
                 if not source_full_path.is_file():

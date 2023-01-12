@@ -9,12 +9,12 @@ class TestSamplesSequenceWriters:
     def _read_write_data(
         self, source_dataset, out_folder, **writer_kwargs
     ) -> t.Tuple[pls.SamplesSequence, pls.SamplesSequence]:
-        source = pls.SamplesSequence.from_underfolder(  # type: ignore
+        source = pls.SamplesSequence.from_underfolder(
             folder=source_dataset["path"], merge_root_items=True
         )
         for _ in source.to_underfolder(folder=out_folder, **writer_kwargs):
             pass
-        dest = pls.SamplesSequence.from_underfolder(  # type: ignore
+        dest = pls.SamplesSequence.from_underfolder(
             folder=out_folder, merge_root_items=True
         )
         return source, dest
@@ -33,6 +33,25 @@ class TestSamplesSequenceWriters:
                     assert np.array_equal(v1(), v2(), equal_nan=True)  # type: ignore
                 else:
                     assert v1() == v2()
+
+    def _check_data_and_outputs(
+        self,
+        source: pls.SamplesSequence,
+        dest: pls.SamplesSequence,
+        nlink_fn: t.Callable[[str], int],
+    ):
+        self._check_data(source, dest)
+
+        for sample in dest:
+            for key, item in sample.items():
+                item_sources = item.local_sources
+
+                assert isinstance(item_sources, t.Sequence)
+                assert len(item_sources) == 1
+                path = Path(item_sources[0])
+                assert path.is_file()
+                assert not path.is_symlink()
+                assert path.stat().st_nlink == nlink_fn(key)
 
     def test_to_underfolder(self, minimnist_dataset: dict, tmp_path: Path):
         source, dest = self._read_write_data(minimnist_dataset, tmp_path / "outfolder")
@@ -64,16 +83,9 @@ class TestSamplesSequenceWriters:
                 tmp_path / "outfolder",
                 key_serialization_mode={item_key: pli.SerializationMode.DEEP_COPY},
             )
-        self._check_data(source, dest)
-
-        for sample in dest:
-            for key, item in sample.items():
-                assert isinstance(item._file_sources, t.Sequence)
-                assert len(item._file_sources) == 1
-                path = Path(item._file_sources[0])
-                assert not path.is_symlink()
-                assert path.is_file()
-                assert path.stat().st_nlink == (1 if key == item_key else 2)
+        self._check_data_and_outputs(
+            source, dest, lambda key: 1 if key == item_key else 2
+        )
 
     def test_deep_copy(self, minimnist_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
@@ -82,34 +94,17 @@ class TestSamplesSequenceWriters:
             source, dest = self._read_write_data(
                 minimnist_dataset, tmp_path / "outfolder"
             )
-        self._check_data(source, dest)
+        self._check_data_and_outputs(source, dest, lambda key: 1)
 
-        for sample in dest:
-            for item in sample.values():
-                assert isinstance(item._file_sources, t.Sequence)
-                assert len(item._file_sources) == 1
-                path = Path(item._file_sources[0])
-                assert not path.is_symlink()
-                assert path.is_file()
-                assert path.stat().st_nlink == 1
-
-    def test_symlink(self, minimnist_dataset: dict, tmp_path: Path):
+    def test_symlink(self, minimnist_private_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
         import platform
 
         with pli.item_serialization_mode(pli.SerializationMode.SYM_LINK):
             source, dest = self._read_write_data(
-                minimnist_dataset, tmp_path / "outfolder"
+                minimnist_private_dataset, tmp_path / "outfolder"
             )
-        self._check_data(source, dest)
-
-        for sample in dest:
-            for item in sample.values():
-                assert isinstance(item._file_sources, t.Sequence)
-                assert len(item._file_sources) == 1
-                path = Path(item._file_sources[0])
-                assert path.is_file()
-                assert not path.is_symlink()
+        self._check_data_and_outputs(source, dest, lambda key: 1)
 
         if not platform.system() == "Windows":
             for path in (tmp_path / "outfolder").rglob("*"):
@@ -122,16 +117,7 @@ class TestSamplesSequenceWriters:
             source, dest = self._read_write_data(
                 minimnist_private_dataset, tmp_path / "outfolder"
             )
-        self._check_data(source, dest)
-
-        for sample in dest:
-            for item in sample.values():
-                assert isinstance(item._file_sources, t.Sequence)
-                assert len(item._file_sources) == 1
-                path = Path(item._file_sources[0])
-                assert not path.is_symlink()
-                assert path.is_file()
-                assert path.stat().st_nlink == 2
+        self._check_data_and_outputs(source, dest, lambda key: 2)
 
     def test_create_new_file(self, minimnist_dataset: dict, tmp_path: Path):
         import pipelime.items as pli
@@ -142,13 +128,4 @@ class TestSamplesSequenceWriters:
             source, dest = self._read_write_data(
                 minimnist_dataset, tmp_path / "outfolder"
             )
-        self._check_data(source, dest)
-
-        for sample in dest:
-            for item in sample.values():
-                assert isinstance(item._file_sources, t.Sequence)
-                assert len(item._file_sources) == 1
-                path = Path(item._file_sources[0])
-                assert not path.is_symlink()
-                assert path.is_file()
-                assert path.stat().st_nlink == 1
+        self._check_data_and_outputs(source, dest, lambda key: 1)

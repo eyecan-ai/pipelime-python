@@ -288,8 +288,6 @@ def _decode_value(value, prefix: ColoredPath):
     value = value.strip()
     if len(value) > 1 and value[0] in ("'", '"') and value[-1] == value[0]:
         return value[1:-1]
-    if value.lower() in (None, "", "none", "null", "nul"):
-        return None
     if value == "[":
         return _get_value_list(prefix)
     if value == "{":
@@ -302,6 +300,22 @@ def _decode_value(value, prefix: ColoredPath):
         return _get_symbol(value[1:].strip())
     if value[0] == "#" or (len(value) > 1 and value[1] == "#"):
         return _get_pipelime_object(value, prefix)
+    if value.lower() == "true":
+        return True
+    if value.lower() == "false":
+        return False
+    if value.lower() in (None, "", "none", "null", "nul"):
+        return None
+    try:
+        num = int(value)
+        return num
+    except ValueError:
+        pass
+    try:
+        num = float(value)
+        return num
+    except ValueError:
+        pass
 
     return value
 

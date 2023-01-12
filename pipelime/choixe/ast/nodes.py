@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 # from dataclasses import dataclass
 from pydantic.dataclasses import dataclass
@@ -83,13 +83,16 @@ class NodeVisitor:  # pragma: no cover
     def visit_tmp_dir(self, node: TmpDirNode) -> Any:
         return self._ignore(node)
 
+    def visit_rand(self, node: RandNode) -> Any:
+        return self._ignore(node)
+
 
 @dataclass
 class Node(ABC):
     """A generic element of the Choixe AST, all nodes must implement this interface."""
 
     @abstractmethod
-    def accept(self, visitor: NodeVisitor) -> Any:  # pragma: no cover
+    def accept(self, visitor: NodeVisitor) -> Any:
         """Accepts an incoming visitor. This method should simply call the respective
         `visit_<node_type>` method of the visiting object, pass `self` as argument
         and forward the result.
@@ -138,7 +141,7 @@ class ListNode(Node):
         return visitor.visit_list(self)
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, unsafe_hash=False)
 class LiteralNode(HashNode):
     """An `LiteralNode` contains a single generic hashable python object, like a built-in
     int, float or str."""
@@ -147,6 +150,11 @@ class LiteralNode(HashNode):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_literal(self)
+
+    def __hash__(self) -> int:
+        if callable(self.data):
+            return hash(self.data.__code__)
+        return hash(self.data)
 
 
 @dataclass(init=False, eq=False)
@@ -320,3 +328,21 @@ class TmpDirNode(HashNode):
 
     def accept(self, visitor: NodeVisitor) -> Any:
         return visitor.visit_tmp_dir(self)
+
+
+@dataclass(init=False)
+class RandNode(Node):
+    """A `RandNode` represents the creation of a random number."""
+
+    args: Sequence[HashNode] = tuple()
+    n: Optional[Node] = None
+    pdf: Optional[Node] = None
+
+    def __init__(self, *args: HashNode, **data) -> None:
+        super().__init__()
+        self.args = args
+        self.n = data.get("n")
+        self.pdf = data.get("pdf")
+
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit_rand(self)
