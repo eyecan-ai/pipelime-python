@@ -262,7 +262,7 @@ def pl_main(  # noqa: C901
         show_default=False,
         help=(
             (
-                "A pipelime command, ie, a `command-name`, "
+                "A command, ie, a `command-name`, "
                 "a `package.module.ClassName` class path or "
                 "a `path/to/module.py:ClassName` uri (use with care).\n\n"
             )
@@ -298,7 +298,7 @@ def pl_main(  # noqa: C901
     ),
 ):
     """
-    {0} Command Line Interface. Examples:
+    {0} Examples:
 
     `{1} list` prints a list of the available commands, sequence operators
     and stages.
@@ -306,7 +306,7 @@ def pl_main(  # noqa: C901
     `{1} help <cmd-op-stg>` prints informations on a specific command, sequence
     operator or stage.
 
-    `{1} <command> [<args>]` runs a {1} command.
+    `{1} <command> [<args>]` runs a{2} command.
 
     NB: command (++opt) and context (@@opt) arguments with no value are treated as
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
@@ -614,33 +614,35 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     print_command_outputs(cmd_obj)
 
 
-def run_with_extra_modules(
-    *,
-    app_name: str,
-    entry_point: t.Optional[str] = None,
-    version: t.Optional[str] = None,
-    extra_modules: t.Sequence[str] = [],
-    fixed_cmdline_args: t.Mapping[str, t.Any] = {},
-):
-    """Run the CLI setting extra modules as if -m was used."""
-
-    import sys
-
-    # if there is no other args, run the app with no args
-    if len(sys.argv) > 1:
-        sys.argv.extend([a for m in extra_modules for a in ("-m", m)])
-        sys.argv.extend([f"{k} {v}" for k, v in fixed_cmdline_args.items()])
-
-    run_typer_app(app_name, entry_point, version)
-
-
 def run_typer_app(
+    *,
     app_name: str = "Pipelime",
     entry_point: t.Optional[str] = None,
+    app_description: t.Optional[str] = None,
     version: t.Optional[str] = None,
+    extra_args: t.Sequence[str] = list(),
 ):
+    import sys
+
+    if entry_point is None and len(sys.argv) > 0:
+        entry_point = Path(sys.argv[0]).name
+
+    # if there is no other args, run the app with no args
+    if extra_args and len(sys.argv) > 1:
+        sys.argv.extend(extra_args)
+
     def _preproc_docs(func):
-        func.__doc__ = func.__doc__.format(app_name, entry_point or app_name.casefold())
+        desc = (
+            app_description
+            if app_description
+            else f"{app_name} Command Line Interface."
+        )
+        n_appname = ("n " if app_name[0] in "aeiouAEIOU" else " ") + app_name
+        if desc[-1] != ".":
+            desc += "."
+        func.__doc__ = func.__doc__.format(
+            desc, entry_point or app_name.casefold(), n_appname
+        )
         return func
 
     if version is not None:
