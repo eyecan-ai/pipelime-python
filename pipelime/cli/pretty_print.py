@@ -188,11 +188,11 @@ def print_model_info(
         *cols,
         box=box.SIMPLE_HEAVY,
         title=(
-            f"[blue]{_get_signature(model_cls)}[/]"
-            + (f"\n\n[italic grey23]{escape(model_docs)}[/]" if model_docs else "")
+            f"[#5fafff]{_get_signature(model_cls)}[/]"
+            + (f"\n\n[italic grey82]{escape(model_docs)}[/]" if model_docs else "")
         ),
         # caption=escape(get_model_classpath(model_cls)) if show_class_path else None,
-        title_style="on white",
+        title_style="on #293a05",
         title_justify="left",
         expand=True,
     )
@@ -211,9 +211,9 @@ def print_model_info(
     grid = Panel(
         grid,
         # box=box.HORIZONTALS,
-        title=f"[dark_red bold]{escape(get_model_title(model_cls))}[/]",
+        title=f"[dark_orange bold][on #293a05]{escape(get_model_title(model_cls))}[/]",
         subtitle=(
-            f"[grey23]{escape(get_model_classpath(model_cls))}[/]"
+            f"[#5fafff][on #293a05]{escape(get_model_classpath(model_cls))}[/]"
             if show_class_path
             else None
         ),
@@ -357,7 +357,7 @@ def _get_signature(model_cls: t.Type[BaseModel]) -> str:
     )
     sig = escape(str(sig))
     for mfield in model_cls.__fields__.values():
-        sig = sig.replace(mfield.name, f"\n  [bold salmon1]{mfield.name}[/]")
+        sig = sig.replace(mfield.name, f"\n  [bold dark_orange]{mfield.name}[/]")
     return "(\n  " + sig[1:-1] + "\n)"
 
 
