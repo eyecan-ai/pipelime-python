@@ -163,22 +163,20 @@ def _process_all(
     )
 
 
-app = typer.Typer(pretty_exceptions_enable=False)
+class VersionCallback:
+    @staticmethod
+    def get_version():
+        import pipelime
+
+        return pipelime.__version__
 
 
 def version_callback(value: bool):
-    from pipelime import __version__
-
     if value:
-        print(__version__)
+        print(VersionCallback.get_version())
         raise typer.Exit()
 
 
-@app.command(
-    add_help_option=False,
-    no_args_is_help=True,
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
 def pl_main(  # noqa: C901
     ctx: typer.Context,
     config: t.List[Path] = typer.Option(
@@ -280,7 +278,7 @@ def pl_main(  # noqa: C901
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
         help=(
-            "\b\nPipelime command arguments:\n"
+            "\b\nExpected command line:\n"
             "- `++opt` and `+opt` are command parameters\n"
             "- `@@opt` and `@opt` are context parameters\n"
             "- after `//` `++opt`, `+opt`, `@@opt`and `@opt` "
@@ -300,15 +298,15 @@ def pl_main(  # noqa: C901
     ),
 ):
     """
-    Pipelime Command Line Interface. Examples:
+    {0} Command Line Interface. Examples:
 
-    `pipelime list` prints a list of the available commands, sequence operators
+    `{1} list` prints a list of the available commands, sequence operators
     and stages.
 
-    `pipelime help <cmd-op-stg>` prints informations on a specific command, sequence
+    `{1} help <cmd-op-stg>` prints informations on a specific command, sequence
     operator or stage.
 
-    `pipelime <command> [<args>]` runs a pipelime command.
+    `{1} <command> [<args>]` runs a {1} command.
 
     NB: command (++opt) and context (@@opt) arguments with no value are treated as
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
@@ -616,14 +614,46 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     print_command_outputs(cmd_obj)
 
 
-def run_with_extra_modules(*extra_modules):
+def run_with_extra_modules(
+    *,
+    app_name: str,
+    entry_point: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+    extra_modules: t.Sequence[str] = [],
+    fixed_cmdline_args: t.Mapping[str, t.Any] = {},
+):
     """Run the CLI setting extra modules as if -m was used."""
 
     import sys
 
-    sys.argv.extend([a for m in extra_modules for a in ("-m", m)])
+    # if there is no other args, run the app with no args
+    if len(sys.argv) > 1:
+        sys.argv.extend([a for m in extra_modules for a in ("-m", m)])
+        sys.argv.extend([f"{k} {v}" for k, v in fixed_cmdline_args.items()])
+
+    run_typer_app(app_name, entry_point, version)
+
+
+def run_typer_app(
+    app_name: str = "Pipelime",
+    entry_point: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+):
+    def _preproc_docs(func):
+        func.__doc__ = func.__doc__.format(app_name, entry_point or app_name.casefold())
+        return func
+
+    if version is not None:
+        VersionCallback.get_version = lambda: version
+
+    app = typer.Typer(pretty_exceptions_enable=False)
+    app.command(
+        add_help_option=False,
+        no_args_is_help=True,
+        context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    )(_preproc_docs(pl_main))
     app()
 
 
 if __name__ == "__main__":
-    app()
+    run_typer_app()
