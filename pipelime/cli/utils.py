@@ -433,9 +433,6 @@ def print_commands_ops_stages_list(
         print_actions_short_help,
         _short_line,
     )
-    from pipelime.stages.entities import EntityAction
-    from pydantic import create_model
-    import inspect
 
     def _filter_symbols(smbls):
         if not PipelimeSymbolsHelper.extra_modules:

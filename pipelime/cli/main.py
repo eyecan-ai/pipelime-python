@@ -91,13 +91,13 @@ def _process_cfg_or_die(
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
-            print_error(f"Invalid {cfg_name}! {e}\nRun with -v to get more info.")
+            print_error(f"Invalid {cfg_name}! {e}\nRun with -vv to get more info.")
             raise typer.Exit(1)
         raise e
 
     if verbose:
         pls = "s" if len(effective_configs) != 1 else ""
-        print_info(f"\nFound {len(effective_configs)} {cfg_name}{pls}")
+        print_info(f"> Found {len(effective_configs)} {cfg_name}{pls}")
 
     if len(effective_configs) > 1 and run_all is None:
         if not typer.confirm(
@@ -124,15 +124,18 @@ def _process_all(
     output: t.Optional[Path],
     run_all: t.Optional[bool],
     exit_on_error: bool,
-    verbose: bool,
+    verbose: int,
 ):
     from pipelime.cli.pretty_print import print_info
     from pipelime.choixe import XConfig
 
+    if verbose > 1:
+        print_info("\nProcessing configurations:")
+
     # first process with no branch
     effective_configs = [
         _process_cfg_or_die(
-            c, effective_ctx, "configuration", False, output, exit_on_error, verbose
+            c, effective_ctx, "configuration", False, output, exit_on_error, verbose > 1
         )
         for c in base_cfg
         if c.to_dict()
@@ -147,9 +150,12 @@ def _process_all(
     else:
         effective_configs = XConfig()
 
-    if verbose:
-        print_info("\nMerged configuration:")
+    if verbose > 2:
+        print_info("\nFinal merged configuration:")
         print_info(effective_configs.to_dict(), pretty=True)
+
+    if verbose > 1:
+        print_info("\nProcessing branches:")
 
     # now process the branches, if any, and check the overall merge
     return _process_cfg_or_die(
@@ -159,7 +165,7 @@ def _process_all(
         run_all,
         output,
         exit_on_error,
-        verbose,
+        verbose > 1,
     )
 
 
@@ -422,7 +428,7 @@ def pl_main(  # noqa: C901
             e.rich_print()
             raise typer.Exit(1)
 
-        if verbose > 0:
+        if verbose > 2:
             _print_dict(
                 f"Loaded configuration file{'s' if len(config) > 1 else ''}", base_cfg
             )
@@ -440,9 +446,11 @@ def pl_main(  # noqa: C901
         base_ctx.append(XConfig(data=cmdline_ctx, cwd=Path.cwd()))
 
         # process contexts to resolve imports and local loops
+        if verbose > 2:
+            print_info("\nProcessing context files:")
         effective_ctx = [
             _process_cfg_or_die(
-                c, None, "context", run_all, output_ctx, True, verbose > 0
+                c, None, "context", run_all, output_ctx, True, verbose > 2
             )
             for c in base_ctx
             if c.to_dict()
@@ -457,7 +465,7 @@ def pl_main(  # noqa: C901
         else:
             effective_ctx = XConfig()
 
-        if verbose > 0:
+        if verbose > 1:
             print_info("\nFinal effective context:")
             print_info(effective_ctx.to_dict(), pretty=True)
 
@@ -484,7 +492,7 @@ def pl_main(  # noqa: C901
 
             try:
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, False, verbose > 0
+                    base_cfg, effective_ctx, output, run_all, False, verbose > 2
                 )
             except ChoixeProcessingError as e:
                 from rich.prompt import Confirm, Prompt
@@ -526,7 +534,7 @@ def pl_main(  # noqa: C901
 
             with show_spinning_status("Processing configuration and context..."):
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, True, verbose > 0
+                    base_cfg, effective_ctx, output, run_all, True, verbose
                 )
 
             cmd_name = command
@@ -534,7 +542,7 @@ def pl_main(  # noqa: C901
             for idx, cfg in enumerate(effective_configs):
                 cfg_dict = cfg.to_dict()
 
-                if verbose > 0:
+                if verbose > 1:
                     print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
                     print_info(cfg_dict, pretty=True)
 
@@ -575,7 +583,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     except ValueError:
         raise typer.Exit(1)
 
-    if verbose > 0:
+    if verbose > 2:
         print_info(f"\nCreating command `{command}` with options:")
         print_info(cmd_args, pretty=True)
 
@@ -603,7 +611,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
         print_info(f"\nCreated command `{command}`:")
         print_info(cmd_obj.dict(), pretty=True)
 
-    if verbose > 0:
+    if dry_run or verbose > 0:
         print_info(f"\nRunning `{command}`...")
 
     start_time = time.perf_counter_ns()
