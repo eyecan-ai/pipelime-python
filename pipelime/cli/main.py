@@ -177,7 +177,7 @@ def version_callback(value: bool):
         raise typer.Exit()
 
 
-def pl_main(  # noqa: C901
+def pl_main(
     ctx: typer.Context,
     config: t.List[Path] = typer.Option(
         None,
@@ -614,7 +614,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     print_command_outputs(cmd_obj)
 
 
-def run_typer_app(
+def _create_typer_app(
     *,
     app_name: str = "Pipelime",
     entry_point: t.Optional[str] = None,
@@ -654,6 +654,24 @@ def run_typer_app(
         no_args_is_help=True,
         context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     )(_preproc_docs(pl_main))
+    return app
+
+
+def run_typer_app(
+    *,
+    app_name: str = "Pipelime",
+    entry_point: t.Optional[str] = None,
+    app_description: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+    extra_args: t.Sequence[str] = list(),
+):
+    app = _create_typer_app(
+        app_name=app_name,
+        entry_point=entry_point,
+        app_description=app_description,
+        version=version,
+        extra_args=extra_args,
+    )
     app()
 
 
