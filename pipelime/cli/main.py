@@ -217,7 +217,7 @@ def pl_main(  # noqa: C901
         help=(
             "One or more yaml/json files with some or all the context parameters. "
             "If `--config` is set and `--context` is not, all files matching "
-            "`context*.[yaml|yml|json]` in the folders of all the "
+            "`*context*.[yaml|yml|json]` in the folders of all the "
             "configuration files will be loaded as the context. "
             "Use `--no-ctx-autoload` to disable this behavior.\n\n"
             "`@@opt` or `@opt` command line options update and override them.\n\n"
@@ -391,21 +391,21 @@ def pl_main(  # noqa: C901
         from pipelime.choixe import XConfig
         from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
-        if config and context is None and ctx_autoload:
+        if config and not context and ctx_autoload:
             context = []
             for c in config:
-                for p in c.resolve().parent.glob("context*.*"):
+                for p in c.resolve().parent.glob("*context*.*"):
                     if p.suffix in (".yaml", ".yml", ".json"):
                         context += [p]
 
         if verbose > 0:
 
             def _print_file_list(files: t.Sequence[Path], name: str):
-                if config:
-                    flist = ", ".join(f'"{str(c)}"' for c in config)
+                if files:
+                    flist = ", ".join(f'"{str(c)}"' for c in files)
                     print_info(
                         f"{name.capitalize()} file"
-                        + (f"s: [ {flist} ]" if len(config) > 1 else f": {config[0]}")
+                        + (f"s: [ {flist} ]" if len(files) > 1 else f": {files[0]}")
                     )
                 else:
                     print_info(f"No {name} file")
@@ -484,10 +484,10 @@ def pl_main(  # noqa: C901
                     value = getattr(inspect_info, field.name)
                     print_info(f"🔍 {field.name}:")
                     if value or isinstance(value, bool):
-                        print_info(value, pretty=True)
+                        print_info(value, pretty=True, indent_guides=False)
 
             print_info("\n📄 CONTEXT AUDIT\n")
-            print_info(effective_ctx.to_dict(), pretty=True)
+            print_info(effective_ctx.to_dict(), pretty=True, indent_guides=False)
             print_info("")
 
             try:
