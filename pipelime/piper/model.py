@@ -2,9 +2,46 @@ from abc import abstractmethod
 from enum import Enum
 import typing as t
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, create_model
 
-from pipelime.piper.progress.tracker.base import Tracker
+if t.TYPE_CHECKING:
+    from pipelime.piper.progress.tracker.base import Tracker
+
+
+def pipelime_command(func=None, **kwargs):
+    def _make_cmd(func):
+        import inspect
+
+        def _make_field(p: inspect.Parameter):
+            value = ... if p.default is inspect.Parameter.empty else p.default
+            if p.annotation is inspect.Signature.empty:
+                return (t.Any, value) if value is ... else value
+            return (p.annotation, value)
+
+        fsig = inspect.signature(func)
+        fields = {n: _make_field(p) for n, p in fsig.parameters.items()}
+
+        if "title" not in kwargs:
+            kwargs["title"] = func.__name__
+
+        class _FnModel(PipelimeCommand):
+            def run(self):
+                func(**self.dict())
+
+        fmodel = create_model(
+            func.__name__.replace("_", " ").capitalize().strip() + "Command",
+            __base__=_FnModel,
+            __module__=func.__module__,
+            __cls_kwargs__=kwargs,
+            **fields,
+        )
+        fmodel.__doc__ = func.__doc__
+
+        return fmodel
+
+    if func is None:
+        return _make_cmd
+    return _make_cmd(func)
 
 
 class PiperPortType(Enum):
@@ -33,7 +70,7 @@ class PipelimeCommand(
     """
 
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
-    _tracker: t.Optional[Tracker] = PrivateAttr(None)
+    _tracker: t.Optional["Tracker"] = PrivateAttr(None)
 
     @abstractmethod
     def run(self) -> None:
@@ -54,8 +91,9 @@ class PipelimeCommand(
     def get_outputs(self) -> t.Dict[str, t.Any]:
         return self._get_fields_by_flag("piper_port", PiperPortType.OUTPUT)
 
-    def _get_piper_tracker(self) -> Tracker:
+    def _get_piper_tracker(self) -> "Tracker":
         if self._tracker is None:  # pragma: no branch
+            from pipelime.piper.progress.tracker.base import Tracker
             from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
 
             cb = TrackCallbackFactory.get_callback()
