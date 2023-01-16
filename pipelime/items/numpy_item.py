@@ -3,9 +3,16 @@ import warnings
 import typing as t
 
 from pipelime.items import Item
+from pipelime.items.base import deferred_classattr
 
 
 class NumpyItem(Item[np.ndarray]):
+    """Base class for all numpy types."""
+    
+    @deferred_classattr
+    def default_concrete(cls):
+        return NpyNumpyItem
+
     @classmethod
     def validate(cls, raw_data: t.Any) -> np.ndarray:
         return np.array(raw_data)

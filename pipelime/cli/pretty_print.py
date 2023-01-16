@@ -9,6 +9,12 @@ from rich import get_console
 from rich import print as rprint
 from rich.pretty import Pretty
 from rich.table import Table, Column
+from rich.text import Text
+from rich.style import Style
+from rich.panel import Panel
+
+if t.TYPE_CHECKING:
+    from pipelime.cli.utils import ActionInfo
 
 
 def _input_icon():
@@ -128,9 +134,22 @@ def print_command_outputs(command: "PipelimeCommand"):  # type: ignore # noqa: E
     print_model_field_values(command.__fields__, command.get_outputs(), _output_icon())
 
 
+def print_actions_short_help(*actions_info: "ActionInfo", show_class_path: bool = True):
+    grid = Table.grid(
+        *([Column(overflow="fold") for _ in range(2 + int(show_class_path))]),
+        padding=(0, 1),
+    )
+    for a in actions_info:
+        col_vals = [escape(a.name)]
+        if show_class_path:
+            col_vals.append(f"[italic grey50]{escape(a.classpath)}[/]")
+        col_vals.append(escape(a.description))
+        grid.add_row(*col_vals)
+    rprint(grid)
+
+
 def print_models_short_help(
-    *model_cls: t.Type[BaseModel],
-    show_class_path: bool = True,
+    *model_cls: t.Type[BaseModel], show_class_path: bool = True
 ):
     grid = Table.grid(
         *([Column(overflow="fold") for _ in range(2 + int(show_class_path))]),
@@ -169,12 +188,12 @@ def print_model_info(
         *cols,
         box=box.SIMPLE_HEAVY,
         title=(
-            f"[bold dark_red]{escape(get_model_title(model_cls))}[/]\n"
-            f"[blue]{escape(_get_signature(model_cls))}[/]\n"
-            f"[italic grey23]{escape(model_docs)}[/]"
+            f"[#5fafff]{_get_signature(model_cls)}[/]"
+            + (f"\n\n[italic grey82]{escape(model_docs)}[/]" if model_docs else "")
         ),
-        caption=escape(get_model_classpath(model_cls)) if show_class_path else None,
-        title_style="on white",
+        # caption=escape(get_model_classpath(model_cls)) if show_class_path else None,
+        title_style="on #293a05",
+        title_justify="left",
         expand=True,
     )
 
@@ -187,6 +206,17 @@ def print_model_info(
         show_description=show_description,
         recursive=recursive,
         add_blank_row=True,
+    )
+
+    grid = Panel(
+        grid,
+        # box=box.HORIZONTALS,
+        title=f"[dark_orange bold][on #293a05]{escape(get_model_title(model_cls))}[/]",
+        subtitle=(
+            f"[#5fafff][on #293a05]{escape(get_model_classpath(model_cls))}[/]"
+            if show_class_path
+            else None
+        ),
     )
 
     rprint(grid)
@@ -310,6 +340,7 @@ def _field_row(
 
 
 def _get_signature(model_cls: t.Type[BaseModel]) -> str:
+    fullname = {mfield.alias: mfield.name for mfield in model_cls.__fields__.values()}
     excluded = [
         mfield.alias
         for mfield in model_cls.__fields__.values()
@@ -317,10 +348,17 @@ def _get_signature(model_cls: t.Type[BaseModel]) -> str:
     ]
     sig = inspect.signature(model_cls)
     sig = sig.replace(
-        parameters=[p for p in sig.parameters.values() if p.name not in excluded],
+        parameters=[
+            p.replace(name=fullname[p.name])
+            for p in sig.parameters.values()
+            if p.name not in excluded
+        ],
         return_annotation=inspect.Signature.empty,
     )
-    return str(sig)
+    sig = escape(str(sig))
+    for mfield in model_cls.__fields__.values():
+        sig = sig.replace(mfield.name, f"\n  [bold dark_orange]{mfield.name}[/]")
+    return "(\n  " + sig[1:-1] + "\n)"
 
 
 def _is_model(type_):

@@ -1,8 +1,16 @@
 import typing as t
 from types import ModuleType
+from pydantic import BaseModel
 
 if t.TYPE_CHECKING:
     from pipelime.piper.model import PipelimeCommand
+
+
+class ActionInfo(BaseModel):
+    action: t.Union[t.Type, t.Callable]
+    name: str
+    description: str
+    classpath: str
 
 
 class PipelimeSymbolsHelper:
@@ -13,6 +21,8 @@ class PipelimeSymbolsHelper:
     cached_cmds: t.Dict[t.Tuple[str, str], t.Dict] = {}
     cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
     cached_stages: t.Dict[t.Tuple[str, str], t.Dict] = {}
+
+    registered_actions: t.Dict[str, ActionInfo] = {}
 
     @classmethod
     def complete_name(
@@ -52,6 +62,12 @@ class PipelimeSymbolsHelper:
         return all(
             m in cls.cached_modules for m in (cls.std_modules + cls.extra_modules)
         )
+
+    @classmethod
+    def register_action(cls, name: str, info: ActionInfo):
+        if name in cls.registered_actions:
+            raise ValueError(f"Action `{name}` already registered")
+        cls.registered_actions[name] = info
 
     @classmethod
     def _symbol_name(cls, symbol):
@@ -169,6 +185,10 @@ class PipelimeSymbolsHelper:
     def get_sample_stages(cls):
         cls.import_everything()
         return cls.cached_stages
+
+    @classmethod
+    def get_actions(cls):
+        return cls.registered_actions
 
     @classmethod
     def get_symbol(
@@ -407,7 +427,12 @@ def print_commands_ops_stages_list(
     recursive: bool = True,
 ):
     """Print a list of all available sequence operators and pipelime commands."""
-    from pipelime.cli.pretty_print import get_model_classpath
+    from pipelime.cli.pretty_print import (
+        get_model_classpath,
+        print_info,
+        print_actions_short_help,
+        _short_line,
+    )
 
     def _filter_symbols(smbls):
         if not PipelimeSymbolsHelper.extra_modules:
@@ -447,6 +472,11 @@ def print_commands_ops_stages_list(
             show_description=show_description,
             recursive=recursive,
         )
+        if PipelimeSymbolsHelper.get_actions():
+            print_info(f"\n{_short_line()} Actions")
+            print_actions_short_help(
+                *PipelimeSymbolsHelper.get_actions().values(), show_class_path=True
+            )
 
 
 def print_commands_list(show_details: bool = False):
@@ -506,7 +536,7 @@ def pl_print(
 
 
 def create_stage_from_config(
-    stage_name: str, stage_args: t.Optional[t.Mapping[str, t.Any]]
+    stage_name: str, stage_args: t.Union[t.Mapping[str, t.Any], t.Sequence, None]
 ) -> "SampleStage":  # type: ignore # noqa: E602,F821
     """Creates a stage from a name and arguments.
 
@@ -530,7 +560,21 @@ def create_stage_from_config(
         )
         raise ValueError(f"{stage_name} is not a pipelime stage.")
     stage_cls = stage_cls[1]
-    return stage_cls() if stage_args is None else stage_cls(**stage_args)
+    if stage_args is None:
+        return stage_cls()
+    try:
+        if isinstance(stage_args, (str, bytes)) or not isinstance(
+            stage_args, (t.Sequence, t.Mapping)
+        ):
+            stage_args = [stage_args]
+        return (
+            stage_cls(**stage_args)
+            if isinstance(stage_args, t.Mapping)
+            else stage_cls(*stage_args)
+        )
+    except TypeError:
+        # try to call without expanding args
+        return stage_cls(stage_args)
 
 
 def get_pipelime_command_cls(

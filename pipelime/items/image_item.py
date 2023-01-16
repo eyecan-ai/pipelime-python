@@ -4,12 +4,17 @@ import numpy as np
 import typing as t
 
 from pipelime.items.numpy_item import NumpyItem
+from pipelime.items.base import deferred_classattr
 
 
 class ImageItem(NumpyItem):
     """Base class for all image types. Subclasses should implement `file_extensions`
     and, optionally, `save_options`.
     """
+
+    @deferred_classattr
+    def default_concrete(cls):
+        return PngImageItem
 
     @classmethod
     def save_options(cls) -> t.Mapping[str, t.Any]:
