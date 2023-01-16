@@ -38,7 +38,7 @@ get_started/underfolder.md
 :maxdepth: 4
 :caption: "Tutorials:"
 
-tutorials/convert_to_underfolder.md
+tutorials/overview.md
 ```
 
 ```{toctree}
