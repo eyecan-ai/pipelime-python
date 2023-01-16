@@ -169,23 +169,21 @@ def _process_all(
     )
 
 
-app = typer.Typer(pretty_exceptions_enable=False)
+class VersionCallback:
+    @staticmethod
+    def get_version():
+        import pipelime
+
+        return pipelime.__version__
 
 
 def version_callback(value: bool):
-    from pipelime import __version__
-
     if value:
-        print(__version__)
+        print(VersionCallback.get_version())
         raise typer.Exit()
 
 
-@app.command(
-    add_help_option=False,
-    no_args_is_help=True,
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-def pl_main(  # noqa: C901
+def pl_main(
     ctx: typer.Context,
     config: t.List[Path] = typer.Option(
         None,
@@ -270,7 +268,7 @@ def pl_main(  # noqa: C901
         show_default=False,
         help=(
             (
-                "A pipelime command, ie, a `command-name`, "
+                "A command, ie, a `command-name`, "
                 "a `package.module.ClassName` class path or "
                 "a `path/to/module.py:ClassName` uri (use with care).\n\n"
             )
@@ -286,7 +284,7 @@ def pl_main(  # noqa: C901
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
         help=(
-            "\b\nPipelime command arguments:\n"
+            "\b\nExpected command line:\n"
             "- `++opt` and `+opt` are command parameters\n"
             "- `@@opt` and `@opt` are context parameters\n"
             "- after `//` `++opt`, `+opt`, `@@opt`and `@opt` "
@@ -306,15 +304,15 @@ def pl_main(  # noqa: C901
     ),
 ):
     """
-    Pipelime Command Line Interface. Examples:
+    {0} Examples:
 
-    `pipelime list` prints a list of the available commands, sequence operators
+    `{1} list` prints a list of the available commands, sequence operators
     and stages.
 
-    `pipelime help <cmd-op-stg>` prints informations on a specific command, sequence
+    `{1} help <cmd-op-stg>` prints informations on a specific command, sequence
     operator or stage.
 
-    `pipelime <command> [<args>]` runs a pipelime command.
+    `{1} <command> [<args>]` runs a{2} command.
 
     NB: command (++opt) and context (@@opt) arguments with no value are treated as
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
@@ -624,14 +622,66 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     print_command_outputs(cmd_obj)
 
 
-def run_with_extra_modules(*extra_modules):
-    """Run the CLI setting extra modules as if -m was used."""
-
+def _create_typer_app(
+    *,
+    app_name: str = "Pipelime",
+    entry_point: t.Optional[str] = None,
+    app_description: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+    extra_args: t.Sequence[str] = list(),
+):
     import sys
 
-    sys.argv.extend([a for m in extra_modules for a in ("-m", m)])
+    if entry_point is None and len(sys.argv) > 0:
+        entry_point = Path(sys.argv[0]).name
+
+    # if there is no other args, run the app with no args
+    if extra_args and len(sys.argv) > 1:
+        sys.argv.extend(extra_args)
+
+    def _preproc_docs(func):
+        desc = (
+            app_description
+            if app_description
+            else f"{app_name} Command Line Interface."
+        )
+        n_appname = ("n " if app_name[0] in "aeiouAEIOU" else " ") + app_name
+        if desc[-1] != ".":
+            desc += "."
+        func.__doc__ = func.__doc__.format(
+            desc, entry_point or app_name.casefold(), n_appname
+        )
+        return func
+
+    if version is not None:
+        VersionCallback.get_version = lambda: version
+
+    app = typer.Typer(pretty_exceptions_enable=False)
+    app.command(
+        add_help_option=False,
+        no_args_is_help=True,
+        context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    )(_preproc_docs(pl_main))
+    return app
+
+
+def run_typer_app(
+    *,
+    app_name: str = "Pipelime",
+    entry_point: t.Optional[str] = None,
+    app_description: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+    extra_args: t.Sequence[str] = list(),
+):
+    app = _create_typer_app(
+        app_name=app_name,
+        entry_point=entry_point,
+        app_description=app_description,
+        version=version,
+        extra_args=extra_args,
+    )
     app()
 
 
 if __name__ == "__main__":
-    app()
+    run_typer_app()
