@@ -5,10 +5,10 @@ class TestCliBase:
     def _base_launch(self, args: list):
         from typer.testing import CliRunner
 
-        from pipelime.cli.main import app
+        from pipelime.cli.main import _create_typer_app
 
         runner = CliRunner()
-        result = runner.invoke(app, args)
+        result = runner.invoke(_create_typer_app(), args)
         print(result.output)
         assert result.exit_code == 0
         assert result.exception is None
