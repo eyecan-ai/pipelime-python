@@ -168,7 +168,7 @@ $ pipelime pipe help
 
 What you get is a table full with information, so let's dig into it:
 
-![](../images/pipe_help.png)
+![](../../images/pipe_help.png)
 
 1. The title reports the name of the command and the full signature
 1. The table body describes each argument of the command:
