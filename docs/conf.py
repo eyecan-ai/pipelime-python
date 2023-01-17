@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "pipelime"
-copyright = "2022, Eyecan.ai https://www.eyecan.ai/"
+copyright = "2023, Eyecan.ai https://www.eyecan.ai/"
 author = "Eyecan.ai"
 
 # -- General configuration ---------------------------------------------------

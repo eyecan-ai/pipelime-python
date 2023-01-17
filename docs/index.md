@@ -39,6 +39,7 @@ get_started/underfolder.md
 :caption: "Tutorials:"
 
 tutorials/overview.md
+tutorials/ml_tutorial/toc.md
 ```
 
 ```{toctree}

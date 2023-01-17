@@ -1,3 +1,7 @@
+
+| [<mark>Introduction</mark>](./toc.md) | [<mark>Convert Data To Underfolder</mark>](./convert_to_underfolder.md) | [<mark>**Dataset Splitting**</mark>](./dataset_splitting.md) | [<mark>Creating New Items</mark>](./item_creation.md) |
+| :------: | :------: | :------: | :------: |
+
 # Dataset Splitting
 
 In this tutorial andiamo avanti per preparare i dati per addestrare un sistema di ML
