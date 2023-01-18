@@ -12,21 +12,84 @@ def pipelime_command(func=None, **kwargs):
     def _make_cmd(func):
         import inspect
 
+        posonly_args, poskw_args, varpos_args = "", "", ""
+        posonly_names, poskw_names, varpos_name = [], [], ""
+
         def _make_field(p: inspect.Parameter):
+            nonlocal posonly_args, poskw_args, varpos_args
+            nonlocal posonly_names, poskw_names, varpos_name
+
             value = ... if p.default is inspect.Parameter.empty else p.default
-            if p.annotation is inspect.Signature.empty:
+
+            ann = p.annotation
+            if p.kind is p.VAR_POSITIONAL:
+                varpos_args = f"{p}, ".replace("NoneType", "None")
+                varpos_name = p.name
+                ann = (
+                    t.Sequence
+                    if p.annotation is inspect.Signature.empty
+                    else t.Sequence[p.annotation]
+                )
+            elif p.kind is p.POSITIONAL_ONLY:
+                posonly_args += f"{p}, ".replace("NoneType", "None")
+                posonly_names.append(p.name)
+            elif p.kind is p.POSITIONAL_OR_KEYWORD:
+                poskw_args += f"{p}, ".replace("NoneType", "None")
+                poskw_names.append(p.name)
+
+            if ann is inspect.Signature.empty:
                 return (t.Any, value) if value is ... else value
-            return (p.annotation, value)
+            return (ann, value)
 
         fsig = inspect.signature(func)
-        fields = {n: _make_field(p) for n, p in fsig.parameters.items()}
+        fields = {
+            n: _make_field(p)
+            for n, p in fsig.parameters.items()
+            if p.kind is not p.VAR_KEYWORD
+        }
 
-        if "title" not in kwargs:
-            kwargs["title"] = func.__name__
+        if any(p.kind is p.VAR_KEYWORD for p in fsig.parameters.values()):
+            kwargs.setdefault("extra", "allow")
+            add_data_arg = True
+        else:
+            add_data_arg = any(
+                p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+                for p in fsig.parameters.values()
+            )
+
+        kwargs.setdefault("title", func.__name__)
+
+        if posonly_args:
+            posonly_args += "/, "
+        pos_names = posonly_names + poskw_names
 
         class _FnModel(PipelimeCommand):
             def run(self):
-                func(**self.dict())
+                func(
+                    *[getattr(self, n) for n in pos_names],
+                    *getattr(self, varpos_name, tuple()),
+                    **self.dict(exclude=set(pos_names + [varpos_name])),
+                )
+
+        local_scope = {**globals(), **locals()}
+        _exfn = """
+from typing import *
+def initfn(self, {}{}{}{}
+""".format(
+            posonly_args,
+            poskw_args,
+            varpos_args,
+            "**__data):\n" if add_data_arg else "):\n    __data = {}",
+        )
+
+        if varpos_name:
+            _exfn += "    __data.setdefault('{0}', {0})\n".format(varpos_name)
+        for p in pos_names:
+            _exfn += "    __data.setdefault('{0}', {0})\n".format(p)
+        _exfn += "    super(_FnModel, self).__init__(**__data)\n"
+
+        exec(_exfn, local_scope)
+        _FnModel.__init__ = local_scope["initfn"]
 
         fmodel = create_model(
             func.__name__.replace("_", " ").capitalize().strip() + "Command",

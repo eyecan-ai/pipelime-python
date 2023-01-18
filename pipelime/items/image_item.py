@@ -85,7 +85,7 @@ class PngImageItem(ImageItem):
 class JpegImageItem(ImageItem):
     @classmethod
     def save_options(cls) -> t.Mapping[str, t.Any]:
-        return {"quality ": 80}
+        return {"quality": 80}
 
     @classmethod
     def file_extensions(cls) -> t.Sequence[str]:

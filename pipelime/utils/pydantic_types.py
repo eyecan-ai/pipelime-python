@@ -449,13 +449,13 @@ class CallableDef(
     @property
     def has_var_positional(self) -> bool:
         return any(
-            p.kind == p.VAR_POSITIONAL for p in self.full_signature.parameters.values()
+            p.kind is p.VAR_POSITIONAL for p in self.full_signature.parameters.values()
         )
 
     @property
     def has_var_keyword(self) -> bool:
         return any(
-            p.kind == p.VAR_KEYWORD for p in self.full_signature.parameters.values()
+            p.kind is p.VAR_KEYWORD for p in self.full_signature.parameters.values()
         )
 
     @property
