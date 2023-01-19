@@ -3,6 +3,7 @@ from enum import Enum
 import typing as t
 
 from pydantic import BaseModel, Field, PrivateAttr, create_model
+from pydantic.fields import FieldInfo, Undefined
 
 if t.TYPE_CHECKING:
     from pipelime.piper.progress.tracker.base import Tracker
@@ -20,6 +21,18 @@ def pipelime_command(func=None, **kwargs):
             nonlocal posonly_names, poskw_names, varpos_name
 
             value = ... if p.default is inspect.Parameter.empty else p.default
+
+            if isinstance(value, FieldInfo):
+                default = (
+                    value.default
+                    if value.default_factory is None
+                    else value.default_factory()
+                )
+                if default in (Ellipsis, Undefined):
+                    default = inspect.Parameter.empty
+                p = inspect.Parameter(
+                    name=p.name, kind=p.kind, default=default, annotation=p.annotation
+                )
 
             ann = p.annotation
             if p.kind is p.VAR_POSITIONAL:
