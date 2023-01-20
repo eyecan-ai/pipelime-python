@@ -61,7 +61,7 @@ def mixed_var(
     g: str,
     h: int = 42,
     i: bool = False,
-    **kwargs,
+    **kwargs: int,
 ):
     """asdfasdf
     asdfasdfasdf
@@ -190,6 +190,7 @@ class TestCommandDecorator:
         self._validation_error(mixed_var, "a", 12, True, "dd", h=17, e=13, g="g", i="i")
         self._type_error(mixed_var, "a", 12, True, b=13, g="g")
         self._type_error(mixed_var, "a", 12, True, "d", d="dd", g="g")
+        self._validation_error(mixed_var, "a", g="g", z="zz")
 
     def test_my_addup_func(self):
         my_addup_func(1, 2)()

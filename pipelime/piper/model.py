@@ -30,13 +30,16 @@ def pipelime_command(
 
 def pipelime_command(__func=None, **__config_kwargs):
     """Creates a full-fledged PipelimeCommand from a general function.
-    The command will have the same exact signature of the function and
-    its docstring, field names and types will taken from the function parameters.
+    The command will have the same exact signature and docstring of the function.
+    Field names and types will taken from the function parameters and validated as usual.
     Any function signature is allowed, including positional-only, keyword-only,
-    variable positional, variable keyword parameters.
-    Use pydantic.Field as default value to specify field properties, such as
-    `default_factory`, `alias`, `description`, etc.
-    Also, call it with extra `__config_kwargs` to specify pydantic config parameters,
+    variable positional, variable keyword parameters. Variable positional and keyword
+    can be annotated to get type checking and validation.
+
+    You are encouraged to use pydantic.Field as default value to further specify any
+    field properties, such as `default_factory`, `alias`, `description`, etc, which
+    are used to show meaningful help messages through `pipelime help`.
+    Also, call it with extra `__config_kwargs` to add any pydantic config parameters,
     such as `title`, `arbitrary_types_allowed`, etc.
 
     Examples:
@@ -98,7 +101,7 @@ def pipelime_command(__func=None, **__config_kwargs):
 
         def _make_field(p: inspect.Parameter):
             """Returns a tuple of (annotation, default) for a given parameter.
-            NB: *args translates to a Sequence.
+            NB: *args translates to a Sequence and **kwargs translates to a Mapping.
             """
             value = Field(...) if p.default is inspect.Parameter.empty else p.default
 
@@ -108,6 +111,12 @@ def pipelime_command(__func=None, **__config_kwargs):
                     if p.annotation is inspect.Signature.empty
                     else t.Sequence[p.annotation]
                 )
+            elif p.kind is p.VAR_KEYWORD:
+                ann = (
+                    t.Mapping
+                    if p.annotation is inspect.Signature.empty
+                    else t.Mapping[str, p.annotation]
+                )
             else:
                 ann = p.annotation
 
@@ -116,11 +125,7 @@ def pipelime_command(__func=None, **__config_kwargs):
         # Translates signature to pydantic fields
         # and gathers positional arguments
         fsig = inspect.signature(func)
-        fields = {
-            n: _make_field(p)
-            for n, p in fsig.parameters.items()
-            if p.kind is not p.VAR_KEYWORD
-        }
+        fields = {n: _make_field(p) for n, p in fsig.parameters.items()}
         posonly_names = [
             p.name for p in fsig.parameters.values() if p.kind is p.POSITIONAL_ONLY
         ]
@@ -129,16 +134,21 @@ def pipelime_command(__func=None, **__config_kwargs):
             for p in fsig.parameters.values()
             if p.kind is p.POSITIONAL_OR_KEYWORD
         ]
+        kwonly_names = [
+            p.name for p in fsig.parameters.values() if p.kind is p.KEYWORD_ONLY
+        ]
         try:
             varpos_name = next(
                 p.name for p in fsig.parameters.values() if p.kind is p.VAR_POSITIONAL
             )
         except StopIteration:
             varpos_name = ""
-
-        # variable keyword arguments translates to extra="allow"
-        if any(p.kind is p.VAR_KEYWORD for p in fsig.parameters.values()):
-            __config_kwargs.setdefault("extra", "allow")
+        try:
+            varkw_name = next(
+                p.name for p in fsig.parameters.values() if p.kind is p.VAR_KEYWORD
+            )
+        except StopIteration:
+            varkw_name = ""
 
         # set title to function name, if not specified
         __config_kwargs.setdefault("title", func.__name__)
@@ -159,30 +169,39 @@ def pipelime_command(__func=None, **__config_kwargs):
                         f"positional arguments but {len(args)} were given"
                     )
 
-                # move positional arguments to kwargs
+                # move positional arguments to data
+                data = {}
                 for name, value in zip(posonly_names, args):
-                    kwargs[name] = value
+                    data[name] = value
                 for name, value in zip(poskw_names, args[len(posonly_names) :]):
                     if name in kwargs:
                         raise TypeError(
-                            f"{self.command_name} got multiple values for argument '{name}'"
+                            f"{self.command_name} got multiple values "
+                            f"for argument '{name}'"
                         )
-                    kwargs[name] = value
+                    data[name] = value
                 if varpos_name:
-                    kwargs[varpos_name] = tuple(
+                    data[varpos_name] = tuple(
                         args[len(posonly_names) + len(poskw_names) :]
                     )
 
-                super(_FnModel, self).__init__(**kwargs)
+                # move keyword arguments to data
+                for name in poskw_names + kwonly_names:
+                    if name in kwargs:
+                        data[name] = kwargs.pop(name)
+                if varkw_name:
+                    data[varkw_name] = kwargs
+                    kwargs = {}
+
+                # kwargs should be passed (user may have set extra="allow")
+                super(_FnModel, self).__init__(**data, **kwargs)
 
             def run(self):
                 # get all arguments in the right order
                 func(
                     *[getattr(self, n) for n in posonly_names + poskw_names],
                     *getattr(self, varpos_name, tuple()),
-                    **self.dict(
-                        exclude=set(posonly_names + poskw_names + [varpos_name])
-                    ),
+                    **self.dict(include=set(kwonly_names + [varkw_name])),
                 )
 
         # override base docstring with a custom description
