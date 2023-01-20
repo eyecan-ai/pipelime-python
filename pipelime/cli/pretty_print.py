@@ -361,7 +361,12 @@ def _get_signature(model_cls: t.Type[BaseModel]) -> str:
             # Add annotation and default value
             if self._annotation is not inspect._empty:
                 formatted = "{}: {}".format(
-                    formatted, escape(inspect.formatannotation(self._annotation))
+                    formatted,
+                    escape(
+                        inspect.formatannotation(self._annotation).replace(
+                            "NoneType", "None"
+                        )
+                    ),
                 )
 
             if self._default is not inspect._empty:
@@ -416,7 +421,7 @@ def _human_readable_type(field_outer_type):
     tstr = display_as_type(field_outer_type)
     if inspect.isclass(field_outer_type) and issubclass(field_outer_type, Enum):
         tstr += " {" + ", ".join(v.name.lower() for v in field_outer_type) + "}"
-    return tstr
+    return tstr.replace("NoneType", "None")
 
 
 def _recursive_args_flattening(arg):

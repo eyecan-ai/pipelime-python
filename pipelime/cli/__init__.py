@@ -55,8 +55,6 @@ class PipelimeApp:
             **extra_args (str): additional command line arguments. When an argument
                 must be specified multiple times, use a list as value.
         """
-        import inspect
-
         caller = _CallerHelper.get_my_caller()
         caller_module: str = _CallerHelper.get_module(caller)
 
@@ -93,13 +91,25 @@ class PipelimeApp:
 
 
 def run():
+    """Runs a default PipelimeApp instance from your module.
+
+        Example:
+            ```
+            @pipelime_command
+            def my_command():
+                ...
+
+            if __name__ == "__main__":
+                run()
+            ```
+    """
     from pathlib import Path
 
     caller = _CallerHelper.get_my_caller()
     caller_path = Path(caller.filename)
 
     app = PipelimeApp(
-        caller_path.as_posix(),
+        _CallerHelper.get_module(caller),
         app_name=caller_path.stem,
         entry_point=f"python {caller_path.name}",
         app_description=_CallerHelper.get_docstring(caller),

@@ -2,122 +2,236 @@ from abc import abstractmethod
 from enum import Enum
 import typing as t
 
-from pydantic import BaseModel, Field, PrivateAttr, create_model
-from pydantic.fields import FieldInfo, Undefined
+from pydantic import BaseModel, Field, PrivateAttr
 
 if t.TYPE_CHECKING:
     from pipelime.piper.progress.tracker.base import Tracker
 
 
-def pipelime_command(func=None, **kwargs):
+# The return type is a hack to fool the type checker
+# otherwise it would complain when calling the command
+# TODO: forward with typing.ParamSpec (New in Python 3.10) to get full type checking
+@t.overload
+def pipelime_command(
+    **__config_kwargs,
+) -> t.Callable[[t.Callable[..., None]], t.Callable[..., t.Type["PipelimeCommand"]]]:
+    ...
+
+
+# The return type is a hack to fool the type checker
+# otherwise it would complain when calling the command
+# TODO: forward with typing.ParamSpec (New in Python 3.10) to get full type checking
+@t.overload
+def pipelime_command(
+    __func: t.Callable[..., None]
+) -> t.Callable[..., t.Type["PipelimeCommand"]]:
+    ...
+
+
+def pipelime_command(__func=None, **__config_kwargs):
+    """Creates a full-fledged PipelimeCommand from a general function.
+    The command will have the same exact signature of the function and
+    its docstring, field names and types will taken from the function parameters.
+    Any function signature is allowed, including positional-only, keyword-only,
+    variable positional, variable keyword parameters.
+    Use pydantic.Field as default value to specify field properties, such as
+    `default_factory`, `alias`, `description`, etc.
+    Also, call it with extra `__config_kwargs` to specify pydantic config parameters,
+    such as `title`, `arbitrary_types_allowed`, etc.
+
+    Examples:
+        Create a command with the same name of the function::
+
+            @pipelime_command
+            def addup(a: int, b: int):
+                print(a + b)
+
+        then you can use it as::
+
+            $ pipelime addup +a 1 +b 2
+
+        Create a command with custom name and non-pydantic types::
+
+            @pipelime_command(title="add-up-these", arbitrary_types_allowed=True)
+            def my_addup_func(a: int, b: int, c: t.Optional[MyType] = None):
+                print(a + b)
+
+        then you can use it as::
+
+            $ pipelime add-up-these +a 1 +b 2
+
+        Create a command with field aliases and default factories::
+
+            @pipelime_command
+            def merge_lists(
+                first: t.List[int] = Field(default_factory=list, alias="f"),
+                second: t.List[int] = Field(default_factory=list, alias="s"),
+            ):
+                print(first + second)
+
+        then you can use it as::
+
+            $ pipelime merge_lists +f 1 +f 2 +f 3 +s 4 +s 5 +s 6
+
+        Create a command with help messages::
+
+            @pipelime_command(title="merge")
+            def merge_lists(
+                first: t.List[int] = Field(
+                    default_factory=list, alias="f", description="first list"
+                ),
+                second: t.List[int] = Field(
+                    default_factory=list, alias="s", description="second list"
+                ),
+            ):
+                '''Merge and print two lists.'''
+                print(first + second)
+
+        then show the command help::
+
+            $ pipelime merge help
+    """
+
     def _make_cmd(func):
         import inspect
-
-        posonly_args, poskw_args, varpos_args = "", "", ""
-        posonly_names, poskw_names, varpos_name = [], [], ""
+        from pydantic.fields import FieldInfo, Undefined
 
         def _make_field(p: inspect.Parameter):
-            nonlocal posonly_args, poskw_args, varpos_args
-            nonlocal posonly_names, poskw_names, varpos_name
+            """Returns a tuple of (annotation, default) for a given parameter.
+            NB: *args translates to a Sequence.
+            """
+            value = Field(...) if p.default is inspect.Parameter.empty else p.default
 
-            value = ... if p.default is inspect.Parameter.empty else p.default
-
-            if isinstance(value, FieldInfo):
-                default = (
-                    value.default
-                    if value.default_factory is None
-                    else value.default_factory()
-                )
-                if default in (Ellipsis, Undefined):
-                    default = inspect.Parameter.empty
-                p = inspect.Parameter(
-                    name=p.name, kind=p.kind, default=default, annotation=p.annotation
-                )
-
-            ann = p.annotation
             if p.kind is p.VAR_POSITIONAL:
-                varpos_args = f"{p}, ".replace("NoneType", "None")
-                varpos_name = p.name
                 ann = (
                     t.Sequence
                     if p.annotation is inspect.Signature.empty
                     else t.Sequence[p.annotation]
                 )
-            elif p.kind is p.POSITIONAL_ONLY:
-                posonly_args += f"{p}, ".replace("NoneType", "None")
-                posonly_names.append(p.name)
-            elif p.kind is p.POSITIONAL_OR_KEYWORD:
-                poskw_args += f"{p}, ".replace("NoneType", "None")
-                poskw_names.append(p.name)
+            else:
+                ann = p.annotation
 
-            if ann is inspect.Signature.empty:
-                return (t.Any, value) if value is ... else value
             return (ann, value)
 
+        # Translates signature to pydantic fields
+        # and gathers positional arguments
         fsig = inspect.signature(func)
         fields = {
             n: _make_field(p)
             for n, p in fsig.parameters.items()
             if p.kind is not p.VAR_KEYWORD
         }
-
-        if any(p.kind is p.VAR_KEYWORD for p in fsig.parameters.values()):
-            kwargs.setdefault("extra", "allow")
-            add_data_arg = True
-        else:
-            add_data_arg = any(
-                p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
-                for p in fsig.parameters.values()
+        posonly_names = [
+            p.name for p in fsig.parameters.values() if p.kind is p.POSITIONAL_ONLY
+        ]
+        poskw_names = [
+            p.name
+            for p in fsig.parameters.values()
+            if p.kind is p.POSITIONAL_OR_KEYWORD
+        ]
+        try:
+            varpos_name = next(
+                p.name for p in fsig.parameters.values() if p.kind is p.VAR_POSITIONAL
             )
+        except StopIteration:
+            varpos_name = ""
 
-        kwargs.setdefault("title", func.__name__)
+        # variable keyword arguments translates to extra="allow"
+        if any(p.kind is p.VAR_KEYWORD for p in fsig.parameters.values()):
+            __config_kwargs.setdefault("extra", "allow")
 
-        if posonly_args:
-            posonly_args += "/, "
-        pos_names = posonly_names + poskw_names
+        # set title to function name, if not specified
+        __config_kwargs.setdefault("title", func.__name__)
 
         class _FnModel(PipelimeCommand):
+            def __init__(self, *args, **kwargs):
+                # positional-only arguments are not allowed in kwargs
+                for p in posonly_names + [varpos_name]:
+                    if p in kwargs:
+                        raise TypeError(
+                            f"Argument '{p}' in {self.command_name} is positional-only"
+                        )
+
+                # positional arguments must be less than declared ones
+                if not varpos_name and len(args) > len(posonly_names + poskw_names):
+                    raise TypeError(
+                        f"{self.command_name} takes {len(posonly_names + poskw_names)} "
+                        f"positional arguments but {len(args)} were given"
+                    )
+
+                # move positional arguments to kwargs
+                for name, value in zip(posonly_names, args):
+                    kwargs[name] = value
+                for name, value in zip(poskw_names, args[len(posonly_names) :]):
+                    if name in kwargs:
+                        raise TypeError(
+                            f"{self.command_name} got multiple values for argument '{name}'"
+                        )
+                    kwargs[name] = value
+                if varpos_name:
+                    kwargs[varpos_name] = tuple(
+                        args[len(posonly_names) + len(poskw_names) :]
+                    )
+
+                super(_FnModel, self).__init__(**kwargs)
+
             def run(self):
+                # get all arguments in the right order
                 func(
-                    *[getattr(self, n) for n in pos_names],
+                    *[getattr(self, n) for n in posonly_names + poskw_names],
                     *getattr(self, varpos_name, tuple()),
-                    **self.dict(exclude=set(pos_names + [varpos_name])),
+                    **self.dict(
+                        exclude=set(posonly_names + poskw_names + [varpos_name])
+                    ),
                 )
 
-        local_scope = {**globals(), **locals()}
-        _exfn = """
-from typing import *
-def initfn(self, {}{}{}{}
-""".format(
-            posonly_args,
-            poskw_args,
-            varpos_args,
-            "**__data):\n" if add_data_arg else "):\n    __data = {}",
+        # override base docstring with a custom description
+        _FnModel.__doc__ = (
+            f"Autogenerated Pipelime command from `{func.__module__}.{func.__name__}`."
         )
 
-        if varpos_name:
-            _exfn += "    __data.setdefault('{0}', {0})\n".format(varpos_name)
-        for p in pos_names:
-            _exfn += "    __data.setdefault('{0}', {0})\n".format(p)
-        _exfn += "    super(_FnModel, self).__init__(**__data)\n"
-
-        exec(_exfn, local_scope)
-        _FnModel.__init__ = local_scope["initfn"]
-
-        fmodel = create_model(
-            func.__name__.replace("_", " ").capitalize().strip() + "Command",
-            __base__=_FnModel,
-            __module__=func.__module__,
-            __cls_kwargs__=kwargs,
-            **fields,
+        # create the pipelime command class
+        fmodel = type(
+            func.__name__.replace("_", " ").title().replace(" ", "") + "Command",
+            (_FnModel,),
+            {
+                "__module__": func.__module__,
+                "__doc__": func.__doc__,
+                "__annotations__": {
+                    n: f[0]
+                    for n, f in fields.items()
+                    if f[0] is not inspect.Signature.empty
+                },
+                **{n: f[1] for n, f in fields.items()},
+            },
+            **__config_kwargs,
         )
-        fmodel.__doc__ = func.__doc__
 
+        # override pydantic signature
+        # --> we need this to pretty print the command help
+        def _unwrap_default(value):
+            if isinstance(value, FieldInfo):
+                value = (
+                    value.default
+                    if value.default_factory is None
+                    else value.default_factory()
+                )
+                if value in (Ellipsis, Undefined):
+                    return inspect.Parameter.empty
+            return value
+
+        fmodel.__signature__ = fsig.replace(
+            parameters=[
+                p.replace(default=_unwrap_default(p.default))
+                for p in fsig.parameters.values()
+            ],
+            return_annotation=inspect.Signature.empty,
+        )
         return fmodel
 
-    if func is None:
+    if __func is None:
         return _make_cmd
-    return _make_cmd(func)
+    return _make_cmd(__func)
 
 
 class PiperPortType(Enum):
@@ -183,6 +297,7 @@ class PipelimeCommand(
             return cls.__config__.title
         return cls.__name__
 
+    @property
     def command_name(self) -> str:
         return self.command_title()
 

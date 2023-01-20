@@ -1,7 +1,7 @@
 import pytest
 import typing as t
 from pydantic import Field
-from pipelime.piper import pipelime_command
+from pipelime.piper import pipelime_command, PipelimeCommand
 
 
 @pipelime_command
@@ -73,6 +73,16 @@ def mixed_var(
     print(g, h, i)
 
 
+class MyType:
+    pass
+
+
+@pipelime_command(title="add-up-these", arbitrary_types_allowed=True)
+def my_addup_func(a: int, b: int, c: t.Optional[MyType] = None):
+    """This is a function that adds two numbers"""
+    print(a + b)
+
+
 class TestCommandDecorator:
     def _error(self, fn, err_cls, *args, **kwargs):
         with pytest.raises(err_cls):
@@ -85,10 +95,20 @@ class TestCommandDecorator:
         self._error(fn, ValueError, *args, **kwargs)
 
     @pytest.mark.parametrize(
-        "cmd", [posonly, posorkw, kwonly, varpos, varkw, mixed, mixed_var]
+        "cmd",
+        [posonly, posorkw, kwonly, varpos, varkw, mixed, mixed_var, my_addup_func],
     )
-    def test_help_msg(self, cmd):
+    def test_is_command(self, cmd):
         from pipelime.cli.pretty_print import print_models_short_help, print_model_info
+        from pipelime.cli.utils import PipelimeSymbolsHelper, get_pipelime_command_cls
+
+        assert issubclass(cmd, PipelimeCommand)
+
+        PipelimeSymbolsHelper.set_extra_modules(
+            ["tests.pipelime.piper.test_command_decorator"]
+        )
+        other_cmd = get_pipelime_command_cls(cmd.command_title(), interactive=False)
+        assert other_cmd is cmd
 
         print_models_short_help(cmd, show_class_path=True)
         print_model_info(
@@ -104,10 +124,10 @@ class TestCommandDecorator:
         posonly("a", 1)()
         posonly("a", 1, True)()
 
-        self._type_error(posonly)
+        self._validation_error(posonly)
         self._type_error(posonly, "a", 1, True, "b")
         self._type_error(posonly, a="a")
-        self._type_error(posonly, d=None)
+        self._validation_error(posonly, d=None)
 
     def test_posorkw(self):
         posorkw("a")()
@@ -116,9 +136,9 @@ class TestCommandDecorator:
         posorkw(a="a")()
         posorkw("a", c=True)()
 
-        self._type_error(posorkw)
-        self._type_error(posonly, "a", 1, True, "b")
-        self._type_error(posonly, d=None)
+        self._validation_error(posorkw)
+        self._type_error(posorkw, "a", 1, True, "b")
+        self._validation_error(posorkw, d=None)
 
     def test_kwonly(self):
         kwonly(a="a")()
@@ -140,15 +160,15 @@ class TestCommandDecorator:
         varpos("a", 1, True)()
 
         self._type_error(varpos, a="a")
-        self._type_error(varpos, a="a", d=None)
+        self._validation_error(varpos, d=None)
 
     def test_varkw(self):
+        varkw()()
         varkw(a="a")()
         varkw(a="a", b=1)()
         varkw(a="a", b=1, c=True)()
         varkw(a="a", c=True)()
 
-        self._validation_error(kwonly)
         self._type_error(varkw, "a")
         self._type_error(varkw, "a", 1)
         self._type_error(varkw, "a", 1, True)
@@ -158,7 +178,7 @@ class TestCommandDecorator:
         mixed("a", g="g")()
         mixed("a", 12, True, "dd", h=17, e=13, g="g")()
 
-        self._type_error(mixed)
+        self._validation_error(mixed)
         self._validation_error(mixed, "a", 12, True, "dd", h=17, e=13, g="g", i="i")
         self._validation_error(mixed, "a", g="g", m=12)
 
@@ -166,5 +186,17 @@ class TestCommandDecorator:
         mixed_var("a", g="g")()
         mixed_var("a", 12, True, "dd", 42, False, 45.5, 53.2, g="g", z=42)()
 
-        self._type_error(mixed_var)
+        self._validation_error(mixed_var)
         self._validation_error(mixed_var, "a", 12, True, "dd", h=17, e=13, g="g", i="i")
+        self._type_error(mixed_var, "a", 12, True, b=13, g="g")
+        self._type_error(mixed_var, "a", 12, True, "d", d="dd", g="g")
+
+    def test_my_addup_func(self):
+        my_addup_func(1, 2)()
+        my_addup_func(1, 2, MyType())()
+        my_addup_func(c=MyType(), b=2, a=1)()
+
+        self._validation_error(my_addup_func)
+        self._type_error(my_addup_func, 1, 2, b=3)
+        self._validation_error(my_addup_func, None, None, None)
+        self._validation_error(my_addup_func, 1, 2, 3)
