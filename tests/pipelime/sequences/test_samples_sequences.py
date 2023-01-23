@@ -88,7 +88,8 @@ class TestSamplesSequences:
         assert a.to_pipe(recursive=True, objs_to_str=False) == expected_pipe
 
     def test_build_pipe(self):
-        from pipelime.stages import StageIdentity
+        from pydantic import ValidationError
+        from pipelime.stages import StageIdentity, StageCompose
 
         input_pipe = [
             {
@@ -100,8 +101,9 @@ class TestSamplesSequences:
             },
             {
                 "slice": {"start": 10, "stop": None, "step": None},
-                "map": {"stage": {"identity": None}},
+                "map": {"compose": ["identity", "identity", "identity"]},
             },
+            {"data_cache": ["ImageItem", "MetadataItem"]},
         ]
 
         expected_seq = (
@@ -109,7 +111,8 @@ class TestSamplesSequences:
                 folder="no-path", merge_root_items=True, must_exist=False
             )
             .slice(start=10)
-            .map(StageIdentity())
+            .map(StageCompose([StageIdentity(), StageIdentity(), StageIdentity()]))
+            .data_cache("ImageItem", "MetadataItem")
         )
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
@@ -121,12 +124,13 @@ class TestSamplesSequences:
                 "must_exist": False,
             },
             "slice": {"start": 10, "stop": None, "step": None},
-            "map": {"stage": StageIdentity()},
+            "map": {"compose": [StageIdentity(), {"identity": None}, StageIdentity()]},
+            "data_cache": ["ImageItem", "MetadataItem"],
         }
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
 
-        with pytest.raises(TypeError):
+        with pytest.raises(ValidationError):
             pls.build_pipe("shuffle")
 
         with pytest.raises(ValueError):

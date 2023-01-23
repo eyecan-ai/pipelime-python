@@ -91,13 +91,13 @@ def _process_cfg_or_die(
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
-            print_error(f"Invalid {cfg_name}! {e}\nRun with -v to get more info.")
+            print_error(f"Invalid {cfg_name}! {e}\nRun with -vv to get more info.")
             raise typer.Exit(1)
         raise e
 
     if verbose:
         pls = "s" if len(effective_configs) != 1 else ""
-        print_info(f"\nFound {len(effective_configs)} {cfg_name}{pls}")
+        print_info(f"> Found {len(effective_configs)} {cfg_name}{pls}")
 
     if len(effective_configs) > 1 and run_all is None:
         if not typer.confirm(
@@ -124,15 +124,18 @@ def _process_all(
     output: t.Optional[Path],
     run_all: t.Optional[bool],
     exit_on_error: bool,
-    verbose: bool,
+    verbose: int,
 ):
     from pipelime.cli.pretty_print import print_info
     from pipelime.choixe import XConfig
 
+    if verbose > 1:
+        print_info("\nProcessing configurations:")
+
     # first process with no branch
     effective_configs = [
         _process_cfg_or_die(
-            c, effective_ctx, "configuration", False, output, exit_on_error, verbose
+            c, effective_ctx, "configuration", False, output, exit_on_error, verbose > 1
         )
         for c in base_cfg
         if c.to_dict()
@@ -147,9 +150,12 @@ def _process_all(
     else:
         effective_configs = XConfig()
 
-    if verbose:
-        print_info("\nMerged configuration:")
+    if verbose > 2:
+        print_info("\nFinal merged configuration:")
         print_info(effective_configs.to_dict(), pretty=True)
+
+    if verbose > 1:
+        print_info("\nProcessing branches:")
 
     # now process the branches, if any, and check the overall merge
     return _process_cfg_or_die(
@@ -159,27 +165,25 @@ def _process_all(
         run_all,
         output,
         exit_on_error,
-        verbose,
+        verbose > 1,
     )
 
 
-app = typer.Typer(pretty_exceptions_enable=False)
+class VersionCallback:
+    @staticmethod
+    def get_version():
+        import pipelime
+
+        return pipelime.__version__
 
 
 def version_callback(value: bool):
-    from pipelime import __version__
-
     if value:
-        print(__version__)
+        print(VersionCallback.get_version())
         raise typer.Exit()
 
 
-@app.command(
-    add_help_option=False,
-    no_args_is_help=True,
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-def pl_main(  # noqa: C901
+def pl_main(
     ctx: typer.Context,
     config: t.List[Path] = typer.Option(
         None,
@@ -211,7 +215,7 @@ def pl_main(  # noqa: C901
         help=(
             "One or more yaml/json files with some or all the context parameters. "
             "If `--config` is set and `--context` is not, all files matching "
-            "`context*.[yaml|yml|json]` in the folders of all the "
+            "`*context*.[yaml|yml|json]` in the folders of all the "
             "configuration files will be loaded as the context. "
             "Use `--no-ctx-autoload` to disable this behavior.\n\n"
             "`@@opt` or `@opt` command line options update and override them.\n\n"
@@ -264,7 +268,7 @@ def pl_main(  # noqa: C901
         show_default=False,
         help=(
             (
-                "A pipelime command, ie, a `command-name`, "
+                "A command, ie, a `command-name`, "
                 "a `package.module.ClassName` class path or "
                 "a `path/to/module.py:ClassName` uri (use with care).\n\n"
             )
@@ -280,7 +284,7 @@ def pl_main(  # noqa: C901
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
         help=(
-            "\b\nPipelime command arguments:\n"
+            "\b\nExpected command line:\n"
             "- `++opt` and `+opt` are command parameters\n"
             "- `@@opt` and `@opt` are context parameters\n"
             "- after `//` `++opt`, `+opt`, `@@opt`and `@opt` "
@@ -300,15 +304,15 @@ def pl_main(  # noqa: C901
     ),
 ):
     """
-    Pipelime Command Line Interface. Examples:
+    {0} Examples:
 
-    `pipelime list` prints a list of the available commands, sequence operators
+    `{1} list` prints a list of the available commands, sequence operators
     and stages.
 
-    `pipelime help <cmd-op-stg>` prints informations on a specific command, sequence
+    `{1} help <cmd-op-stg>` prints informations on a specific command, sequence
     operator or stage.
 
-    `pipelime <command> [<args>]` runs a pipelime command.
+    `{1} <command> [<args>]` runs a{2} command.
 
     NB: command (++opt) and context (@@opt) arguments with no value are treated as
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
@@ -385,21 +389,21 @@ def pl_main(  # noqa: C901
         from pipelime.choixe import XConfig
         from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
-        if config and context is None and ctx_autoload:
+        if config and not context and ctx_autoload:
             context = []
             for c in config:
-                for p in c.resolve().parent.glob("context*.*"):
+                for p in c.resolve().parent.glob("*context*.*"):
                     if p.suffix in (".yaml", ".yml", ".json"):
                         context += [p]
 
         if verbose > 0:
 
             def _print_file_list(files: t.Sequence[Path], name: str):
-                if config:
-                    flist = ", ".join(f'"{str(c)}"' for c in config)
+                if files:
+                    flist = ", ".join(f'"{str(c)}"' for c in files)
                     print_info(
                         f"{name.capitalize()} file"
-                        + (f"s: [ {flist} ]" if len(config) > 1 else f": {config[0]}")
+                        + (f"s: [ {flist} ]" if len(files) > 1 else f": {files[0]}")
                     )
                 else:
                     print_info(f"No {name} file")
@@ -422,7 +426,7 @@ def pl_main(  # noqa: C901
             e.rich_print()
             raise typer.Exit(1)
 
-        if verbose > 0:
+        if verbose > 2:
             _print_dict(
                 f"Loaded configuration file{'s' if len(config) > 1 else ''}", base_cfg
             )
@@ -440,9 +444,11 @@ def pl_main(  # noqa: C901
         base_ctx.append(XConfig(data=cmdline_ctx, cwd=Path.cwd()))
 
         # process contexts to resolve imports and local loops
+        if verbose > 2:
+            print_info("\nProcessing context files:")
         effective_ctx = [
             _process_cfg_or_die(
-                c, None, "context", run_all, output_ctx, True, verbose > 0
+                c, None, "context", run_all, output_ctx, True, verbose > 2
             )
             for c in base_ctx
             if c.to_dict()
@@ -457,7 +463,7 @@ def pl_main(  # noqa: C901
         else:
             effective_ctx = XConfig()
 
-        if verbose > 0:
+        if verbose > 1:
             print_info("\nFinal effective context:")
             print_info(effective_ctx.to_dict(), pretty=True)
 
@@ -476,15 +482,15 @@ def pl_main(  # noqa: C901
                     value = getattr(inspect_info, field.name)
                     print_info(f"🔍 {field.name}:")
                     if value or isinstance(value, bool):
-                        print_info(value, pretty=True)
+                        print_info(value, pretty=True, indent_guides=False)
 
             print_info("\n📄 CONTEXT AUDIT\n")
-            print_info(effective_ctx.to_dict(), pretty=True)
+            print_info(effective_ctx.to_dict(), pretty=True, indent_guides=False)
             print_info("")
 
             try:
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, False, verbose > 0
+                    base_cfg, effective_ctx, output, run_all, False, verbose > 2
                 )
             except ChoixeProcessingError as e:
                 from rich.prompt import Confirm, Prompt
@@ -526,7 +532,7 @@ def pl_main(  # noqa: C901
 
             with show_spinning_status("Processing configuration and context..."):
                 effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, True, verbose > 0
+                    base_cfg, effective_ctx, output, run_all, True, verbose
                 )
 
             cmd_name = command
@@ -534,7 +540,7 @@ def pl_main(  # noqa: C901
             for idx, cfg in enumerate(effective_configs):
                 cfg_dict = cfg.to_dict()
 
-                if verbose > 0:
+                if verbose > 1:
                     print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
                     print_info(cfg_dict, pretty=True)
 
@@ -575,7 +581,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     except ValueError:
         raise typer.Exit(1)
 
-    if verbose > 0:
+    if verbose > 2:
         print_info(f"\nCreating command `{command}` with options:")
         print_info(cmd_args, pretty=True)
 
@@ -603,7 +609,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
         print_info(f"\nCreated command `{command}`:")
         print_info(cmd_obj.dict(), pretty=True)
 
-    if verbose > 0:
+    if dry_run or verbose > 0:
         print_info(f"\nRunning `{command}`...")
 
     start_time = time.perf_counter_ns()
@@ -616,14 +622,66 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     print_command_outputs(cmd_obj)
 
 
-def run_with_extra_modules(*extra_modules):
-    """Run the CLI setting extra modules as if -m was used."""
-
+def _create_typer_app(
+    *,
+    app_name: str = "Pipelime",
+    entry_point: t.Optional[str] = None,
+    app_description: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+    extra_args: t.Sequence[str] = list(),
+):
     import sys
 
-    sys.argv.extend([a for m in extra_modules for a in ("-m", m)])
+    if entry_point is None and len(sys.argv) > 0:
+        entry_point = Path(sys.argv[0]).name
+
+    # if there is no other args, run the app with no args
+    if extra_args and len(sys.argv) > 1:
+        sys.argv.extend(extra_args)
+
+    def _preproc_docs(func):
+        desc = (
+            app_description
+            if app_description
+            else f"{app_name} Command Line Interface."
+        )
+        n_appname = ("n " if app_name[0] in "aeiouAEIOU" else " ") + app_name
+        if desc[-1] != ".":
+            desc += "."
+        func.__doc__ = func.__doc__.format(
+            desc, entry_point or app_name.casefold(), n_appname
+        )
+        return func
+
+    if version is not None:
+        VersionCallback.get_version = lambda: version
+
+    app = typer.Typer(pretty_exceptions_enable=False)
+    app.command(
+        add_help_option=False,
+        no_args_is_help=True,
+        context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    )(_preproc_docs(pl_main))
+    return app
+
+
+def run_typer_app(
+    *,
+    app_name: str = "Pipelime",
+    entry_point: t.Optional[str] = None,
+    app_description: t.Optional[str] = None,
+    version: t.Optional[str] = None,
+    extra_args: t.Sequence[str] = list(),
+):
+    app = _create_typer_app(
+        app_name=app_name,
+        entry_point=entry_point,
+        app_description=app_description,
+        version=version,
+        extra_args=extra_args,
+    )
     app()
 
 
 if __name__ == "__main__":
-    app()
+    run_typer_app()

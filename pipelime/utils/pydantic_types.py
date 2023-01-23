@@ -1,7 +1,9 @@
 from __future__ import annotations
 import typing as t
+import inspect
 from pathlib import Path
 import pydantic as pyd
+import pydantic.generics as pydg
 import numpy as np
 
 from pipelime.items import Item
@@ -78,8 +80,8 @@ class NumpyType(
 
     def _iter(self, *args, **kwargs):
         for k, v in super()._iter(*args, **kwargs):
-            assert k == "__root__"
-            assert isinstance(v, np.ndarray)
+            # assert k == "__root__"
+            # assert isinstance(v, np.ndarray)
             v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
             yield k, {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
 
@@ -98,10 +100,10 @@ class NumpyType(
 
     @classmethod
     def validate(cls, value):
-        if isinstance(value, NumpyType):
+        if isinstance(value, cls):
             return value
         try:
-            return NumpyType(
+            return cls(
                 __root__=(
                     np.array(**value)
                     if isinstance(value, t.Mapping)
@@ -200,7 +202,8 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 
     @classmethod
     def validate(cls, value):
-        if isinstance(value, YamlInput):
+        print("YamlInput.validate", value)
+        if isinstance(value, cls):
             return value
         if isinstance(value, str):
             pval = Path(value)
@@ -214,9 +217,9 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
                     value = yaml.safe_load(f)
                     if root_key:
                         value = py_.get(value, root_key, default=None)
-            return YamlInput(__root__=value)  # type: ignore
+            return cls(__root__=value)  # type: ignore
         if cls._check_any_type(value):
-            return YamlInput(__root__=value)
+            return cls(__root__=value)
         raise ValueError(f"Invalid yaml data input: {value}")
 
     @classmethod
@@ -227,22 +230,40 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return all(isinstance(k, str) for k in value)
 
 
-class ItemType(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
+TRoot = t.TypeVar("TRoot")
+
+
+class TypeDef(
+    pydg.GenericModel,
+    t.Generic[TRoot],
+    extra="forbid",
+    copy_on_model_validation="none",
+    allow_mutation=False,
 ):
-    """Item type definition. It accepts both type names and string.
-    When a string is given, it can be a class path (`pipelime.items` can be omitted)
-    or a `path/to/file.py:ClassName`.
+    """Generic type definition. It accepts both type names and string.
+    You should derive from this class to define your own type definitions and,
+    possibly, re-implement the `default_class_path` class method
+    (NB: it must end with `.`). When a string is given, it can be a class path
+    (the default class path can be omitted) or a `path/to/file.py:ClassName`.
 
     Examples:
-        Create a new ItemType instance::
+        Create a new FooType definition::
 
-            it = ItemType.create(pipelime.items.ImageItem)
-            it = ItemType.create("ImageItem")
+            class FooType(TypeDef[Foo]):
+                @classmethod
+                def default_class_path(cls) -> str:
+                    return "my_package.types."
 
-        Access the internal type::
+        Now you can instantiate it::
 
-            it.value  # item type
+            it = FooType.create(a.class.path.DerivedFromFoo)
+            it = FooType.create("FooSubclassInMyPackage")
+
+        Access the internal type and instantiate a new object::
+
+            it = FooType.create(a.class.path.DerivedFromFoo)
+            it.value  # DerivedFromFoo
+            _ = it()  # new instance of DerivedFromFoo
 
         Serialize to dict or json::
 
@@ -251,64 +272,74 @@ class ItemType(
 
         Get the object back from dict or json::
 
-            it_again = pydantic.parse_obj_as(ItemType, it_dict["__root__"])
-            it_again = pydantic.parse_raw_as(ItemType, it_json_str)
+            it_again = pydantic.parse_obj_as(FooType, it_dict["__root__"])
+            it_again = pydantic.parse_raw_as(FooType, it_json_str)
 
         Use this type within another model::
 
             class MyModel(pydantic.BaseModel):
-                item_type: ItemType = pydantic.Field(
-                    default_factory=lambda: ItemType.create("ImageItem")
+                foo_type: FooType = pydantic.Field(
+                    default_factory=lambda: FooType.create("DefaultFooSubclass")
                 )
 
         Everything still works::
 
             mm = MyModel()
-            mm = MyModel.parse_obj({"item_type": pipelime.items.MetadataItem})
-            mm = MyModel.parse_obj({"item_type": "MetadataItem"})
+            mm = MyModel.parse_obj({"foo_type": a.class.path.DerivedFromFoo})
+            mm = MyModel.parse_obj({"foo_type": "FooSubclassInMyPackage"})
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
 
-    __root__: t.Type[Item]
+    __root__: t.Type[TRoot]
 
     @classmethod
-    def create(cls, value: t.Union[ItemType, t.Type[Item], str]) -> ItemType:
+    def default_class_path(cls) -> str:
+        return "__main__."
+
+    @classmethod
+    def wrapped_type(cls) -> t.Type[TRoot]:
+        return t.get_args(cls.__fields__["__root__"].outer_type_)[0]
+
+    @classmethod
+    def create(cls, value: t.Union[TypeDef, t.Type[TRoot], str]) -> TypeDef:
         return cls.validate(value)
 
     @property
-    def value(self) -> t.Type[Item]:
+    def value(self) -> t.Type[TRoot]:
         return self.__root__
 
     def _iter(self, *args, **kwargs):
         for k, v in super()._iter(*args, **kwargs):
-            assert k == "__root__"
-            assert issubclass(v, Item)
-            yield k, ItemType._item_type_to_string(v)
+            # assert k == "__root__"
+            # assert issubclass(v, self.wrapped_type())
+            yield k, self._type_to_string(v)
 
-    @staticmethod
-    def _item_type_to_string(item_type: t.Type[Item]) -> str:
+    @classmethod
+    def _type_to_string(cls, type_: t.Type[TRoot]) -> str:
         return (
-            item_type.__name__
-            if item_type.__module__.startswith("pipelime.items")
-            else item_type.__module__ + "." + item_type.__qualname__
+            type_.__name__
+            if cls.default_class_path()
+            and type_.__module__.startswith(cls.default_class_path())
+            else type_.__module__ + "." + type_.__qualname__
         )
 
-    @staticmethod
-    def _string_to_item_type(item_type_str: str) -> t.Type[Item]:
+    @classmethod
+    def _string_to_type(cls, type_str: str) -> t.Type[TRoot]:
         from pipelime.choixe.utils.imports import import_symbol
 
-        if "." not in item_type_str:
-            item_type_str = "pipelime.items." + item_type_str
-        return import_symbol(item_type_str)
+        type_str = type_str.strip("\"'")
+        if "." not in type_str:
+            type_str = cls.default_class_path() + type_str
+        return import_symbol(type_str)
 
-    def __call__(self, *args, **kwargs) -> Item:
+    def __call__(self, *args, **kwargs) -> TRoot:
         return self.__root__(*args, **kwargs)
 
     def __hash__(self) -> int:
         return hash(self.__root__)
 
     def __str__(self) -> str:
-        return ItemType._item_type_to_string(self.__root__)
+        return self._type_to_string(self.__root__)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
@@ -321,16 +352,171 @@ class ItemType(
         yield cls.validate
 
     @classmethod
-    def validate(cls, value):
+    def validate(cls, value: t.Union[TypeDef, t.Type[TRoot], str]) -> TypeDef:
         import inspect
 
-        if isinstance(value, ItemType):
+        if isinstance(value, cls):
             return value
-        if inspect.isclass(value) and issubclass(value, Item):
-            return ItemType(__root__=value)
         if isinstance(value, str):
-            return ItemType(__root__=ItemType._string_to_item_type(value))
-        raise ValueError(f"Invalid item type: {value}")
+            value = cls._string_to_type(value)
+        if inspect.isclass(value) and issubclass(value, cls.wrapped_type()):
+            return cls(__root__=value)
+        raise ValueError(f"Type `{value}` is not a subclass of `{cls.wrapped_type()}`")
+
+
+class ItemType(TypeDef[Item]):
+    """Item type definition. It accepts both type names and string.
+    The default class path is `pipelime.items`.
+    """
+
+    @classmethod
+    def default_class_path(cls) -> str:
+        return "pipelime.items."
+
+
+class CallableDef(
+    pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
+):
+    """Generic callable definition. It accepts both class paths and string.
+    You may derive from this class to re-implement the `default_class_path` class method
+    (NB: it must end with `.`). When a string is given, it can be a class path
+    (the default class path can be omitted) or a `path/to/file.py:CallableName`.
+    To ease the inspection of the callable, the methods `full_signature`, `args_type`,
+    `return_type`, `has_var_positional` and `has_var_keyword` are provided.
+
+    Examples:
+        Create a new CallableDef::
+
+            cdef = CallableDef.create(a.class.path.to.callable)
+            cdef = CallableDef.create("CallableInMain")
+
+        Access the internal value and call it::
+
+            cdef = CallableDef.create(a.class.path.to.callable)
+            cdef.value  # callable
+            _ = cdef()  # call the callable
+
+        Serialize to dict or json::
+
+            cdef_dict = cdef.dict()
+            cdef_json_str = cdef.json()
+
+        Get the object back from dict or json::
+
+            cdef_again = pydantic.parse_obj_as(CallableDef, cdef_dict["__root__"])
+            cdef_again = pydantic.parse_raw_as(CallableDef, cdef_json_str)
+
+        Use this type within another model::
+
+            class MyModel(pydantic.BaseModel):
+                fn: CallableDef = pydantic.Field(
+                    default_factory=lambda: CallableDef.create("CallableInMain")
+                )
+
+        Everything still works::
+
+            mm = MyModel()
+            mm = MyModel.parse_obj({"fn": (a.class.path.to.callable})
+            mm = MyModel.parse_obj({"fn": "CallableInMain"})
+            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+    """
+
+    __root__: t.Callable
+
+    @classmethod
+    def default_class_path(cls) -> str:
+        return "__main__."
+
+    @classmethod
+    def create(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
+        return cls.validate(value)
+
+    @property
+    def value(self) -> t.Callable:
+        return self.__root__
+
+    @property
+    def full_signature(self) -> inspect.Signature:
+        return inspect.signature(self.__root__)
+
+    @property
+    def args_type(self) -> t.Sequence[t.Optional[t.Type]]:
+        return [
+            None if p.annotation is inspect.Signature.empty else p.annotation
+            for p in self.full_signature.parameters.values()
+        ]
+
+    @property
+    def has_var_positional(self) -> bool:
+        return any(
+            p.kind is p.VAR_POSITIONAL for p in self.full_signature.parameters.values()
+        )
+
+    @property
+    def has_var_keyword(self) -> bool:
+        return any(
+            p.kind is p.VAR_KEYWORD for p in self.full_signature.parameters.values()
+        )
+
+    @property
+    def return_type(self) -> t.Optional[t.Type]:
+        rt = self.full_signature.return_annotation
+        return None if rt is inspect.Signature.empty else rt
+
+    def _iter(self, *args, **kwargs):
+        for k, v in super()._iter(*args, **kwargs):
+            # assert k == "__root__"
+            yield k, self._callable_to_string(v)
+
+    @classmethod
+    def _callable_to_string(cls, clb: t.Callable) -> str:
+        return (
+            clb.__name__
+            if cls.default_class_path()
+            and clb.__module__.startswith(cls.default_class_path())
+            else clb.__module__ + "." + clb.__qualname__
+        )
+
+    @classmethod
+    def _string_to_callable(cls, clb_str: str) -> t.Callable:
+        from pipelime.choixe.utils.imports import import_symbol
+
+        clb_str = clb_str.strip("\"'")
+        if "." not in clb_str:
+            clb_str = cls.default_class_path() + clb_str
+        return import_symbol(clb_str)
+
+    def __call__(self, *args, **kwargs):
+        return self.__root__(*args, **kwargs)
+
+    def __hash__(self) -> int:
+        return hash(self.__root__)
+
+    def __str__(self) -> str:
+        return self._callable_to_string(self.__root__)
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        return repr(self.__root__)
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
+        if isinstance(value, cls):
+            return value
+        try:
+            return cls(
+                __root__=cls._string_to_callable(value)
+                if isinstance(value, str)
+                else value
+            )
+        except Exception as e:
+            raise ValueError(f"Invalid callable: {value}") from e
 
 
 # This is defined here to make it picklable

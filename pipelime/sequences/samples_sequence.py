@@ -539,7 +539,7 @@ def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
         try:
             source_path = inspect.getfile(cls)
             module_path = Path(source_path).resolve().as_posix()
-        except TypeError:
+        except (TypeError, OSError):
             # this happens when the class does not come from a file
             module_path = "__main__"
 

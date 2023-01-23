@@ -3,12 +3,17 @@ import trimesh
 from trimesh.parent import Geometry
 
 from pipelime.items import Item
+from pipelime.items.base import deferred_classattr
 
 
 class Model3DItem(Item[Geometry]):
     """Base class for all mesh types. Subclasses should implement `file_extensions`,
     and, optionally, `save_options` and `load_options`.
     """
+
+    @deferred_classattr
+    def default_concrete(cls):
+        return OBJModel3DItem
 
     @classmethod
     def save_options(cls) -> t.Mapping[str, t.Any]:
