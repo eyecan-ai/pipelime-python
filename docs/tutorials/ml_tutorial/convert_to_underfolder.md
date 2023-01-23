@@ -10,6 +10,11 @@ to the Underfolder format.
 In this tutorial, you will write a samples sequence generator to convert the `iris` dataset
 and you will learn how to call it from command line.
 
+```{warning}
+The purpose of the code you will see in this tutorial is purely didactic.
+Sometimes the implementation is sub-optimal and it is not intended to be used in any real-world scenario.
+```
+
 ## The Iris Dataset
 
 The [iris dataset](https://en.wikipedia.org/wiki/Iris_flower_data_set) is a classic dataset
@@ -33,9 +38,8 @@ The output mapping contains the following keys:
 Mapping such keys to the Underfolder format is straightforward:
 * `data`: each row of the array is a sample
 * `target`: each value is the label ID of a sample
-* `feature_names`: the name of the features can be saved once for all samples,
-so we will put them into a shared item
-* `target_names`: the name of the labels can be saved once for all samples,
+* `feature_names`: the name of the features will be the names of the sample items
+* `target_names`: the name of the target labels can be saved once for all samples,
 so we will put them into a shared item
 
 ## A Samples Sequence Generator
@@ -68,6 +72,7 @@ class IridDataset(SamplesSequence, title="iris"):
     _shared_sample: Sample = PrivateAttr()
     _data_mtx: np.ndarray = PrivateAttr()
     _target_mtx: np.ndarray = PrivateAttr()
+    _feature_names: Sequence[str] = PrivateAttr()
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -75,21 +80,18 @@ class IridDataset(SamplesSequence, title="iris"):
         self._shared_sample = self._make_shared_sample(dataset)
         self._data_mtx = dataset["data"]
         self._target_mtx = dataset["target"]
+        self._feature_names = [
+            fname[:-4].title().replace(" ", "")
+            for fname in dataset["feature_names"]
+        ]
 
     def _make_shared_sample(self, dataset) -> Sample:
         # A sample with shared items is created only once
-        return Sample(
-            # a mapping of item keys to items
+        return Sample(  # a mapping of item keys to items
             {
-                # a YAML metadata item
-                "names": pli.YamlMetadataItem(
-                    # the content of the YAML
-                    {
-                        "features": dataset["feature_names"],
-                        "targets": dataset["target_names"].tolist(),
-                    },
-                    # the item is shared
-                    shared=True,
+                "targets": pli.YamlMetadataItem(  # a YAML metadata item
+                    dataset["target_names"].tolist(),  # the content of the YAML
+                    shared=True,  # the item is shared
                 )
             }
         )
@@ -98,11 +100,13 @@ class IridDataset(SamplesSequence, title="iris"):
         return self._data_mtx.shape[0]
 
     def get_sample(self, idx: int) -> Sample:
-        sample = Sample(
-            # a mapping of item keys to items
+        sample = Sample(  # a mapping of item keys to items
             {
-                # numpy items
-                "data": pli.TxtNumpyItem(self._data_mtx[idx]),
+                # one numpy item for each feature and the target label
+                **{
+                    fname: pli.TxtNumpyItem(self._data_mtx[idx, i])
+                    for i, fname in enumerate(self._feature_names)
+                },
                 "target": pli.TxtNumpyItem(self._target_mtx[idx]),
             }
         )
@@ -110,6 +114,16 @@ class IridDataset(SamplesSequence, title="iris"):
             # the shared sample is merged with the current sample
             sample = self._shared_sample.merge(sample)
         return sample
+```
+
+```{note}
+The code `fname[:-4].title().replace(" ", "")` removes the final `(cm)` text, capitalizes the first letter of each word and strips any space.
+Though not strictly necessary, the ["Creating New Items"](./item_creation.md) step needs this simple processing.
+```
+
+```{hint}
+Pydantic is a powerful framework to enrich your classes with data parsing, validation and smart type checking.
+If you are not familiar with it, take a look at the [official documentation](https://docs.pydantic.dev/).
 ```
 
 ## Iris To Underfolder (Python)

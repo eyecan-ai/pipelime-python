@@ -90,7 +90,7 @@ Where the `class.path.to.check_image_channels` may be a `path/to/script.py:check
 
 ## Custom Sample Validation
 
-If you feel comfortable with [pydantic](https://pydantic-docs.helpmanual.io/) you can even write a custom sample validator as a pydantic model. To validate a sample, pipelime tries to instantiate the model with the sample's items as input keywords, so the previous example can be rewritten as:
+If you feel comfortable with [pydantic](https://docs.pydantic.dev/) you can even write a custom sample validator as a pydantic model. To validate a sample, pipelime tries to instantiate the model with the sample's items as input keywords, so the previous example can be rewritten as:
 
 ```python
 from pydantic import BaseModel, Field, validator

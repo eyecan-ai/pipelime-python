@@ -10,7 +10,7 @@ However, writing a new generator class is not too difficult. First, derive from 
 1. apply the decorator `@source_sequence` to your class
 2. set a `title`: this will be the name of the associated method (see the example below)
 3. provide a class help: it will be used for automatic help generation (see [CLI](../cli/overview.md))
-4. define your parameters as [`pydantic.Field`](https://pydantic-docs.helpmanual.io/): field's description will be used for automatic help generation
+4. define your parameters as [`pydantic.Field`](https://docs.pydantic.dev/): field's description will be used for automatic help generation
 5. implement `def get_sample(self, idx: int) -> Sample` and `def size(self) -> int`
 
 ```python
@@ -44,7 +44,7 @@ class SequenceFromImageList(SamplesSequence, title="from_image_list"):
 ```
 
 In the above example notice that:
-- we use `PrivateAttr` to define an internal variable (see [pydantic](https://pydantic-docs.helpmanual.io/usage/models/#private-model-attributes) for details)
+- we use `PrivateAttr` to define an internal variable (see [pydantic](https://docs.pydantic.dev/usage/models/#private-model-attributes) for details)
 - we delegate to `ItemFactory.get_instance` the actual creation of the item: this way we support any possible extension as well as the [`.remote` files](../advanced/remotes.md)
 
 Once the module is imported, the generator is automatically registered into `SamplesSequence`
@@ -80,7 +80,7 @@ To create your own piped operation just derive from `PipedSequenceBase`, then:
 1. apply the decorator `@piped_sequence` to your class
 2. set a `title`: this will be the name of the associated method (see the example below)
 3. provide a class help: it will be used for automatic help generation (see [CLI](../cli/overview.md))
-4. define your parameters as [`pydantic.Field`](https://pydantic-docs.helpmanual.io/) (Field's description will be used for automatic help generation)
+4. define your parameters as [`pydantic.Field`](https://docs.pydantic.dev/) (Field's description will be used for automatic help generation)
 5. implement `def get_sample(self, idx: int) -> Sample` and, possibly, `def size(self) -> int`
 
 ```python

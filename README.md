@@ -19,7 +19,7 @@ Maybe too much for you? No worries, Pipelime is **modular** and you can just tak
 - **easy dataflow**: Piper can manage and execute directed acyclic graphs (DAGs), giving back feedback on the progress through sockets or custom callbacks.
 - **configuration management**: Choixe is a simple and intuitive mini scripting language designed to ease the creation of configuration files with the help of variables, symbol importing, for loops, switch statements, parameter sweeps and more.
 - **command line interface**: Pipelime can remove all the boilerplate code needed to create a beautiful CLI for you scripts and packages. You focus on *what matters* and we provide input parsing, advanced interfaces for complex arguments, automatic help generation, configuration management. Also, any pipelime command can be used as a node in a dataflow for free!
-- **pydantic tools**: most of the classes in Pipelime derive from [`pydantic.BaseModel`](https://pydantic-docs.helpmanual.io/), so we have built some useful tools to, e.g., inspect their structure, auto-generate human-friendly documentation and more (including a wizard to help you writing input data to [deserialize](https://pydantic-docs.helpmanual.io/usage/models/#helper-functions) any pydantic model).
+- **pydantic tools**: most of the classes in Pipelime derive from [`pydantic.BaseModel`](https://docs.pydantic.dev/), so we have built some useful tools to, e.g., inspect their structure, auto-generate human-friendly documentation and more (including a wizard to help you writing input data to [deserialize](https://docs.pydantic.dev/usage/models/#helper-functions) any pydantic model).
 
 ---
 

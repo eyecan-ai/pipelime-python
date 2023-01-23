@@ -4,7 +4,7 @@
 
 # ML Cocktail: Training A Multi-Layer Perceptron Network
 
-In this recipe we will train a multi-layer perceptron (MLP) network to classify the well-known Iris dataset. You will learn how to:
+In this recipe we will train a multi-layer perceptron (MLP) network to classify the well-known Iris dataset using only the area of the petals and sepals. At the end of this jorney, you will have learned how to:
 1. [generate a dataset from scikit-learn and write it as Underfolder](./convert_to_underfolder.md)
 1. [split your data using Choixe and Piper](./dataset_splitting.md)
 1. [add new items to the samples using entities and actions](./item_creation.md)

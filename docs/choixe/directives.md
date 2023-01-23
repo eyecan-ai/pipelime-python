@@ -254,7 +254,7 @@ Will produce the following **three** outputs:
 ## Instances
 **Instances** allow to dynamically replace configuration nodes with real **python objects**. This can happen in two ways:
 - With the `call` **directive** - dynamically import a python function, invoke it and replace the node content with the function result.
-- With the `model` **directive** - dynamically import a [pydantic](https://pydantic-docs.helpmanual.io/) `BaseModel` and use it to deserialize the content of the current node.
+- With the `model` **directive** - dynamically import a [pydantic](https://docs.pydantic.dev/) `BaseModel` and use it to deserialize the content of the current node.
 
 **Note**: these **directives** can only be used with the **special form**.
 
