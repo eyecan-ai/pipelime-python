@@ -202,7 +202,6 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 
     @classmethod
     def validate(cls, value):
-        print("YamlInput.validate", value)
         if isinstance(value, cls):
             return value
         if isinstance(value, str):
@@ -316,12 +315,13 @@ class TypeDef(
 
     @classmethod
     def _type_to_string(cls, type_: t.Type[TRoot]) -> str:
-        return (
-            type_.__name__
-            if cls.default_class_path()
-            and type_.__module__.startswith(cls.default_class_path())
-            else type_.__module__ + "." + type_.__qualname__
+        full_name = type_.__module__ + "." + type_.__qualname__
+        redux_name = (
+            full_name[len(cls.default_class_path()):]
+            if full_name.startswith(cls.default_class_path())
+            else full_name
         )
+        return full_name if "." in redux_name else redux_name
 
     @classmethod
     def _string_to_type(cls, type_str: str) -> t.Type[TRoot]:
@@ -470,12 +470,13 @@ class CallableDef(
 
     @classmethod
     def _callable_to_string(cls, clb: t.Callable) -> str:
-        return (
-            clb.__name__
-            if cls.default_class_path()
-            and clb.__module__.startswith(cls.default_class_path())
-            else clb.__module__ + "." + clb.__qualname__
+        full_name = clb.__module__ + "." + clb.__qualname__
+        redux_name = (
+            full_name[len(cls.default_class_path()):]
+            if full_name.startswith(cls.default_class_path())
+            else full_name
         )
+        return full_name if "." in redux_name else redux_name
 
     @classmethod
     def _string_to_callable(cls, clb_str: str) -> t.Callable:
