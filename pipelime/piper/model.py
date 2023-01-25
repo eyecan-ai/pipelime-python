@@ -253,6 +253,17 @@ def pipelime_command(__func=None, **__config_kwargs):
     return _make_cmd(__func)
 
 
+def self_() -> "PipelimeCommand":
+    from pipelime.utils.inspection import MyCaller
+
+    parent = MyCaller(1).locals.get("self", None)
+    if parent is None or not isinstance(parent, PipelimeCommand):
+        raise TypeError(
+            "self_() can only be used inside a function decorated as @pipelime_command."
+        )
+    return parent
+
+
 class PiperPortType(Enum):
     INPUT = "input"
     OUTPUT = "output"
