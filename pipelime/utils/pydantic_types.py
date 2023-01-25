@@ -317,7 +317,7 @@ class TypeDef(
     def _type_to_string(cls, type_: t.Type[TRoot]) -> str:
         full_name = type_.__module__ + "." + type_.__qualname__
         redux_name = (
-            full_name[len(cls.default_class_path()):]
+            full_name[len(cls.default_class_path()) :]
             if full_name.startswith(cls.default_class_path())
             else full_name
         )
@@ -440,6 +440,10 @@ class CallableDef(
         return inspect.signature(self.__root__)
 
     @property
+    def args(self) -> t.Sequence[inspect.Parameter]:
+        return list(self.full_signature.parameters.values())
+
+    @property
     def args_type(self) -> t.Sequence[t.Optional[t.Type]]:
         return [
             None if p.annotation is inspect.Signature.empty else p.annotation
@@ -472,7 +476,7 @@ class CallableDef(
     def _callable_to_string(cls, clb: t.Callable) -> str:
         full_name = clb.__module__ + "." + clb.__qualname__
         redux_name = (
-            full_name[len(cls.default_class_path()):]
+            full_name[len(cls.default_class_path()) :]
             if full_name.startswith(cls.default_class_path())
             else full_name
         )
@@ -512,9 +516,9 @@ class CallableDef(
             return value
         try:
             return cls(
-                __root__=cls._string_to_callable(value)
-                if isinstance(value, str)
-                else value
+                __root__=(
+                    cls._string_to_callable(value) if isinstance(value, str) else value
+                )
             )
         except Exception as e:
             raise ValueError(f"Invalid callable: {value}") from e
