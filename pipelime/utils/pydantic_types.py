@@ -13,6 +13,25 @@ if t.TYPE_CHECKING:
     from numpy.typing import ArrayLike
 
 
+class NewPath(Path):
+    @classmethod
+    def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
+        field_schema.update(format="new-path")
+
+    @classmethod
+    def __get_validators__(cls):
+        from pydantic.validators import path_validator
+
+        yield path_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Path) -> Path:
+        if value.exists():
+            raise ValueError(f"Path {value} already exists")
+        return value
+
+
 class NumpyType(
     pyd.BaseModel,
     extra="forbid",
