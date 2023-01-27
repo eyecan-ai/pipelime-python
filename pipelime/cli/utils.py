@@ -143,9 +143,7 @@ class PipelimeSymbolsHelper:
             for module_name in cls.std_modules + cls.extra_modules:
                 if module_name not in cls.cached_modules:
                     cls.cached_modules[module_name] = (
-                        pl_imports.import_module_from_file(module_name)
-                        if module_name.endswith(".py")
-                        else pl_imports.import_module_from_path(module_name)
+                        pl_imports.import_module(module_name)
                     )
 
             cls.cached_seq_ops = {
