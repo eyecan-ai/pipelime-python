@@ -1,35 +1,35 @@
 import pytest
 import typing as t
 from pydantic import Field
-from pipelime.piper import pipelime_command, PipelimeCommand
+from pipelime.piper import command, PipelimeCommand
 
 
-@pipelime_command
+@command
 def posonly(a: str, b: int = 42, c: bool = False, /):
     print(a, b, c)
 
 
-@pipelime_command
+@command
 def posorkw(a: str, b=42, c: bool = False):
     print(a, b, c)
 
 
-@pipelime_command
+@command
 def kwonly(*, a: str, b: int = 42, c: bool = False):
     print(a, b, c)
 
 
-@pipelime_command
+@command
 def varpos(*a: str):
     print(a)
 
 
-@pipelime_command
+@command
 def varkw(**a: str):
     print(a)
 
 
-@pipelime_command
+@command
 def mixed(
     a: str = Field(...),
     b: int = Field(42),
@@ -48,7 +48,7 @@ def mixed(
     print(g, h, i)
 
 
-@pipelime_command
+@command
 def mixed_var(
     a: str,
     b: int = 42,
@@ -77,7 +77,7 @@ class MyType:
     pass
 
 
-@pipelime_command(title="add-up-these", arbitrary_types_allowed=True)
+@command(title="add-up-these", arbitrary_types_allowed=True)
 def my_addup_func(a: int, b: int, c: t.Optional[MyType] = None):
     """This is a function that adds two numbers"""
     print(a + b)

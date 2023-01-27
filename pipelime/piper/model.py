@@ -12,8 +12,8 @@ if t.TYPE_CHECKING:
 # otherwise it would complain when calling the command
 # TODO: forward with typing.ParamSpec (New in Python 3.10) to get full type checking
 @t.overload
-def pipelime_command(
-    **__config_kwargs,
+def command(
+    *, title: t.Optional[str] = None, **__config_kwargs,
 ) -> t.Callable[[t.Callable[..., None]], t.Callable[..., t.Type["PipelimeCommand"]]]:
     ...
 
@@ -22,13 +22,13 @@ def pipelime_command(
 # otherwise it would complain when calling the command
 # TODO: forward with typing.ParamSpec (New in Python 3.10) to get full type checking
 @t.overload
-def pipelime_command(
+def command(
     __func: t.Callable[..., None]
 ) -> t.Callable[..., t.Type["PipelimeCommand"]]:
     ...
 
 
-def pipelime_command(__func=None, **__config_kwargs):
+def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     """Creates a full-fledged PipelimeCommand from a general function.
     The command will have the same exact signature and docstring of the function.
     Field names and types will taken from the function parameters and validated as usual.
@@ -45,7 +45,7 @@ def pipelime_command(__func=None, **__config_kwargs):
     Examples:
         Create a command with the same name of the function::
 
-            @pipelime_command
+            @command
             def addup(a: int, b: int):
                 print(a + b)
 
@@ -55,7 +55,7 @@ def pipelime_command(__func=None, **__config_kwargs):
 
         Create a command with custom name and non-pydantic types::
 
-            @pipelime_command(title="add-up-these", arbitrary_types_allowed=True)
+            @command(title="add-up-these", arbitrary_types_allowed=True)
             def my_addup_func(a: int, b: int, c: t.Optional[MyType] = None):
                 print(a + b)
 
@@ -65,7 +65,7 @@ def pipelime_command(__func=None, **__config_kwargs):
 
         Create a command with field aliases and default factories::
 
-            @pipelime_command
+            @command
             def merge_lists(
                 first: t.List[int] = Field(default_factory=list, alias="f"),
                 second: t.List[int] = Field(default_factory=list, alias="s"),
@@ -78,7 +78,7 @@ def pipelime_command(__func=None, **__config_kwargs):
 
         Create a command with help messages::
 
-            @pipelime_command(title="merge")
+            @command(title="merge")
             def merge_lists(
                 first: t.List[int] = Field(
                     default_factory=list, alias="f", description="first list"
@@ -94,6 +94,9 @@ def pipelime_command(__func=None, **__config_kwargs):
 
             $ pipelime merge help
     """
+
+    if title is not None:
+        __config_kwargs["title"] = title
 
     def _make_cmd(func):
         import inspect
@@ -251,6 +254,17 @@ def pipelime_command(__func=None, **__config_kwargs):
     if __func is None:
         return _make_cmd
     return _make_cmd(__func)
+
+
+def self_() -> "PipelimeCommand":
+    from pipelime.utils.inspection import MyCaller
+
+    parent = MyCaller(1).locals.get("self", None)
+    if parent is None or not isinstance(parent, PipelimeCommand):
+        raise TypeError(
+            "self_() can only be used inside a function decorated as @command."
+        )
+    return parent
 
 
 class PiperPortType(Enum):

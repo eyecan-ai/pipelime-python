@@ -143,9 +143,7 @@ class PipelimeSymbolsHelper:
             for module_name in cls.std_modules + cls.extra_modules:
                 if module_name not in cls.cached_modules:
                     cls.cached_modules[module_name] = (
-                        pl_imports.import_module_from_file(module_name)
-                        if module_name.endswith(".py")
-                        else pl_imports.import_module_from_path(module_name)
+                        pl_imports.import_module(module_name)
                     )
 
             cls.cached_seq_ops = {
@@ -211,7 +209,7 @@ class PipelimeSymbolsHelper:
                     imported_symbol._classpath = symbol_path
 
                 return imported_symbol
-            except ImportError:
+            except (ImportError, TypeError):
                 return None
 
         for sym_type, sym_dict in symbol_cache.items():
@@ -298,6 +296,35 @@ def _print_info(
         )
 
 
+def _unwrap_generic_type(symbol, verbose: bool):
+    from pipelime.cli.pretty_print import print_debug
+    from rich.markup import escape
+
+    if verbose:
+        symstr = escape(repr(symbol))
+        for name in (
+            "Callable",
+            "Tuple",
+            "List",
+            "Dict",
+            "Mapping",
+            "Sequence",
+            "Union",
+            "Literal",
+            "Final",
+            "ClassVar",
+        ):
+            symstr = symstr.replace(name, f"[dark_red]{name}[/dark_red]")
+        print_debug(f"Unwrapping [not italic]{symstr}[/]")
+    all_types = set()
+    if t.get_origin(symbol) is None:
+        all_types.add(symbol)
+    else:
+        for arg in t.get_args(symbol):
+            all_types.update(_unwrap_generic_type(arg, verbose))
+    return all_types
+
+
 def print_command_op_stage_info(
     command_operator_stage: str, show_description: bool = True, recursive: bool = True
 ):
@@ -343,17 +370,21 @@ def print_command_op_stage_info(
     if not available_defs:
         # Try a generic import
         try:
-            available_defs.append(
+            sym = import_symbol(command_operator_stage)
+        except ImportError:
+            pass
+        else:
+            sym = _unwrap_generic_type(sym, verbose=True)
+            available_defs.extend(
                 (
                     (
                         ("Imported Symbol", "Imported Symbols"),
-                        import_symbol(command_operator_stage),
+                        s,
                     ),
                     {"show_class_path": True, "show_piper_port": False},
                 )
+                for s in sym
             )
-        except ImportError:
-            pass
 
     if not available_defs:
         PipelimeSymbolsHelper.show_error_and_help(
@@ -368,11 +399,15 @@ def print_command_op_stage_info(
 
     if len(available_defs) > 1:
         from rich.prompt import Prompt
+        from rich.markup import escape
 
         print_info("Multiple definitions found!")
         idx = Prompt.ask(
             ">>> Show:\n"
-            + "\n".join(f"[{i:>2}] {v[0][0][0]}" for i, v in enumerate(available_defs))
+            + "\n".join(
+                escape(f"[{i:>2}] {v[0][0][0]} {v[0][1]}")
+                for i, v in enumerate(available_defs)
+            )
             + "\n[-1] ALL\n>>>",
             choices=["-1"] + list(str(v) for v in range(len(available_defs))),
             default="-1",

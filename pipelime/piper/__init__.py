@@ -1,1 +1,1 @@
-from pipelime.piper.model import pipelime_command, PipelimeCommand, PiperPortType
+from pipelime.piper.model import command, self_, PipelimeCommand, PiperPortType
