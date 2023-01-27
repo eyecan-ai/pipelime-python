@@ -12,11 +12,11 @@ from uuid import uuid1
 class add_to_sys_path(ContextDecorator):
     """add_to_sys_path context decorator temporarily adds a path to sys.path"""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: str) -> None:
         self._new_cwd = path
 
     def __enter__(self) -> None:
-        sys.path.insert(0, str(self._new_cwd))
+        sys.path.insert(0, self._new_cwd)
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         sys.path.pop(0)
@@ -66,21 +66,14 @@ def import_module_from_file(
         ModuleType: _description_
     """
     module_path = Path(module_file_path)
-    if cwd is None:
-        cwd = module_path.parent if module_path.is_absolute() else Path(os.getcwd())
+    if not module_path.is_absolute() and cwd is not None:
+        module_path = cwd / module_path
 
-    with add_to_sys_path(cwd):
-        id_ = uuid1().hex
-        spec = importlib.util.spec_from_file_location(id_, str(module_path))
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load module `{module_path}`")
-        module_ = importlib.util.module_from_spec(spec)
-        with add_to_sys_module(module_, id_):
-            spec.loader.exec_module(module_)
-        return module_
+    with add_to_sys_path(str(module_path.parent)):
+        return import_module_from_class_path(module_path.stem)
 
 
-def import_module_from_path(module_class_path: str) -> ModuleType:
+def import_module_from_class_path(module_class_path: str) -> ModuleType:
     return importlib.import_module(module_class_path)
 
 
@@ -90,7 +83,7 @@ def import_module(
     return (
         import_module_from_file(module_file_or_class_path, cwd)
         if module_file_or_class_path.endswith(".py")
-        else import_module_from_path(module_file_or_class_path)
+        else import_module_from_class_path(module_file_or_class_path)
     )
 
 
@@ -118,24 +111,29 @@ def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
     """
     try:
         if ":" in symbol_path:
+            # path/to/my_file.py:MyClass
             module_path, _, symbol_name = symbol_path.rpartition(":")
             module_ = import_module_from_file(module_path, cwd)
             symbol_name = symbol_name.split(".")
         else:
+            # package.module.MyClass.MyNestedClass
             module_path, _, symbol_name = symbol_path.rpartition(".")
             symbol_name = [symbol_name]
             module_ = None
             while module_path:
                 try:
-                    module_ = import_module_from_path(module_path)
+                    module_ = import_module_from_class_path(module_path)
                     module_path = None
                 except ModuleNotFoundError:
+                    # the symbol is nested, so we need to import the parent class path
                     module_path, _, cl_path = module_path.rpartition(".")
                     symbol_name.insert(0, cl_path)
 
         if module_ is None:
             raise ModuleNotFoundError("Module path not found")
 
+        # import the symbol
+        # if nested, we need to import the parent symbols first
         symbol = module_
         for name in symbol_name:
             symbol = getattr(symbol, name)

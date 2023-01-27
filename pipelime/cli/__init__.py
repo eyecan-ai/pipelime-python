@@ -7,28 +7,6 @@ from pipelime.cli.utils import (
 import typing as t
 
 
-class _CallerHelper:
-    @staticmethod
-    def get_my_caller():
-        import inspect
-
-        return inspect.stack()[2]
-
-    @staticmethod
-    def get_module(caller) -> str:
-        return caller.frame.f_globals["__name__"]
-
-    @staticmethod
-    def get_package(caller_module) -> str:
-        return caller_module.partition(".")[0].capitalize()
-
-    @staticmethod
-    def get_docstring(caller) -> t.Optional[str]:
-        import inspect
-
-        return inspect.getdoc(caller.frame.f_globals.get(caller.function))
-
-
 class PipelimeApp:
     def __init__(
         self,
@@ -55,14 +33,16 @@ class PipelimeApp:
             **extra_args (str): additional command line arguments. When an argument
                 must be specified multiple times, use a list as value.
         """
-        caller = _CallerHelper.get_my_caller()
-        caller_module: str = _CallerHelper.get_module(caller)
+        from pipelime.utils.inspection import MyCaller
+
+        caller = MyCaller()
+        caller_module = caller.module
 
         if app_name is None:
-            app_name = _CallerHelper.get_package(caller_module)
+            app_name = caller.package.capitalize()
 
         if app_description is None:
-            app_description = _CallerHelper.get_docstring(caller)
+            app_description = caller.docstrings
 
         self._app_name = app_name
         self._entry_point = entry_point
@@ -93,26 +73,27 @@ class PipelimeApp:
 def run():
     """Runs a default PipelimeApp instance from your module.
 
-        Example:
-            ```
-            @pipelime_command
-            def my_command():
-                ...
+    Example:
+        ```
+        @pipelime_command
+        def my_command():
+            ...
 
-            if __name__ == "__main__":
-                run()
-            ```
+        if __name__ == "__main__":
+            run()
+        ```
     """
+    from pipelime.utils.inspection import MyCaller
     from pathlib import Path
 
-    caller = _CallerHelper.get_my_caller()
+    caller = MyCaller()
     caller_path = Path(caller.filename)
 
     app = PipelimeApp(
-        _CallerHelper.get_module(caller),
+        caller.module,
         app_name=caller_path.stem,
         entry_point=f"python {caller_path.name}",
-        app_description=_CallerHelper.get_docstring(caller),
+        app_description=caller.docstrings,
         app_version="<not set>",
     )
     app()

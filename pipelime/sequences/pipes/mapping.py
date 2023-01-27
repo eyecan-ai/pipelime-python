@@ -4,6 +4,7 @@ import pydantic as pyd
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
 from pipelime.stages import StageInput
+from pipelime.utils.pydantic_types import CallableDef
 
 
 @pls.piped_sequence
@@ -19,26 +20,20 @@ class MappedSequence(PipedSequenceBase, title="map"):
         return self.stage(self.source[idx])
 
 
-any_condition_t = t.Union[
-    t.Callable[[], bool],
-    t.Callable[[int], bool],
-    t.Callable[[int, pls.Sample], bool],
-    t.Callable[[int, pls.Sample, pls.SamplesSequence], bool],
-]
-
-
 @pls.piped_sequence
 class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
-    """Applies a stage on all samples if a condition returns True."""
+    """Applies a stage only when a condition returns True."""
 
     stage: StageInput = pyd.Field(...)
-    condition: any_condition_t = pyd.Field(
+    condition: CallableDef = pyd.Field(
         ...,
         description=(
             "A callable that returns True if the sample should be mapped through "
-            "the stage. Accepted signatures `() -> bool`, `(index: int) -> bool`, "
-            "`(index: int, sample: Sample) -> bool`, "
-            "`(index: int, sample: Sample, source: SamplesSequence) -> bool`."
+            "the stage. Accepted signatures:\n"
+            "  `() -> bool`\n"
+            "  `(index: int) -> bool`\n"
+            "  `(index: int, sample: Sample) -> bool`\n"
+            "  `(index: int, sample: Sample, source: SamplesSequence) -> bool`."
         ),
     )
 
@@ -79,18 +74,18 @@ class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
 
         super().__init__(**data)
 
-        prms = signature(self.condition).parameters
-        has_var_pos = any(p.kind == Parameter.VAR_POSITIONAL for p in prms.values())
-        if len(prms) > 4 or (len(prms) == 4 and not has_var_pos):
+        num_prms = len(self.condition.args)
+        has_var_pos = self.condition.has_var_positional
+        if num_prms > 4 or (num_prms == 4 and not has_var_pos):
             raise ValueError(
-                f"Invalid signature for `condition`: {signature(self.condition)}"
+                f"Invalid signature for `condition`: {self.condition.full_signature}"
             )
 
-        if len(prms) == 3 or has_var_pos:
+        if num_prms == 3 or has_var_pos:
             self._call_condition = self._call3
-        elif len(prms) == 2:
+        elif num_prms == 2:
             self._call_condition = self._call2
-        elif len(prms) == 1:
+        elif num_prms == 1:
             self._call_condition = self._call1
         else:
             self._call_condition = self._call0
