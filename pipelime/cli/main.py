@@ -91,7 +91,9 @@ def _process_cfg_or_die(
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
-            print_error(f"Invalid {cfg_name}! {e}\nRun with -vv to get more info.")
+            print_error(
+                f"Invalid {cfg_name}! {e}\nRun with -vv or more to get more info."
+            )
             raise typer.Exit(1)
         raise e
 
@@ -446,17 +448,68 @@ def pl_main(
         # process contexts to resolve imports and local loops
         if verbose > 2:
             print_info("\nProcessing context files:")
-        effective_ctx = [
-            _process_cfg_or_die(
-                c, None, "context", run_all, output_ctx, True, verbose > 2
-            )
-            for c in base_ctx
-            if c.to_dict()
-        ]
+
+        def _sum(a: XConfig, b: XConfig) -> XConfig:
+            a = XConfig(data=a.to_dict(), cwd=a.get_cwd(), schema=a.get_schema())
+            a.deep_update(b, full_merge=True)
+            return a
+
+        def _ctx_for_ctx_update(ctx_for_ctx: XConfig, new_ctxs: t.Sequence[XConfig]):
+            for newc in new_ctxs:
+                ctx_for_ctx = _sum(newc, ctx_for_ctx)
+            return ctx_for_ctx
+
+        # use the command line context to process the other contexts
+        effective_ctx = []
+        ctx_for_ctx = base_ctx[-1]
+        for idx, curr_ctx in enumerate(base_ctx):
+            if curr_ctx.to_dict():
+                # the context itself is a valid context
+                curr_ctx_for_ctx = _sum(curr_ctx, ctx_for_ctx)
+
+                if verbose > 3:
+                    print_info(f"[{idx}] context to process:")
+                    print_info(curr_ctx.to_dict(), pretty=True)
+                    print_info(f"[{idx}] context for context")
+                    print_info(curr_ctx_for_ctx.to_dict(), pretty=True)
+                if verbose > 2:
+                    print_info(f"[{idx}] preprocessing...")
+
+                new_ctxs = _process_cfg_or_die(
+                    curr_ctx,
+                    curr_ctx_for_ctx,
+                    "context",
+                    run_all,
+                    output_ctx,
+                    True,
+                    verbose > 2,
+                )
+                partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
+
+                if verbose > 3:
+                    print_info(f"[{idx}] updated context for context")
+                    print_info(partial_ctx_for_ctx.to_dict(), pretty=True)
+                if verbose > 2:
+                    print_info(f"[{idx}] processing self-references...")
+
+                new_ctxs = _process_cfg_or_die(
+                    curr_ctx,
+                    partial_ctx_for_ctx,
+                    "context",
+                    run_all,
+                    output_ctx,
+                    True,
+                    verbose > 2,
+                )
+                ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
+
+                if verbose > 3:
+                    print_info(f"[{idx}] final updated context for context")
+                    print_info(ctx_for_ctx.to_dict(), pretty=True)
+
+                effective_ctx.extend(new_ctxs)
+
         if effective_ctx:
-            effective_ctx = functools.reduce(
-                lambda acc, curr: acc + curr, effective_ctx
-            )
             effective_ctx = functools.reduce(
                 lambda acc, curr: _deep_update_fn(acc, curr), effective_ctx
             )
@@ -493,9 +546,9 @@ def pl_main(
                     base_cfg, effective_ctx, output, run_all, False, verbose > 2
                 )
             except ChoixeProcessingError as e:
-                from rich.prompt import Confirm, Prompt
+                # from rich.prompt import Confirm, Prompt
 
-                from pipelime.cli.wizard import Wizard
+                # from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
                 print_error(f"Invalid configuration! {e}")

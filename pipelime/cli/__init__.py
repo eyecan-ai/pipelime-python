@@ -75,7 +75,7 @@ def run():
 
     Example:
         ```
-        @pipelime_command
+        @command
         def my_command():
             ...
 
