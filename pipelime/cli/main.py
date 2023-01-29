@@ -525,11 +525,11 @@ def pl_main(
 
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
-            print_info("\n📄 CONFIGURATION AUDIT\n")
+            print_info("\n📄 CONFIGURATION AUDIT")
             for idx, c in enumerate(base_cfg):
                 if len(base_cfg) > 1:
                     name = str(config[idx]) if idx < len(config) else "command line"
-                    print_info(f"*** {name}")
+                    print_info(f"\n*** {name}")
                 inspect_info = c.inspect()
                 for field in fields(inspect_info):
                     value = getattr(inspect_info, field.name)
@@ -537,7 +537,7 @@ def pl_main(
                     if value or isinstance(value, bool):
                         print_info(value, pretty=True, indent_guides=False)
 
-            print_info("\n📄 CONTEXT AUDIT\n")
+            print_info("\n📄 EFFECTIVE CONTEXT\n")
             print_info(effective_ctx.to_dict(), pretty=True, indent_guides=False)
             print_info("")
 
