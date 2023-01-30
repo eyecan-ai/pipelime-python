@@ -480,7 +480,7 @@ def pl_main(
                     curr_ctx_for_ctx,
                     "context",
                     run_all,
-                    output_ctx,
+                    None,
                     True,
                     verbose > 2,
                 )
@@ -497,7 +497,7 @@ def pl_main(
                     partial_ctx_for_ctx,
                     "context",
                     run_all,
-                    output_ctx,
+                    None,
                     True,
                     verbose > 2,
                 )

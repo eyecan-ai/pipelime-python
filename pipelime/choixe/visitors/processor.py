@@ -234,7 +234,9 @@ class Processor(ast.NodeVisitor):
                     res = {}
                     [res.update(item) for item in branch]
                 else:
-                    raise ChoixeProcessingError(f"Invalid loop body: {branch[0]} is not a valid type")
+                    raise ChoixeProcessingError(
+                        f"Invalid loop body: {branch[0]} is not a valid type"
+                    )
             branches[i] = res
 
         return branches
