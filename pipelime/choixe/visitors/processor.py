@@ -254,7 +254,6 @@ class Processor(ast.NodeVisitor):
         branches = []
         for branch in all_branches:
             value = py_.get(self._context, branch[0])
-            found = False
             for i in range(len(node.cases)):
                 set_ = branch[i + 1]
                 if not isinstance(set_, Iterable) or isinstance(set_, str):
@@ -262,10 +261,10 @@ class Processor(ast.NodeVisitor):
 
                 if value in set_:
                     branches.append(branch[i + 1 + len(node.cases)])
-                    found = True
                     break
-            if not found and branch[-1] is not None:
-                branches.append(branch[-1])
+            else:
+                if node.default is not None:
+                    branches.append(branch[-1])
 
         return branches
 
