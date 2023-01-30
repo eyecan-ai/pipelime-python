@@ -7,7 +7,7 @@ if t.TYPE_CHECKING:
 
 
 class ActionInfo(BaseModel):
-    action: t.Union[t.Type, t.Callable]
+    action: t.Callable
     name: str
     description: str
     classpath: str
