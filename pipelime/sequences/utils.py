@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing as t
+from pathlib import Path
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -116,17 +117,20 @@ class DataStream(
 
     @classmethod
     def read_write_underfolder(
-        cls, path: str, must_exists: bool = True, zfill: t.Optional[int] = None
+        cls,
+        path: t.Union[str, Path],
+        must_exists: bool = True,
+        zfill: t.Optional[int] = None,
     ) -> DataStream:
         """Creates a DataStream to read and write samples from the same underfolder."""
         seq: SamplesSequence = SamplesSequence.from_underfolder(
-            path, must_exist=must_exists, watch=True
+            path, must_exist=must_exists, watch=True  # type: ignore
         )
         return cls(
             input_sequence=seq,  # type: ignore
             output_pipe={
                 "to_underfolder": {
-                    "folder": path,
+                    "folder": str(path),
                     "exists_ok": True,
                     "zfill": seq.best_zfill()
                     if zfill is None
@@ -136,16 +140,18 @@ class DataStream(
         )
 
     @classmethod
-    def create_new_underfolder(cls, path: str, zfill: int = 0) -> DataStream:
+    def create_new_underfolder(
+        cls, path: t.Union[str, Path], zfill: int = 0
+    ) -> DataStream:
         """Creates a DataStream to write samples to a new underfolder dataset."""
         seq: SamplesSequence = SamplesSequence.from_underfolder(
-            path, must_exist=False, watch=True
+            path, must_exist=False, watch=True  # type: ignore
         )
         return cls(
             input_sequence=seq,  # type: ignore
             output_pipe={
                 "to_underfolder": {
-                    "folder": path,
+                    "folder": str(path),
                     "exists_ok": False,
                     "zfill": zfill,
                 }
@@ -153,7 +159,7 @@ class DataStream(
         )
 
     @classmethod
-    def create_output_stream(cls, path: str, zfill: int = 0) -> DataStream:
+    def create_output_stream(cls, path: t.Union[str, Path], zfill: int = 0) -> DataStream:
         """Creates a DataStream to write samples to a new underfolder dataset
         or update an existing one. NB: Samples cannot be read from this stream.
         """
@@ -161,7 +167,7 @@ class DataStream(
             input_sequence=None,
             output_pipe={
                 "to_underfolder": {
-                    "folder": path,
+                    "folder": str(path),
                     "exists_ok": True,
                     "zfill": zfill,
                 }

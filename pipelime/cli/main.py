@@ -574,11 +574,18 @@ def pl_main(
             # if outfile:
             #     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 
-            pls = "s" if len(effective_configs) != 1 else ""
+            cfg_size = len(effective_configs)
+            pls = "s" if cfg_size != 1 else ""
             print_info(
-                "🎉 Configuration successfully processed "
-                f"({len(effective_configs)} variant{pls})."
+                f"🎉 Configuration successfully processed ({cfg_size} variant{pls})."
             )
+
+            if verbose > 2:
+                print_info("\nFinal effective configurations:")
+                for idx, cfg in enumerate(effective_configs):
+                    print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
+                    print_info(cfg.to_dict(), pretty=True)
+
             raise typer.Exit(0)
         else:
             from pipelime.cli.pretty_print import show_spinning_status
