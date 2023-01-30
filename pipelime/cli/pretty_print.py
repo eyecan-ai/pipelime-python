@@ -242,7 +242,7 @@ def _field_row(
         else:
             field_docs = ""
 
-        field_docs = " ".join(field_docs.split())
+        # field_docs = " ".join(field_docs.split())
 
     has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
     field_outer_type = (
