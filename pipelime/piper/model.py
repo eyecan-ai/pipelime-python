@@ -5,7 +5,7 @@ import typing as t
 from pydantic import BaseModel, Field, PrivateAttr
 
 if t.TYPE_CHECKING:
-    from pipelime.piper.progress.tracker.base import Tracker
+    from pipelime.piper.progress.tracker.base import Tracker, TrackedTask
 
 
 # The return type is a hack to fool the type checker
@@ -352,6 +352,7 @@ class PipelimeCommand(
         size: t.Optional[int] = None,
         message: str = "",
     ) -> t.Iterable:
+        """Track a sequence with a progress bar or a piper task."""
         import rich.progress
 
         if self._piper.active:
@@ -363,6 +364,10 @@ class PipelimeCommand(
                 total=len(seq) if size is None else size,  # type: ignore
                 description="🍋 " + message,
             )
+
+    def create_task(self, total: int, message: str = "") -> "TrackedTask":
+        """Explicit piper task creation."""
+        return self._get_piper_tracker().create_task(total, message)
 
     def __call__(self) -> None:
         self.run()
