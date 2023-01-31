@@ -138,7 +138,7 @@ class Tracker:
         """Track a generic iterable sequence"""
 
         with self.create_task(
-            size=len(seq) if size is None else size, message=message  # type: ignore
+            total=len(seq) if size is None else size, message=message  # type: ignore
         ) as t:
             for x in seq:
                 yield x
