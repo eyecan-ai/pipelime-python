@@ -403,7 +403,7 @@ class SerializationModeInterface(
         ]
 
     def get_context_manager(self) -> t.ContextManager:
-        from pipelime.utils.context_manager_list import ContextManagerList
+        from pipelime.utils.context_managers import ContextManagerList
 
         return ContextManagerList(
             *self._overridden_modes_cms, *self._disabled_modes_cms

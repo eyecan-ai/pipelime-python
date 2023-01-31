@@ -35,8 +35,13 @@ class RunCommand(PipelimeCommand, title="run"):
             "The execution token. If not specified, a new token will be generated."
         ),
     )
-    watch: bool = Field(
-        True, alias="w", description="Monitor the execution in the current console."
+    watch: t.Optional[bool] = Field(
+        None,
+        alias="w",
+        description=(
+            "Monitor the execution in the current console. "
+            "Defaults to True if no token is provided, False othrewise."
+        ),
     )
     successful: bool = Field(
         None,
@@ -53,8 +58,14 @@ class RunCommand(PipelimeCommand, title="run"):
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel, NodesDefinition
 
+        watch = self.watch
         if not self.token:
             self.token = uuid.uuid1().hex
+            if self.watch is None:
+                watch = True
+        else:
+            if self.watch is None:
+                watch = False
 
         inc_n = [self.include] if isinstance(self.include, str) else self.include
         exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
@@ -67,7 +78,7 @@ class RunCommand(PipelimeCommand, title="run"):
         nodes = {name: cmd for name, cmd in self.nodes.items() if _node_to_run(name)}
         dag = DAGModel(nodes=NodesDefinition.create(nodes))
         graph = DAGNodesGraph.build_nodes_graph(dag)
-        executor = NodesGraphExecutorFactory.get_executor(watch=self.watch)
+        executor = NodesGraphExecutorFactory.get_executor(watch=watch)
         self.successful = executor.exec(graph, token=self.token)
 
 
@@ -204,3 +215,29 @@ class DrawCommand(PipelimeCommand, title="draw"):
                 graph_image = drawer.draw(graph=graph, **extra)
                 img = Image.fromarray(graph_image, "RGB")
                 img.show("Graph")
+
+
+class WatchCommand(PipelimeCommand, title="watch"):
+    token: str = Field(
+        ..., alias="t", description="The token of the DAG you want to monitor."
+    )
+
+    def run(self):
+        from pipelime.piper.progress.listener.base import Listener
+        from pipelime.piper.progress.listener.factory import (
+            ListenerCallbackFactory,
+            ProgressReceiverFactory,
+        )
+        from pipelime.utils.context_managers import CatchSignals
+        from time import sleep
+
+        receiver = ProgressReceiverFactory.get_receiver(self.token)
+        callback = ListenerCallbackFactory.get_callback()
+        listener = Listener(receiver, callback)
+        listener.start()
+
+        with CatchSignals() as catcher:
+            while not catcher.interrupted:
+                sleep(0.01)
+
+        listener.stop()
