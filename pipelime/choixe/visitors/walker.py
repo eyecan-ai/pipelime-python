@@ -51,13 +51,14 @@ class Walker(Unparser):
         return chunk
 
     def _wrapped_visit(self, func: Callable[[Node], Any]) -> Callable[[Node], Any]:
-        def wrapper(node: Node) -> Chunk:
+        def wrapper(node: Node):
             data = func(node)
 
             if isinstance(data, List):
                 data = dict(enumerate(data))
 
-            if isinstance(data, Dict):
+            # NB: empty dicts must not be chunkified!
+            if isinstance(data, Dict) and data:
                 return self._chunkify(data)
             else:
                 return data

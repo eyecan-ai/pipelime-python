@@ -249,6 +249,10 @@ class PipelimeSymbolsHelper:
         return sym_cls
 
     @classmethod
+    def get_action(cls, action_name: str):
+        return PipelimeSymbolsHelper.get_actions().get(action_name, None)
+
+    @classmethod
     def show_error_and_help(
         cls, name: str, should_be_cmd: bool, should_be_op: bool, should_be_stage: bool
     ):

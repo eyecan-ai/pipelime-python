@@ -307,7 +307,7 @@ class ActionDef(CallableDef):
             return value
         if isinstance(value, str):
             # action is function
-            act = PipelimeSymbolsHelper.get_actions().get(value, None)
+            act = PipelimeSymbolsHelper.get_action(value)
             if act is not None:
                 value = act.action
         elif isinstance(value, t.Mapping):
