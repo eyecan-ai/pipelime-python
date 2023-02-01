@@ -364,7 +364,7 @@ def _rand(
         results = distribution.sample(n_)
 
     if integer:
-        results = np.floor(results).astype(np.int32)
+        results = np.floor(results).astype(np.int64)
 
     if n == 0:
         return results.item()
