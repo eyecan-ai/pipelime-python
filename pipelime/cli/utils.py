@@ -7,7 +7,7 @@ if t.TYPE_CHECKING:
 
 
 class ActionInfo(BaseModel):
-    action: t.Union[t.Type, t.Callable]
+    action: t.Callable
     name: str
     description: str
     classpath: str
@@ -247,6 +247,10 @@ class PipelimeSymbolsHelper:
         if not isinstance(sym_cls, tuple):
             return (("Imported Stage", "Imported Stages"), sym_cls)
         return sym_cls
+
+    @classmethod
+    def get_action(cls, action_name: str):
+        return PipelimeSymbolsHelper.get_actions().get(action_name, None)
 
     @classmethod
     def show_error_and_help(

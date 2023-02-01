@@ -9,8 +9,32 @@ from pipelime.items import Item
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
+ActionTp = t.TypeVar("ActionTp", bound=t.Callable)
 
-def register_action(title: str, *, description: t.Optional[str] = None):
+
+@t.overload
+def register_action(
+    *, title: t.Optional[str] = None, description: t.Optional[str] = None
+) -> t.Callable[[ActionTp], ActionTp]:
+    ...
+
+
+@t.overload
+def register_action(__action: ActionTp) -> ActionTp:
+    ...
+
+
+def register_action(
+    __action=None, *, title: t.Optional[str] = None, description: t.Optional[str] = None
+):
+    """Register an action (class or function)
+
+    Args:
+        __action (_type_, optional): _description_. Defaults to None.
+        title (t.Optional[str], optional): _description_. Defaults to None.
+        description (t.Optional[str], optional): _description_. Defaults to None.
+    """
+
     def _decorator(func):
         from pathlib import Path
         from pipelime.cli.utils import ActionInfo, PipelimeSymbolsHelper
@@ -43,7 +67,9 @@ def register_action(title: str, *, description: t.Optional[str] = None):
         )
         return func
 
-    return _decorator
+    if __action is None:
+        return _decorator
+    return _decorator(__action)
 
 
 ItTp = t.TypeVar("ItTp", bound=Item)
@@ -241,54 +267,57 @@ class BaseEntity(
                     # user has no preference on the actual Item class,
                     # so keep the original item type if it is a subclass
                     # of the declared output item type
-                    actual_item = None
                     if k in other_dict:
                         other_item_obj = other_dict[k]
-                        my_item_cls = Item
-                        if my_k_field:
-                            my_item_cls = my_k_field.outer_type_
-                            if issubclass(my_item_cls, ParsedItem):
-                                my_item_cls = my_item_cls.raw_item_type()
-                        if isinstance(other_item_obj, my_item_cls):
-                            actual_item = other_item_obj
-
-                    if actual_item is not None:
-                        kwargs[k] = actual_item.make_new(
-                            ParsedItem.value_to_item_data(v)
-                        )
-
+                        if other_item_obj is not None:
+                            my_item_cls = Item
+                            if my_k_field:
+                                my_item_cls = my_k_field.outer_type_
+                                if issubclass(my_item_cls, ParsedItem):
+                                    my_item_cls = my_item_cls.raw_item_type()
+                            if isinstance(other_item_obj, my_item_cls):
+                                kwargs[k] = other_item_obj.make_new(
+                                    ParsedItem.value_to_item_data(v)
+                                )
         return cls(**{**other_dict, **kwargs})
 
 
 class ActionDef(CallableDef):
+    """Action definition, can be a registered action title, a callable
+    (cfr. Choixe `$call`/`$symbol`), a `class.path.to.a.function`,
+    a `path/to/a/file.py:function` or a mapping where the key is like above,
+    while the value is the list of `__init__` arguments
+    (mapping, sequence or single value).
+    """
+
     @classmethod
     def __get_validators__(cls):
         yield cls.validate_action
 
     @classmethod
     def validate_action(
-        cls, value: t.Union[CallableDef, t.Callable, str]
+        cls,
+        value: t.Union[
+            CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
+        ],
     ) -> "ActionDef":
         from pipelime.cli.utils import PipelimeSymbolsHelper
 
         if isinstance(value, cls):
             return value
         if isinstance(value, str):
-            act = PipelimeSymbolsHelper.registered_actions.get(value, None)
+            # action is function
+            act = PipelimeSymbolsHelper.get_action(value)
             if act is not None:
-                return cls(__root__=act.action)
-        if isinstance(value, t.Mapping):
+                value = act.action
+        elif isinstance(value, t.Mapping):
+            # action is a callable instance
             name, args = next(iter(value.items()))
-            act = PipelimeSymbolsHelper.registered_actions.get(name, None)
-            if act is not None:
-                if isinstance(args, t.Mapping):
-                    act = act.action(**args)
-                elif isinstance(args, t.Sequence) and not isinstance(args, str):
-                    act = act.action(*args)
-                else:
-                    act = act.action(args)
-                return cls(__root__=act)
-        return cls.validate(value)  # type: ignore
+            if isinstance(name, str):
+                act = PipelimeSymbolsHelper.get_actions().get(name, None)
+                if act is not None:
+                    value = {act.action: args}
+        return cls.validate(value)
 
 
 class BaseEntityType(TypeDef[BaseEntity]):

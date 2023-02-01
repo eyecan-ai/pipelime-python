@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import typing as t
 import functools
+import itertools
 from pathlib import Path
 
 import typer
@@ -65,8 +66,19 @@ def _dict_update(to_be_updated: t.MutableMapping, data: t.Mapping):
         to_be_updated[k] = v
 
 
-def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig"):
+def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig", verbose: bool):
+    from pipelime.cli.pretty_print import print_info
+
+    if verbose:
+        print_info("> Merging XConfigs:")
+        print_info(">> Base:")
+        print_info(to_be_updated.to_dict(), pretty=True)
+        print_info(">> To be merged:")
+        print_info(data.to_dict(), pretty=True)
     to_be_updated.deep_update(data, full_merge=True)
+    if verbose:
+        print_info(">> Result:")
+        print_info(to_be_updated.to_dict(), pretty=True)
     return to_be_updated
 
 
@@ -78,10 +90,14 @@ def _process_cfg_or_die(
     output: t.Optional[Path],
     exit_on_error: bool,
     verbose: bool,
+    print_all: bool,
 ) -> t.List["XConfig"]:
     from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
     from pipelime.cli.pretty_print import print_error
+
+    if verbose:
+        print_info(f"> Processing {cfg_name}...")
 
     try:
         effective_configs = (
@@ -107,6 +123,11 @@ def _process_cfg_or_die(
             "Do you want to keep them all?"
         ):
             effective_configs = effective_configs[:1]
+
+    if print_all:
+        for idx, c in enumerate(effective_configs):
+            print_info(f">> {cfg_name} {idx}:")
+            print_info(c.to_dict(), pretty=True)
 
     if output is not None:
         zero_fill = len(str(len(effective_configs) - 1))
@@ -137,17 +158,25 @@ def _process_all(
     # first process with no branch
     effective_configs = [
         _process_cfg_or_die(
-            c, effective_ctx, "configuration", False, output, exit_on_error, verbose > 1
+            c,
+            effective_ctx,
+            "configuration",
+            False,
+            output,
+            exit_on_error,
+            verbose > 1,
+            verbose > 3,
         )
         for c in base_cfg
         if c.to_dict()
     ]
     if effective_configs:
+        # effective_configs = functools.reduce(
+        #     lambda acc, curr: acc + curr, effective_configs
+        # )
         effective_configs = functools.reduce(
-            lambda acc, curr: acc + curr, effective_configs
-        )
-        effective_configs = functools.reduce(
-            lambda acc, curr: _deep_update_fn(acc, curr), effective_configs
+            lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3),
+            itertools.chain.from_iterable(effective_configs),
         )
     else:
         effective_configs = XConfig()
@@ -168,6 +197,7 @@ def _process_all(
         output,
         exit_on_error,
         verbose > 1,
+        verbose > 3,
     )
 
 
@@ -483,6 +513,7 @@ def pl_main(
                     None,
                     True,
                     verbose > 2,
+                    verbose > 3,
                 )
                 partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -500,6 +531,7 @@ def pl_main(
                     None,
                     True,
                     verbose > 2,
+                    verbose > 3,
                 )
                 ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -511,7 +543,7 @@ def pl_main(
 
         if effective_ctx:
             effective_ctx = functools.reduce(
-                lambda acc, curr: _deep_update_fn(acc, curr), effective_ctx
+                lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3), effective_ctx
             )
         else:
             effective_ctx = XConfig()
