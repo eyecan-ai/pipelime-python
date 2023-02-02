@@ -18,6 +18,8 @@ extensions = [
     "sphinxcontrib.mermaid",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx_immaterial",
+    "sphinx_immaterial.apidoc.python.apigen",
 ]
 
 # templates_path = ["_templates"]
@@ -30,8 +32,9 @@ myst_heading_anchors = 3
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_material"
-html_logo = "pipelime_logo.svg"
+html_theme = "sphinx_immaterial"
+html_title = "pipelime"
+html_logo = "pipelime_wireframe.svg"
 html_static_path = ["_static"]
 html_sidebars = {
     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
@@ -44,28 +47,56 @@ html_sidebars = {
 # https://gist.github.com/albionselimaj/14fabdb89d7893c116ee4b48fdfdc7ae
 # if there's a valid code for your choice
 html_theme_options = {
-    "base_url": "https://www.eyecan.ai",
     "repo_url": "https://github.com/eyecan-ai/pipelime-python/",
     "repo_name": "Check pipelime on github!",
     "repo_type": "github",
-    "html_minify": True,
-    "touch_icon": "pipelime_logo.svg",
-    "css_minify": True,
-    "nav_title": "pipelime",
-    "nav_links": [
+    "icon": {
+        "repo": "fontawesome/brands/github",
+        "edit": "material/file-edit-outline",
+    },
+    "palette": [
         {
-            "href": "https://www.eyecan.ai",
-            "internal": False,
-            "title": "eyecan.ai",
+            "media": "(prefers-color-scheme: light)",
+            "scheme": "default",
+            "primary": "green",
+            "accent": "green",
+            "toggle": {
+                "icon": "material/weather-night",
+                "name": "Switch to dark mode",
+            },
+        },
+        {
+            "media": "(prefers-color-scheme: dark)",
+            "scheme": "slate",
+            "primary": "green",
+            "accent": "green",
+            "toggle": {
+                "icon": "material/weather-sunny",
+                "name": "Switch to light mode",
+            },
         },
     ],
-    "globaltoc_depth": 1,
-    "color_primary": "purple",
-    "color_accent": "lime",
-    # Visible levels of the global TOC; -1 means unlimited
-    "globaltoc_depth": 1,
+    "font": {
+        "text": "Roboto",  # used for all the pages' text
+        "code": "Roboto Mono",  # used for literal code blocks
+    },
     # If False, expand all TOC entries
     "globaltoc_collapse": False,
     # If True, show hidden TOC entries
     "globaltoc_includehidden": False,
+    # To investigate
+    "features": [
+        # "navigation.expand",
+        # "navigation.tabs",
+        # "toc.integrate",
+        # "navigation.sections",
+        # "navigation.instant",
+        # "header.autohide",
+        # "navigation.top",
+        "navigation.tracking",
+        # "search.highlight",
+        "search.share",
+    ],
+    "version_dropdown": True,
+    "toc_title_is_page_title": True,
 }

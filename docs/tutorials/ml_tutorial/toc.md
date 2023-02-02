@@ -1,6 +1,6 @@
 
-| [<mark>**Introduction**</mark>](./toc.md) | [<mark>Convert Data To Underfolder</mark>](./convert_to_underfolder.md) | [<mark>Dataset Splitting</mark>](./dataset_splitting.md) | [<mark>Creating New Items</mark>](./item_creation.md) |
-| :------: | :------: | :------: | :------: |
+<!-- | [<mark>**Introduction**</mark>](./toc.md) | [<mark>Convert Data To Underfolder</mark>](./convert_to_underfolder.md) | [<mark>Dataset Splitting</mark>](./dataset_splitting.md) | [<mark>Creating New Items</mark>](./item_creation.md) |
+| :------: | :------: | :------: | :------: | -->
 
 # ML Cocktail: Training A Multi-Layer Perceptron Network
 

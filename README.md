@@ -1,4 +1,4 @@
-<img src="https://github.com/eyecan-ai/pipelime-python/blob/main/docs/pipelime_logo.png?raw=true" width="256"/>
+<img src="https://github.com/eyecan-ai/pipelime-python/blob/main/docs/_static/pipelime_banner.png?raw=true" width="100%"/>
 
 # 🍋 Pipelime
 

@@ -1,7 +1,7 @@
 # Welcome to pipelime's docs!
 
 <p align="center">
-    <img src="_static/pipelime_logo.svg" alt="pipelime" width="30%" height="30%" />
+    <img src="_static/pipelime_banner.png" alt="pipelime" width="100%" height="100%" />
 </p>
 
 Welcome to **Pipelime**, a swiss army knife for data processing!
@@ -39,7 +39,6 @@ get_started/underfolder.md
 :caption: "Tutorials:"
 
 tutorials/overview.md
-tutorials/ml_tutorial/toc.md
 ```
 
 ```{toctree}
