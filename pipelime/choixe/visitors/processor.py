@@ -41,12 +41,13 @@ class Processor(ast.NodeVisitor):
 
         Args:
             context (Optional[Dict[str, Any]], optional): A data structure containing
-            the values that will replace the variable nodes. Defaults to None.
+                the values that will replace the variable nodes. Defaults to None.
             cwd (Optional[Path], optional): current working directory used for relative
-            imports. If set to None, the `os.getcwd()` will be used. Defaults to None.
+                imports. If set to None, the `os.getcwd()` will be used.
+                Defaults to None.
             allow_branching (bool, optional): Set to False to disable processing on
-            branching nodes, like sweeps. All branching nodes will be simply unparsed.
-            Defaults to True.
+                branching nodes, like sweeps. All branching nodes will be simply
+                unparsed. Defaults to True.
         """
         super().__init__()
         self._context = context if context is not None else {}
@@ -344,16 +345,16 @@ def process(
     Args:
         node (Node): The AST node to process.
         context (Optional[Dict[str, Any]], optional): A data structure containing
-        the values that will replace the variable nodes. Defaults to None.
+            the values that will replace the variable nodes. Defaults to None.
         cwd (Optional[Path], optional): current working directory used for relative
-        imports. If set to None, the `os.getcwd()` will be used. Defaults to None.
+            imports. If set to None, the `os.getcwd()` will be used. Defaults to None.
         allow_branching (bool, optional): Set to False to disable processing on
-        branching nodes, like sweeps. All branching nodes will be simply unparsed.
-        Defaults to True.
+            branching nodes, like sweeps. All branching nodes will be simply unparsed.
+            Defaults to True.
 
     Returns:
         Any: The list of all possible outcomes. If branching is disabled, the list will
-        have length 1.
+            have length 1.
     """
     processor = Processor(context=context, cwd=cwd, allow_branching=allow_branching)
     return node.accept(processor)

@@ -55,7 +55,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
 
     @property
     def root_sample(self) -> pls.Sample:
-        from pipelime.items.base import ItemFactory
+        from pipelime.items import Item
 
         # user may change the value of `self.watch` at any time,
         # so both checks are necessary
@@ -64,7 +64,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
         if not isinstance(self._root_sample, pls.Sample):
             self._root_sample = pls.Sample(
                 {
-                    k: ItemFactory.get_instance(v, shared_item=True)
+                    k: Item.get_instance(v, shared_item=True)
                     for k, v in self._root_sample.items()  # type: ignore
                 }
             )
@@ -131,7 +131,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
         return len(self._samples)
 
     def get_sample(self, idx: int) -> pls.Sample:
-        from pipelime.items.base import ItemFactory
+        from pipelime.items import Item
 
         if self.watch:
             self._scan_sample_files()
@@ -140,7 +140,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
         if not isinstance(sample, pls.Sample):
             sample = pls.Sample(
                 {
-                    k: ItemFactory.get_instance(v, shared_item=False)
+                    k: Item.get_instance(v, shared_item=False)
                     for k, v in sample.items()
                 }
             )

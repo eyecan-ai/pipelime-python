@@ -30,12 +30,12 @@ class XConfig(Box):
 
         Args:
             data (Optional[Mapping], optional): Optional dictionary containing
-            initial data. Defaults to None.
+                initial data. Defaults to None.
             cwd (Optional[Path], optional): An optional path with the current working
-            directory to use when resolving relative imports. If set to None, the
-            system current working directory will be used. Defaults to None.
+                directory to use when resolving relative imports. If set to None, the
+                system current working directory will be used. Defaults to None.
             schema (Optional[Schema], optional): Python schema object used for
-            validation. Defaults to None.
+                validation. Defaults to None.
         """
 
         # options
@@ -61,8 +61,8 @@ class XConfig(Box):
 
         Args:
             path (Union[str, Path]): Path to a markup file from which to load the data
-            schema (Optional[Schema], optional): Python schema object used for
-            validation. Defaults to None.
+                schema (Optional[Schema], optional): Python schema object used for
+                validation. Defaults to None.
 
         Returns:
             XConfig: The loaded `XConfig`
@@ -98,7 +98,7 @@ class XConfig(Box):
 
         Args:
             replace (bool, optional): True to replace internal dictionary with
-            force-validated fields (e.g. Schema.Use). Defaults to True.
+                force-validated fields (e.g. Schema.Use). Defaults to True.
         """
 
         schema = self.get_schema()
@@ -134,7 +134,7 @@ class XConfig(Box):
         Args:
             full_key (Union[str, list]): full path key in pydash notation.
             default (Optional[Any], optional): result in case the path is not present.
-            Defaults to None.
+                Defaults to None.
 
         Returns:
             Any: The value at the specified path.
@@ -154,9 +154,9 @@ class XConfig(Box):
             full_key (Union[str, list]): Full path key in pydash notation.
             value (Any): The value to set.
             only_valid_keys (bool, optional): True to avoid set on not present keys.
-            Defaults to True.
+                Defaults to True.
             append_values (bool, optional): Append (as lists) or replace values.
-            Defaults to False.
+                Defaults to False.
         """
 
         if not only_valid_keys or py_.has(self, full_key):
@@ -172,9 +172,9 @@ class XConfig(Box):
         Args:
             data (Dict): An other dictionary to use as data source.
             full_merge (bool, optional): False to replace only the keys that are
-            actually present. Defaults to False.
+                actually present. Defaults to False.
             append_values (bool, optional): Append (as lists) or replace values.
-            Defaults to False.
+                Defaults to False.
         """
 
         other_chunks = walk(parse(data))
@@ -241,7 +241,7 @@ class XConfig(Box):
 
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
-            containing all variables values. Defaults to None.
+                containing all variables values. Defaults to None.
 
         Returns:
             XConfig: The processed XConfig.
@@ -253,7 +253,7 @@ class XConfig(Box):
 
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
-            containing all variables values. Defaults to None.
+                containing all variables values. Defaults to None.
 
         Returns:
             List[XConfig]: A list of all processing outcomes.

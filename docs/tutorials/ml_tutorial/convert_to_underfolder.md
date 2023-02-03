@@ -1,7 +1,7 @@
 
 # Convert Data To Underfolder
 
-The [Underfolder](../get_started/underfolder.md) format is a general data representation
+The [Underfolder](../../get_started/underfolder.md) format is a general data representation
 introduced by Pipelime, so you will often need to convert data coming from other sources
 to the Underfolder format.
 In this tutorial, you will write a samples sequence generator to convert the `iris` dataset

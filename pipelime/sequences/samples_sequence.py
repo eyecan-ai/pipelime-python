@@ -150,8 +150,6 @@ class SamplesSequence(
         :param prefetch: The number of samples loaded in advanced by each worker,
             defaults to 2
         :type prefetch: int, optional
-        :param sample_fn: a callable to run on each sample, defaults to None
-        :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
         :param track_fn: if True, a rich trackbar is shown; if a string is passed, it is
             set as the message for the default rich trackbar; otherwise you should
             provide your own callable to track the progress, defaults to True
