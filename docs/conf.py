@@ -145,7 +145,7 @@ html_theme_options = {
         "search.share",
         # --------------------------------------------------------------
     ],
-    "toc_title": "in this page",
+    "toc_title": "In this page",
     "social": [
         {
             "icon": "fontawesome/brands/linkedin",
