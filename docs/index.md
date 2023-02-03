@@ -1,7 +1,7 @@
 # Welcome to pipelime's docs!
 
 <p align="center">
-    <img src="_static/pipelime_logo.svg" alt="pipelime" width="30%" height="30%" />
+    <img src="_static/pipelime_banner.png" alt="pipelime" width="100%" height="100%" />
 </p>
 
 Welcome to **Pipelime**, a swiss army knife for data processing!
@@ -22,13 +22,14 @@ And... remember: *If life gives you lemons, use Pipelime!*
 
 ![](https://imgs.xkcd.com/comics/data_pipeline.png)
 
-## Table of Contents
+## What's in the docs?
 
 ```{toctree}
 :maxdepth: 4
 :caption: "Get Started:"
 
 get_started/installation.md
+get_started/example_data.md
 get_started/entities.md
 get_started/operations.md
 get_started/underfolder.md
@@ -39,7 +40,6 @@ get_started/underfolder.md
 :caption: "Tutorials:"
 
 tutorials/overview.md
-tutorials/ml_tutorial/toc.md
 ```
 
 ```{toctree}
