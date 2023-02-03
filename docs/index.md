@@ -22,13 +22,14 @@ And... remember: *If life gives you lemons, use Pipelime!*
 
 ![](https://imgs.xkcd.com/comics/data_pipeline.png)
 
-## Table of Contents
+## What's in the docs?
 
 ```{toctree}
 :maxdepth: 4
 :caption: "Get Started:"
 
 get_started/installation.md
+get_started/example_data.md
 get_started/entities.md
 get_started/operations.md
 get_started/underfolder.md
