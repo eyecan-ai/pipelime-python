@@ -20,13 +20,13 @@ class S3Remote(BaseRemote):
                 ** ~/.aws/credentials
                 ** ~/[.]mc/config.json
 
-        Optional init arguments:
-            * session (str): the session token (default: None)
-            * secure (bool): establish a secure connection (default: True)
-            * region (str): the preferred region (default: None)
+            Optional init arguments:
+                * session (str): the session token (default: None)
+                * secure (bool): establish a secure connection (default: True)
+                * region (str): the preferred region (default: None)
 
-        :param netloc_data: the network data info.
-        :type netloc: NetlocData
+        Args:
+            netloc_data (NetlocData): the network data info.
         """
         super().__init__(netloc_data)
 

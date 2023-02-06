@@ -20,8 +20,8 @@ class ImageItem(NumpyItem):
     def save_options(cls) -> t.Mapping[str, t.Any]:
         """Subclass can override and return specific saving options.
 
-        :return: saving parameters
-        :rtype: t.Mapping[str, t.Any]
+        Returns:
+          t.Mapping[str, t.Any]: saving parameters
         """
         return {}
 

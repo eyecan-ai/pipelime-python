@@ -19,8 +19,8 @@ class Model3DItem(Item[Geometry]):
     def save_options(cls) -> t.Mapping[str, t.Any]:
         """Subclass can override and return specific saving options.
 
-        :return: saving parameters
-        :rtype: t.Mapping[str, t.Any]
+        Returns:
+          t.Mapping[str, t.Any]: saving parameters
         """
         return {}
 
@@ -28,14 +28,16 @@ class Model3DItem(Item[Geometry]):
     def load_options(cls) -> t.Mapping[str, t.Any]:
         """Subclass can override and return specific loading options.
 
-        :return: loading parameters
-        :rtype: t.Mapping[str, t.Any]
+        Returns:
+          t.Mapping[str, t.Any]: loading parameters
         """
         return {}
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> Geometry:
-        return trimesh.load(fp, file_type=cls.file_extensions()[0][1:], **cls.load_options())  # type: ignore
+        return trimesh.load(
+            fp, file_type=cls.file_extensions()[0][1:], **cls.load_options()  # type: ignore
+        )
 
     @classmethod
     def encode(cls, value: Geometry, fp: t.BinaryIO):

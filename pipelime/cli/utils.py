@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 if t.TYPE_CHECKING:
     from pipelime.piper.model import PipelimeCommand
+    from pipelime.stages import SampleStage
 
 
 class ActionInfo(BaseModel):
@@ -301,9 +302,13 @@ def _print_info(
 def print_command_op_stage_info(
     command_operator_stage: str, show_description: bool = True, recursive: bool = True
 ):
-    """
-    Prints detailed info about a pipelime command, a sequence operator or a sample
+    """Prints detailed info about a pipelime command, a sequence operator or a sample
     stage.
+
+    Args:
+      command_operator_stage: str:
+      show_description: bool:  (Default value = True)
+      recursive: bool:  (Default value = True)
     """
     from pipelime.cli.pretty_print import print_info
     from pipelime.choixe.utils.imports import import_symbol
@@ -426,7 +431,17 @@ def print_commands_ops_stages_list(
     show_description: bool = True,
     recursive: bool = True,
 ):
-    """Print a list of all available sequence operators and pipelime commands."""
+    """Print a list of all available sequence operators and pipelime commands.
+
+    Args:
+      show_details: bool:  (Default value = False)
+      *:
+      show_cmds: bool:  (Default value = True)
+      show_ops: bool:  (Default value = True)
+      show_stages: bool:  (Default value = True)
+      show_description: bool:  (Default value = True)
+      recursive: bool:  (Default value = True)
+    """
     from pipelime.cli.pretty_print import (
         get_model_classpath,
         print_info,
@@ -480,21 +495,33 @@ def print_commands_ops_stages_list(
 
 
 def print_commands_list(show_details: bool = False):
-    """Print a list of all available pipelime commands."""
+    """Print a list of all available pipelime commands.
+
+    Args:
+      show_details: bool:  (Default value = False)
+    """
     print_commands_ops_stages_list(
         show_details=show_details, show_cmds=True, show_ops=False, show_stages=False
     )
 
 
 def print_sequence_operators_list(show_details: bool = False):
-    """Print a list of all available sequence operators."""
+    """Print a list of all available sequence operators.
+
+    Args:
+      show_details: bool:  (Default value = False)
+    """
     print_commands_ops_stages_list(
         show_details=show_details, show_cmds=False, show_ops=True, show_stages=False
     )
 
 
 def print_sample_stages_list(show_details: bool = False):
-    """Print a list of all available sample stages."""
+    """Print a list of all available sample stages.
+
+    Args:
+      show_details: bool:  (Default value = False)
+    """
     print_commands_ops_stages_list(
         show_details=show_details, show_cmds=False, show_ops=False, show_stages=True
     )
@@ -507,7 +534,15 @@ def pl_print(
     file: t.Optional[t.IO[str]] = None,
     flush: bool = False,
 ):
-    """Prints Items, Samples, Sequences, commands, stages, operations..."""
+    """Prints Items, Samples, Sequences, commands, stages, operations...
+
+    Args:
+      *objects: t.Any:
+      sep: str:  (Default value = " ")
+      end: str:  (Default value = "\n")
+      file: t.Optional[t.IO[str]]:  (Default value = None)
+      flush: bool:  (Default value = False)
+    """
     import inspect
     from rich import print as rprint
     from pydantic import BaseModel
@@ -540,13 +575,18 @@ def create_stage_from_config(
 ) -> "SampleStage":  # type: ignore # noqa: E602,F821
     """Creates a stage from a name and arguments.
 
-    :param stage_name: the name of the stage, eg, `compose`, `remap`, etc.
-    :type stage_name: str
-    :param stage_args: a mapping of the stage init arguments.
-    :type stage_args: t.Mapping[str, t.Any]]
-    :return: the stage object
-    :rtype: SampleStage
+    Args:
+        stage_name (str): the name of the stage, eg, `compose`, `remap`, etc.
+        stage_args (t.Union[t.Mapping[str, t.Any], t.Sequence, None]): a mapping of the
+            stage init arguments.
+
+    Raises:
+        ValueError: If the stage name is not a valid stage.
+
+    Returns:
+        SampleStage: The stage instance.
     """
+
     from pipelime.cli.utils import PipelimeSymbolsHelper
     from pipelime.stages import SampleStage
 
@@ -574,7 +614,7 @@ def create_stage_from_config(
         )
     except TypeError:
         # try to call without expanding args
-        return stage_cls(stage_args)
+        return stage_cls(stage_args)  # type: ignore
 
 
 def get_pipelime_command_cls(

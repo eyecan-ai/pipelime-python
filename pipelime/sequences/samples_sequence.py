@@ -35,13 +35,14 @@ class SamplesSequenceBase(t.Sequence[Sample]):
     def __len__(self) -> int:
         return self.size()
 
-    def is_normalized(self, max_items=-1) -> bool:
+    def is_normalized(self, max_items: int = -1) -> bool:
         """Checks if all samples have the same keys.
 
-        :param max_items: limits to the first `max_items`, defaults to -1
-        :type max_items: int, optional
-        :return: True if all samples have the same keys
-        :rtype: bool
+        Args:
+            max_items (int, optional): limits to the first `max_items`  (Default to -1)
+
+        Returns:
+            bool: True if all samples have the same keys
         """
         max_items = len(self) if max_items < 0 else min(max_items, len(self))
         if max_items < 2:
@@ -56,8 +57,8 @@ class SamplesSequenceBase(t.Sequence[Sample]):
     def best_zfill(self) -> int:
         """Computes the best zfill for integer indexing.
 
-        :return: zfill values (maximum number of digits based on current size)
-        :rtype: int
+        Returns:
+            int: zfill values (maximum number of digits based on current size)
         """
         return len(str(len(self) - 1))
 
@@ -112,21 +113,40 @@ class SamplesSequence(
     def direct_access(self) -> "DirectAccessSequence":
         """Returns a sequence of key-to-value mappings,
         with no intermediate Sample and Item classes.
+
+        Returns:
+            DirectAccessSequence: a sequence of key-to-value mappings
         """
         from pipelime.sequences.direct_access import DirectAccessSequence
 
         return DirectAccessSequence(self)
 
     def torch_dataset(self) -> "torch.utils.data.Dataset":  # type: ignore # noqa: E602,F821
-        """Returns a torch.utils.data.Dataset interface of this samples sequence."""
+        """Returns a torch.utils.data.Dataset interface of this samples sequence.
+
+        Returns:
+            torch.utils.data.Dataset: a torch Dataset
+        """
         from pipelime.sequences.torch import TorchDataset
 
         return TorchDataset(self)
 
-    def batch(self, batch_size: int, drop_last: bool = False, fill: Sample = Sample()):
+    def batch(
+        self, batch_size: int, drop_last: bool = False, fill: Sample = Sample()
+    ) -> t.Iterator[t.Tuple[Sample, ...]]:
         """Returns a zip-like object to get batches of samples. If the number of
         samples is not a multiple of batch_size and `drop_last` is False,
         the last batch will be filled with `fill`.
+
+        Args:
+            batch_size (int): the number of samples in each batch
+            drop_last (bool, optional): whether to drop the last batch if incomplete.
+                (Default to False)
+            fill (Sample, optional): filling value for the last incomplete batch.
+                (Default to Sample()).
+
+        Returns:
+            t.Iterator[t.Tuple[Sample, ...]]: an iterator of batches of samples
         """
         src_iters = [iter(self)] * batch_size
         if drop_last:
@@ -144,17 +164,16 @@ class SamplesSequence(
         processes and returns a new sequence holding the processed samples.
         Also, a `track_fn` can be defined, eg, to show the progress.
 
-        :param num_workers: The number of processes to spawn. If negative,
-            the number of (logical) cpu cores is used, defaults to 0
-        :type num_workers: int, optional
-        :param prefetch: The number of samples loaded in advanced by each worker,
-            defaults to 2
-        :type prefetch: int, optional
-        :param track_fn: if True, a rich trackbar is shown; if a string is passed, it is
-            set as the message for the default rich trackbar; otherwise you should
-            provide your own callable to track the progress, defaults to True
-        :type track_fn: t.Union[bool, str, t.Callable[[t.Iterable], t.Iterable], None],
-            optional
+        Args:
+            num_workers (int, optional): The number of processes to spawn. If negative,
+                the number of (logical) cpu cores is used  (Default to 0)
+            prefetch (int, optional): The number of samples loaded in advanced
+                by each worker  (Default to 2)
+            track_fn (track_fn: t.Union[bool, str, t.Callable[
+                [t.Iterable], t.Iterable], None], optional): if True, a rich trackbar
+                is shown; if a string is passed, it is set as the message for the
+                default rich trackbar; otherwise you should provide your own callable
+                to track the progress, defaults to True  (Default to True)
         """
         samples: t.List[Sample] = []
 
@@ -188,22 +207,20 @@ class SamplesSequence(
         processes and applying `sample_fn` to each sample. Also, a `track_fn` can be
         defined, eg, to show the progress.
 
-        :param num_workers: The number of processes to spawn. If negative,
-            the number of (logical) cpu cores is used, defaults to 0
-        :type num_workers: int, optional
-        :param prefetch: The number of samples loaded in advanced by each worker,
-            defaults to 2
-        :type prefetch: int, optional
-        :param keep_order: Whether to retrieve the samples in the original order,
-            defaults to False
-        :type keep_order: bool, optional
-        :param sample_fn: a callable to run on each sample, defaults to None
-        :type sample_fn: t.Optional[t.Callable[[Sample], None]], optional
-        :param track_fn: if True, a rich trackbar is shown; if a string is passed, it is
-            set as the message for the default rich trackbar; otherwise you should
-            provide your own callable to track the progress, defaults to True
-        :type track_fn: t.Union[bool, str, t.Callable[[t.Iterable], t.Iterable], None],
-            optional
+        Args:
+            num_workers (int, optional): The number of processes to spawn. If negative,
+                the number of (logical) cpu cores is used  (Default to 0)
+            prefetch (int, optional): The number of samples loaded in advanced
+                by each worker  (Default to 2)
+            keep_order (bool, optional): Whether to retrieve the samples in the original
+                order  (Default to False)
+            sample_fn (t.Optional[t.Callable[[Sample], None]], optional): a callable to
+                run on each sample  (Default to None)
+            track_fn (track_fn: t.Union[bool, str, t.Callable[
+                [t.Iterable], t.Iterable], None], optional): if True, a rich trackbar
+                is shown; if a string is passed, it is set as the message for the
+                default rich trackbar; otherwise you should provide your own callable
+                to track the progress, defaults to True  (Default to True)
         """
         from pipelime.sequences import Grabber, grab_all
 
@@ -234,15 +251,19 @@ class SamplesSequence(
         while other objects are not. Consider to use `pipelime.choixe` features to
         fully (de)-serialized them to yaml/json.
 
-        :param recursive: if True nested sequences are recursively serialized,
-            defaults to True.
-        :type recursive: bool, optional.
-        :param objs_to_str: if True objects are converted to string.
-        :type objs_to_str: bool, optional.
-        :raises ValueError: if a field is tagged as `pipe_source` but it is not
-            a SamplesSequence.
-        :return: the serialized pipe list.
-        :rtype: t.List[t.Dict[str, t.Any]]
+        Args:
+            recursive (bool, optional): if True nested sequences are recursively
+                serialized  (Default to True)
+            objs_to_str (bool, optional): if True objects are converted to string.
+                (Default to True)
+
+        Returns:
+            t.List[t.Dict[str, t.Any]]: the serialized pipe list.
+
+        Raises:
+            ValueError: if a field is tagged as `pipe_source` but it is not
+                a SamplesSequence.
+
         """
         source_list = []
         arg_dict = {}
@@ -485,14 +506,18 @@ class SamplesSequence(
     def data_cache(
         self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
     ) -> SamplesSequence:
-        """Enables item data caching on previous pipeline steps."""
+        """Enables item data caching on previous pipeline steps.
+        Run `pipelime help data_cache` to read the complete documentation.
+        """
         ...
 
     @samples_sequence_stub
     def no_data_cache(
         self, *items: t.Union[t.Type["pipelime.items.Item"], str]  # type: ignore # noqa: E602,F821
     ) -> SamplesSequence:
-        """Disables item data caching on previous pipeline steps."""
+        """Disables item data caching on previous pipeline steps.
+        Run `pipelime help no_data_cache` to read the complete documentation.
+        """
         ...
 
     @samples_sequence_stub
@@ -558,6 +583,8 @@ def source_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
 
 
 def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
+    import inspect
+
     if cls.name() in SamplesSequence._sources or cls.name() in SamplesSequence._pipes:
         logger.warning(f"Function {cls.name()} has been already registered.")
 
@@ -576,6 +603,16 @@ def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
 
     def _helper(self, *args, **kwargs):
         return cls(*args, **{prms_source_name: self}, **kwargs)
+
+    _helper.__doc__ = inspect.getdoc(cls)
+    _helper.__signature__ = inspect.Signature(
+        parameters=[
+            v
+            for k, v in inspect.signature(cls).parameters.items()
+            if k != prms_source_name
+        ],
+        return_annotation=SamplesSequence,
+    )
 
     setattr(SamplesSequence, cls.name(), _helper)
     SamplesSequence._pipes[cls.name()] = cls
