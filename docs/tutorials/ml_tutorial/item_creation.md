@@ -1,5 +1,5 @@
 
-# Creating New Items
+# Adding New Items
 
 In the previous tutorials we have seen how [to create a new dataset from scratch](./convert_to_underfolder.md) and how [to split it in three subsets](./dataset_splitting.md).
 Each sample comes from the iris dataset and provides four features, namely, the length and width of the petals and the sepals. We want to train a network to classify the iris flowers according to their species using only the _area_ of the petals and sepals. Therefore, we will now build a simple pipeline with a custom stage to add such new features to each sample of the dataset.

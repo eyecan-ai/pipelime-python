@@ -45,19 +45,19 @@ tutorials/ml_tutorial/toc.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Core Components"
-
-sequences/sequences.md
-sequences/items.md
-```
-
-```{toctree}
-:maxdepth: 4
 :caption: "Command Line Usage"
 
 cli/overview.md
 cli/piper.md
 cli/common_tasks.md
+```
+
+```{toctree}
+:maxdepth: 4
+:caption: "Core Components"
+
+sequences/sequences.md
+sequences/items.md
 ```
 
 ```{toctree}

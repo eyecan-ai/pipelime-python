@@ -1,6 +1,6 @@
 import typing as t
 from types import ModuleType
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 if t.TYPE_CHECKING:
     from pipelime.piper.model import PipelimeCommand
@@ -471,7 +471,7 @@ def print_commands_ops_stages_list(
     recursive: bool = True,
 ):
     """Print a list of all available sequence operators and pipelime commands."""
-    
+
     from pipelime.cli.pretty_print import (
         get_model_classpath,
         print_info,
@@ -685,3 +685,20 @@ def time_to_str(nanosec: int) -> str:
         nanosec -= microsec * 1000
         return f"{millisec}ms {microsec}us {nanosec}ns"
     return str(timedelta(microseconds=nanosec / 1000))
+
+
+def show_field_alias_valerr(e: ValidationError):
+    def _replace_alias(val):
+        if isinstance(val, str):
+            for field in e.model.__fields__.values():  # type: ignore
+                if (
+                    field.model_config.allow_population_by_field_name
+                    and field.has_alias
+                    and field.alias == val
+                ):
+                    return f"{field.name} / {field.alias}"
+        return val
+
+    for err in e.errors():
+        if "loc" in err:
+            err["loc"] = tuple(_replace_alias(l) for l in err["loc"])

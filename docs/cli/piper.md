@@ -21,48 +21,55 @@ $ pipelime run help
 ```bash
 >>>
 ━━━━━ Pipelime Command
-                                               run
- (*, n: Mapping[str, Union[pipelime.piper.model.PipelimeCommand, Mapping[str, Union[Mapping[str,
-  Any], NoneType]]]], include: Union[str, Sequence[str], NoneType] = None, exclude: Union[str,
-        Sequence[str], NoneType] = None, t: Union[str, NoneType] = None, w: bool = True)
-                              Executes a DAG of pipelime commands.
-
- Fields                  Description             Type                     Piper Port     Default
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- nodes / n               ▶ A DAG of commands     Mapping[str,             📥 INPUT       ✗
-                         as a `<node>:           Union[pipelime.piper.m
-                         <command>` mapping.     odel.PipelimeCommand,
-                         The command can be a    Mapping[str,
-                         `<name>: <args>`        Union[Mapping[str,
-                         mapping, where          Any], NoneType]]]]
-                         `<name>` is `pipe`,
-                         `clone`, `split` etc,
-                         while `<args>` is a
-                         mapping of its
-                         arguments.
- ━━━━━ PipelimeCommand
-   (no parameters)
-
- include                 ▶ Nodes not in this     Union[str,               📐 PARAMETER   None
-                         list are not run.       Sequence[str],
-                                                 NoneType]
-
- exclude                 ▶ Nodes in this list    Union[str,               📐 PARAMETER   None
-                         are not run.            Sequence[str],
-                                                 NoneType]
-
- token / t               ▶ The execution         str                      📐 PARAMETER   None
-                         token. If not
-                         specified, a new
-                         token will be
-                         generated.
-
- watch / w               ▶ Monitor the           bool                     📐 PARAMETER   True
-                         execution in the
-                         current console.
-
-
-                               pipelime.commands.piper.RunCommand
+╭───────────────────────────────────────── run ──────────────────────────────────────────╮
+│ (                                                                                      │
+│   *,                                                                                   │
+│   nodes: Mapping[str, Union[pipelime.piper.model.PipelimeCommand, Mapping[str,         │
+│ Union[Mapping[str, Any], None]]]],                                                     │
+│   include: Union[str, Sequence[str], None] = None,                                     │
+│   exclude: Union[str, Sequence[str], None] = None,                                     │
+│   token: Union[str, None] = None,                                                      │
+│   watch: Union[bool, None] = None                                                      │
+│ )                                                                                      │
+│                                                                                        │
+│ Executes a DAG of pipelime commands.                                                   │
+│                                                                                        │
+│   Fields        Description            Type                   Piper Port     Default   │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│   nodes / n     ▶ A DAG of commands    Mapping[str,           📥 INPUT       ✗         │
+│                 as a `<node>:          Union[pipelime.piper                            │
+│                 <command>` mapping.    .model.PipelimeComma                            │
+│                 The command can be a   nd, Mapping[str,                                │
+│                 `<name>: <args>`       Union[Mapping[str,                              │
+│                 mapping, where         Any], None]]]]                                  │
+│                 `<name>` is `pipe`,                                                    │
+│                 `clone`, `split`                                                       │
+│                 etc, while `<args>`                                                    │
+│                 is a mapping of its                                                    │
+│                 arguments.                                                             │
+│                                                                                        │
+│   include / i   ▶ Nodes not in this    Union[str,             📐 PARAMETER   None      │
+│                 list are not run.      Sequence[str], None]                            │
+│                                                                                        │
+│   exclude / e   ▶ Nodes in this list   Union[str,             📐 PARAMETER   None      │
+│                 are not run.           Sequence[str], None]                            │
+│                                                                                        │
+│   token / t     ▶ The execution        str                    📐 PARAMETER   None      │
+│                 token. If not                                                          │
+│                 specified, a new                                                       │
+│                 token will be                                                          │
+│                 generated.                                                             │
+│                                                                                        │
+│   watch / w     ▶ Monitor the          bool                   📐 PARAMETER   None      │
+│                 execution in the                                                       │
+│                 current console.                                                       │
+│                 Defaults to True if                                                    │
+│                 no token is                                                            │
+│                 provided, False                                                        │
+│                 othrewise.                                                             │
+│                                                                                        │
+│                                                                                        │
+╰────────────────────────── pipelime.commands.piper.RunCommand ──────────────────────────╯
 ```
 
 The `nodes` parameter is a mapping where the keys are node names, i.e., any unique string, and the values are the pipelime commands to execute.
@@ -133,3 +140,8 @@ Now we are ready to run the DAG. A few options are available:
 - `token`: the execution token to be used to identify this run when monitoring it. If not specified, a new token is generated.
 
 If you don't need advanced broadcasting features, you can just ignore the `token` option and leave `watch` to `True`.
+Otherwise, you can follow the execution from a different console using the `pipelime watch` command:
+
+```bash
+$ pipelime watch -t <token>
+```
