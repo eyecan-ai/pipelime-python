@@ -191,7 +191,6 @@ def print_model_info(
             f"[#5fafff]{_get_signature(model_cls)}[/]"
             + (f"\n\n[italic grey82]{escape(model_docs)}[/]" if model_docs else "")
         ),
-        # caption=escape(get_model_classpath(model_cls)) if show_class_path else None,
         title_style="on #293a05",
         title_justify="left",
         expand=True,
@@ -210,7 +209,6 @@ def print_model_info(
 
     grid = Panel(
         grid,
-        # box=box.HORIZONTALS,
         title=f"[dark_orange bold][on #293a05]{escape(get_model_title(model_cls))}[/]",
         subtitle=(
             f"[#5fafff][on #293a05]{escape(get_model_classpath(model_cls))}[/]"
@@ -244,7 +242,7 @@ def _field_row(
         else:
             field_docs = ""
 
-        field_docs = " ".join(field_docs.split())
+        # field_docs = " ".join(field_docs.split())
 
     has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
     field_outer_type = (
@@ -270,7 +268,7 @@ def _field_row(
     # Field name & alias
     line = [
         (" " * indent)
-        + ("[bold salmon1]" if indent == 0 else "")
+        + ("[bold dark_orange]" if indent == 0 else "")
         + (
             f"{escape(field.name)} / "
             if field.model_config.allow_population_by_field_name and field.has_alias
@@ -340,25 +338,77 @@ def _field_row(
 
 
 def _get_signature(model_cls: t.Type[BaseModel]) -> str:
+    class RichParameter(inspect.Parameter):
+        def __init__(self, *, name, kind, default, annotation):
+            self._name = name
+            self._kind = kind
+            self._default = default
+            self._annotation = annotation
+
+        def __str__(self):
+            kind = self.kind
+            formatted = self._name
+
+            color = "dark_orange"
+            if kind == inspect.Parameter.VAR_POSITIONAL:
+                formatted = "*" + formatted
+            elif kind == inspect.Parameter.VAR_KEYWORD:
+                formatted = "**<any-extra-data>"
+                color = "indian_red"
+
+            formatted = f"[bold {color}]{escape(formatted)}[/]"
+
+            # Add annotation and default value
+            if self._annotation is not inspect._empty:
+                formatted = "{}: {}".format(
+                    formatted,
+                    escape(
+                        inspect.formatannotation(self._annotation).replace(
+                            "NoneType", "None"
+                        )
+                    ),
+                )
+
+            if self._default is not inspect._empty:
+                default_str = escape(repr(self._default))
+                if self._annotation is not inspect._empty:
+                    formatted = "{} = {}".format(formatted, default_str)
+                else:
+                    formatted = "{}={}".format(formatted, default_str)
+
+            return f"\n  {formatted}"
+
     fullname = {mfield.alias: mfield.name for mfield in model_cls.__fields__.values()}
     excluded = [
         mfield.alias
         for mfield in model_cls.__fields__.values()
         if mfield.field_info.exclude
     ]
+
     sig = inspect.signature(model_cls)
     sig = sig.replace(
         parameters=[
-            p.replace(name=fullname[p.name])
+            RichParameter(
+                name=fullname.get(p.name, p.name),
+                kind=p.kind,
+                default=p.default,
+                annotation=p.annotation,
+            )
             for p in sig.parameters.values()
             if p.name not in excluded
         ],
         return_annotation=inspect.Signature.empty,
     )
-    sig = escape(str(sig))
-    for mfield in model_cls.__fields__.values():
-        sig = sig.replace(mfield.name, f"\n  [bold dark_orange]{mfield.name}[/]")
-    return "(\n  " + sig[1:-1] + "\n)"
+
+    sig = (
+        str(sig)
+        .replace("/,", "\n  /,")
+        .replace("*,", "\n  *,")
+        .replace("/)", "\n  /)")
+        .replace("*)", "\n  *)")
+    )
+    sig = sig[:-1] + "\n)"
+    return sig
 
 
 def _is_model(type_):
@@ -371,7 +421,7 @@ def _human_readable_type(field_outer_type):
     tstr = display_as_type(field_outer_type)
     if inspect.isclass(field_outer_type) and issubclass(field_outer_type, Enum):
         tstr += " {" + ", ".join(v.name.lower() for v in field_outer_type) + "}"
-    return tstr
+    return tstr.replace("NoneType", "None")
 
 
 def _recursive_args_flattening(arg):

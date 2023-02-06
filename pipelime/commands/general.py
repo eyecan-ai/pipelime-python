@@ -627,7 +627,7 @@ class SortCommand(PipelimeCommand, title="sort"):
             "Use `\\` to escape the `.` character."
         ),
     )
-    sort_fn: t.Optional[str] = pyd.Field(
+    sort_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
         None,
         alias="f",
         description=(
@@ -665,7 +665,7 @@ class SortCommand(PipelimeCommand, title="sort"):
         sort_fn = (
             self._sort_key_fn
             if self.sort_key is not None
-            else import_symbol(self.sort_fn)  # type: ignore
+            else self.sort_fn.value  # type: ignore
         )
 
         seq = self.input.create_reader()
@@ -687,12 +687,12 @@ class FilterCommand(PipelimeCommand, title="filter"):
         alias="q",
         description=("A dictquery (cfr. https://github.com/cyberlis/dictquery)."),
     )
-    filter_fn: t.Optional[str] = pyd.Field(
+    filter_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
         None,
         alias="f",
         description=(
-            "A class path to a callable `(Sample) -> bool` "
-            "returning True for any valid sample."
+            "A `class.path.to.func` (or `file.py:func`) to "
+            "a callable `(Sample) -> bool` returning True for any valid sample."
         ),
     )
 
@@ -725,7 +725,7 @@ class FilterCommand(PipelimeCommand, title="filter"):
         filter_fn = (
             self._filter_key_fn
             if self.filter_query is not None
-            else import_symbol(self.filter_fn)  # type: ignore
+            else self.filter_fn.value  # type: ignore
         )
 
         # multi-processing friendly filtering
@@ -739,9 +739,12 @@ class FilterCommand(PipelimeCommand, title="filter"):
                     self.stream.set_output(self.curr_idx, sample)
                     self.curr_idx += 1
 
+        seq = self.input.create_reader()
+
+        if self.output.zfill is None:
+            self.output.zfill = seq.best_zfill()
         writer_helper = _WriterHelper(output_pipe=self.output.as_pipe())
 
-        seq = self.input.create_reader()
         seq = seq.filter(filter_fn, lazy=True, insert_empty_samples=True)
         self.grabber.grab_all(
             seq,

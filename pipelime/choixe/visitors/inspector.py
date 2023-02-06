@@ -83,8 +83,10 @@ class Inspector(ast.NodeVisitor):
         insp = id_insp + default_insp + env_insp
 
         if insp.processed:  # pragma: no branch
+            from pipelime.choixe.visitors.unparser import unparse
+
             id_ = node.identifier.data  # type: ignore
-            default = None if node.default is None else node.default.data  # type: ignore
+            default = None if node.default is None else unparse(node.default)
             variables = py_.set_({}, id_, default)
 
             help_strings = {}

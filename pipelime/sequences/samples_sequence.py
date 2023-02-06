@@ -11,6 +11,7 @@ if t.TYPE_CHECKING:
     from pipelime.utils.pydantic_types import SampleValidationInterface
     from pipelime.sequences.direct_access import DirectAccessSequence
     from pipelime.stages import SampleStage, StageInput
+    from pathlib import Path
 
 
 def _sseq_stub_dummy(*args, **kwargs):
@@ -335,7 +336,7 @@ class SamplesSequence(
     @samples_sequence_stub
     @staticmethod
     def from_underfolder(
-        folder: "pathlib.Path",  # type: ignore # noqa: E602,F821
+        folder: "Path",  # type: ignore # noqa: E602,F821
         *,
         merge_root_items: bool = True,
         must_exist: bool = True,
@@ -523,7 +524,7 @@ class SamplesSequence(
     @samples_sequence_stub
     def to_underfolder(
         self,
-        folder: "pathlib.Path",  # type: ignore # noqa: E602,F821
+        folder: "Path",  # type: ignore # noqa: E602,F821
         *,
         zfill: t.Optional[int] = None,
         key_serialization_mode: t.Optional[

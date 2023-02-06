@@ -40,7 +40,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
     )
 
     @pyd.validator("must_exist", always=True)
-    def check_folder_exists(cls, v, values, **kwargs):
+    def check_folder_exists(cls, v, values):
         p = values["folder"]
         if v and not p.exists():
             raise ValueError(f"Root folder {p} does not exist.")

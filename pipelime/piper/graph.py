@@ -53,7 +53,7 @@ class GraphNodeOperation(GraphNode):
     @property
     def readable_repr(self) -> str:
         return (
-            f"{self.name}: {self._command.command_name()}"
+            f"{self.name}: {self._command.command_name}"
             if self._show_command_name
             else self.name
         )

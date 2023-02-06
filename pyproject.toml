@@ -82,7 +82,7 @@ docs = [
 "Documentation" = "http://pipelime-python.readthedocs.io/"
 
 [project.scripts]
-pipelime = "pipelime.cli.main:app"
+pipelime = "pipelime.cli.main:run_typer_app"
 
 [tool.hatch.version]
 path = "pipelime/__init__.py"

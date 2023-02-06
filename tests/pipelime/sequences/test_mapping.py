@@ -8,7 +8,7 @@ class TestMapping:
     def test_condition_probability(self):
         from pipelime.sequences.pipes.mapping import MappingConditionProbability
 
-        cond = MappingConditionProbability(p=0.5, seed=42)
+        cond = MappingConditionProbability(p=0.5, seed=42)  # type: ignore
         assert cond() is False
         assert cond() is True
 

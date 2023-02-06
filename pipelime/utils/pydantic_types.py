@@ -13,6 +13,25 @@ if t.TYPE_CHECKING:
     from numpy.typing import ArrayLike
 
 
+class NewPath(Path):
+    @classmethod
+    def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
+        field_schema.update(format="new-path")
+
+    @classmethod
+    def __get_validators__(cls):
+        from pydantic.validators import path_validator
+
+        yield path_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Path) -> Path:
+        if value.exists():
+            raise ValueError(f"Path {value} already exists")
+        return value
+
+
 class NumpyType(
     pyd.BaseModel,
     extra="forbid",
@@ -202,7 +221,6 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 
     @classmethod
     def validate(cls, value):
-        print("YamlInput.validate", value)
         if isinstance(value, cls):
             return value
         if isinstance(value, str):
@@ -316,12 +334,13 @@ class TypeDef(
 
     @classmethod
     def _type_to_string(cls, type_: t.Type[TRoot]) -> str:
-        return (
-            type_.__name__
-            if cls.default_class_path()
-            and type_.__module__.startswith(cls.default_class_path())
-            else type_.__module__ + "." + type_.__qualname__
+        full_name = type_.__module__ + "." + type_.__qualname__
+        redux_name = (
+            full_name[len(cls.default_class_path()) :]
+            if full_name.startswith(cls.default_class_path())
+            else full_name
         )
+        return full_name if "." in redux_name else redux_name
 
     @classmethod
     def _string_to_type(cls, type_str: str) -> t.Type[TRoot]:
@@ -377,10 +396,14 @@ class ItemType(TypeDef[Item]):
 class CallableDef(
     pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
 ):
-    """Generic callable definition. It accepts both class paths and string.
+    """Generic callable definition. It accepts functions and callable classes.
     You may derive from this class to re-implement the `default_class_path` class method
-    (NB: it must end with `.`). When a string is given, it can be a class path
-    (the default class path can be omitted) or a `path/to/file.py:CallableName`.
+    (NB: it must end with `.`).
+
+    Can be created from a symbol, an instance, a class/file path to a function or
+    a mapping where the key is the class/file path to a class and the value is the
+    list of __init__ arguments (mapping, sequence or single value).
+
     To ease the inspection of the callable, the methods `full_signature`, `args_type`,
     `return_type`, `has_var_positional` and `has_var_keyword` are provided.
 
@@ -440,6 +463,10 @@ class CallableDef(
         return inspect.signature(self.__root__)
 
     @property
+    def args(self) -> t.Sequence[inspect.Parameter]:
+        return list(self.full_signature.parameters.values())
+
+    @property
     def args_type(self) -> t.Sequence[t.Optional[t.Type]]:
         return [
             None if p.annotation is inspect.Signature.empty else p.annotation
@@ -449,13 +476,13 @@ class CallableDef(
     @property
     def has_var_positional(self) -> bool:
         return any(
-            p.kind == p.VAR_POSITIONAL for p in self.full_signature.parameters.values()
+            p.kind is p.VAR_POSITIONAL for p in self.full_signature.parameters.values()
         )
 
     @property
     def has_var_keyword(self) -> bool:
         return any(
-            p.kind == p.VAR_KEYWORD for p in self.full_signature.parameters.values()
+            p.kind is p.VAR_KEYWORD for p in self.full_signature.parameters.values()
         )
 
     @property
@@ -470,12 +497,13 @@ class CallableDef(
 
     @classmethod
     def _callable_to_string(cls, clb: t.Callable) -> str:
-        return (
-            clb.__name__
-            if cls.default_class_path()
-            and clb.__module__.startswith(cls.default_class_path())
-            else clb.__module__ + "." + clb.__qualname__
+        full_name = clb.__module__ + "." + clb.__qualname__
+        redux_name = (
+            full_name[len(cls.default_class_path()) :]
+            if full_name.startswith(cls.default_class_path())
+            else full_name
         )
+        return full_name if "." in redux_name else redux_name
 
     @classmethod
     def _string_to_callable(cls, clb_str: str) -> t.Callable:
@@ -506,17 +534,42 @@ class CallableDef(
         yield cls.validate
 
     @classmethod
-    def validate(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
+    def validate(
+        cls,
+        value: t.Union[
+            CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
+        ],
+    ):
         if isinstance(value, cls):
             return value
         try:
-            return cls(
-                __root__=cls._string_to_callable(value)
-                if isinstance(value, str)
-                else value
-            )
+            if isinstance(value, str):
+                value = cls._string_to_callable(value)
+            elif isinstance(value, t.Mapping):
+                clb_path, clb_args = next(iter(value.items()))
+                clb = (
+                    cls._string_to_callable(clb_path)
+                    if isinstance(clb_path, str)
+                    else clb_path
+                )
+
+                if not isinstance(clb, t.Callable):
+                    raise ValueError(f"Invalid callable: {clb_path}")
+
+                if isinstance(clb_args, t.Mapping):
+                    value = clb(**clb_args)
+                elif isinstance(clb_args, t.Sequence) and not isinstance(
+                    clb_args, (str, bytes)
+                ):
+                    value = clb(*clb_args)
+                else:
+                    value = clb(clb_args)
         except Exception as e:
             raise ValueError(f"Invalid callable: {value}") from e
+
+        if isinstance(value, t.Callable):
+            return cls(__root__=value)
+        raise ValueError(f"Invalid callable: {value}")
 
 
 # This is defined here to make it picklable
