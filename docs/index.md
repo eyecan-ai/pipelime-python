@@ -26,7 +26,7 @@ And... remember: *If life gives you lemons, use Pipelime!*
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Get Started:"
+:caption: "Get Started"
 
 get_started/installation.md
 get_started/example_data.md
@@ -37,14 +37,15 @@ get_started/underfolder.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Tutorials:"
+:caption: "Cocktail Recipes"
 
 tutorials/overview.md
+tutorials/ml_tutorial/toc.md
 ```
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Core Components: "
+:caption: "Core Components"
 
 sequences/sequences.md
 sequences/items.md
@@ -52,7 +53,7 @@ sequences/items.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Command Line Usage: "
+:caption: "Command Line Usage"
 
 cli/overview.md
 cli/piper.md
@@ -61,7 +62,7 @@ cli/common_tasks.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Extending Pipelime: "
+:caption: "Extending Pipelime"
 
 operations/intro.md
 operations/stages.md
@@ -71,7 +72,7 @@ operations/commands.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Choixe: "
+:caption: "Choixe"
 
 choixe/intro.md
 choixe/syntax.md
@@ -82,7 +83,7 @@ choixe/rand.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Advanced Topics: "
+:caption: "Advanced Topics"
 
 advanced/entry_points.md
 advanced/debugging.md
@@ -93,7 +94,7 @@ advanced/data_streaming.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "API Reference:"
+:caption: "API Reference"
 
 api/generated/modules.rst
 ```

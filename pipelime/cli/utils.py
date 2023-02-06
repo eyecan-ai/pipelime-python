@@ -431,17 +431,8 @@ def print_commands_ops_stages_list(
     show_description: bool = True,
     recursive: bool = True,
 ):
-    """Print a list of all available sequence operators and pipelime commands.
-
-    Args:
-      show_details: bool:  (Default value = False)
-      *:
-      show_cmds: bool:  (Default value = True)
-      show_ops: bool:  (Default value = True)
-      show_stages: bool:  (Default value = True)
-      show_description: bool:  (Default value = True)
-      recursive: bool:  (Default value = True)
-    """
+    """Print a list of all available sequence operators and pipelime commands."""
+    
     from pipelime.cli.pretty_print import (
         get_model_classpath,
         print_info,

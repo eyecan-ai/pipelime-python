@@ -39,6 +39,7 @@ class deferred_classattr:
     """A class attribute that is set on first access.
     Useful to resolve circular dependencies.
     """
+    
     def __init__(self, fget):
         if not isinstance(fget, (classmethod, staticmethod)):
             fget = classmethod(fget)
