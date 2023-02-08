@@ -10,7 +10,7 @@ The following options applies to main `pipelime` command. You recognize them bec
 - `--help`, `-h`: show the help message and exit.
 - `--version`: show pipelime version number and exit.
 - `--dry-run`, `-d`: load the configuration, create the command object, but skip the actual execution.
-- `--verbose`, `-v`: increase verbosity level, really useful for **debugging**, especially when used in combination with `--dry-run`.
+- `--verbose`, `-v`: increase verbosity level, really useful for **debugging**, especially when used in combination with `--dry-run`. Can be specified multiple times.
 - `--output`, `-o`: output file path (yaml/json) where to save the effective configuration.
 - `--run-all`, `--no-run-all`: in case of multiple configurations, e.g., when a `$sweep` is present, run them all; otherwise, run only the first one. If not specified, user will be notified if multiple configurations are found.
 - `--module`, `-m`: additional module and packages where user-defined commands, sequence generators, piped operations and stages are defined. This option can be specified multiple times.
@@ -22,20 +22,23 @@ starting with `++` or `+`. Likewise, context file is merged with command line ar
 Also, after a double slash `//`, both `++`/`+` and `@@`/`@` can be used to specify context arguments.
 
 Beside this bunch of options, there is also a list of CLI subcommands:
-- `help`, `h`: same as `--help`, but can be used also to get help on a pipelime command, a sequence operator or a stage (see [Get Help](#get-help)).
-- `list`, `ll`, `l`, `ls`: list all the available pipelime commands, sequence operators and stages. If `--module` is specified, only the symbols defined in the specified module(s) will be listed.
-- `list-commands`, `list-cmds`, `list-cmd`, `lc`, `ls-cmds`, `ls-cmd`, `lsc`: same as `list`, but printing only pipelime commands.
-- `list-operators`, `list-ops`, `list-op`, `lo`, `ls-ops`, `ls-op`, `lso`: same as `list`, but printing only sequence generators and piped operators.
-- `list-stages`, `list-stgs`, `list-stg`, `lst`, `ls-stgs`, `ls-stg`, `lss`: same as `list`, but printing only stages.
-- `audit`, `a`: inspect the given configuration and context, if any, printing the effective configuration and missing definitions. A wizard to write a new valid context is started afterwards.
-- `wizard`, `w`: start a wizard to write a configuration file for a given pipelime command.
-- `exec`, `exe`, `x`, `e`: execute a configuration where the command is the top-level key, useful when you want to ship a configuration for a single command to run.
+
+| Subcommand | Description | Aliases |
+| --- | --- | --- |
+| `help` | Show help for a pipelime command, a sequence operator or a stage (see [Get Help](#get-help)). | `h` |
+| `list` | List all the available pipelime commands, sequence operators and stages. If `--module` is specified, only the symbols defined in the specified module(s) will be listed. | `ll`, `l`, `ls` |
+| `list-commands` | Same as `list`, but prints only pipelime commands. | `list-cmds`, `list-cmd`, `lc`, `ls-cmds`, `ls-cmd`, `lsc` |
+| `list-operators` | Same as `list`, but prints only sequence generators and piped operators. | `list-ops`, `list-op`, `lo`, `ls-ops`, `ls-op`, `lso` |
+| `list-stages` | Same as `list`, but prints only stages. | `list-stgs`, `list-stg`, `lst`, `ls-stgs`, `ls-stg`, `lss` |
+| `audit` | Inspect the given configuration and context, if any, printing the effective configuration and missing definitions. | `a` |
+| `wizard` | (Experimental) Start a wizard to write a configuration file for a given pipelime command. | `w` |
+| `exec` | Execute a configuration where the command is the top-level key, useful when you want to ship a configuration for a single command to run. | `exe`, `x`, `e` |
 
 Now we are ready to explore some common scenarios.
 
 ### Get Help
 
-All the `list*` commands can be used to retrieve the available pipelime interfaces, i.e., commands, sequence operators and stages,
+All the `list*` commands can be used to retrieve the available pipelime entities, i.e., commands, sequence operators and stages,
 limiting the search to specific modules with `-m`. For example:
 
 ```bash
@@ -68,29 +71,26 @@ Where each line shows:
 To get help on a specific command, operator or stage, just type `help`:
 
 ```bash
-$ pipelime help filter-keys
+$ pipelime help pipe
 ```
 
-```bash
->>>
-━━━━━ Sample Stage
-                                                filter-keys
-                             (*, key_list: Sequence[str], negate: bool = False)
-                                            Filters sample keys.
- Fields     Description                                                             Type            Default
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- key_list   ▶ List of keys to preserve.                                             Sequence[str]   ✗
- negate     ▶ TRUE to delete `key_list`, FALSE delete all but keys in `key_list`.   bool            False
-                            pipelime.stages.key_transformations.StageKeysFilter
-```
+![](../../images/pipe_help.png)
+
+1. The title reports the name of the command and the full signature
+1. The table body describes each argument of the command:
+    * Fields: the name and its alias, if any
+    * Type: the expected type of the argument
+    * Piper Port: wether the argument is an input, an output or a parameter
+    * Default: wether the argument has a default value or must be provided by the user
+1. The footer shows the full class path of the command class
 
 ```{tip}
 You can autogenerate similar help messages for **any** class derived from `pydantic.BaseModel`!
 
-Just print your class with `pipelime.cli.pl_print`.
+Just try `$ pipelime help class.path.to.Model` or `$ pipelime help path/to/module.py:Model`.
 ```
 
-### Create A New Configuration
+### (Experimental) Create A New Configuration
 
 To create a new configuration file, just run `pipelime wizard [command]` and follow the instructions:
 
@@ -117,15 +117,7 @@ See next section to see how to do it.
 
 ```{tip}
 Anytime you have to insert a class path, you can either use the usual python dot notation,
-or provide a **path to a python file**, e.g., `path/to/mymodule.py:MyClass`. Though, the latter should be use with **caution**, since multiprocessing execution is not supported.
-```
-
-```{note}
-The wizard is intended to be used with pipelime commands, however, you may find it works
-also with stages and operations.
-
-Moreover, you can run it on any class derived from `pydantic.BaseModel`!
-Just give the class type to `pipelime.cli.wizard.model_cfg_wizard`.
+or provide a **path to a python file**, e.g., `path/to/mymodule.py:MyClass`. Though, the latter should be use with **caution**, since multiprocessing execution may not work.
 ```
 
 ### Validate A Configuration And Write A Context
@@ -146,71 +138,43 @@ To save the final processed configuration, use the `--output/-o` option.
 
 ### Merge Options From File And Command Line
 
-If you run `pipelime help` on a command, you often see the options in a tree-like structure:
+If you run `pipelime help` on a command, you see that some options are not just raw values.
+For instance, you can see the help for `InputDatasetInterface` with `pipelime help pipelime.commands.interfaces.InputDatasetInterface -v` and find out that it accepts more than just a folder path:
+* `folder`: dataset root folder
+* `merge_root_items`: whether to add root items as shared items to each sample
+* `skip_empty`: whether to skip empty samples
+* `schema`: sample schema validation
 
-```bash
-$ pipelime help clone
+To provide these options in a configuration file you should use nested mappings, e.g.:
+
+```yaml
+clone:
+  input:
+    folder: path/to/dataset
+    skip_empty: true
+  output:
+    folder: path/to/output
+    zfill: 6
+    exists_ok: true
 ```
 
-```bash
->>>
-━━━━━ Pipelime Command
-                                                    clone
-                        (*, i: pipelime.commands.interfaces.InputDatasetInterface, o:
-pipelime.commands.interfaces.OutputDatasetInterface, g: pipelime.commands.interfaces.GrabberInterface = None)
-                Clone a dataset. You can use this command to create a local copy of a dataset
-              hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option.
-  Fields                  Description            Type                    Piper Port     Default
- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  input / i               ▶ The input dataset.                           📥 INPUT       ✗
-                          ━━━━━ Compact form:
-                          `<folder>[,<skip_emp
-                          ty>]`
-    folder                ▶ Dataset root         Path                    📐 PARAMETER   ✗
-                          folder.
-    merge_root_items      ▶ Adds root items as   bool                    📐 PARAMETER   True
-                          shared items to each
-                          sample (sample
-                          values take
-                          precedence).
-...
-  output / o              ▶ The output                                   📦 OUTPUT      ✗
-                          dataset.
-                          ━━━━━ Compact form:
-                          `<folder>[,<exists_o
-                          k>[,<force_new_files
-                          >]]`
-    folder                ▶ Dataset root         Path                    📐 PARAMETER   ✗
-                          folder.
-...
-    serialization         ▶ Serialization                                📐 PARAMETER   override={}
-                          modes for items and                                           disable={} keys={}
-                          keys.
-      override            ▶ Serialization        Mapping[str,            📐 PARAMETER   {}
-                          modes overridden for   Union[str,
-                          specific item types,   Sequence[str],
-                          eg,                    NoneType]]
-                          `{CREATE_NEW_FILE:
-                          [ImageItem,
-                          my.package.MyItem,
-                          my/module.py:OtherIt
-                          em]}`. A Null value
-                          applies to all
-                          items.
-```
-
-The same structure is what you should follow both when writing a configuration file and
-when providing options from the command line. To do so, you can adopt a
+Whereas on the command line you can adopt a
 [pydash-like notation](https://pydash.readthedocs.io/en/latest/deeppath.html):
 - `.<key>` to access a mapped field.
 - `[<idx>]` to index a list entry.
 
-As for the values:
-- `true` and `false` are converted to booleans (case insensitive).
-- `none`, `null` and `nul` are interpreted as `None` (case insensitive).
-- numbers are converted to integers or floats, depending on the presence of a decimal point.
+For example:
 
-Also, options declared with no value are interpreted as `True` boolean flags.
+```bash
+$ pipelime clone +input.folder path/to/dataset +input.skip_empty +output.folder path/to/output +output.zfill 6 +output.exists_ok
+```
+
+Note how we are using the `+` operator to specify command arguments.
+As for the values:
+- empty options are interpreted as `True` boolean flags
+- `true` and `false` (case insensitive) are converted to booleans
+- `none`, `null` and `nul` (case insensitive) are interpreted as `None`
+- numbers are converted to integers or floats, depending on the presence of a decimal point
 
 ### Executing A Command
 

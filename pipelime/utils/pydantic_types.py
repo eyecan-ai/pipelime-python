@@ -396,10 +396,14 @@ class ItemType(TypeDef[Item]):
 class CallableDef(
     pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
 ):
-    """Generic callable definition. It accepts both class paths and string.
+    """Generic callable definition. It accepts functions and callable classes.
     You may derive from this class to re-implement the `default_class_path` class method
-    (NB: it must end with `.`). When a string is given, it can be a class path
-    (the default class path can be omitted) or a `path/to/file.py:CallableName`.
+    (NB: it must end with `.`).
+
+    Can be created from a symbol, an instance, a class/file path to a function or
+    a mapping where the key is the class/file path to a class and the value is the
+    list of __init__ arguments (mapping, sequence or single value).
+
     To ease the inspection of the callable, the methods `full_signature`, `args_type`,
     `return_type`, `has_var_positional` and `has_var_keyword` are provided.
 
@@ -530,17 +534,42 @@ class CallableDef(
         yield cls.validate
 
     @classmethod
-    def validate(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
+    def validate(
+        cls,
+        value: t.Union[
+            CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
+        ],
+    ):
         if isinstance(value, cls):
             return value
         try:
-            return cls(
-                __root__=(
-                    cls._string_to_callable(value) if isinstance(value, str) else value
+            if isinstance(value, str):
+                value = cls._string_to_callable(value)
+            elif isinstance(value, t.Mapping):
+                clb_path, clb_args = next(iter(value.items()))
+                clb = (
+                    cls._string_to_callable(clb_path)
+                    if isinstance(clb_path, str)
+                    else clb_path
                 )
-            )
+
+                if not isinstance(clb, t.Callable):
+                    raise ValueError(f"Invalid callable: {clb_path}")
+
+                if isinstance(clb_args, t.Mapping):
+                    value = clb(**clb_args)
+                elif isinstance(clb_args, t.Sequence) and not isinstance(
+                    clb_args, (str, bytes)
+                ):
+                    value = clb(*clb_args)
+                else:
+                    value = clb(clb_args)
         except Exception as e:
             raise ValueError(f"Invalid callable: {value}") from e
+
+        if isinstance(value, t.Callable):
+            return cls(__root__=value)
+        raise ValueError(f"Invalid callable: {value}")
 
 
 # This is defined here to make it picklable

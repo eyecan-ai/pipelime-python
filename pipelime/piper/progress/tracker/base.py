@@ -1,5 +1,5 @@
 from itertools import count
-from typing import Iterable, Optional, Sequence, Union
+from typing import overload, Iterable, Optional, Sequence, Union
 
 from pipelime.piper.progress.model import OperationInfo, ProgressUpdate
 
@@ -86,6 +86,33 @@ class TrackCallback:
         pass
 
 
+class TrackedTask:
+    """Context manager to track a single task."""
+
+    def __init__(self, op_info: OperationInfo, callbacks: Sequence[TrackCallback]):
+        self._op_info = op_info
+        self._callbacks = callbacks
+
+    def start(self):
+        for callback in self._callbacks:
+            callback.start(self._op_info)
+
+    def finish(self):
+        for callback in self._callbacks:
+            callback.finish()
+
+    def advance(self, advance: int = 1):
+        for callback in self._callbacks:
+            callback.advance(advance)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        self.finish()
+
+
 class Tracker:
     """Tracker for running operations"""
 
@@ -110,23 +137,22 @@ class Tracker:
     ) -> Iterable:
         """Track a generic iterable sequence"""
 
+        with self.create_task(
+            total=len(seq) if size is None else size, message=message  # type: ignore
+        ) as t:
+            for x in seq:
+                yield x
+                t.advance()
+
+    def create_task(self, total: int, message: str = ""):
+        """Explicit task creation"""
+
         id_ = next(self._counter)
         op_info = OperationInfo(
             token=self._token,
             node=self._node,
             chunk=id_,
-            total=len(seq) if size is None else size,  # type: ignore
+            total=total,  # type: ignore
             message=message,
         )
-
-        for callback in self._callbacks:
-            callback.start(op_info)
-
-        for x in seq:
-            yield x
-
-            for callback in self._callbacks:
-                callback.advance()
-
-        for callback in self._callbacks:
-            callback.finish()
+        return TrackedTask(op_info, self._callbacks)

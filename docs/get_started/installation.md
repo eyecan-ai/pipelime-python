@@ -24,8 +24,3 @@ Alternatively you can use `conda`:
 
 Please see the full options at <https://github.com/pygraphviz/pygraphviz/blob/main/INSTALL.txt>
 ```
-
-# Example Data
-
-Throughout the documentation, we will refer to the `mini_mnist` dataset when loading data from disk.
-You can find it in the `examples/fake_repo/datasets` folder.

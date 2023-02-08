@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import typing as t
 import functools
+import itertools
 from pathlib import Path
 
 import typer
@@ -65,8 +66,19 @@ def _dict_update(to_be_updated: t.MutableMapping, data: t.Mapping):
         to_be_updated[k] = v
 
 
-def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig"):
+def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig", verbose: bool):
+    from pipelime.cli.pretty_print import print_info
+
+    if verbose:
+        print_info("> Merging XConfigs:")
+        print_info(">> Base:")
+        print_info(to_be_updated.to_dict(), pretty=True)
+        print_info(">> To be merged:")
+        print_info(data.to_dict(), pretty=True)
     to_be_updated.deep_update(data, full_merge=True)
+    if verbose:
+        print_info(">> Result:")
+        print_info(to_be_updated.to_dict(), pretty=True)
     return to_be_updated
 
 
@@ -78,10 +90,14 @@ def _process_cfg_or_die(
     output: t.Optional[Path],
     exit_on_error: bool,
     verbose: bool,
+    print_all: bool,
 ) -> t.List["XConfig"]:
     from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
     from pipelime.cli.pretty_print import print_error
+
+    if verbose:
+        print_info(f"> Processing {cfg_name}...")
 
     try:
         effective_configs = (
@@ -91,7 +107,9 @@ def _process_cfg_or_die(
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
-            print_error(f"Invalid {cfg_name}! {e}\nRun with -vv to get more info.")
+            print_error(
+                f"Invalid {cfg_name}! {e}\nRun with -vv or more to get more info."
+            )
             raise typer.Exit(1)
         raise e
 
@@ -105,6 +123,11 @@ def _process_cfg_or_die(
             "Do you want to keep them all?"
         ):
             effective_configs = effective_configs[:1]
+
+    if print_all:
+        for idx, c in enumerate(effective_configs):
+            print_info(f">> {cfg_name} {idx}:")
+            print_info(c.to_dict(), pretty=True)
 
     if output is not None:
         zero_fill = len(str(len(effective_configs) - 1))
@@ -135,17 +158,25 @@ def _process_all(
     # first process with no branch
     effective_configs = [
         _process_cfg_or_die(
-            c, effective_ctx, "configuration", False, output, exit_on_error, verbose > 1
+            c,
+            effective_ctx,
+            "configuration",
+            False,
+            output,
+            exit_on_error,
+            verbose > 1,
+            verbose > 3,
         )
         for c in base_cfg
         if c.to_dict()
     ]
     if effective_configs:
+        # effective_configs = functools.reduce(
+        #     lambda acc, curr: acc + curr, effective_configs
+        # )
         effective_configs = functools.reduce(
-            lambda acc, curr: acc + curr, effective_configs
-        )
-        effective_configs = functools.reduce(
-            lambda acc, curr: _deep_update_fn(acc, curr), effective_configs
+            lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3),
+            itertools.chain.from_iterable(effective_configs),
         )
     else:
         effective_configs = XConfig()
@@ -166,6 +197,7 @@ def _process_all(
         output,
         exit_on_error,
         verbose > 1,
+        verbose > 3,
     )
 
 
@@ -446,19 +478,72 @@ def pl_main(
         # process contexts to resolve imports and local loops
         if verbose > 2:
             print_info("\nProcessing context files:")
-        effective_ctx = [
-            _process_cfg_or_die(
-                c, None, "context", run_all, output_ctx, True, verbose > 2
-            )
-            for c in base_ctx
-            if c.to_dict()
-        ]
+
+        def _sum(a: XConfig, b: XConfig) -> XConfig:
+            a = XConfig(data=a.to_dict(), cwd=a.get_cwd(), schema=a.get_schema())
+            a.deep_update(b, full_merge=True)
+            return a
+
+        def _ctx_for_ctx_update(ctx_for_ctx: XConfig, new_ctxs: t.Sequence[XConfig]):
+            for newc in new_ctxs:
+                ctx_for_ctx = _sum(newc, ctx_for_ctx)
+            return ctx_for_ctx
+
+        # use the command line context to process the other contexts
+        effective_ctx = []
+        ctx_for_ctx = base_ctx[-1]
+        for idx, curr_ctx in enumerate(base_ctx):
+            if curr_ctx.to_dict():
+                # the context itself is a valid context
+                curr_ctx_for_ctx = _sum(curr_ctx, ctx_for_ctx)
+
+                if verbose > 3:
+                    print_info(f"[{idx}] context to process:")
+                    print_info(curr_ctx.to_dict(), pretty=True)
+                    print_info(f"[{idx}] context for context")
+                    print_info(curr_ctx_for_ctx.to_dict(), pretty=True)
+                if verbose > 2:
+                    print_info(f"[{idx}] preprocessing...")
+
+                new_ctxs = _process_cfg_or_die(
+                    curr_ctx,
+                    curr_ctx_for_ctx,
+                    "context",
+                    run_all,
+                    None,
+                    True,
+                    verbose > 2,
+                    verbose > 3,
+                )
+                partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
+
+                if verbose > 3:
+                    print_info(f"[{idx}] updated context for context")
+                    print_info(partial_ctx_for_ctx.to_dict(), pretty=True)
+                if verbose > 2:
+                    print_info(f"[{idx}] processing self-references...")
+
+                new_ctxs = _process_cfg_or_die(
+                    curr_ctx,
+                    partial_ctx_for_ctx,
+                    "context",
+                    run_all,
+                    None,
+                    True,
+                    verbose > 2,
+                    verbose > 3,
+                )
+                ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
+
+                if verbose > 3:
+                    print_info(f"[{idx}] final updated context for context")
+                    print_info(ctx_for_ctx.to_dict(), pretty=True)
+
+                effective_ctx.extend(new_ctxs)
+
         if effective_ctx:
             effective_ctx = functools.reduce(
-                lambda acc, curr: acc + curr, effective_ctx
-            )
-            effective_ctx = functools.reduce(
-                lambda acc, curr: _deep_update_fn(acc, curr), effective_ctx
+                lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3), effective_ctx
             )
         else:
             effective_ctx = XConfig()
@@ -472,11 +557,11 @@ def pl_main(
 
             from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
-            print_info("\n📄 CONFIGURATION AUDIT\n")
+            print_info("\n📄 CONFIGURATION AUDIT")
             for idx, c in enumerate(base_cfg):
                 if len(base_cfg) > 1:
                     name = str(config[idx]) if idx < len(config) else "command line"
-                    print_info(f"*** {name}")
+                    print_info(f"\n*** {name}")
                 inspect_info = c.inspect()
                 for field in fields(inspect_info):
                     value = getattr(inspect_info, field.name)
@@ -484,7 +569,7 @@ def pl_main(
                     if value or isinstance(value, bool):
                         print_info(value, pretty=True, indent_guides=False)
 
-            print_info("\n📄 CONTEXT AUDIT\n")
+            print_info("\n📄 EFFECTIVE CONTEXT\n")
             print_info(effective_ctx.to_dict(), pretty=True, indent_guides=False)
             print_info("")
 
@@ -493,9 +578,9 @@ def pl_main(
                     base_cfg, effective_ctx, output, run_all, False, verbose > 2
                 )
             except ChoixeProcessingError as e:
-                from rich.prompt import Confirm, Prompt
+                # from rich.prompt import Confirm, Prompt
 
-                from pipelime.cli.wizard import Wizard
+                # from pipelime.cli.wizard import Wizard
 
                 print_warning("Some variables are not defined in the context.")
                 print_error(f"Invalid configuration! {e}")
@@ -521,11 +606,18 @@ def pl_main(
             # if outfile:
             #     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 
-            pls = "s" if len(effective_configs) != 1 else ""
+            cfg_size = len(effective_configs)
+            pls = "s" if cfg_size != 1 else ""
             print_info(
-                "🎉 Configuration successfully processed "
-                f"({len(effective_configs)} variant{pls})."
+                f"🎉 Configuration successfully processed ({cfg_size} variant{pls})."
             )
+
+            if verbose > 2:
+                print_info("\nFinal effective configurations:")
+                for idx, cfg in enumerate(effective_configs):
+                    print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
+                    print_info(cfg.to_dict(), pretty=True)
+
             raise typer.Exit(0)
         else:
             from pipelime.cli.pretty_print import show_spinning_status
@@ -574,7 +666,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     from pydantic.error_wrappers import ValidationError
 
     from pipelime.cli.pretty_print import print_info, print_command_outputs
-    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str
+    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str, show_field_alias_valerr
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
@@ -588,21 +680,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     try:
         cmd_obj = cmd_cls(**cmd_args)
     except ValidationError as e:
-
-        def _replace_alias(val):
-            if isinstance(val, str):
-                for field in cmd_cls.__fields__.values():
-                    if (
-                        field.model_config.allow_population_by_field_name
-                        and field.has_alias
-                        and field.alias == val
-                    ):
-                        return f"{field.name} / {field.alias}"
-            return val
-
-        for err in e.errors():
-            if "loc" in err:
-                err["loc"] = tuple(_replace_alias(l) for l in err["loc"])
+        show_field_alias_valerr(e)
         raise e
 
     if verbose > 0:

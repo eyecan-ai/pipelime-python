@@ -180,7 +180,7 @@ class DAGNodesGraph:
         """Write the graph to a GraphML file.
 
         Args:
-            out_file (Union[str, Path]): The path to the GraphML file.
+            path_or_stream (Union[str, Path]): The path to the GraphML file.
         """
         nx.write_graphml(
             self.raw_graph,

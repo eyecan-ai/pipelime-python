@@ -209,9 +209,17 @@ Will produce the following **six** outputs, the cartesian product of `{a, b}` an
      beta: hello
    ```
 
-```{figure} ../images/sweep_exec.svg
-:width: 80%
-:align: center
+```{md-mermaid}
+    :name: flowchart_1
+    flowchart TD
+    root -->|Sweep 1| a
+    root -->|Sweep 1| b
+    a -->|Sweep 2| id1[10]
+    a -->|Sweep 2| id2[20]
+    a -->|Sweep 2| id3[hello]
+    b -->|Sweep 2| id4[10]
+    b -->|Sweep 2| id5[20]
+    b -->|Sweep 2| id6[hello]
 ```
 
 By default, all **sweeps** are global, each of them adds a new axis to the parameter space, regardless of the depth at which they appear in the structure. There is only one exception to this rule: if a **sweep** appears inside a branch of another sweep; in this case, the new axis is added locally.
@@ -245,16 +253,20 @@ Will produce the following **three** outputs:
      gamma: hello
    ```
 
+```{md-mermaid}
+   :name: flowchart_2
 
-```{figure} ../images/sweep_exec2.svg
-:width: 70%
-:align: center
+    flowchart TD
+    root -->|Sweep 1| a["{alpha: $sweep(foo, bar), beta: 10}"]
+    root -->|Sweep 1| b["gamma: hello"]
+    a -->|Sweep 2| foo
+    a -->|Sweep 2| bar
 ```
 
 ## Instances
 **Instances** allow to dynamically replace configuration nodes with real **python objects**. This can happen in two ways:
 - With the `call` **directive** - dynamically import a python function, invoke it and replace the node content with the function result.
-- With the `model` **directive** - dynamically import a [pydantic](https://pydantic-docs.helpmanual.io/) `BaseModel` and use it to deserialize the content of the current node.
+- With the `model` **directive** - dynamically import a [pydantic](https://docs.pydantic.dev/) `BaseModel` and use it to deserialize the content of the current node.
 
 **Note**: these **directives** can only be used with the **special form**.
 

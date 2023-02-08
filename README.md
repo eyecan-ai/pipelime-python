@@ -1,31 +1,32 @@
-<img src="https://github.com/eyecan-ai/pipelime-python/blob/main/docs/pipelime_logo.png?raw=true" width="256"/>
 
-# 🍋 Pipelime
-
-*If life gives you lemons, use Pipelime.*
+# 🍋 `pipelime`
 
 [![Documentation Status](https://readthedocs.org/projects/pipelime-python/badge/?version=latest)](https://pipelime-python.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/pipelime-python.svg)](https://badge.fury.io/py/pipelime-python)
 
-Welcome to **Pipelime**, a swiss army knife for data processing!
+<img src="docs/_static/pipelime_banner.png?raw=true" width="100%"/>
 
-Pipelime is a full-fledge **framework** for **data science**: read your datasets,
+*If life gives you lemons, use `pipelime`.*
+
+Welcome to **pipelime**, a swiss army knife for data processing!
+
+`pipelime` is a full-fledge **framework** for **data science**: read your datasets,
 manipulate them, write back to disk or upload to a remote data lake.
 Then build up your **dataflow** with Piper and manage the configuration with Choixe.
-Finally, **embed** your custom commands into the Pipelime workspace, to act both as dataflow nodes and advanced command line interface.
+Finally, **embed** your custom commands into the `pipelime` workspace, to act both as dataflow nodes and advanced command line interface.
 
-Maybe too much for you? No worries, Pipelime is **modular** and you can just take out what you need:
+Maybe too much for you? No worries, `pipelime` is **modular** and you can just take out what you need:
 - **data processing scripts**: use the powerful `SamplesSequence` and create your own data processing pipelines, with a simple and intuitive API. Parallelization works out-of-the-box and, moreover, you can easily serialize your pipelines to yaml/json. Integrations with popular frameworks, e.g., [pytorch](https://pytorch.org/), are also provided.
-- **easy dataflow**: Piper can manage and execute directed acyclic graphs (DAGs), giving back feedback on the progress through sockets or custom callbacks.
-- **configuration management**: Choixe is a simple and intuitive mini scripting language designed to ease the creation of configuration files with the help of variables, symbol importing, for loops, switch statements, parameter sweeps and more.
-- **command line interface**: Pipelime can remove all the boilerplate code needed to create a beautiful CLI for you scripts and packages. You focus on *what matters* and we provide input parsing, advanced interfaces for complex arguments, automatic help generation, configuration management. Also, any pipelime command can be used as a node in a dataflow for free!
-- **pydantic tools**: most of the classes in Pipelime derive from [`pydantic.BaseModel`](https://pydantic-docs.helpmanual.io/), so we have built some useful tools to, e.g., inspect their structure, auto-generate human-friendly documentation and more (including a wizard to help you writing input data to [deserialize](https://pydantic-docs.helpmanual.io/usage/models/#helper-functions) any pydantic model).
+- **easy dataflow**: `Piper` can manage and execute directed acyclic graphs (DAGs), giving back feedback on the progress through sockets or custom callbacks.
+- **configuration management**: `Choixe` is a simple and intuitive mini scripting language designed to ease the creation of configuration files with the help of variables, symbol importing, for loops, switch statements, parameter sweeps and more.
+- **command line interface**: `pipelime` can remove all the boilerplate code needed to create a beautiful CLI for you scripts and packages. You focus on *what matters* and we provide input parsing, advanced interfaces for complex arguments, automatic help generation, configuration management. Also, any `PipelimeCommand` can be used as a node in a dataflow for free!
+- **pydantic tools**: most of the classes in `pipelime` derive from [`pydantic.BaseModel`](https://docs.pydantic.dev/), so we have built some useful tools to, e.g., inspect their structure, auto-generate human-friendly documentation and more (including a wizard to help you writing input data to [deserialize](https://docs.pydantic.dev/usage/models/#helper-functions) any pydantic model).
 
 ---
 
 ## Installation
 
-Install Pipelime using pip:
+Install `pipelime` using pip:
 
 ```
 pip install pipelime-python
@@ -58,7 +59,7 @@ pip install pipelime-python[draw]
 
 ### Underfolder Format
 
-The **Underfolder** format is the preferred pipelime dataset formats, i.e., a flexible way to
+The **Underfolder** format is the preferred `pipelime` dataset formats, i.e., a flexible way to
 model and store a generic dataset through **filesystem**.
 
 ![](https://github.com/eyecan-ai/pipelime-python/blob/main/docs/images/underfolder.png?raw=true)
@@ -93,7 +94,7 @@ Root files follow the same convention but they lack the sample identifier part, 
 
 ### Reading an Underfolder Dataset
 
-Pipelime provides an intuitive interface to read, manipulate and write Underfolder Datasets.
+pipelime provides an intuitive interface to read, manipulate and write Underfolder Datasets.
 No complex signatures, weird object iterators, or boilerplate code, you just need a `SamplesSequence`:
 
 ```python

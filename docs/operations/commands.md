@@ -2,14 +2,14 @@
 
 In this section you will learn how exploit the full potential of pipelime commands in your project.
 Pipelime commands can be seen as packaged tasks that can be run individually or as part of an execution graph.
-You can delegate to [pydantic](https://pydantic-docs.helpmanual.io/) the tedious task of parsing
+You can delegate to [pydantic](https://docs.pydantic.dev/) the tedious task of parsing
 and validating the arguments, while pipelime takes care of the rest, namely:
 - merging arguments from different sources (e.g., command line and config file)
 - advanced configuration management through [Choixe](../choixe/intro.md)
 - easy multi-processing
 - automatic cli and help generation for your project
 
-We assume a basic understanding of [pydantic](https://pydantic-docs.helpmanual.io/),
+We assume a basic understanding of [pydantic](https://docs.pydantic.dev/),
 which is key to get the most out of pipelime commands. However, as you will see common use cases are
 already covered by pipelime, so you don't need to worry if you are not yet a pydantic power user!
 

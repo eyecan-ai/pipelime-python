@@ -1,4 +1,4 @@
-# Operations
+# Data Processing
 
 Pipelime offers many tools to process datasets in different ways and to create custom automated data pipelines.
 In this walkthrough, first we will see how to generate a new sequence, then how to chain operations together to create a pipeline.
@@ -62,14 +62,17 @@ dataset = SamplesSequence.toy_dataset(
 )
 ```
 
-The `length` is number of samples to generate, while `with_*` arguments specify which data to include in each sample.
-The `image_size` is the size of the generated images, which can be a single integer or a pair of values, while `key_format` is the format of the item keys, where any `*` is replaced with the base name of the key.
-The `max_labels` is the maximum number of object labels in the dataset, while `objects_range` is a tuple of the minimum (inclusive) and maximum (exclusive) number of objects to generate for each sample.
+* `length` is number of samples to generate
+* `with_*` arguments specify which data to include in each sample
+* `image_size` is the size of the generated images, i.e., a single integer or a pair of values
+* `key_format` is the format of the item keys, where any `*` is replaced with the base name of the key
+* `max_labels` is the maximum number of object labels in the dataset
+* `objects_range` is a tuple of the minimum (inclusive) and maximum (exclusive) number of objects to generate for each sample.
 
 ## Pipes
 
 Piped sequences follow the decorator pattern, i.e., they wrap another sample sequence (the source) and provide an alterated view of the source sequence.
-You can attach and chain multiple pipes following the functional pattern:
+You can attach and chain multiple pipes following the functional programming paradigm:
 
 ```python
 from pipelime.sequences import SamplesSequence
@@ -85,7 +88,7 @@ No pipe makes changes to the source dataset, but only provides a new view of it.
 In the example above, you can still access the original data (not repeated nor shuffled) through the `dataset` variable.
 Also, pipes are usually designed to be *lazy* as much as possible, i.e., they defer the processing when an item is requested, instead of filling up the `__init__` method with heavy computations. This way, they can take advantage of the multiprocessing capabilities of the `SamplesSequence` class (more on this in the following).
 
-These are the most common pipes, grouped by category:
+These are the most common pipes, grouped by category (run `$ pipelime lo` to see the full list):
 - reshaping and selection:
   - `filter`: applies a filter on samples, possibly reducing the length
   - `sort`: sorts samples by a [key-function](https://docs.python.org/3/howto/sorting.html#key-functions)
@@ -108,11 +111,9 @@ These are the most common pipes, grouped by category:
 
 Moreover, to filter the samples by index you can simply extract a slice as `dataset[start:stop:step]`.
 
-Now it's time to talk about `map` and stages, but if you are eager to create your own sequence generator or pipe, jump to [Pipes](../operations/pipes.md).
-
 ## Stages
 
-A special piped operation is `map`. Every time you get a sample from a mapped sequence, such sample is passed to a **stage** for further processing.
+A special piped operation is `map`. Every time you get a sample from a mapped sequence, such sample go through a **stage** for further processing.
 Stages are classes derived from `SampleStage` and are built to process samples independently. Therefore, they have some limitations:
 
 - They are applied only to a single sequence (but you can easily merge or concatenate them if needed!).
@@ -149,7 +150,7 @@ for sample in dataset:
     pass
 ```
 
-However, if all you want is a new processed dataset, just call `apply`, possibly spawning multiple processes:
+However, if all you want is a new processed dataset, just call `apply` or `run`, possibly spawning multiple processes:
 
 ```python
 from pipelime.sequences import SamplesSequence
@@ -157,12 +158,17 @@ from pipelime.stages import StageKeysFilter
 
 dataset = SamplesSequence.toy_dataset(10)
 dataset = dataset.map(StageKeysFilter(key_list=["image", "mask"]))
+dataset = dataset.to_underfolder("output")
 
-# Apply to all the samples, possibly using multiple processes
+# `run` just executes the full pipelime
+# (which is what you usually want)
+dataset.run(num_workers=4)
+
+# `apply` creates a new dataset with the processed samples
 dataset = dataset.apply(num_workers=4)
 ```
 
-Similarly, if you want to run a function on the main process, e.g., to collect global statistics while grabbing the sample with multiple processes, you can use the `run` method:
+Also, `run` can call a user-defined function on the main process, e.g., to collect global statistics while grabbing the samples with multiple processes:
 
 ```python
 from pipelime.sequences import SamplesSequence
@@ -192,10 +198,7 @@ dataset.run(..., track_fn=lambda x: ...)    # a custom callable accepting and re
 dataset.run(..., track_fn=None)             # disables the trackbar
 ```
 
-In the previous examples we used the `map` method to attach a stage to the sequence.
-Checkout section [Stages](../operations/stages.md) to see how to create your custom stage.
-
-### Conditional Mapping
+## Conditional Mapping
 
 Sometimes you want to apply a stage only to a subset of samples, eg, only to samples
 with a given label. To do so, you can call the `map_if` method, which accepts a condition
@@ -222,7 +225,7 @@ As for the `condition`, from `pipelime.sequences.pipes.mapping` you can import t
 - `MappingConditionProbability`: applies the stage with a given probability
 - `MappingConditionIndexRange`: applies the stage to samples within a given index range
 
-## De/Serialization
+## Pipeline De/Serialization
 
 What if you want to load/dump your sequence from/to yaml/json? Just call `to_pipe` and `build_pipe` functions:
 
@@ -252,7 +255,7 @@ you can create a graph of commands to execute with an associated user-defined co
 Such commands are classes derived from `PipelimeCommand` and they include a simple way to track the progress either
 through a progress bar or sending updates over a socket.
 
-Here a list of the most common commands available:
+Here a list of the most common commands available (run `$ pipelime lc` to see the full list):
 - `run`: executes a DAG
 - `draw`: draws a DAG
 - `pipe`: applies a sequence of operations to a dataset
@@ -263,7 +266,7 @@ Here a list of the most common commands available:
 - `shell`: run any shell command
 - `timeit`: measure the time to get a sample from a sequence
 
-Commands are executed from the shell with the `pipelime` command, e.g.,
+Commands are executed from the shell with the `pipelime` entry point, e.g.,
 
 ```bash
 $ pipelime clone +i path/to/input +o path/to/output,false,true +g 4
@@ -288,7 +291,7 @@ cmd()
 Beware that `inputs` and `output` here are *interfaces* to command options, so they have to be defined in a special way (see section [CLI](../cli/overview.md) for more details).
 
 ```{tip}
-Commands are a really powerful tool to create complex pipelines and also to easily add to any project a complete CLI with rich help, advanced configuration management e automatic multiple-processing!
+Commands are a really powerful tool to create complex pipelines and also to easily add to any project a complete CLI with rich help, advanced configuration management e native multi-processing!
 
 All you have to do is to pack your code as `PipelimeCommand`s and `SampleStage`s - and let Pipelime do the rest!
 

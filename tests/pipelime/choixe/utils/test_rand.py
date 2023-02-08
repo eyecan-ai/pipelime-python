@@ -471,8 +471,8 @@ class TestDistribution:
         [[10, 20], {"n": 1}, list, 1, int],
         [[10], {"n": 4}, list, 4, int],
         [[10, 20], {"n": 4}, list, 4, int],
-        [[10], {"n": (4,)}, np.ndarray, (4,), np.int32],
-        [[10, 20], {"n": (4,)}, np.ndarray, (4,), np.int32],
+        [[10], {"n": (4,)}, np.ndarray, (4,), np.int64],
+        [[10, 20], {"n": (4,)}, np.ndarray, (4,), np.int64],
         [[], {"pdf": [0.5, 1.0]}, float, ..., ...],
     ],
 )
@@ -489,6 +489,12 @@ def test_rand(fake_random, args, kwargs, type_, shape, dtype):
         assert all(isinstance(x, dtype) for x in res)
     else:
         assert isinstance(res, type_)
+
+
+def test_rand_large():
+    min_, delta = 10000000000, 1000000
+    res = rand(min_, min_ + delta, n=[10000])
+    assert (res >= min_).all() and (res <= min_ + delta).all()
 
 
 def test_rand_raises(fake_random):

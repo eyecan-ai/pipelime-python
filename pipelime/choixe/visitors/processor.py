@@ -41,12 +41,13 @@ class Processor(ast.NodeVisitor):
 
         Args:
             context (Optional[Dict[str, Any]], optional): A data structure containing
-            the values that will replace the variable nodes. Defaults to None.
+                the values that will replace the variable nodes. Defaults to None.
             cwd (Optional[Path], optional): current working directory used for relative
-            imports. If set to None, the `os.getcwd()` will be used. Defaults to None.
+                imports. If set to None, the `os.getcwd()` will be used.
+                Defaults to None.
             allow_branching (bool, optional): Set to False to disable processing on
-            branching nodes, like sweeps. All branching nodes will be simply unparsed.
-            Defaults to True.
+                branching nodes, like sweeps. All branching nodes will be simply
+                unparsed. Defaults to True.
         """
         super().__init__()
         self._context = context if context is not None else {}
@@ -234,7 +235,9 @@ class Processor(ast.NodeVisitor):
                     res = {}
                     [res.update(item) for item in branch]
                 else:
-                    raise ChoixeProcessingError(f"Invalid loop body: {branch[0]} is not a valid type")
+                    raise ChoixeProcessingError(
+                        f"Invalid loop body: {branch[0]} is not a valid type"
+                    )
             branches[i] = res
 
         return branches
@@ -252,7 +255,6 @@ class Processor(ast.NodeVisitor):
         branches = []
         for branch in all_branches:
             value = py_.get(self._context, branch[0])
-            found = False
             for i in range(len(node.cases)):
                 set_ = branch[i + 1]
                 if not isinstance(set_, Iterable) or isinstance(set_, str):
@@ -260,10 +262,10 @@ class Processor(ast.NodeVisitor):
 
                 if value in set_:
                     branches.append(branch[i + 1 + len(node.cases)])
-                    found = True
                     break
-            if not found and branch[-1] is not None:
-                branches.append(branch[-1])
+            else:
+                if node.default is not None:
+                    branches.append(branch[-1])
 
         return branches
 
@@ -344,16 +346,16 @@ def process(
     Args:
         node (Node): The AST node to process.
         context (Optional[Dict[str, Any]], optional): A data structure containing
-        the values that will replace the variable nodes. Defaults to None.
+            the values that will replace the variable nodes. Defaults to None.
         cwd (Optional[Path], optional): current working directory used for relative
-        imports. If set to None, the `os.getcwd()` will be used. Defaults to None.
+            imports. If set to None, the `os.getcwd()` will be used. Defaults to None.
         allow_branching (bool, optional): Set to False to disable processing on
-        branching nodes, like sweeps. All branching nodes will be simply unparsed.
-        Defaults to True.
+            branching nodes, like sweeps. All branching nodes will be simply unparsed.
+            Defaults to True.
 
     Returns:
         Any: The list of all possible outcomes. If branching is disabled, the list will
-        have length 1.
+            have length 1.
     """
     processor = Processor(context=context, cwd=cwd, allow_branching=allow_branching)
     return node.accept(processor)

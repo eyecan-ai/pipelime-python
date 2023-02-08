@@ -739,9 +739,12 @@ class FilterCommand(PipelimeCommand, title="filter"):
                     self.stream.set_output(self.curr_idx, sample)
                     self.curr_idx += 1
 
+        seq = self.input.create_reader()
+
+        if self.output.zfill is None:
+            self.output.zfill = seq.best_zfill()
         writer_helper = _WriterHelper(output_pipe=self.output.as_pipe())
 
-        seq = self.input.create_reader()
         seq = seq.filter(filter_fn, lazy=True, insert_empty_samples=True)
         self.grabber.grab_all(
             seq,
