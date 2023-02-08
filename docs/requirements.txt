@@ -4,7 +4,7 @@
 Sphinx==5.1.1
 
 # Material theme
-sphinx-material==0.0.35
+sphinx-immaterial==0.11.3
 
 # Needed to be able to write documentation in markdown
 myst-parser==0.18.0
