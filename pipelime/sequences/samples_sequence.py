@@ -574,10 +574,23 @@ def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
 
 
 def source_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
+    import inspect
+
     if cls.name() in SamplesSequence._sources or cls.name() in SamplesSequence._pipes:
         logger.warning(f"Function {cls.name()} has been already registered.")
 
-    setattr(SamplesSequence, cls.name(), cls)
+    def _helper(*args, **kwargs):
+        return cls(*args, **kwargs)
+
+    raw_doc = inspect.getdoc(cls) or ""
+    _helper.__doc__ = (
+        raw_doc
+        + ("\n" if raw_doc else "")
+        + f"\nRun ``$ pipelime help {cls.name()}`` to read the complete documentation."
+    )
+    _helper.__signature__ = inspect.signature(cls)
+
+    setattr(SamplesSequence, cls.name(), staticmethod(_helper))
     SamplesSequence._sources[cls.name()] = cls
     cls = _add_operator_path(cls)
     return cls
@@ -605,9 +618,15 @@ def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
     def _helper(self, *args, **kwargs):
         return cls(*args, **{prms_source_name: self}, **kwargs)
 
-    _helper.__doc__ = inspect.getdoc(cls)
+    raw_doc = inspect.getdoc(cls) or ""
+    _helper.__doc__ = (
+        raw_doc
+        + ("\n" if raw_doc else "")
+        + f"\nRun ``$ pipelime help {cls.name()}`` to read the complete documentation."
+    )
     _helper.__signature__ = inspect.Signature(
-        parameters=[
+        parameters=[inspect.Parameter("self", inspect.Parameter.POSITIONAL_ONLY)]
+        + [
             v
             for k, v in inspect.signature(cls).parameters.items()
             if k != prms_source_name
