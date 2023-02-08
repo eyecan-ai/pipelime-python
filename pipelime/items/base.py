@@ -25,7 +25,8 @@ import pipelime.remotes as plr
 class SerializationMode(IntEnum):
     """Standard resolution is REMOTE FILE -> HARD LINK -> FILE COPY -> NEW FILE
     or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour by setting
-    default and disabled serialization modes."""
+    default and disabled serialization modes.
+    """
 
     CREATE_NEW_FILE = 0
     DEEP_COPY = 1
@@ -38,6 +39,7 @@ class deferred_classattr:
     """A class attribute that is set on first access.
     Useful to resolve circular dependencies.
     """
+    
     def __init__(self, fget):
         if not isinstance(fget, (classmethod, staticmethod)):
             fget = classmethod(fget)
@@ -86,7 +88,16 @@ class ItemFactory(ABCMeta):
     def get_instance(
         cls, filepath: t.Union[Path, str], shared_item: bool = False
     ) -> Item:
-        """Returns the item that can handle the given file."""
+        """Returns the item that can handle the given file.
+
+        Args:
+          filepath: t.Union[Path:str]: the path to the file.
+          shared_item: bool: whether the new Item should be shared
+            (Default value = False)
+
+        Returns:
+            Item: an Item instance wrapping the given file.
+        """
         filepath = Path(filepath)
         path_or_urls = [filepath]
         ext = filepath.suffix
@@ -152,7 +163,8 @@ class ItemFactory(ABCMeta):
 
 def set_item_serialization_mode(mode: SerializationMode, *item_cls: t.Type[Item]):
     """Sets serialization mode for some or all items.
-    Applies to all items if no item class is given."""
+    Applies to all items if no item class is given.
+    """
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_serialization_mode(itc, mode)
 
@@ -161,21 +173,24 @@ def set_item_disabled_serialization_modes(
     modes: t.List[SerializationMode], *item_cls: t.Type[Item]
 ):
     """Disables serialization modes on selected item classes.
-    Applies to all items if no item class is given."""
+    Applies to all items if no item class is given.
+    """
     for itc in ItemFactory.ITEM_SERIALIZATION_MODE.keys() if not item_cls else item_cls:
         ItemFactory.set_disabled_serialization_modes(itc, modes)
 
 
 def disable_item_data_cache(*item_cls: t.Type[Item]):
     """Disables data cache on selected item classes.
-    Applies to all items if no item class is given."""
+    Applies to all items if no item class is given.
+    """
     for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, False)
 
 
 def enable_item_data_cache(*item_cls: t.Type[Item]):
     """Enables data cache on selected item classes.
-    Applies to all items if no item class is given."""
+    Applies to all items if no item class is given.
+    """
     for itc in item_cls if item_cls else ItemFactory.ITEM_DATA_CACHE_MODE.keys():
         ItemFactory.set_data_cache_mode(itc, True)
 
@@ -184,9 +199,7 @@ class item_serialization_mode(ContextDecorator):
     """Use this class as context manager or function decorator to temporarily change
     the items' serialization mode.
 
-    .. code-block::
-       :caption: Example
-
+    Examples:
        # set the serialization mode for all items
        with item_serialization_mode("HARD_LINK"):
            ...
@@ -226,9 +239,7 @@ class item_disabled_serialization_modes(ContextDecorator):
     """Use this class as context manager or function decorator to temporarily change
     the items' disabled serialization modes.
 
-    .. code-block::
-       :caption: Example
-
+    Examples:
        # disabled serialization modes for all items
        with item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
            ...
@@ -282,9 +293,7 @@ class no_data_cache(ContextDecorator):
     """Use this class as context manager or function decorator to disable data caching
     on some or all item types.
 
-    .. code-block::
-       :caption: Example
-
+    Examples:
        # disable data cache for all items
        with no_data_cache():
            ...
@@ -317,9 +326,7 @@ class data_cache(ContextDecorator):
     """Use this class as context manager or function decorator to enable data caching
     on some or all item types. Useful when nested with ``no_data_cache``.
 
-    .. code-block::
-       :caption: Example
-
+    Examples:
        # disable data cache for all items, then re-enable it
        with no_data_cache(...):
            with data_cache(...):
@@ -363,6 +370,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     the abstract methods (`file_extensions`, `decode`, `encode`),
     leaving `__init__` as is. Optionally, `validate` may also be implemented to process
     any raw data before storing it as type `T`.
+
     Finally, derived abstract classes may specify a preferred concrete class to be used
     when calling `make_new`. To this end, just override the method `default_concrete`
     (using the `@deferred_classattr` decorator) or add `default_concrete=ItemClass`
@@ -374,7 +382,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         class MyOtherItem(Item):
             @deferred_classattr
             def default_concrete(cls):
-                return MyItemConcrete
     """
 
     _data_cache: t.Optional[T]
@@ -736,8 +743,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         """Returns the list of valid file extensions with leading dot. The first one is
         assumed to be associated to the encoding applied by `encode`.
 
-        :return: the list of valid file extensions.
-        :rtype: t.Sequence[str]
+        Returns:
+          t.Sequence[str]: the list of valid file extensions.
         """
         return []
 
@@ -747,10 +754,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         """Reads data from a binary stream raising an exception if the operation cannot
         complete.
 
-        :param fp: the binary strem to decode.
-        :type fp: t.BinaryIO
-        :return: the value extracted
-        :rtype: T
+        Args:
+          fp (t.BinaryIO): the binary stream to decode.
+
+        Returns:
+          T: the value extracted
         """
         pass
 
@@ -761,10 +769,9 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         complete. The encoding should be described by the first extension returned by
         `file_extensions`.
 
-        :param value: the data to write.
-        :type value: T
-        :param fp: the binary stream.
-        :type fp: t.BinaryIO
+        Args:
+          value (T): the data to write.
+          fp (t.BinaryIO): the output binary stream.
         """
         pass
 
@@ -773,10 +780,11 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         """Subclasses can override to validate or process a raw value before storing.
         Raise an exception if the operation cannot complete.
 
-        :param raw_data: the raw value got from the user.
-        :type raw_data: t.Any
-        :return: the processed value that can be internally stored.
-        :rtype: T
+        Args:
+          raw_data (Any): the raw value got from the user.
+
+        Returns:
+          T: the processed value that can be internally stored.
         """
         return raw_data
 

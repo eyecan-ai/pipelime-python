@@ -18,8 +18,8 @@ class SharedFolderRemote(BaseRemote):
     def __init__(self, netloc_data: NetlocData):
         """Filesystem-based remote.
 
-        :param netloc_data: the network data info.
-        :type netloc: NetlocData
+        Args:
+            netloc_data (NetlocData): the network data info.
         """
         if netloc_data.host == "localhost" or netloc_data.host == "127.0.0.1":
             netloc_data.host = ""

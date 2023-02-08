@@ -64,11 +64,10 @@ class RemoteRegister(ABCMeta):
     ) -> t.Optional["BaseRemote"]:
         """Return a remote instance for this scheme and netloc.
 
-        :param scheme: the protocol name, eg, 's3' or 'file'.
-        :type scheme: str
-        :param netloc_data: the netloc data info, ie, the host address and user account.
-        :type netloc: NetlocData
-        :rtype: Optional[BaseRemote]
+        Args:
+          scheme (str): the protocol name, eg, 's3' or 'file'.
+          netloc_data (NetlocData): the netloc data info, ie, the host address and
+            user account.
         """
         remote_instance = cls.REMOTE_INSTANCES.get((scheme, netloc_data.host))
         if remote_instance is None:
@@ -115,11 +114,12 @@ def make_remote_url(
 def create_remote(url: ParseResult) -> t.Optional["BaseRemote"]:
     """Return a remote instance for this scheme and netloc.
 
-    :param url: the url describing the remote as
+    Args:
+      url (ParseResult): the url describing the remote as
         `<scheme>://[user[:pwd]@]<netloc>/<any_path>[?<init-kw>=<init-val>:<init-kw>=<init-val>...]`
-    :type url: ParseResult
-    :return: the remote instance or None if the scheme is unknown.
-    :rtype: Optional[BaseRemote]
+
+    Returns:
+      Optional[BaseRemote]: the remote instance or None if the scheme is unknown.
     """
     return RemoteRegister.get_instance(url.scheme, NetlocData(url))
 
@@ -129,10 +129,11 @@ def paths_from_url(
 ) -> t.Union[t.Tuple[str, str], t.Tuple[None, None]]:
     """Extract base path and target name from the path component of a given url.
 
-    :param url: the url to split.
-    :type url: ParseResult
-    :return: the base path and the target name.
-    :rtype: Union[Tuple[str, str], Tuple[None, None]]
+    Args:
+      url (ParseResult): the url to split.
+
+    Returns:
+      Union[Tuple[str, str], Tuple[None, None]]: the base path and the target name.
     """
     if len(url.path) > 1:
         unquoted = unquote_plus(url.path)
@@ -150,8 +151,8 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def __init__(self, netloc_data: NetlocData):
         """Set the network address.
 
-        :param netloc_data: the network data info.
-        :type netloc: NetlocData
+        Args:
+            netloc_data (NetlocData): the network data info.
         """
         self._netloc = netloc_data.host
 
@@ -160,12 +161,12 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     ) -> t.Optional[ParseResult]:
         """Upload an existing file to remote storage.
 
-        :param local_file: local file path.
-        :type local_file: Union[Path, str]
-        :param target_base_path: the remote base path, eg, the bucket name.
-        :type target_base_path: str
-        :return: a url to get back the file.
-        :rtype: Optional[ParseResult]
+        Args:
+          local_file (Union[Path, str]): local file path.
+          target_base_path (str): the remote base path, eg, the bucket name.
+
+        Returns:
+          Optional[ParseResult]: a url to get back the file.
         """
         local_file = Path(local_file)
         file_size = local_file.stat().st_size
@@ -183,16 +184,14 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     ) -> t.Optional[ParseResult]:
         """Upload data from a readable stream.
 
-        :param local_stream: a binary data stream.
-        :type local_stream: BinaryIO
-        :param local_stream_size: the byte size to upload.
-        :type local_stream_size: int
-        :param target_base_path: the remote base path, eg, the bucket name.
-        :type target_base_path: str
-        :param target_suffix: the remote file suffix.
-        :type target_suffix: str
-        :return: a url to get back the file.
-        :rtype: Optional[ParseResult]
+        Args:
+          local_stream (BinaryIO): a binary data stream.
+          local_stream_size (int): the byte size to upload.
+          target_base_path (str): the remote base path, eg, the bucket name.
+          target_suffix (str): the remote file suffix.
+
+        Returns:
+          Optional[ParseResult]: a url to get back the file.
         """
         hash_name = self._compute_hash(
             local_stream, self._get_hash_fn(target_base_path)
@@ -213,14 +212,13 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     ) -> bool:
         """Download and write data to a local file.
 
-        :param local_file: the file to write to.
-        :type local_file: Union[Path, str]
-        :param source_base_path: the remote base path, eg, the bucket name.
-        :type source_base_path: str
-        :param source_name: the remote object name.
-        :type source_name: str
-        :return: True if no error occurred.
-        :rtype: bool
+        Args:
+          local_file (Union[Path, str]): the file to write to.
+          source_base_path (str): the remote base path, eg, the bucket name.
+          source_name (str): the remote object name.
+
+        Returns:
+          bool: True if no error occurred.
         """
         local_file = Path(local_file)
         source_name_path = Path(source_name)
@@ -267,16 +265,15 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     ) -> bool:
         """Download and write data to a writable stream.
 
-        :param local_stream: a writable stream.
-        :type local_stream: BinaryIO
-        :param source_base_path: the remote base path, eg, the bucket name.
-        :type source_base_path: str
-        :param source_name: the remote object name.
-        :type source_name: str
-        :param source_offset: where to start reading the remote data, defaults to 0
-        :type source_offset: int, optional
-        :return: True if no error occurred.
-        :rtype: bool
+        Args:
+          local_stream (BinaryIO): a writable stream.
+          source_base_path (str): the remote base path, eg, the bucket name.
+          source_name (str): the remote object name.
+          source_offset (int, optional): where to start reading the remote data.
+            (Default value = 0)
+
+        Returns:
+          bool: True if no error occurred.
         """
         return self._download(
             local_stream, source_base_path, source_name, source_offset
@@ -286,25 +283,25 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def target_exists(self, target_base_path: str, target_name: str) -> bool:
         """Check if a remote object exists.
 
-        :param target_base_path: the remote base path, eg, the bucket name.
-        :type target_base_path: str
-        :param target_name: the remote object name.
-        :type target_name: str
-        :return: True if <target_base_path>/<target_name> exists on this remote.
-        :rtype: bool
+        Args:
+          target_base_path (str): the remote base path, eg, the bucket name.
+          target_name (str): the remote object name.
+
+        Returns:
+          bool: True if <target_base_path>/<target_name> exists on this remote.
         """
         pass
 
     def _compute_hash(self, stream: t.BinaryIO, hash_fn: t.Any = None) -> str:
         """Compute a hash value based on the content of a readable stream.
 
-        :param stream: the stream to hash.
-        :type stream: BinaryIO
-        :param hash_fn: the hash funtion, if None `hashlib.blake2b()` will be used,
-            defaults to None
-        :type hash_fn: Any, optional
-        :return: the computed hash
-        :rtype: str
+        Args:
+          stream (BinaryIO): the stream to hash.
+          hash_fn (Any, optional): the hash funtion, if None `hashlib.blake2b()` will
+            be used  (Default value = None)
+
+        Returns:
+          str: the computed hash
         """
         if hash_fn is None:
             hash_fn = hashlib.blake2b()  # pragma: no cover
@@ -319,10 +316,11 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def _make_url(self, target_full_path: str) -> ParseResult:
         """Make a complete url for this remote path.
 
-        :param target_full_path: the remote path.
-        :type target_full_path: str
-        :return: the url
-        :rtype: ParseResult
+        Args:
+          target_full_path (str): the remote path.
+
+        Returns:
+          ParseResult: the url
         """
         return ParseResult(
             scheme=self.scheme(),
@@ -337,10 +335,11 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def _get_hash_fn(self, target_base_path: str) -> t.Any:
         """Return the hash function used for the object in the give remote base path.
 
-        :param target_base_path: the remote base path, eg, the bucket name.
-        :type target_base_path: str
-        :return: the hash function, eg, `hashlib.blake2b()`.
-        :rtype: Any
+        Args:
+          target_base_path (str): the remote base path, eg, the bucket name.
+
+        Returns:
+          Any: the hash function, eg, `hashlib.blake2b()`.
         """
         pass
 
@@ -354,16 +353,14 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     ) -> bool:
         """Upload data from a readable stream.
 
-        :param local_stream: a binary data stream.
-        :type local_stream: BinaryIO
-        :param local_stream_size: the byte size to upload.
-        :type local_stream_size: int
-        :param target_base_path: the remote base path, eg, the bucket name.
-        :type target_base_path: str
-        :param target_name: the remote object name.
-        :type target_name: str
-        :return: True if no error occurred.
-        :rtype: bool
+        Args:
+          local_stream (BinaryIO): a binary data stream.
+          local_stream_size (int): the byte size to upload.
+          target_base_path (str): the remote base path, eg, the bucket name.
+          target_name (str): the remote object name.
+
+        Returns:
+          bool: True if no error occurred.
         """
         pass
 
@@ -377,16 +374,14 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     ) -> bool:
         """Download and write data to a writable stream.
 
-        :param local_stream: a writable stream.
-        :type local_stream: BinaryIO
-        :param source_base_path: the remote base path, eg, the bucket name.
-        :type source_base_path: str
-        :param source_name: the remote object name.
-        :type source_name: str
-        :param source_offset: where to start reading the remote data, defaults to 0
-        :type source_offset: int, optional
-        :return: True if no error occurred.
-        :rtype: bool
+        Args:
+          local_stream (BinaryIO): a writable stream.
+          source_base_path (str): the remote base path, eg, the bucket name.
+          source_name (str): the remote object name.
+          source_offset (int, optional): where to start reading the remote data
+
+        Returns:
+          bool: True if no error occurred.
         """
         pass
 
@@ -395,8 +390,8 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def scheme(cls) -> str:
         """Return the scheme name, eg, 's3' or 'file'.
 
-        :return: the scheme name.
-        :rtype: str
+        Returns:
+          str: the scheme name.
         """
         pass
 
@@ -404,8 +399,8 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def netloc(self) -> str:
         """Return the remote network address.
 
-        :return: the remote network address.
-        :rtype: str
+        Returns:
+          str: the remote network address.
         """
         return self._netloc
 
@@ -414,7 +409,7 @@ class BaseRemote(metaclass=RemoteRegister):  # type: ignore
     def is_valid(self) -> bool:
         """Check if this remote instance is valid and usable.
 
-        :return: True if this instance is valid.
-        :rtype: bool
+        Returns:
+          bool: True if this instance is valid.
         """
         pass

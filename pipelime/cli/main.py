@@ -666,7 +666,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     from pydantic.error_wrappers import ValidationError
 
     from pipelime.cli.pretty_print import print_info, print_command_outputs
-    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str
+    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str, show_field_alias_valerr
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
@@ -680,21 +680,7 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     try:
         cmd_obj = cmd_cls(**cmd_args)
     except ValidationError as e:
-
-        def _replace_alias(val):
-            if isinstance(val, str):
-                for field in cmd_cls.__fields__.values():
-                    if (
-                        field.model_config.allow_population_by_field_name
-                        and field.has_alias
-                        and field.alias == val
-                    ):
-                        return f"{field.name} / {field.alias}"
-            return val
-
-        for err in e.errors():
-            if "loc" in err:
-                err["loc"] = tuple(_replace_alias(l) for l in err["loc"])
+        show_field_alias_valerr(e)
         raise e
 
     if verbose > 0:

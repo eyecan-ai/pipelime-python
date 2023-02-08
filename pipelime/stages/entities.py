@@ -86,7 +86,11 @@ class ParsedItem(
     raw_item: ItTp
     parsed_value: ValTp
 
-    def __call__(self):
+    def __call__(self) -> ValTp:
+        return self.parsed_value
+
+    @property
+    def value(self) -> ValTp:
         return self.parsed_value
 
     @classmethod
@@ -99,8 +103,8 @@ class ParsedItem(
 
     @classmethod
     def value_to_item_data(cls, value) -> t.Any:
-        if hasattr(value, "to_item_data"):
-            return value.to_item_data()
+        if hasattr(value, "__to_item_data__"):
+            return value.__to_item_data__()
         elif isinstance(value, pyd.BaseModel):
             return value.dict()
         return value

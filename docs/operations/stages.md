@@ -1,4 +1,4 @@
-# Stages
+# Stages And Actions
 
 Let's focus some more on pipelime stages. [As you may already know](../get_started/operations.md#stages), stages are a special kind of operation that transforms individual samples of a sequence. When a stage is applied on a sequence, all of its samples are transformed independently.
 
@@ -25,7 +25,7 @@ You need to define three components:
 - An **output entity** defining the items that your stage will put into the output sample
 - An **action callable** accepting the input entity and returning the output entity
 
-The input/output entities are classes derived from `pipelime.stages.BaseEntity`, which in turn is a [pydantic models](https://pydantic-docs.helpmanual.io/).
+The input/output entities are classes derived from `pipelime.stages.BaseEntity`, which in turn is a [pydantic models](https://docs.pydantic.dev/).
 
 ```{hint}
 Pydantic models are dataclasses on steroids, they provide automatic de/serialization, validation, constructor, property-like fields generation and tons of interesting features aimed at reducing the amount of boilerplate code for plain python classes.
@@ -244,11 +244,11 @@ class PlanarRGBImage:
     def b(self) -> np.ndarray:
         return self._image[:, :, 2]
 
-    def to_item_data(self) -> np.ndarray:
+    def __to_item_data__(self) -> np.ndarray:
         return self._image
 ```
 
-Note that the special `to_item_data` method is required to convert a parsed value back to a raw item value. Then, you can use it as follows:
+Note that the special `__to_item_data__` method is required to convert a parsed value back to a raw item value. Then, you can use it as follows:
 
 ```python
 import pipelime.stages.entities as ple
@@ -396,7 +396,7 @@ class ColorImageEntity(BaseEntity):
 ```
 
 You can even perform advanced transformations on the input items,
-checkout [pydantic](https://pydantic-docs.helpmanual.io/) for more details:
+checkout [pydantic](https://docs.pydantic.dev/) for more details:
 
 ```python
 class MaskedGrayImageEntity(BaseEntity):
@@ -445,7 +445,7 @@ new_seq = seq.map(StageEntity(action="class.path.to.your_action", input_type="cl
 
 where `YourInputEntity` must be a subclass of `BaseEntity`.
 
-## Full-fledged Stages
+## Full-Fledged Stages
 
 Though the previous approach is very powerful, sometimes it might not fit all your needs
 and you want to write a full-fledged stage class. The `invert_action` can be converted

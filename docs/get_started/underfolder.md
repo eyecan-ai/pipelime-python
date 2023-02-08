@@ -33,6 +33,7 @@ We currently support many common file formats and others can be added by users:
   * `.yaml/.yml`, `.json` and `.toml/.tml` for metadata
   * `.txt` for numpy 2D matrix notation
   * `.npy` for general numpy arrays
+  * `.obj`, `.ply`, `.off`, `.stl` and `.glb` for 3D models
   * `.pkl/.pickle` for picklable python objects
   * `.bin` for generic binary data
 

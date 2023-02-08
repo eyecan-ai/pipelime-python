@@ -54,13 +54,15 @@ def build_pipe(
 ) -> SamplesSequence:
     """Build a pipeline from a list of operations.
 
-    :param pipe_list: a single sequence operator or a mapping or a sequence of mappings
-    :type pipe_list: t.Union[str, t.Mapping[str, t.Any],
-        t.Sequence[t.Union[str, t.Mapping[str, t.Any]]]]
-    :param source: the source symbol to start with, defaults to SamplesSequence
-    :type source: t.Union[SamplesSequence, t.Type[SamplesSequence]], optional
-    :return: the pipeline
-    :rtype: SamplesSequence
+    Args:
+        pipe_list (Union[str,
+            Mapping[str, Any], Sequence[Union[str, Mapping[str, Any]]]]): a single
+            sequence operator or a mapping or a sequence of mappings
+        source (Union[SamplesSequence, Type[SamplesSequence]], optional): the source
+            symbol to start with  (Default to SamplesSequence)
+
+    Returns:
+        SamplesSequence: the pipeline
     """
     for op_item in (
         pipe_list
@@ -161,8 +163,7 @@ class DataStream(
     @classmethod
     def create_output_stream(cls, path: t.Union[str, Path], zfill: int = 0) -> DataStream:
         """Creates a DataStream to write samples to a new underfolder dataset
-        or update an existing one. NB: Samples cannot be read from this stream.
-        """
+        or update an existing one. NB: Samples cannot be read from this stream."""
         return cls(
             input_sequence=None,
             output_pipe={

@@ -8,7 +8,7 @@ from pipelime.items.base import deferred_classattr
 
 class NumpyItem(Item[np.ndarray]):
     """Base class for all numpy types."""
-    
+
     @deferred_classattr
     def default_concrete(cls):
         return NpyNumpyItem
@@ -18,7 +18,11 @@ class NumpyItem(Item[np.ndarray]):
         return np.array(raw_data)
 
 
-class NpyNumpyItem(NumpyItem):
+class NumpyRawItem(NumpyItem):
+    """Base class for generic numpy types."""
+
+
+class NpyNumpyItem(NumpyRawItem):
     @classmethod
     def file_extensions(cls) -> t.Sequence[str]:
         return (".npy",)
@@ -32,7 +36,7 @@ class NpyNumpyItem(NumpyItem):
         np.save(fp, value)
 
 
-class TxtNumpyItem(NumpyItem):
+class TxtNumpyItem(NumpyRawItem):
     @classmethod
     def file_extensions(cls) -> t.Sequence[str]:
         return (".txt",)

@@ -12,8 +12,8 @@ class DAGParser(ABC):
 
         Args:
             cfg (Mapping): The input configuration as dictionary
-            params (Optional[Mapping], optional): The parameters dictionary. Defaults to
-            None.
+                params (Optional[Mapping], optional): The parameters dictionary.
+                Defaults to None.
 
         Returns:
             DAGModel: The parsed DAGModel
@@ -29,7 +29,7 @@ class DAGParser(ABC):
         Args:
             path (Path): The path to the file
             additional_args (Optional[Mapping], optional): Additional parameters that
-            will overwrite the ones specified in the file. Defaults to None.
+                will overwrite the ones specified in the file. Defaults to None.
 
         Returns:
             Mapping: The file content as dictionary
@@ -46,10 +46,10 @@ class DAGParser(ABC):
 
         Args:
             cfg_file (str): The input configuration file
-            params_file (Optional[str], optional): The parameters file. Defaults to
-            None.
+                params_file (Optional[str], optional): The parameters file.
+                Defaults to None.
             additional_args (Optional[Mapping], optional): Additional custom parameters
-            that will overwrite the ones specified in params_file. Defaults to None.
+                that will overwrite the ones specified in params_file. Defaults to None.
 
         Returns:
             DAGModel: The parsed DAGModel

@@ -69,7 +69,6 @@ def deep_set_(  # noqa: C901
             Defaults to list.
         default_mapping_factory (optional): a callable to create a new mapping object.
             Defaults to dict.
-        Defaults to True.
     """
     from pydash.utilities import to_path
 

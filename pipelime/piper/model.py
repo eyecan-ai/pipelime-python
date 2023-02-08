@@ -13,7 +13,9 @@ if t.TYPE_CHECKING:
 # TODO: forward with typing.ParamSpec (New in Python 3.10) to get full type checking
 @t.overload
 def command(
-    *, title: t.Optional[str] = None, **__config_kwargs,
+    *,
+    title: t.Optional[str] = None,
+    **__config_kwargs,
 ) -> t.Callable[[t.Callable[..., None]], t.Callable[..., t.Type["PipelimeCommand"]]]:
     ...
 
@@ -424,13 +426,20 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
             ],
         ],
     ):
-        from pipelime.cli.utils import get_pipelime_command
+        from pydantic import ValidationError
+        from pipelime.cli.utils import get_pipelime_command, show_field_alias_valerr
 
         if isinstance(value, NodesDefinition):
             return value
-        return cls(
-            __root__={name: get_pipelime_command(cmd) for name, cmd in value.items()}
-        )
+        try:
+            return cls(
+                __root__={
+                    name: get_pipelime_command(cmd) for name, cmd in value.items()
+                }
+            )
+        except ValidationError as e:
+            show_field_alias_valerr(e)
+            raise e
 
 
 class DAGModel(BaseModel, extra="forbid", copy_on_model_validation="none"):

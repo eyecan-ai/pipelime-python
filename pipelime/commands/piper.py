@@ -58,7 +58,7 @@ class RunCommand(PipelimeCommand, title="run"):
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel, NodesDefinition
 
-        watch = self.watch
+        watch = not self.token if self.watch is None else self.watch
         if not self.token:
             self.token = uuid.uuid1().hex
             if self.watch is None:
