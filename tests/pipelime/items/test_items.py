@@ -230,6 +230,40 @@ class TestItems:
 
         assert TestUtils.numpy_eq(r_item(), decoded)
 
+    def test_read_write_unknown(self, tmp_path: Path):
+        text = "random data"
+        source_path = tmp_path / "source.unk"
+        dest_req_path = tmp_path / "dest.rnd"
+        dest_path = tmp_path / "dest.unk"
+        other_path = tmp_path / "other"
+
+        source_path.write_text(text)
+
+        item = pli.UnknownItem(source_path)
+        assert item() is None
+
+        item.serialize(dest_req_path)
+
+        assert not dest_req_path.exists()
+        assert dest_path.exists()
+        assert dest_path.read_text() == text
+        assert not dest_path.is_symlink()
+        assert dest_path.stat().st_nlink == 2
+        assert source_path.stat().st_nlink == 2
+
+        item = pli.Item.get_instance(dest_path)
+        item.serialization_mode = pli.SerializationMode.DEEP_COPY
+        item.serialize(other_path)
+
+        other_path = other_path.with_suffix(".unk")
+
+        assert other_path.exists()
+        assert other_path.read_text() == text
+        assert not other_path.is_symlink()
+        assert other_path.stat().st_nlink == 1
+        assert dest_path.stat().st_nlink == 2
+        assert source_path.stat().st_nlink == 2
+
     def test_data_cache(self, items_folder: Path):
         from pipelime.items.base import ItemFactory
 

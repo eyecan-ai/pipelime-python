@@ -35,10 +35,10 @@ class ImageItem(NumpyItem):
 
     @classmethod
     def pl_pretty_data(cls, value: np.ndarray) -> t.Any:
+        import albumentations as A
+
         IMAGE_SIZE = 32
         if value.shape[0] > IMAGE_SIZE or value.shape[1] > IMAGE_SIZE:
-            import albumentations as A
-
             if value.dtype != np.uint8:
                 src_min, src_max = value.min(), value.max()
                 value = (value.astype(np.float32) + src_min) / float(src_max - src_min)
@@ -47,6 +47,9 @@ class ImageItem(NumpyItem):
             value = A.LongestMaxSize(max_size=IMAGE_SIZE, always_apply=True)(
                 image=value
             )["image"]
+        value = A.Resize(height=IMAGE_SIZE // 2, width=IMAGE_SIZE, always_apply=True)(
+            image=value
+        )["image"]
 
         def _get_color_str(v) -> str:
             return (

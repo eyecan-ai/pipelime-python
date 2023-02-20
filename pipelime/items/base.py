@@ -39,7 +39,7 @@ class deferred_classattr:
     """A class attribute that is set on first access.
     Useful to resolve circular dependencies.
     """
-    
+
     def __init__(self, fget):
         if not isinstance(fget, (classmethod, staticmethod)):
             fget = classmethod(fget)
@@ -214,9 +214,7 @@ class item_serialization_mode(ContextDecorator):
            ...
     """
 
-    def __init__(
-        self, smode: t.Union[str, SerializationMode], *item_cls: t.Type[Item]
-    ):
+    def __init__(self, smode: t.Union[str, SerializationMode], *item_cls: t.Type[Item]):
         self._target_mode = (
             smode if isinstance(smode, SerializationMode) else SerializationMode[smode]
         )
@@ -483,22 +481,32 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         return mode not in ItemFactory.get_disabled_serialization_modes(self.__class__)
 
     @classmethod
-    def make_new(cls: t.Type[DerivedItemTp], *sources: _item_init_types, shared: bool = False) -> DerivedItemTp:
+    def make_new(
+        cls: t.Type[DerivedItemTp], *sources: _item_init_types, shared: bool = False
+    ) -> DerivedItemTp:
         return cls.default_concrete(*sources, shared=shared)
 
-    @classmethod
-    def as_default_name(cls, filepath: Path) -> Path:
-        return filepath.with_suffix(cls.file_extensions()[0])
+    def default_extension(self) -> t.Optional[str]:
+        ext = self.file_extensions()[0]
+        if ext is None and self._file_sources:
+            return self._file_sources[0].suffix
+        return ext
 
-    @classmethod
-    def as_default_remote_file(cls, filepath: Path) -> Path:
-        filename = cls.as_default_name(filepath)
+    def with_extension(self, filepath: Path, ext: t.Optional[str]) -> Path:
+        if ext is None:
+            ext = self.default_extension()
+        return filepath if ext is None else filepath.with_suffix(ext)
+
+    def as_default_name(self, filepath: Path) -> Path:
+        return self.with_extension(filepath, None)
+
+    def as_default_remote_file(self, filepath: Path) -> Path:
+        filename = self.as_default_name(filepath)
         return filename.parent / (filename.name + Item.REMOTE_FILE_EXT)
 
-    @classmethod
-    def get_all_names(cls, filepath: Path) -> t.List[Path]:
-        names = [filepath.with_suffix(ext) for ext in cls.file_extensions()]
-        names += [cls.as_default_remote_file(filepath)]
+    def get_all_names(self, filepath: Path) -> t.List[Path]:
+        names = [self.with_extension(filepath, ext) for ext in self.file_extensions()]
+        names += [self.as_default_remote_file(filepath)]
         return names
 
     def _check_source(self, source: _item_data_source):
@@ -512,7 +520,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     def _add_data_source(
         self, source: _item_data_source, dont_check_paths: bool = False
     ) -> bool:
-        if not dont_check_paths:
+        if not (dont_check_paths or None in self.file_extensions()):
             self._check_source(source)
         if isinstance(source, Path):
             source = source.resolve().absolute()
@@ -635,8 +643,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):
                     data_size = data_stream.tell()
                     data_stream.seek(0, io.SEEK_SET)
 
+                    ext = self.default_extension()
+                    if ext is None:
+                        ext = ".___"
+
                     return remote.upload_stream(
-                        data_stream, data_size, rm_paths[0], self.file_extensions()[0]
+                        data_stream, data_size, rm_paths[0], ext
                     )
         return None
 
@@ -650,7 +662,9 @@ class Item(t.Generic[T], metaclass=ItemFactory):
             if data_source is not None:
                 self._add_data_source(data_source)
 
-    def remove_data_source(self: DerivedItemTp, *sources: _item_data_source) -> DerivedItemTp:
+    def remove_data_source(
+        self: DerivedItemTp, *sources: _item_data_source
+    ) -> DerivedItemTp:
         def _normalize_source(src: _item_data_source) -> t.List[_item_data_source]:
             if isinstance(src, Path):
                 src = src.resolve().absolute()
@@ -851,7 +865,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):
 class UnknownItem(Item[t.Any]):
     @classmethod
     def file_extensions(cls) -> t.Sequence[str]:
-        return ["._"]
+        # THIS IS A VERY SPECIAL PLACEHOLDER
+        return [None]  # type: ignore
 
     @classmethod
     def decode(cls, fp: t.BinaryIO) -> t.Any:
