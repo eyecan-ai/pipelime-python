@@ -385,7 +385,7 @@ class SerializationModeInterface(
             return []
         if not isinstance(cls_paths, t.Sequence):
             cls_paths = [cls_paths]
-        return [c.value for c in cls_paths]
+        return [c.value for c in cls_paths]  # type: ignore
 
     def __init__(self, **data):
         import pipelime.items as pli
