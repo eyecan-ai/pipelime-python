@@ -218,22 +218,24 @@ class SamplesSequence(
             sample_fn (t.Optional[t.Callable[[Sample], None]], optional): a callable to
                 run on each sample  (Default to None)
             track_fn (track_fn: t.Union[bool, str, t.Callable[
-                [t.Iterable], t.Iterable], None], optional): if True, a rich trackbar
+                [t.Iterable], t.Iterable], None], optional): if True, a trackbar
                 is shown; if a string is passed, it is set as the message for the
-                default rich trackbar; otherwise you should provide your own callable
-                to track the progress, defaults to True  (Default to True)
+                default trackbar; otherwise you should provide your own callable
+                to track the progress  (Default to True)
         """
         from pipelime.sequences import Grabber, grab_all
 
         if isinstance(track_fn, (bool, str)):
-            import rich.progress
+            from tqdm import tqdm
 
             if track_fn:
-                msg = track_fn if isinstance(track_fn, str) else ""
-                track_fn = lambda x: rich.progress.track(
+                message = track_fn if isinstance(track_fn, str) else ""
+                track_fn = lambda x: tqdm(
                     x,
                     total=len(self),
-                    description=msg,
+                    desc="🍋 " + message if message else "🍋",
+                    colour="#4CAE4F",
+                    ncols=80,
                 )
             else:
                 track_fn = None

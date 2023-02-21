@@ -4,8 +4,7 @@ import typing as t
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-if t.TYPE_CHECKING:
-    from pipelime.piper.progress.tracker.base import Tracker, TrackedTask
+from pipelime.piper.progress.tracker.base import Tracker, TrackedTask
 
 
 # The return type is a hack to fool the type checker
@@ -269,6 +268,44 @@ def self_() -> "PipelimeCommand":
     return parent
 
 
+class TqdmTask(TrackedTask):
+    @staticmethod
+    def default_bar(iterable=None, *, total=None, message=None, position=None):
+        from tqdm import tqdm
+
+        return tqdm(
+            iterable,
+            total=len(iterable) if total is None else total,  # type: ignore
+            desc="🍋 " + message if message else "🍋",
+            colour="#4CAE4F",
+            ncols=80,
+            position=None,
+        )
+
+    def __init__(self, total: int, message: str, position: t.Optional[int] = None):
+        self._bar = None
+        self._total = total
+        self._message = message
+        self._position = position
+
+    @property
+    def bar(self):
+        # create and show the bar upon first access
+        if not self._bar:
+            self._bar = self.default_bar(total=self._total, message=self._message, position=self._position)
+        return self._bar
+
+    def on_update(self, finished: bool = False):
+        bar = self.bar
+        if finished:
+            bar.close()
+        elif bar.n < self.progress:
+            bar.update(self.progress - bar.n)
+        elif bar.n > self.progress:
+            bar.reset()
+            bar.update(self.progress)
+
+
 class PiperPortType(Enum):
     INPUT = "input"
     OUTPUT = "output"
@@ -355,21 +392,16 @@ class PipelimeCommand(
         message: str = "",
     ) -> t.Iterable:
         """Track a sequence with a progress bar or a piper task."""
-        import rich.progress
 
-        if self._piper.active:
-            tracker = self._get_piper_tracker()
-            return tracker.track(seq, size=size, message=message)
-        else:
-            return rich.progress.track(
-                seq,
-                total=len(seq) if size is None else size,  # type: ignore
-                description="🍋 " + message,
-            )
+        total = len(seq) if size is None else size  # type: ignore
+        with self.create_task(total, message) as t:
+            yield from t.track(seq)
 
     def create_task(self, total: int, message: str = "") -> "TrackedTask":
         """Explicit piper task creation."""
-        return self._get_piper_tracker().create_task(total, message)
+        if self._piper.active:
+            return self._get_piper_tracker().create_task(total, message)
+        return TqdmTask(total, message)
 
     def __call__(self) -> None:
         self.run()
