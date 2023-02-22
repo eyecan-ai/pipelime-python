@@ -7,6 +7,19 @@ from pydantic import Field, PositiveInt
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 
+class WatcherBackend(Enum):
+    """The watcher backend to use."""
+
+    RICH = "rich"
+    TQDM = "tqdm"
+
+    def listener_key(self) -> str:
+        return {
+            WatcherBackend.RICH: "RICH_TABLE",
+            WatcherBackend.TQDM: "TQDM_BARS",
+        }[self]
+
+
 class RunCommand(PipelimeCommand, title="run"):
     """Executes a DAG of pipelime commands."""
 
@@ -35,12 +48,13 @@ class RunCommand(PipelimeCommand, title="run"):
             "The execution token. If not specified, a new token will be generated."
         ),
     )
-    watch: t.Optional[bool] = Field(
+    watch: t.Union[bool, WatcherBackend, None] = Field(
         None,
         alias="w",
         description=(
             "Monitor the execution in the current console. "
-            "Defaults to True if no token is provided, False othrewise."
+            "Defaults to True if no token is provided, False othrewise. "
+            "If a string is provided, it is used as the name of the watcher backend."
         ),
     )
     successful: bool = Field(
@@ -63,9 +77,8 @@ class RunCommand(PipelimeCommand, title="run"):
             self.token = uuid.uuid1().hex
             if self.watch is None:
                 watch = True
-        else:
-            if self.watch is None:
-                watch = False
+        elif self.watch is None:
+            watch = False
 
         inc_n = [self.include] if isinstance(self.include, str) else self.include
         exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
@@ -78,7 +91,9 @@ class RunCommand(PipelimeCommand, title="run"):
         nodes = {name: cmd for name, cmd in self.nodes.items() if _node_to_run(name)}
         dag = DAGModel(nodes=NodesDefinition.create(nodes))
         graph = DAGNodesGraph.build_nodes_graph(dag)
-        executor = NodesGraphExecutorFactory.get_executor(watch=watch)
+        executor = NodesGraphExecutorFactory.get_executor(
+            watch=watch if isinstance(watch, bool) else watch.listener_key()
+        )
         self.successful = executor.exec(graph, token=self.token)
 
 
@@ -221,6 +236,9 @@ class WatchCommand(PipelimeCommand, title="watch"):
     token: str = Field(
         ..., alias="t", description="The token of the DAG you want to monitor."
     )
+    watcher: WatcherBackend = Field(
+        WatcherBackend.RICH, alias="w", description="The listener to use."
+    )
 
     def run(self):
         from pipelime.piper.progress.listener.base import Listener
@@ -232,7 +250,9 @@ class WatchCommand(PipelimeCommand, title="watch"):
         from time import sleep
 
         receiver = ProgressReceiverFactory.get_receiver(self.token)
-        callback = ListenerCallbackFactory.get_callback()
+        callback = ListenerCallbackFactory.get_callback(
+            watch=self.watcher.listener_key()
+        )
         listener = Listener(receiver, callback)
         listener.start()
 

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from loguru import logger
 
@@ -52,14 +53,19 @@ class WatcherNodesGraphExecutor(NodesGraphExecutor):
         executor3 = WatcherNodesGraphExecutor(executor3)
     """
 
-    def __init__(self, executor: NodesGraphExecutor) -> None:
+    def __init__(
+        self, executor: NodesGraphExecutor, listener_clbk: Optional[str] = None
+    ) -> None:
         self._executor = executor
+        self._listener_clbk = listener_clbk
 
     def exec(self, graph: DAGNodesGraph, token: str = "") -> bool:
         res = False
         logger.disable(self._executor.__module__)
         receiver = ProgressReceiverFactory.get_receiver(token)
-        callback = ListenerCallbackFactory.get_callback()
+        callback = ListenerCallbackFactory.get_callback(
+            self._listener_clbk or ListenerCallbackFactory.DEFAULT_CALLBACK_TYPE
+        )
         listener = Listener(receiver, callback)
         try:
             listener.start()

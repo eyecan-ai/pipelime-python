@@ -16,6 +16,7 @@ class TrackCallback(ABC):
             prog (ProgressUpdate): The progress update object.
         """
 
+
 class TrackedTask(ABC):
     """Context manager to track a single task."""
 
@@ -76,6 +77,79 @@ class PiperTask(TrackedTask):
         )
         for cb in self._callbacks:
             cb.update(prog)
+
+
+class TqdmTask(TrackedTask):
+    @staticmethod
+    def default_bar(
+        iterable=None,
+        *,
+        total=None,
+        message=None,
+        bar_width=None,
+        ncols=None,
+        position=None,
+    ):
+        from tqdm import tqdm
+
+        bar = tqdm(
+            iterable,
+            total=len(iterable) if total is None else total,  # type: ignore
+            colour="#4CAE4F",
+            position=position,
+            ncols=88 if ncols is None else (None if ncols <= 0 else ncols),
+            bar_format=(
+                None
+                if bar_width is None
+                else "{desc} {percentage:3.0f}%|{bar:" + str(bar_width) + "}{r_bar}"
+            ),
+        )
+        TqdmTask._set_description(bar, message)
+        return bar
+
+    @staticmethod
+    def _set_description(bar, message: Optional[str]):
+        bar.set_description_str("🍋 " + message if message else "🍋")
+
+    def __init__(
+        self,
+        total: int,
+        message: str,
+        bar_width: Optional[int] = None,
+        position: Optional[int] = None,
+    ):
+        self._bar = None
+        self._total = total
+        self._message = message
+        self._bar_width = bar_width
+        self._position = position
+
+    def set_message(self, message: str):
+        self._message = message
+        if self._bar:
+            self._set_description(self._bar, self._message)
+
+    @property
+    def bar(self):
+        # create and show the bar upon first access
+        if not self._bar:
+            self._bar = self.default_bar(
+                total=self._total,
+                message=self._message,
+                bar_width=self._bar_width,
+                position=self._position,
+            )
+        return self._bar
+
+    def on_update(self, finished: bool = False):
+        bar = self.bar
+        if finished:
+            bar.close()
+        elif bar.n < self.progress:
+            bar.update(self.progress - bar.n)
+        elif bar.n > self.progress:
+            bar.reset()
+            bar.update(self.progress)
 
 
 class Tracker:

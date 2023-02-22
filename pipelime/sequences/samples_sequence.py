@@ -226,16 +226,12 @@ class SamplesSequence(
         from pipelime.sequences import Grabber, grab_all
 
         if isinstance(track_fn, (bool, str)):
-            from tqdm import tqdm
-
             if track_fn:
+                from pipelime.piper.progress.tracker.base import TqdmTask
+
                 message = track_fn if isinstance(track_fn, str) else ""
-                track_fn = lambda x: tqdm(
-                    x,
-                    total=len(self),
-                    desc="🍋 " + message if message else "🍋",
-                    colour="#4CAE4F",
-                    ncols=80,
+                track_fn = lambda x: TqdmTask.default_bar(
+                    iterable=x, total=len(self), message=message
                 )
             else:
                 track_fn = None

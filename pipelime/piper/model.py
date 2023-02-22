@@ -4,7 +4,7 @@ import typing as t
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from pipelime.piper.progress.tracker.base import Tracker, TrackedTask
+from pipelime.piper.progress.tracker.base import Tracker, TrackedTask, TqdmTask
 
 
 # The return type is a hack to fool the type checker
@@ -266,44 +266,6 @@ def self_() -> "PipelimeCommand":
             "self_() can only be used inside a function decorated as @command."
         )
     return parent
-
-
-class TqdmTask(TrackedTask):
-    @staticmethod
-    def default_bar(iterable=None, *, total=None, message=None, position=None):
-        from tqdm import tqdm
-
-        return tqdm(
-            iterable,
-            total=len(iterable) if total is None else total,  # type: ignore
-            desc="🍋 " + message if message else "🍋",
-            colour="#4CAE4F",
-            ncols=80,
-            position=None,
-        )
-
-    def __init__(self, total: int, message: str, position: t.Optional[int] = None):
-        self._bar = None
-        self._total = total
-        self._message = message
-        self._position = position
-
-    @property
-    def bar(self):
-        # create and show the bar upon first access
-        if not self._bar:
-            self._bar = self.default_bar(total=self._total, message=self._message, position=self._position)
-        return self._bar
-
-    def on_update(self, finished: bool = False):
-        bar = self.bar
-        if finished:
-            bar.close()
-        elif bar.n < self.progress:
-            bar.update(self.progress - bar.n)
-        elif bar.n > self.progress:
-            bar.reset()
-            bar.update(self.progress)
 
 
 class PiperPortType(Enum):
