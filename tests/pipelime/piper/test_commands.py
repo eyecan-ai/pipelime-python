@@ -77,6 +77,9 @@ def test_port_forwarding(piper_folder: Path, tmp_path: Path):
         "split-all.split.splits[0]": (tmp_path / "split0").as_posix(),
         "split-all.split.splits[1]": (tmp_path / "split1").as_posix(),
     }
+    assert cmd.piper_graph.num_nodes == 8
+    assert cmd.piper_graph.num_operation_nodes == 2
+    assert cmd.piper_graph.num_data_nodes == 6
 
 
 def test_nested_dag(piper_folder: Path, tmp_path: Path):

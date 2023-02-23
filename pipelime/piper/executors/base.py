@@ -3,12 +3,13 @@ from typing import Optional
 
 from loguru import logger
 
-from pipelime.piper.graph import DAGNodesGraph
+from pipelime.piper.graph import DAGNodesGraph, GraphNodeOperation
 from pipelime.piper.progress.listener.base import Listener
 from pipelime.piper.progress.listener.factory import (
     ListenerCallbackFactory,
     ProgressReceiverFactory,
 )
+from pipelime.piper.progress.tracker.base import TrackedTask
 
 
 class NodesGraphExecutor(ABC):
@@ -16,8 +17,21 @@ class NodesGraphExecutor(ABC):
     implement the execution of a NodesGraph made of Nodes.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, node_prefix: str) -> None:
         super().__init__()
+        self._node_prefix = node_prefix
+        self._task = None
+
+    @property
+    def task(self) -> Optional[TrackedTask]:
+        return self._task
+
+    @task.setter
+    def task(self, task: Optional[TrackedTask]):
+        self._task = task
+
+    def _set_piper_info(self, node: GraphNodeOperation, token: str):
+        node.command.set_piper_info(token=token, node=self._node_prefix + node.name)
 
     @abstractmethod
     def exec(self, graph: DAGNodesGraph, token: str = "") -> bool:
@@ -37,7 +51,7 @@ class WatcherNodesGraphExecutor(NodesGraphExecutor):
     """Decorator for `NodesGraphExecutor` that wraps an existing executor.
 
     The `WatcherNodesGraphExecutor` disables all logs from the wrapped executor and
-    lets a `Watcher` print live updates in the form of a rich table.
+    lets a `Watcher` print live updates.
 
     This wrapper can be used with any subtype of `NodesGraphExecutor`::
 

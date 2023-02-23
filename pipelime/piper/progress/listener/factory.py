@@ -27,7 +27,7 @@ class ProgressReceiverFactory:
 class ListenerCallbackFactory:
     """Factory for ``ListenerCallback`` s"""
 
-    DEFAULT_CALLBACK_TYPE = "RICH_TABLE"
+    DEFAULT_CALLBACK_TYPE = "TQDM_BARS"
 
     CLASS_MAP = {
         "RICH_TABLE": RichTableListenerCallback,

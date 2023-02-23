@@ -13,28 +13,26 @@ class TqdmBarsListenerCallback(ListenerCallback):
 
     def on_start(self) -> None:
         from rich import print as rp
-        from rich.rule import Rule
+        from rich.align import Align
         from rich.panel import Panel
         from rich.style import Style
         from rich import box
+        from rich.rule import Rule
 
         rp(
             Panel(
-                Rule(
-                    "[dark_orange bold][on white]Piper Watcher[/][/]",
-                    style=Style(color="#4CAE4F"),
-                    align="left",
-                ),
-                width=30,
-                padding=(0, 0),
-                box=box.SIMPLE,
+                Align("[red bold][on white]Piper Watcher[/][/]", align="center"),
+                box=box.HEAVY,
             )
         )
 
     def on_update(self, prog: ProgressUpdate):
         if prog.op_info not in self._bars:
             self._bars[prog.op_info] = TqdmTask(
-                total=prog.op_info.total, message="", bar_width=20
+                total=prog.op_info.total,
+                message="",
+                bar_width=20,
+                total_width=-1,
             )
 
             # adapt the width of the description to the longest one
@@ -44,9 +42,9 @@ class TqdmBarsListenerCallback(ListenerCallback):
                 v.set_message((f"[{k.node}] {k.message}").ljust(mlen))
 
         bar = self._bars[prog.op_info]
-        if prog.finished:
-            bar.finish()
-        else:
+
+        # do not close on "finish", otherwise we won't be able to resize the bars
+        if not prog.finished:
             bar.update(prog.progress)
 
     def on_stop(self):

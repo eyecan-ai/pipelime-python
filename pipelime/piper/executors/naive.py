@@ -19,14 +19,29 @@ class NaiveNodesGraphExecutor(NodesGraphExecutor):
             bool: True if the execution succeeds
         """
 
+        if self.task:
+            self.task.restart()
+
         for layer in graph.build_execution_stack():
             for node in layer:
-                node.command.set_piper_info(token=token, node=node.name)
+                self._set_piper_info(node=node, token=token)
 
-                logger.debug(f"Executing command: {node.command._piper.node}")
+                logger.debug(
+                    f"[token={token}] Executing command: {node.command._piper.node}"
+                )
 
                 try:
                     node.command()
                 except Exception as e:
-                    raise RuntimeError(f"Failed to execute node: {node.name}") from e
+                    raise RuntimeError(
+                        f"[token={token}] Failed to execute node: {node.name}"
+                    ) from e
+
+                if self.task:
+                    self.task.advance()
+
+        logger.debug(f"[token={token}] Graph execution completed")
+        if self.task:
+            self.task.finish()
+
         return True

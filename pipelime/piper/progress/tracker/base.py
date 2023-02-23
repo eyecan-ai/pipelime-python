@@ -116,12 +116,15 @@ class TqdmTask(TrackedTask):
         total: int,
         message: str,
         bar_width: Optional[int] = None,
+        total_width: Optional[int] = None,
         position: Optional[int] = None,
     ):
+        super().__init__()
         self._bar = None
         self._total = total
         self._message = message
         self._bar_width = bar_width
+        self._total_width = total_width
         self._position = position
 
     def set_message(self, message: str):
@@ -137,6 +140,7 @@ class TqdmTask(TrackedTask):
                 total=self._total,
                 message=self._message,
                 bar_width=self._bar_width,
+                ncols=self._total_width,
                 position=self._position,
             )
         return self._bar
