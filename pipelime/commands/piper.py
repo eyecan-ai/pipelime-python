@@ -104,19 +104,26 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
         import uuid
 
         from pipelime.piper.executors.factory import NodesGraphExecutorFactory
-        from pipelime.piper.graph import DAGNodesGraph
 
-        watch = not self.token if self.watch is None else self.watch
-        if not self.token:
-            self.token = uuid.uuid1().hex
-            if self.watch is None:
-                watch = True
+        if self._piper.active:
+            # nested graph should disable the default watcher
+            # and forward the token of the parent graph
+            watch = False
+            token = self._piper.token
         else:
-            if self.watch is None:
-                watch = False
+            watch = not self.token if self.watch is None else self.watch
+            if not self.token:
+                self.token = uuid.uuid1().hex
+                if self.watch is None:
+                    watch = True
+            else:
+                if self.watch is None:
+                    watch = False
+            token = self.token
 
         executor = NodesGraphExecutorFactory.get_executor(watch=watch)
-        self.successful = executor.exec(self.piper_graph, token=self.token)
+        if not executor.exec(self.piper_graph, token=token):
+            raise RuntimeError("Piper execution failed")
 
 
 class DrawCommand(PiperGraphCommandBase, title="draw"):

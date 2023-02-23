@@ -423,7 +423,7 @@ class DAGNodesGraph:
                 if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
                     value = [value]
 
-                add_index = len(value) > 1
+                port_basename = f"{node_name}.{node_cmd.command_name}.{name}"
                 attrs = {}
                 for idx, x in enumerate(value):
                     if x:  # discard empty strings and None
@@ -444,7 +444,9 @@ class DAGNodesGraph:
                         attrs.update(
                             {
                                 (n0, n1): {
-                                    port_attr: f"{name}[{idx}]" if add_index else name,
+                                    port_attr: f"{port_basename}[{idx}]"
+                                    if len(value) > 1
+                                    else port_basename,
                                     DAGNodesGraph.GraphAttrs.EDGE_TYPE: edge_attr,
                                 }
                             }

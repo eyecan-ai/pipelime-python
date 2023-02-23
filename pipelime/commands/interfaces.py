@@ -299,7 +299,7 @@ class InputDatasetInterface(
         if isinstance(value, InputDatasetInterface):
             return value
 
-        if isinstance(value, (str, bytes)):
+        if isinstance(value, (str, bytes, Path)):
             fld, _, sk_emp = str(value).partition(",")
             data: t.Mapping[str, t.Any] = {"folder": fld}
             if sk_emp:
@@ -479,7 +479,7 @@ class OutputDatasetInterface(
         if isinstance(value, OutputDatasetInterface):
             return value
 
-        if isinstance(value, (str, bytes)):
+        if isinstance(value, (str, bytes, Path)):
             data = {}
             raw_data = str(value).split(",")
             data["folder"] = raw_data[0]
