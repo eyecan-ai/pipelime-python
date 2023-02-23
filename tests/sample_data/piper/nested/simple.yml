@@ -1,0 +1,17 @@
+nodes:
+    merge:
+        cat:
+            inputs:
+                - $var(folder)/first
+                - $var(folder)/second
+                - $var(folder)/third
+            output: $var(folder)/merged
+    split-all:
+        split:
+            input: $var(folder)/merged
+            shuffle: False
+            splits:
+                - output: $var(folder)/split0
+                  length: 10
+                - output: $var(folder)/split1
+                  length: null

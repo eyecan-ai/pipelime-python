@@ -223,7 +223,7 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     def validate(cls, value):
         if isinstance(value, cls):
             return value
-        if isinstance(value, str):
+        if isinstance(value, (str, Path)):
             pval = Path(value)
             filepath, _, root_key = pval.name.partition(":")
             filepath = Path(pval.parent / filepath)

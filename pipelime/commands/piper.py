@@ -2,9 +2,12 @@ import typing as t
 from enum import Enum
 from pathlib import Path
 
-from pydantic import Field, PositiveInt
+from pydantic import Field, PrivateAttr, PositiveInt
 
 from pipelime.piper import PipelimeCommand, PiperPortType
+
+if t.TYPE_CHECKING:
+    from pipelime.piper.graph import DAGNodesGraph
 
 
 class WatcherBackend(Enum):
@@ -20,8 +23,8 @@ class WatcherBackend(Enum):
         }[self]
 
 
-class RunCommand(PipelimeCommand, title="run"):
-    """Executes a DAG of pipelime commands."""
+class PiperGraphCommandBase(PipelimeCommand):
+    """Base class for piper-aware commands."""
 
     nodes: t.Mapping[
         str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
@@ -41,6 +44,59 @@ class RunCommand(PipelimeCommand, title="run"):
     exclude: t.Union[str, t.Sequence[str], None] = Field(
         None, alias="e", description="Nodes in this list are not run."
     )
+
+    _piper_graph: t.Optional["DAGNodesGraph"] = PrivateAttr(None)
+
+    @property
+    def piper_graph(self) -> "DAGNodesGraph":
+        from pipelime.piper.model import DAGModel, NodesDefinition
+        from pipelime.piper.graph import DAGNodesGraph
+
+        if not self._piper_graph:
+            inc_n = [self.include] if isinstance(self.include, str) else self.include
+            exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
+
+            def _node_to_run(node: str) -> bool:
+                return (inc_n is None or node in inc_n) and (
+                    exc_n is None or node not in exc_n
+                )
+
+            nodes = {
+                name: cmd for name, cmd in self.nodes.items() if _node_to_run(name)
+            }
+            dag = DAGModel(nodes=NodesDefinition.create(nodes))
+            self._piper_graph = DAGNodesGraph.build_nodes_graph(
+                dag, **self._nodes_graph_building_kwargs()
+            )
+        return self._piper_graph
+
+    def _nodes_graph_building_kwargs(self) -> t.Mapping[str, t.Any]:
+        """Subclasses should returns the extra kwargs options for
+        ``DAGNodesGraph.build_nodes_graph``
+        """
+        return {}
+
+
+class GraphPortForwardingCommand(PiperGraphCommandBase):
+    """A command that uses the root and leaf data nodes of the internal DAG
+    as its own I/O ports."""
+
+    def get_inputs(self) -> t.Dict[str, t.Any]:
+        return {
+            self.piper_graph.get_input_port_name(x): x.path
+            for x in self.piper_graph.input_data_nodes
+        }
+
+    def get_outputs(self) -> t.Dict[str, t.Any]:
+        return {
+            self.piper_graph.get_output_port_name(x): x.path
+            for x in self.piper_graph.output_data_nodes
+        }
+
+
+class RunCommand(GraphPortForwardingCommand, title="run"):
+    """Executes a DAG of pipelime commands."""
+
     token: t.Optional[str] = Field(
         None,
         alias="t",
@@ -57,47 +113,36 @@ class RunCommand(PipelimeCommand, title="run"):
             "If a string is provided, it is used as the name of the watcher backend."
         ),
     )
-    successful: bool = Field(
-        None,
-        description="True if the execution was successful",
-        exclude=True,
-        repr=False,
-        piper_port=PiperPortType.OUTPUT,
-    )
 
     def run(self):
         import uuid
 
         from pipelime.piper.executors.factory import NodesGraphExecutorFactory
-        from pipelime.piper.graph import DAGNodesGraph
-        from pipelime.piper.model import DAGModel, NodesDefinition
 
-        watch = not self.token if self.watch is None else self.watch
-        if not self.token:
-            self.token = uuid.uuid1().hex
-            if self.watch is None:
-                watch = True
-        elif self.watch is None:
+        if self._piper.active:
+            # nested graph should disable the default watcher
+            # and forward the token of the parent graph
             watch = False
+            token = self._piper.token
+        else:
+            watch = not self.token if self.watch is None else self.watch
+            if not self.token:
+                self.token = uuid.uuid1().hex
+                if self.watch is None:
+                    watch = True
+            else:
+                if self.watch is None:
+                    watch = False
+            token = self.token
 
-        inc_n = [self.include] if isinstance(self.include, str) else self.include
-        exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
-
-        def _node_to_run(node: str) -> bool:
-            return (inc_n is None or node in inc_n) and (
-                exc_n is None or node not in exc_n
-            )
-
-        nodes = {name: cmd for name, cmd in self.nodes.items() if _node_to_run(name)}
-        dag = DAGModel(nodes=NodesDefinition.create(nodes))
-        graph = DAGNodesGraph.build_nodes_graph(dag)
         executor = NodesGraphExecutorFactory.get_executor(
             watch=watch if isinstance(watch, bool) else watch.listener_key()
         )
-        self.successful = executor.exec(graph, token=self.token)
+        if not executor.exec(self.piper_graph, token=token):
+            raise RuntimeError("Piper execution failed")
 
 
-class DrawCommand(PipelimeCommand, title="draw"):
+class DrawCommand(PiperGraphCommandBase, title="draw"):
     """Draws a pipelime DAG."""
 
     class DrawBackendChoice(Enum):
@@ -110,24 +155,6 @@ class DrawCommand(PipelimeCommand, title="draw"):
         END = "end"
         REGEX = "regex"
 
-    nodes: t.Mapping[
-        str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
-    ] = Field(
-        ...,
-        alias="n",
-        description=(
-            "A DAG of commands as a `<node>: <command>` mapping. The command can be a "
-            "`<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split` etc, "
-            "while `<args>` is a mapping of its arguments."
-        ),
-        piper_port=PiperPortType.INPUT,
-    )
-    include: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="i", description="Nodes not in this list are not drawn."
-    )
-    exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="e", description="Nodes in this list are not drawn."
-    )
     output: t.Optional[Path] = Field(
         None,
         alias="o",
@@ -178,14 +205,19 @@ class DrawCommand(PipelimeCommand, title="draw"):
         False, alias="r", description="Show the raw graph representation."
     )
 
+    def _nodes_graph_building_kwargs(self) -> t.Mapping[str, t.Any]:
+        return {
+            "data_max_width": self.data_max_width,
+            "show_command_name": self.show_command_names,
+            "ellipsis_position": self.ellipsis_position.value,
+        }
+
     def run(self):
         import os
         import platform
         import subprocess
 
         from pipelime.piper.drawing.factory import NodesGraphDrawerFactory
-        from pipelime.piper.graph import DAGNodesGraph
-        from pipelime.piper.model import DAGModel, NodesDefinition
 
         def start_file(filename: str):
             if platform.system() == "Darwin":  # macOS
@@ -195,22 +227,7 @@ class DrawCommand(PipelimeCommand, title="draw"):
             else:  # linux variants #TODO: verify!
                 subprocess.call(("xdg-open", filename))
 
-        inc_n = [self.include] if isinstance(self.include, str) else self.include
-        exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
-
-        def _node_to_draw(node: str) -> bool:
-            return (inc_n is None or node in inc_n) and (
-                exc_n is None or node not in exc_n
-            )
-
-        nodes = {name: cmd for name, cmd in self.nodes.items() if _node_to_draw(name)}
-        dag = DAGModel(nodes=NodesDefinition.create(nodes))
-        graph = DAGNodesGraph.build_nodes_graph(
-            dag,
-            data_max_width=self.data_max_width,
-            show_command_name=self.show_command_names,
-            ellipsis_position=self.ellipsis_position.value,
-        )
+        graph = self.piper_graph
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
 
         extra = self.extra_args or {}

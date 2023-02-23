@@ -12,7 +12,7 @@ strict digraph "" {
 		style=filled];
 	aa093880cbcbd9dac1fd196e245e013b9593a4809d992ea54937bce9c67dd726523f2fa3a60eae053cf576541ff725282fdb9616ac20e7a73df7f316f62609d3 -> "17149af38a0b2b730ab1ba3726e189fa8bb88fef9c48a27ac2a50397b1d2824acd29e1084bd600a386e7a65f3576f95233788d7d75d7eec701ec7788da687ac5"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="generator_first.toy_dataset.output",
 		style=dashed];
 	c096613a3c1238d420be9d58801f70833ecc72b59f66bd28ba3036289df61c30975ed8d39ace86a4cbee49d2f49fb7a7c5499960d8798ed58365967465be4d49	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -21,7 +21,7 @@ strict digraph "" {
 		style=filled];
 	"17149af38a0b2b730ab1ba3726e189fa8bb88fef9c48a27ac2a50397b1d2824acd29e1084bd600a386e7a65f3576f95233788d7d75d7eec701ec7788da687ac5" -> c096613a3c1238d420be9d58801f70833ecc72b59f66bd28ba3036289df61c30975ed8d39ace86a4cbee49d2f49fb7a7c5499960d8798ed58365967465be4d49	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="filter_keys_first.map.input"];
 	c1c9f463a5704845e9bccc9f2bc3623d24a3896f63048410ee470c491d7d7841088ce1449aeaf388cfc29ab49b1a13daf922116bc20a10618f33c5157fc56b62	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…filtered_first</TD></TR></TABLE>>,
@@ -29,7 +29,7 @@ strict digraph "" {
 		style=filled];
 	c096613a3c1238d420be9d58801f70833ecc72b59f66bd28ba3036289df61c30975ed8d39ace86a4cbee49d2f49fb7a7c5499960d8798ed58365967465be4d49 -> c1c9f463a5704845e9bccc9f2bc3623d24a3896f63048410ee470c491d7d7841088ce1449aeaf388cfc29ab49b1a13daf922116bc20a10618f33c5157fc56b62	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="filter_keys_first.map.output",
 		style=dashed];
 	"18033991aa49c3a95747b93f816d9a6a2ffc710c1c2200793015cb7b4ceb479faa8811ec2a1501651c809b8b591776fc4fa536e3ed7cb0890503f1eecd189f7d"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -38,7 +38,7 @@ strict digraph "" {
 		style=filled];
 	c1c9f463a5704845e9bccc9f2bc3623d24a3896f63048410ee470c491d7d7841088ce1449aeaf388cfc29ab49b1a13daf922116bc20a10618f33c5157fc56b62 -> "18033991aa49c3a95747b93f816d9a6a2ffc710c1c2200793015cb7b4ceb479faa8811ec2a1501651c809b8b591776fc4fa536e3ed7cb0890503f1eecd189f7d"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="subsample_first.split.input"];
 	"6bfe4a675565f3a9285096830afd054dddd11b73d972161f646764b3c6e868736a19cb9a91d0b5787427c2f854b5de77a203ffc317058505ea871a8b99d644fa"	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…subsampled_first</TD></TR></TABLE>>,
@@ -46,7 +46,7 @@ strict digraph "" {
 		style=filled];
 	"18033991aa49c3a95747b93f816d9a6a2ffc710c1c2200793015cb7b4ceb479faa8811ec2a1501651c809b8b591776fc4fa536e3ed7cb0890503f1eecd189f7d" -> "6bfe4a675565f3a9285096830afd054dddd11b73d972161f646764b3c6e868736a19cb9a91d0b5787427c2f854b5de77a203ffc317058505ea871a8b99d644fa"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=splits,
+		label="subsample_first.split.splits",
 		style=dashed];
 	ccd8417332e22c416f311f23ed575a1bda25264fa88e22474ba805ba0f645880af7dc151145cb958338c6e5de968e5bbe092beb6e32308f1baf8def7d3160c79	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -55,7 +55,7 @@ strict digraph "" {
 		style=filled];
 	"6bfe4a675565f3a9285096830afd054dddd11b73d972161f646764b3c6e868736a19cb9a91d0b5787427c2f854b5de77a203ffc317058505ea871a8b99d644fa" -> ccd8417332e22c416f311f23ed575a1bda25264fa88e22474ba805ba0f645880af7dc151145cb958338c6e5de968e5bbe092beb6e32308f1baf8def7d3160c79	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="remap_keys_first.map.input"];
 	"68ad1e8f7ff11880cd6774de56af884012507750312ccc535c38f0a012e5b01de229010311a916d1a87097a53d48dcd11cee005e36f38eb1ce793a17fe281e92"	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…remapped_first</TD></TR></TABLE>>,
@@ -63,7 +63,7 @@ strict digraph "" {
 		style=filled];
 	ccd8417332e22c416f311f23ed575a1bda25264fa88e22474ba805ba0f645880af7dc151145cb958338c6e5de968e5bbe092beb6e32308f1baf8def7d3160c79 -> "68ad1e8f7ff11880cd6774de56af884012507750312ccc535c38f0a012e5b01de229010311a916d1a87097a53d48dcd11cee005e36f38eb1ce793a17fe281e92"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="remap_keys_first.map.output",
 		style=dashed];
 	"8fb486f035f4b112e16d6b0d02cb9af5b96a70eb6113b40f1f17e0bf43b24faf9de51ff497f7a4130310646f7d440e2fbec2132a7bf144976cb96ef195e259cf"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -72,7 +72,7 @@ strict digraph "" {
 		style=filled];
 	"68ad1e8f7ff11880cd6774de56af884012507750312ccc535c38f0a012e5b01de229010311a916d1a87097a53d48dcd11cee005e36f38eb1ce793a17fe281e92" -> "8fb486f035f4b112e16d6b0d02cb9af5b96a70eb6113b40f1f17e0bf43b24faf9de51ff497f7a4130310646f7d440e2fbec2132a7bf144976cb96ef195e259cf"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=inputs];
+		label="sumup.cat.inputs[0]"];
 	"0b8711594753b06c4467a5e3396dc81d180b14d31eac2b4f5bf702802fb1d29d76012076bbd176ecbb92d238b5c07a73fc35d431334ee455ace029b6becd5f86"	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…dag_output</TD></TR></TABLE>>,
@@ -80,7 +80,7 @@ strict digraph "" {
 		style=filled];
 	"8fb486f035f4b112e16d6b0d02cb9af5b96a70eb6113b40f1f17e0bf43b24faf9de51ff497f7a4130310646f7d440e2fbec2132a7bf144976cb96ef195e259cf" -> "0b8711594753b06c4467a5e3396dc81d180b14d31eac2b4f5bf702802fb1d29d76012076bbd176ecbb92d238b5c07a73fc35d431334ee455ace029b6becd5f86"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="sumup.cat.output",
 		style=dashed];
 	"2659b57feb2cd046d49be270bf51370afc6595e375d43f9c4f94ba3187dee9cf85fa137b9da636b53e00c5d3ca6e2811012fbc4bfc9f8008dcf03a95bc3d6cc6"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -94,7 +94,7 @@ strict digraph "" {
 		style=filled];
 	"2659b57feb2cd046d49be270bf51370afc6595e375d43f9c4f94ba3187dee9cf85fa137b9da636b53e00c5d3ca6e2811012fbc4bfc9f8008dcf03a95bc3d6cc6" -> d9b3324ab015fe22de989d3f75559f52b19121acea6a3f61d3d4480104513319a528e403041b92dbab0c6d60049971d5ae039028a6953bdc205954e3571f4cb6	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="generator_second.toy_dataset.output",
 		style=dashed];
 	"894a57a519f66a9c6e6a618015f25e8c1f3702dfa751412b4a124371c246985850c0c1968f5b82fc0246e5c190a891070a5b2d69b42f034b8f788dcb1982d261"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -103,7 +103,7 @@ strict digraph "" {
 		style=filled];
 	d9b3324ab015fe22de989d3f75559f52b19121acea6a3f61d3d4480104513319a528e403041b92dbab0c6d60049971d5ae039028a6953bdc205954e3571f4cb6 -> "894a57a519f66a9c6e6a618015f25e8c1f3702dfa751412b4a124371c246985850c0c1968f5b82fc0246e5c190a891070a5b2d69b42f034b8f788dcb1982d261"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="filter_keys_second.map.input"];
 	"76a1347b6f472d9c8127a84b6fca757c333146ec75eee41caefa3d8791f6979571c2433ea40785c4c041e79ad4d88675a72280a4f20464ecc175fbc6dd1d5ebc"	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…filtered_second</TD></TR></TABLE>>,
@@ -111,7 +111,7 @@ strict digraph "" {
 		style=filled];
 	"894a57a519f66a9c6e6a618015f25e8c1f3702dfa751412b4a124371c246985850c0c1968f5b82fc0246e5c190a891070a5b2d69b42f034b8f788dcb1982d261" -> "76a1347b6f472d9c8127a84b6fca757c333146ec75eee41caefa3d8791f6979571c2433ea40785c4c041e79ad4d88675a72280a4f20464ecc175fbc6dd1d5ebc"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="filter_keys_second.map.output",
 		style=dashed];
 	ed8e7fd7b975b518fad65811ba5c7108846f68cfd8ea1b8e799bb9c636683c838ac2f11e5c35b9cd35372b1be3c79bfb02250f73f9392b9a38aab4f45afcd9b3	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -120,7 +120,7 @@ strict digraph "" {
 		style=filled];
 	"76a1347b6f472d9c8127a84b6fca757c333146ec75eee41caefa3d8791f6979571c2433ea40785c4c041e79ad4d88675a72280a4f20464ecc175fbc6dd1d5ebc" -> ed8e7fd7b975b518fad65811ba5c7108846f68cfd8ea1b8e799bb9c636683c838ac2f11e5c35b9cd35372b1be3c79bfb02250f73f9392b9a38aab4f45afcd9b3	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="subsample_second.split.input"];
 	d4fcd625befbe7a6d0382634d1955ab65707669dc8a118801cd0613a7f75b807ae36fb9fa76a289a3a2610d7c987ea7040d9eb77e7cba2c73be607c3dd29284d	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…subsampled_second</TD></TR></TABLE>>,
@@ -128,7 +128,7 @@ strict digraph "" {
 		style=filled];
 	ed8e7fd7b975b518fad65811ba5c7108846f68cfd8ea1b8e799bb9c636683c838ac2f11e5c35b9cd35372b1be3c79bfb02250f73f9392b9a38aab4f45afcd9b3 -> d4fcd625befbe7a6d0382634d1955ab65707669dc8a118801cd0613a7f75b807ae36fb9fa76a289a3a2610d7c987ea7040d9eb77e7cba2c73be607c3dd29284d	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=splits,
+		label="subsample_second.split.splits",
 		style=dashed];
 	b720f00d103593852113f30261f70416148665b4b96e517b463901c7415c6b6f4bbbcd1c73959d5ca609167f584a5b1644248b221a394c926ffdfadaa1dcd0ff	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -137,7 +137,7 @@ strict digraph "" {
 		style=filled];
 	d4fcd625befbe7a6d0382634d1955ab65707669dc8a118801cd0613a7f75b807ae36fb9fa76a289a3a2610d7c987ea7040d9eb77e7cba2c73be607c3dd29284d -> b720f00d103593852113f30261f70416148665b4b96e517b463901c7415c6b6f4bbbcd1c73959d5ca609167f584a5b1644248b221a394c926ffdfadaa1dcd0ff	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="remap_keys_second.map.input"];
 	"2fa6a4c94f921410ee1535c279e25f393dbab52fbe6a0a6c3fd764cbe74096ab35f4084db47a8e9deb627fda195d45aae1838161c32b183f4934536b0a74a2c5"	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…remapped_second</TD></TR></TABLE>>,
@@ -145,11 +145,11 @@ strict digraph "" {
 		style=filled];
 	b720f00d103593852113f30261f70416148665b4b96e517b463901c7415c6b6f4bbbcd1c73959d5ca609167f584a5b1644248b221a394c926ffdfadaa1dcd0ff -> "2fa6a4c94f921410ee1535c279e25f393dbab52fbe6a0a6c3fd764cbe74096ab35f4084db47a8e9deb627fda195d45aae1838161c32b183f4934536b0a74a2c5"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="remap_keys_second.map.output",
 		style=dashed];
 	"2fa6a4c94f921410ee1535c279e25f393dbab52fbe6a0a6c3fd764cbe74096ab35f4084db47a8e9deb627fda195d45aae1838161c32b183f4934536b0a74a2c5" -> "8fb486f035f4b112e16d6b0d02cb9af5b96a70eb6113b40f1f17e0bf43b24faf9de51ff497f7a4130310646f7d440e2fbec2132a7bf144976cb96ef195e259cf"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=inputs];
+		label="sumup.cat.inputs[1]"];
 	df8ca9ed9f6037bf9b310dd57152d5f90541b4b29b4c9e5724f1ddaa832ab055a6448013bfa9de5478f1f35e515e8ebe7c94082eba86e0e045677142826a802c	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>generator_third: toy_dataset</TD></TR></TABLE>>,
@@ -162,7 +162,7 @@ strict digraph "" {
 		style=filled];
 	df8ca9ed9f6037bf9b310dd57152d5f90541b4b29b4c9e5724f1ddaa832ab055a6448013bfa9de5478f1f35e515e8ebe7c94082eba86e0e045677142826a802c -> "80f0230737242a7e09adf79469ad913067920f9ee28eacbcda987682048d623b38d5b547c6b43498ae2053d4acf4602b76e0d09e4f5ea22229c68c7f8a2c1047"	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="generator_third.toy_dataset.output",
 		style=dashed];
 	"685663c64daa7b4fb84ba45ff0bcf83c8c9a4e0717229eed959e83e97cfef6c47f7d404d62a2d7aad2d117a2ff971361c3a597946580df803ebb6607ea72bb17"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -171,7 +171,7 @@ strict digraph "" {
 		style=filled];
 	"80f0230737242a7e09adf79469ad913067920f9ee28eacbcda987682048d623b38d5b547c6b43498ae2053d4acf4602b76e0d09e4f5ea22229c68c7f8a2c1047" -> "685663c64daa7b4fb84ba45ff0bcf83c8c9a4e0717229eed959e83e97cfef6c47f7d404d62a2d7aad2d117a2ff971361c3a597946580df803ebb6607ea72bb17"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="filter_keys_third.map.input"];
 	af211a35c19032e9ecc26c9f86f18e1cfb4ec69e69d54be2e99973f29ffde435d953bd79882aba6969e339d14637b60f2a33a2dcd931ee498382caef655d97cc	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…filtered_third</TD></TR></TABLE>>,
@@ -179,7 +179,7 @@ strict digraph "" {
 		style=filled];
 	"685663c64daa7b4fb84ba45ff0bcf83c8c9a4e0717229eed959e83e97cfef6c47f7d404d62a2d7aad2d117a2ff971361c3a597946580df803ebb6607ea72bb17" -> af211a35c19032e9ecc26c9f86f18e1cfb4ec69e69d54be2e99973f29ffde435d953bd79882aba6969e339d14637b60f2a33a2dcd931ee498382caef655d97cc	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="filter_keys_third.map.output",
 		style=dashed];
 	"9587591d43b35b32242b47f21be768e27d2072de27a1fb936afb8eaa9cc5e044a4c333207d299c1ae476f49e992b5ff45e05eb63bae98ac37ad3174c2b0a2a40"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -188,7 +188,7 @@ strict digraph "" {
 		style=filled];
 	af211a35c19032e9ecc26c9f86f18e1cfb4ec69e69d54be2e99973f29ffde435d953bd79882aba6969e339d14637b60f2a33a2dcd931ee498382caef655d97cc -> "9587591d43b35b32242b47f21be768e27d2072de27a1fb936afb8eaa9cc5e044a4c333207d299c1ae476f49e992b5ff45e05eb63bae98ac37ad3174c2b0a2a40"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="subsample_third.split.input"];
 	a8019db2c5367ac0114b38dc4c46350fea6a567c193742688c05d33a8dbd4ef241cfef5a6a21ff3b7e137d19e42ee4cb55c13940bfb9296b5453494b138a7fea	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…subsampled_third</TD></TR></TABLE>>,
@@ -196,7 +196,7 @@ strict digraph "" {
 		style=filled];
 	"9587591d43b35b32242b47f21be768e27d2072de27a1fb936afb8eaa9cc5e044a4c333207d299c1ae476f49e992b5ff45e05eb63bae98ac37ad3174c2b0a2a40" -> a8019db2c5367ac0114b38dc4c46350fea6a567c193742688c05d33a8dbd4ef241cfef5a6a21ff3b7e137d19e42ee4cb55c13940bfb9296b5453494b138a7fea	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=splits,
+		label="subsample_third.split.splits",
 		style=dashed];
 	"55f85814c779e3c3b8c5aa8e169210111f1ef90730b8e295cdb68619af13ce3007fbbecc42d39b22432330062ec79471c87d71c0187fb06d307deb8a3f034248"	[fillcolor="#03A9F4",
 		fontcolor="#fafafa",
@@ -205,7 +205,7 @@ strict digraph "" {
 		style=filled];
 	a8019db2c5367ac0114b38dc4c46350fea6a567c193742688c05d33a8dbd4ef241cfef5a6a21ff3b7e137d19e42ee4cb55c13940bfb9296b5453494b138a7fea -> "55f85814c779e3c3b8c5aa8e169210111f1ef90730b8e295cdb68619af13ce3007fbbecc42d39b22432330062ec79471c87d71c0187fb06d307deb8a3f034248"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=input];
+		label="remap_keys_third.map.input"];
 	e725f6171064f6ea26b6d68434abfe635fb128b5ab3a9fd28418ea20986e8909d2ae0361788e5cb8e9193927f03cf37a02a2380fd1c2868d9cc4be13c8d38a54	[fillcolor="#009688",
 		fontcolor="#fafafa",
 		label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="20"><TR><TD>…remapped_third</TD></TR></TABLE>>,
@@ -213,9 +213,9 @@ strict digraph "" {
 		style=filled];
 	"55f85814c779e3c3b8c5aa8e169210111f1ef90730b8e295cdb68619af13ce3007fbbecc42d39b22432330062ec79471c87d71c0187fb06d307deb8a3f034248" -> e725f6171064f6ea26b6d68434abfe635fb128b5ab3a9fd28418ea20986e8909d2ae0361788e5cb8e9193927f03cf37a02a2380fd1c2868d9cc4be13c8d38a54	[arrowsize=2.0,
 		color="#1DE9B6",
-		label=output,
+		label="remap_keys_third.map.output",
 		style=dashed];
 	e725f6171064f6ea26b6d68434abfe635fb128b5ab3a9fd28418ea20986e8909d2ae0361788e5cb8e9193927f03cf37a02a2380fd1c2868d9cc4be13c8d38a54 -> "8fb486f035f4b112e16d6b0d02cb9af5b96a70eb6113b40f1f17e0bf43b24faf9de51ff497f7a4130310646f7d440e2fbec2132a7bf144976cb96ef195e259cf"	[arrowsize=1.0,
 		color="#00B0FF",
-		label=inputs];
+		label="sumup.cat.inputs[2]"];
 }

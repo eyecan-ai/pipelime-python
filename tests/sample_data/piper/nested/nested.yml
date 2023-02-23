@@ -1,0 +1,24 @@
+nodes:
+  toy_1:
+    toy_dataset:
+      toy:
+        length: 5
+      output: $var(folder)/first
+  toy_2:
+    toy_dataset:
+      toy:
+        length: 15
+      output: $var(folder)/second
+  toy_3:
+    toy_dataset:
+      toy:
+        length: 10
+      output: $var(folder)/third
+  merge_and_split:
+    run: $import(simple.yml)
+  inverted_output:
+    cat:
+      inputs:
+        - $var(folder)/split1
+        - $var(folder)/split0
+      output: $var(folder)/inverted
