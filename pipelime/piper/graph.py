@@ -2,7 +2,17 @@ import itertools
 from abc import ABC, abstractmethod
 from pathlib import Path
 from pydantic import BaseModel
-from typing import Optional, Union, Sequence, Mapping, Set, Iterable, Collection, Any
+from typing import (
+    Optional,
+    Union,
+    Sequence,
+    Mapping,
+    Set,
+    Iterable,
+    Iterator,
+    Collection,
+    Any,
+)
 
 import networkx as nx
 
@@ -164,17 +174,66 @@ class DAGNodesGraph:
         return DAGNodesGraph.filter_node_graph(self, [GraphNode.GRAPH_NODE_TYPE_DATA])
 
     @property
-    def root_nodes(self) -> Sequence[GraphNode]:
+    def root_nodes(self) -> Iterator[GraphNode]:
         """The root nodes of the DAG. They are the nodes that have no predecessors.
 
         Returns:
-            Sequence[GraphNode]: The root nodes of the DAG.
+            Iterator[GraphNode]: The root nodes of the DAG.
         """
-        return [
-            node
-            for node in self.raw_graph.nodes
-            if len(list(self.raw_graph.predecessors(node))) == 0
-        ]
+        for node in self.raw_graph.nodes:
+            if not any(True for _ in self.raw_graph.predecessors(node)):
+                yield node
+
+    @property
+    def leaf_nodes(self) -> Iterator[GraphNode]:
+        """The leaf nodes of the DAG. They are the nodes that have no successors.
+
+        Returns:
+            Iterator[GraphNode]: The leaf nodes of the DAG.
+        """
+        for node in self.raw_graph.nodes:
+            if not any(True for _ in self.raw_graph.successors(node)):
+                yield node
+
+    @property
+    def input_data_nodes(self) -> Iterator[GraphNodeData]:
+        """The root data nodes of the DAG. They are the data nodes that have no
+        predecessors.
+
+        Returns:
+            Iterator[GraphNodeData]: The input data nodes of the DAG.
+        """
+        for x in self.root_nodes:
+            if isinstance(x, GraphNodeData):
+                yield x
+
+    @property
+    def output_data_nodes(self) -> Iterator[GraphNodeData]:
+        """The leaf data nodes of the DAG. They are the data nodes that have no
+        successors.
+
+        Returns:
+            Iterator[GraphNodeData]: The output data nodes of the DAG.
+        """
+        for x in self.leaf_nodes:
+            if isinstance(x, GraphNodeData):
+                yield x
+
+    def get_input_port_name(self, data_node: GraphNodeData) -> str:
+        """Returns the name of the input port a data node is connected to."""
+        ports = nx.get_edge_attributes(self.raw_graph, self.GraphAttrs.INPUT_PORT)
+        for edge, name in ports.items():
+            if edge[0] is data_node:
+                return name
+        return ""
+
+    def get_output_port_name(self, data_node: GraphNodeData) -> str:
+        """Returns the name of the output port a data node is connected to."""
+        ports = nx.get_edge_attributes(self.raw_graph, self.GraphAttrs.OUTPUT_PORT)
+        for edge, name in ports.items():
+            if edge[1] is data_node:  # type: ignore
+                return name
+        return ""
 
     def write_graphml(self, path_or_stream):
         """Write the graph to a GraphML file.
@@ -351,23 +410,22 @@ class DAGNodesGraph:
         show_command_name: bool,
     ):
         def _to_str(x):
-            if isinstance(x, (str, bytes)):
-                return str(x)
             if hasattr(x, "__piper_repr__"):
                 return x.__piper_repr__()
+            if isinstance(x, (str, bytes)):
+                return str(x)
+            if isinstance(x, Path):
+                return x.resolve().absolute().as_posix()
             return repr(x)
 
         if io_map is not None:
             for name, value in io_map.items():
-                if (
-                    isinstance(value, str)
-                    or isinstance(value, BaseModel)
-                    or not isinstance(value, Iterable)
-                ):
+                if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
                     value = [value]
 
+                add_index = len(value) > 1
                 attrs = {}
-                for x in value:
+                for idx, x in enumerate(value):
                     if x:  # discard empty strings and None
                         x_name = _to_str(x)
                         n0 = GraphNodeData(
@@ -386,7 +444,7 @@ class DAGNodesGraph:
                         attrs.update(
                             {
                                 (n0, n1): {
-                                    port_attr: name,
+                                    port_attr: f"{name}[{idx}]" if add_index else name,
                                     DAGNodesGraph.GraphAttrs.EDGE_TYPE: edge_attr,
                                 }
                             }

@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from enum import Enum
 import typing as t
 
@@ -286,6 +286,7 @@ class PiperInfo(BaseModel, extra="forbid", copy_on_model_validation="none"):
 
 class PipelimeCommand(
     BaseModel,
+    ABC,
     allow_population_by_field_name=True,
     extra="forbid",
     copy_on_model_validation="none",
