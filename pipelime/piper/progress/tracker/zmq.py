@@ -1,6 +1,7 @@
 import time
-
 import zmq
+from typing import Optional
+from threading import Lock
 
 from pipelime.piper.progress.model import ProgressUpdate
 from pipelime.piper.progress.tracker.base import TrackCallback
@@ -9,32 +10,38 @@ from pipelime.piper.progress.tracker.base import TrackCallback
 class ZmqTrackCallback(TrackCallback):
     """ZMQ tracker callback"""
 
-    def __init__(self, addr: str = "tcp://*:5556") -> None:
-        super().__init__()
-        self._addr = addr
-        self._socket = None
+    _addr: str
+    _socket: Optional[zmq.Socket]
 
-    def _send(self, prog: ProgressUpdate) -> None:
-        topic = prog.op_info.token
-        if self._socket is not None:
-            self._socket.send_multipart([topic.encode(), prog.json().encode()])
+    PROTOTYPES = {}
+    LOCK = Lock()
 
-    def on_start(self, prog: ProgressUpdate) -> None:
-        self._socket = zmq.Context().socket(zmq.PUB)
-        self._socket.bind(self._addr)
+    def __new__(cls, addr: str = "tcp://*:5556"):
+        with cls.LOCK:
+            proto = cls.PROTOTYPES.get(addr)
+            if proto is None:
+                proto = super().__new__(cls)
+                proto._addr = addr
+                proto._socket = None
+                cls.PROTOTYPES[addr] = proto
+        return proto
 
-        # Wait for the socket to be ready...
-        # Apparently, this is the only way to do it. I don't know why.
-        time.sleep(1)
+    def update(self, prog: ProgressUpdate):
+        if self.socket:
+            topic = prog.op_info.token
+            self.socket.send_multipart([topic.encode(), prog.json().encode()])
 
-        self._send(prog)
+            if prog.finished:
+                self.socket.close()
+                self._socket = None  # free resources
 
-    def on_advance(self, prog: ProgressUpdate) -> None:
-        self._send(prog)
+    @property
+    def socket(self):
+        if not self._socket:
+            self._socket = zmq.Context().socket(zmq.PUB)
+            self._socket.bind(self._addr)
 
-    def on_finish(self, prog: ProgressUpdate) -> None:
-        self._send(prog)
-
-        if self._socket is not None:
-            self._socket.close()
-            self._socket = None  # free resources
+            # Wait for the socket to be ready...
+            # Apparently, this is the only way to do it. I don't know why.
+            time.sleep(1)
+        return self._socket

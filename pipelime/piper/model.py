@@ -1,11 +1,10 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from enum import Enum
 import typing as t
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-if t.TYPE_CHECKING:
-    from pipelime.piper.progress.tracker.base import Tracker, TrackedTask
+from pipelime.piper.progress.tracker.base import Tracker, TrackedTask, TqdmTask
 
 
 # The return type is a hack to fool the type checker
@@ -286,6 +285,7 @@ class PiperInfo(BaseModel, extra="forbid", copy_on_model_validation="none"):
 
 class PipelimeCommand(
     BaseModel,
+    ABC,
     allow_population_by_field_name=True,
     extra="forbid",
     copy_on_model_validation="none",
@@ -355,21 +355,16 @@ class PipelimeCommand(
         message: str = "",
     ) -> t.Iterable:
         """Track a sequence with a progress bar or a piper task."""
-        import rich.progress
 
-        if self._piper.active:
-            tracker = self._get_piper_tracker()
-            return tracker.track(seq, size=size, message=message)
-        else:
-            return rich.progress.track(
-                seq,
-                total=len(seq) if size is None else size,  # type: ignore
-                description="🍋 " + message,
-            )
+        total = len(seq) if size is None else size  # type: ignore
+        with self.create_task(total, message) as t:
+            yield from t.track(seq)
 
     def create_task(self, total: int, message: str = "") -> "TrackedTask":
         """Explicit piper task creation."""
-        return self._get_piper_tracker().create_task(total, message)
+        if self._piper.active:
+            return self._get_piper_tracker().create_task(total, message)
+        return TqdmTask(total, message)
 
     def __call__(self) -> None:
         self.run()

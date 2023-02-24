@@ -9,7 +9,7 @@ from loguru import logger
 
 
 @pytest.fixture(scope="function")
-def loguru_sink() -> TextIO:
+def loguru_sink():
     textio = TextIOWrapper(BytesIO(), encoding="utf-8")
     sinkid = logger.add(sink=textio, level="INFO")
     yield textio
@@ -17,7 +17,7 @@ def loguru_sink() -> TextIO:
 
 
 class TestLoguruTrackCallback:
-    def test_on_start(self, loguru_sink: TextIO):
+    def test_callback(self, loguru_sink: TextIO):
         # Create callback
         callback = LoguruTrackCallback()
 
@@ -31,14 +31,5 @@ class TestLoguruTrackCallback:
             loguru_sink.seek(0)
             assert "token" in loguru_sink.readlines()[-1]
 
-        # Assert that the loguru sink was called on start hook
-        callback.on_start(progress_update)
-        _check_log()
-
-        # Assert that the loguru sink was called on advance hook
-        callback.on_advance(progress_update)
-        _check_log()
-
-        # Assert that the loguru sink was called on finish hook
-        callback.on_finish(progress_update)
+        callback.update(progress_update)
         _check_log()

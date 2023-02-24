@@ -3,6 +3,9 @@ from pipelime.piper.progress.listener.receiver.zmq import ZMQProgressReceiver
 from pipelime.piper.progress.listener.callbacks.rich_table import (
     RichTableListenerCallback,
 )
+from pipelime.piper.progress.listener.callbacks.tqdm_bars import (
+    TqdmBarsListenerCallback,
+)
 
 
 class ProgressReceiverFactory:
@@ -24,10 +27,11 @@ class ProgressReceiverFactory:
 class ListenerCallbackFactory:
     """Factory for ``ListenerCallback`` s"""
 
-    DEFAULT_CALLBACK_TYPE = "RICH_TABLE"
+    DEFAULT_CALLBACK_TYPE = "TQDM_BARS"
 
     CLASS_MAP = {
         "RICH_TABLE": RichTableListenerCallback,
+        "TQDM_BARS": TqdmBarsListenerCallback,
     }
 
     @classmethod
