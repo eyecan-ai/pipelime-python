@@ -31,6 +31,7 @@ keywords = [
 dependencies = [
     "typer>=0.6",
     "rich>=9.9.0",
+    "tdqm",
     "pyyaml",
     "toml",
     "loguru",

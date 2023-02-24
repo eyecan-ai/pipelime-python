@@ -1,116 +1,159 @@
+from abc import ABC, abstractmethod
 from itertools import count
-from typing import overload, Iterable, Optional, Sequence, Union
+from typing import Iterable, Optional, Sequence, Union
 
 from pipelime.piper.progress.model import OperationInfo, ProgressUpdate
 
 
-class TrackCallback:
-    """A custom callback on start, stop and advancement of a running operation"""
+class TrackCallback(ABC):
+    """A custom callback to track the progress of a running task"""
 
-    def __init__(self):
-        """Constructor for a generic `TrackCallback`"""
-        self._op_info = None
-        self._progress = 0
-
-    @property
-    def _ready(self) -> bool:
-        return self._op_info is not None
-
-    def start(self, op_info: OperationInfo) -> None:
-        """Set this callback in "ready" state and call the `on_start` callback
-
-        Args:
-            op_info (OperationInfo): The operation info to track
-
-        Raises:
-            RuntimeError: If the callback is already setup
-        """
-        if self._ready:
-            raise RuntimeError("Callback already setup")
-        self._op_info = op_info
-        self._progress = 0
-        prog = ProgressUpdate(op_info=self._op_info, progress=self._progress)
-        self.on_start(prog)
-
-    def advance(self, advance: int = 1) -> None:
-        """Advance the progress of the tracked operation by a custom amount of steps
-
-        Args:
-            advance (int, optional): The number of steps to advance. Defaults to 1.
-
-        Raises:
-            RuntimeError: If the callback is not setup
-        """
-        if not self._ready:
-            raise RuntimeError("Callback not setup")
-        self._progress += advance
-        prog = ProgressUpdate(op_info=self._op_info, progress=self._progress)
-        self.on_advance(prog)
-
-    def finish(self) -> None:
-        """Finish the trackeing of the operation and call the `on_finish` callback
-
-        Raises:
-            RuntimeError: If the callback is not setup
-        """
-        if not self._ready:
-            raise RuntimeError("Callback not setup")
-        op_info = self._op_info
-        self._progress = op_info.total
-        prog = ProgressUpdate(op_info=op_info, finished=True, progress=self._progress)
-        self.on_finish(prog)
-        self._op_info = None
-
-    def on_start(self, prog: ProgressUpdate) -> None:
-        """What to do when the operation is started
-
-        Args:
-            prog (ProgressUpdate): The progress update object.
-        """
-        pass
-
-    def on_advance(self, prog: ProgressUpdate) -> None:
+    @abstractmethod
+    def update(self, prog: ProgressUpdate) -> None:
         """What to do when the operation advances
 
         Args:
             prog (ProgressUpdate): The progress update object.
         """
-        pass
-
-    def on_finish(self, prog: ProgressUpdate) -> None:
-        """What to do when the operation is finished
-
-        Args:
-            prog (ProgressUpdate): The progress update object.
-        """
-        pass
 
 
-class TrackedTask:
+class TrackedTask(ABC):
     """Context manager to track a single task."""
 
-    def __init__(self, op_info: OperationInfo, callbacks: Sequence[TrackCallback]):
-        self._op_info = op_info
-        self._callbacks = callbacks
+    def __init__(self):
+        self._progress = 0
 
-    def start(self):
-        for callback in self._callbacks:
-            callback.start(self._op_info)
-
-    def finish(self):
-        for callback in self._callbacks:
-            callback.finish()
+    @property
+    def progress(self) -> int:
+        return self._progress
 
     def advance(self, advance: int = 1):
-        for callback in self._callbacks:
-            callback.advance(advance)
+        """Advance the task by a custom amount of steps."""
+        self._do_update(self._progress + advance)
+
+    def update(self, progress: int):
+        """Set the progress of the task to a custom value."""
+        self._do_update(progress)
+
+    def finish(self):
+        """Complete the task."""
+        self._do_update(self._progress, finished=True)
+
+    def restart(self):
+        """Restart the task."""
+        self._do_update(0)
+
+    def track(self, iterable: Iterable):
+        """Track a generic iterable sequence"""
+        for x in iterable:
+            yield x
+            self.advance()
+
+    def _do_update(self, progress: int, finished: bool = False):
+        self._progress = progress
+        self.on_update(finished)
+
+    @abstractmethod
+    def on_update(self, finished: bool = False):
+        """What to do when the task is updated"""
 
     def __enter__(self):
-        self.start()
+        self.restart()
         return self
 
     def __exit__(self, exc_type, exc, exc_tb):
         self.finish()
+
+
+class PiperTask(TrackedTask):
+    def __init__(self, op_info: OperationInfo, callbacks: Sequence[TrackCallback]):
+        super().__init__()
+        self._op_info = op_info
+        self._callbacks = callbacks
+
+    def on_update(self, finished: bool = False):
+        prog = ProgressUpdate(
+            op_info=self._op_info, progress=self.progress, finished=finished
+        )
+        for cb in self._callbacks:
+            cb.update(prog)
+
+
+class TqdmTask(TrackedTask):
+    @staticmethod
+    def default_bar(
+        iterable=None,
+        *,
+        total=None,
+        message=None,
+        bar_width=None,
+        ncols=None,
+        position=None,
+    ):
+        from tqdm import tqdm
+
+        bar = tqdm(
+            iterable,
+            total=len(iterable) if total is None else total,  # type: ignore
+            colour="#4CAE4F",
+            position=position,
+            ncols=88 if ncols is None else (None if ncols <= 0 else ncols),
+            bar_format=(
+                None
+                if bar_width is None
+                else "{desc} {percentage:3.0f}%|{bar:" + str(bar_width) + "}{r_bar}"
+            ),
+        )
+        TqdmTask._set_description(bar, message)
+        return bar
+
+    @staticmethod
+    def _set_description(bar, message: Optional[str]):
+        bar.set_description_str("🍋 " + message if message else "🍋")
+
+    def __init__(
+        self,
+        total: int,
+        message: str,
+        bar_width: Optional[int] = None,
+        total_width: Optional[int] = None,
+        position: Optional[int] = None,
+    ):
+        super().__init__()
+        self._bar = None
+        self._total = total
+        self._message = message
+        self._bar_width = bar_width
+        self._total_width = total_width
+        self._position = position
+
+    def set_message(self, message: str):
+        self._message = message
+        if self._bar:
+            self._set_description(self._bar, self._message)
+
+    @property
+    def bar(self):
+        # create and show the bar upon first access
+        if not self._bar:
+            self._bar = self.default_bar(
+                total=self._total,
+                message=self._message,
+                bar_width=self._bar_width,
+                ncols=self._total_width,
+                position=self._position,
+            )
+        return self._bar
+
+    def on_update(self, finished: bool = False):
+        bar = self.bar
+        if finished:
+            bar.close()
+        elif bar.n < self.progress:
+            bar.update(self.progress - bar.n)
+        elif bar.n > self.progress:
+            bar.reset()
+            bar.update(self.progress)
 
 
 class Tracker:
@@ -140,19 +183,16 @@ class Tracker:
         with self.create_task(
             total=len(seq) if size is None else size, message=message  # type: ignore
         ) as t:
-            for x in seq:
-                yield x
-                t.advance()
+            yield from t.track(seq)
 
     def create_task(self, total: int, message: str = ""):
         """Explicit task creation"""
 
-        id_ = next(self._counter)
         op_info = OperationInfo(
             token=self._token,
             node=self._node,
-            chunk=id_,
+            chunk=next(self._counter),
             total=total,  # type: ignore
             message=message,
         )
-        return TrackedTask(op_info, self._callbacks)
+        return PiperTask(op_info, self._callbacks)

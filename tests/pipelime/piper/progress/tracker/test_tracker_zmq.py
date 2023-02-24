@@ -9,7 +9,7 @@ from pipelime.piper.progress.tracker.zmq import ZmqTrackCallback
 
 
 @pytest.fixture(scope="function")
-def zmq_socket() -> zmq.Socket:
+def zmq_socket():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:5556")
@@ -18,8 +18,8 @@ def zmq_socket() -> zmq.Socket:
     socket.close()
 
 
-class TestLoguruTrackCallback:
-    def test_on_start(self, zmq_socket: zmq.Socket):
+class TestZmqTrackCallback:
+    def test_callback(self, zmq_socket: zmq.Socket):
         # Create callback
         callback = ZmqTrackCallback()
 
@@ -42,14 +42,5 @@ class TestLoguruTrackCallback:
                     pass
             assert False
 
-        # Assert that the loguru sink was called on start hook
-        callback.on_start(progress_update)
-        _check_zmq()
-
-        # Assert that the loguru sink was called on advance hook
-        callback.on_advance(progress_update)
-        _check_zmq()
-
-        # Assert that the loguru sink was called on finish hook
-        callback.on_finish(progress_update)
+        callback.update(progress_update)
         _check_zmq()

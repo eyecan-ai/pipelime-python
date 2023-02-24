@@ -10,6 +10,19 @@ if t.TYPE_CHECKING:
     from pipelime.piper.graph import DAGNodesGraph
 
 
+class WatcherBackend(Enum):
+    """The watcher backend to use."""
+
+    RICH = "rich"
+    TQDM = "tqdm"
+
+    def listener_key(self) -> str:
+        return {
+            WatcherBackend.RICH: "RICH_TABLE",
+            WatcherBackend.TQDM: "TQDM_BARS",
+        }[self]
+
+
 class PiperGraphCommandBase(PipelimeCommand):
     """Base class for piper-aware commands."""
 
@@ -91,12 +104,13 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
             "The execution token. If not specified, a new token will be generated."
         ),
     )
-    watch: t.Optional[bool] = Field(
+    watch: t.Union[bool, WatcherBackend, None] = Field(
         None,
         alias="w",
         description=(
             "Monitor the execution in the current console. "
-            "Defaults to True if no token is provided, False othrewise."
+            "Defaults to True if no token is provided, False othrewise. "
+            "If a string is provided, it is used as the name of the watcher backend."
         ),
     )
 
@@ -110,18 +124,24 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
             # and forward the token of the parent graph
             watch = False
             token = self._piper.token
+            message = f"{self._piper.node} DAG"
+            prefix = f"{self._piper.node}."
         else:
             watch = not self.token if self.watch is None else self.watch
-            if not self.token:
-                self.token = uuid.uuid1().hex
-                if self.watch is None:
-                    watch = True
-            else:
-                if self.watch is None:
-                    watch = False
-            token = self.token
+            token = self.token or uuid.uuid1().hex
+            message = "Main DAG"
+            prefix = ""
 
-        executor = NodesGraphExecutorFactory.get_executor(watch=watch)
+            # activate piper, so that this node will send updates to the watchers
+            self.set_piper_info(token=token, node=message)
+
+        executor = NodesGraphExecutorFactory.get_executor(
+            watch=watch if isinstance(watch, bool) else watch.listener_key(),
+            node_prefix=prefix,
+            task=self.create_task(
+                total=self.piper_graph.num_operation_nodes, message=message
+            ),
+        )
         if not executor.exec(self.piper_graph, token=token):
             raise RuntimeError("Piper execution failed")
 
@@ -237,6 +257,9 @@ class WatchCommand(PipelimeCommand, title="watch"):
     token: str = Field(
         ..., alias="t", description="The token of the DAG you want to monitor."
     )
+    watcher: WatcherBackend = Field(
+        WatcherBackend.TQDM, alias="w", description="The listener to use."
+    )
 
     def run(self):
         from pipelime.piper.progress.listener.base import Listener
@@ -248,7 +271,7 @@ class WatchCommand(PipelimeCommand, title="watch"):
         from time import sleep
 
         receiver = ProgressReceiverFactory.get_receiver(self.token)
-        callback = ListenerCallbackFactory.get_callback()
+        callback = ListenerCallbackFactory.get_callback(self.watcher.listener_key())
         listener = Listener(receiver, callback)
         listener.start()
 

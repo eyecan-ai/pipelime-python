@@ -1,61 +1,45 @@
 from typing import List
 import pytest
-from pipelime.piper.progress.tracker.base import TrackCallback, Tracker
+from pipelime.piper.progress.tracker.base import TrackCallback, PiperTask, Tracker
 from pipelime.piper.progress.model import ProgressUpdate, OperationInfo
 
 
 class MockTrackCallback(TrackCallback):
     def __init__(self):
         super().__init__()
-        self.on_start_calls: List[ProgressUpdate] = []
-        self.on_advance_calls: List[ProgressUpdate] = []
-        self.on_finish_calls: List[ProgressUpdate] = []
+        self.calls: List[ProgressUpdate] = []
 
-    def on_start(self, prog: ProgressUpdate) -> None:
-        self.on_start_calls.append(prog)
-
-    def on_advance(self, prog: ProgressUpdate) -> None:
-        self.on_advance_calls.append(prog)
-
-    def on_finish(self, prog: ProgressUpdate) -> None:
-        self.on_finish_calls.append(prog)
+    def update(self, prog: ProgressUpdate) -> None:
+        self.calls.append(prog)
 
 
-class TestTrackCallback:
+class TestPiperTask:
     def test_track_callback(self):
         # Create callback
         N = 10
         callback = MockTrackCallback()
-
-        # Assert that callback raises an error if not setup
-        with pytest.raises(RuntimeError):
-            callback.advance()
-        with pytest.raises(RuntimeError):
-            callback.finish()
-
-        # Setup callback
         op_info = OperationInfo(
-            token="token", node="node", chunk=1, message="message", total=N
+            token="token", node="node", chunk=1, message="message", total=3 * N
         )
-        callback.start(op_info)
+        task = PiperTask(op_info, [callback])
 
-        # Assert that callback raises an error if already setup
-        with pytest.raises(RuntimeError):
-            callback.start(op_info)
+        task.restart()
 
-        # Advance callback
-        for _ in range(N // 2):
-            callback.advance(2)
+        # Advance
+        for _ in range(N):
+            task.advance(2)
 
-        # Finish callback
-        callback.finish()
+        # Finish
+        task.finish()
 
         # Assert that callback was called correctly
-        assert len(callback.on_start_calls) == 1
-        assert len(callback.on_advance_calls) == N // 2
-        assert len(callback.on_finish_calls) == 1
+        assert len([p for p in callback.calls if p.progress == 0]) == 1
+        assert (
+            len([p for p in callback.calls if p.progress != 0 and not p.finished]) == N
+        )
+        assert len([p for p in callback.calls if p.finished]) == 1
 
-        assert callback.on_advance_calls[-1].progress == N
+        assert callback.calls[-1].progress == 2 * N
 
 
 class TestTracker:
@@ -74,8 +58,10 @@ class TestTracker:
         assert list(decorated) == seq
 
         # Assert that callback was called correctly
-        assert len(callback.on_start_calls) == 1
-        assert len(callback.on_advance_calls) == len(seq)
-        assert len(callback.on_finish_calls) == 1
+        assert len([p for p in callback.calls if p.progress == 0]) == 1
+        assert len(
+            [p for p in callback.calls if p.progress != 0 and not p.finished]
+        ) == len(seq)
+        assert len([p for p in callback.calls if p.finished]) == 1
 
-        assert callback.on_advance_calls[-1].progress == len(seq)
+        assert callback.calls[-1].progress == len(seq)

@@ -2,7 +2,6 @@ import inspect
 import typing as t
 
 from pydantic import BaseModel
-from pydantic.typing import display_as_type
 from rich import box
 from rich.markup import escape
 from rich import get_console
@@ -417,11 +416,47 @@ def _is_model(type_):
 
 def _human_readable_type(field_outer_type):
     from enum import Enum
+    from pydantic.typing import (
+        typing_base,  # noqa: F401  # type: ignore
+        WithArgsTypes,
+        is_union,
+        get_origin,
+        get_args,
+    )
 
-    tstr = display_as_type(field_outer_type)
-    if inspect.isclass(field_outer_type) and issubclass(field_outer_type, Enum):
-        tstr += " {" + ", ".join(v.name.lower() for v in field_outer_type) + "}"
-    return tstr.replace("NoneType", "None")
+    v = field_outer_type
+    if (
+        not isinstance(v, typing_base)
+        and not isinstance(v, WithArgsTypes)
+        and not isinstance(v, type)
+    ):
+        v = v.__class__
+
+    v_orig = get_origin(v)
+
+    if is_union(v_orig):
+        return " | ".join(map(_human_readable_type, get_args(v)))
+    if inspect.isclass(v_orig):
+        if issubclass(dict, v_orig):
+            return "{" + ": ".join(map(_human_readable_type, get_args(v))) + "}"
+        if issubclass(list, v_orig):
+            return "[" + ", ".join(map(_human_readable_type, get_args(v))) + ", ...]"
+        if issubclass(tuple, v_orig):
+            return "(" + ", ".join(map(_human_readable_type, get_args(v))) + ")"
+
+    if inspect.isclass(v) and issubclass(v, Enum):
+        v = v.__name__ + "{" + ", ".join(e.name.lower() for e in v) + "}"
+    elif isinstance(v, WithArgsTypes):
+        # Generic alias are constructs like `list[int]`
+        v = str(v).replace("typing.", "")
+    else:
+        try:
+            v = v.__name__
+        except AttributeError:
+            # happens with typing objects
+            v = str(v).replace("typing.", "")
+
+    return v.replace("NoneType", "None")
 
 
 def _recursive_args_flattening(arg):

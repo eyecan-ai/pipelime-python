@@ -152,6 +152,37 @@ class DAGNodesGraph:
         return self._raw_graph
 
     @property
+    def num_nodes(self) -> int:
+        """The number of nodes of the DAG.
+
+        Returns:
+            int: The number of nodes of the DAG.
+        """
+        return self._raw_graph.number_of_nodes()
+
+    @property
+    def num_operation_nodes(self) -> int:
+        """The number of operation nodes of the DAG.
+
+        Returns:
+            int: The number of operation nodes of the DAG.
+        """
+        return sum(
+            1 for node in self.raw_graph.nodes if isinstance(node, GraphNodeOperation)
+        )
+
+    @property
+    def num_data_nodes(self) -> int:
+        """The number of data nodes of the DAG.
+
+        Returns:
+            int: The number of data nodes of the DAG.
+        """
+        return sum(
+            1 for node in self.raw_graph.nodes if isinstance(node, GraphNodeData)
+        )
+
+    @property
     def operations_graph(self) -> "DAGNodesGraph":
         """The operations graph (networkx) of the DAG. It is a filtered version of the
         raw graph with operations nodes only.
