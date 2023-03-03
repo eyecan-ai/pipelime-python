@@ -17,20 +17,26 @@ def _build_op(
         name: str,
         args: t.Union[t.Mapping[str, t.Any], t.Sequence],
     ) -> SamplesSequence:
-        if ":" in name:
-            from pipelime.choixe.utils.imports import import_module
-
-            module_name, _, op_name = name.rpartition(":")
-            import_module(module_name)
-        else:
-            op_name = name
-
-        fn = getattr(seq, op_name)
         try:
-            return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
-        except TypeError:
-            # try to call without expanding args
-            return fn(args)
+            if ":" in name:
+                from pipelime.choixe.utils.imports import import_module
+
+                module_name, _, op_name = name.rpartition(":")
+                import_module(module_name)
+            else:
+                op_name = name
+
+            fn = getattr(seq, op_name)
+            try:
+                return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
+            except TypeError:
+                # try to call without expanding args
+                return fn(args)
+        except Exception as e:
+            raise RuntimeError(
+                f"Error while calling `{name}` on sequence "
+                f"`{seq}` with arguments: {args}"
+            ) from e
 
     if isinstance(ops, str):
         return _op_call(src, ops, {})
@@ -161,7 +167,9 @@ class DataStream(
         )
 
     @classmethod
-    def create_output_stream(cls, path: t.Union[str, Path], zfill: int = 0) -> DataStream:
+    def create_output_stream(
+        cls, path: t.Union[str, Path], zfill: int = 0
+    ) -> DataStream:
         """Creates a DataStream to write samples to a new underfolder dataset
         or update an existing one. NB: Samples cannot be read from this stream."""
         return cls(
