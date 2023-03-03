@@ -18,8 +18,6 @@ class NaiveNodesGraphExecutor(NodesGraphExecutor):
         Returns:
             bool: True if the execution succeeds
         """
-        import gc
-
         if self.task:
             self.task.restart()
 
@@ -33,9 +31,6 @@ class NaiveNodesGraphExecutor(NodesGraphExecutor):
 
                 try:
                     node.command()
-
-                    # sometimes this is really needed...
-                    gc.collect()
                 except Exception as e:
                     raise RuntimeError(
                         f"[token={token}] Failed to execute node: {node.name}"

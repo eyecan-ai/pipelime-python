@@ -367,7 +367,14 @@ class PipelimeCommand(
         return TqdmTask(total, message)
 
     def __call__(self) -> None:
+        import gc
+
         self.run()
+
+        # nodes may take a lot of memory which might
+        # not be released before runnig the next command
+        # when executing a dag
+        gc.collect()
 
 
 class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"):
