@@ -260,6 +260,11 @@ class WatchCommand(PipelimeCommand, title="watch"):
     watcher: WatcherBackend = Field(
         WatcherBackend.TQDM, alias="w", description="The listener to use."
     )
+    port: t.Optional[int] = Field(
+        None,
+        alias="p",
+        description="The port to listen to. Use the default port if not specified.",
+    )
 
     def run(self):
         from pipelime.piper.progress.listener.base import Listener
@@ -270,7 +275,9 @@ class WatchCommand(PipelimeCommand, title="watch"):
         from pipelime.utils.context_managers import CatchSignals
         from time import sleep
 
-        receiver = ProgressReceiverFactory.get_receiver(self.token)
+        receiver = ProgressReceiverFactory.get_receiver(
+            self.token, **({"port": self.port} if self.port else {})
+        )
         callback = ListenerCallbackFactory.get_callback(self.watcher.listener_key())
         listener = Listener(receiver, callback)
         listener.start()
