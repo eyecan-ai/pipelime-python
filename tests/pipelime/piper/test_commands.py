@@ -110,3 +110,67 @@ def test_nested_dag(piper_folder: Path, tmp_path: Path):
     assert len(dag_output) == len(inverted)
     for gt, pred in zip(inverted, dag_output):
         TestAssert.samples_equal(gt, pred)
+
+
+def test_force_gc():
+    import gc
+    from pipelime.piper import command
+
+    @command(title="testcm_no_set")
+    def _testcm_no_set():
+        a = [1, 2, 3]
+        b = "test"
+        c = {"a": a, "b": b, "c": 42.5}
+
+    @command(title="testcm_false", force_gc=False)
+    def _testcm_false():
+        a = [1, 2, 3]
+        b = "test"
+        c = {"a": a, "b": b, "c": 42.5}
+
+    @command(title="testcm_true", force_gc=True)
+    def _testcm_true():
+        a = [1, 2, 3]
+        b = "test"
+        c = {"a": a, "b": b, "c": 42.5}
+
+    gc.disable()
+
+    # force_gc not set
+    cmd = _testcm_no_set()
+
+    gc.collect()
+    count_start = gc.get_count()
+    cmd()
+    count_end = gc.get_count()
+
+    assert count_end[0] > count_start[0]
+    assert count_end[1] == count_start[1]
+    assert count_end[2] == count_start[2]
+
+    # force_gc = False
+    cmd = _testcm_false()
+
+    gc.collect()
+    count_start = gc.get_count()
+    cmd()
+    count_end = gc.get_count()
+
+    assert count_end[0] > count_start[0]
+    assert count_end[1] == count_start[1]
+    assert count_end[2] == count_start[2]
+
+    # force_gc = True
+    cmd = _testcm_true()
+
+    gc.collect()
+    count_start = gc.get_count()
+    cmd()
+    count_end = gc.get_count()
+
+    assert count_end[0] == count_start[0]
+    assert count_end[1] == count_start[1]
+    assert count_end[2] == count_start[2]
+
+    gc.collect()
+    gc.enable()

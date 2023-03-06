@@ -18,7 +18,6 @@ class NaiveNodesGraphExecutor(NodesGraphExecutor):
         Returns:
             bool: True if the execution succeeds
         """
-
         if self.task:
             self.task.restart()
 
