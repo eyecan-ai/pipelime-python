@@ -95,7 +95,7 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
     return choixe_folder / "plain_cfg.yml"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
     import pipelime.choixe.utils.io as choixe_io
     from pipelime.choixe import XConfig
