@@ -17,10 +17,11 @@ class ZmqTrackCallback(TrackCallback):
     _finalizer: weakref.finalize
 
     PROTOTYPES: Dict[int, "weakref.ReferenceType[ZmqTrackCallback]"] = {}
+    DEFAULT_PORT_NUMBER = 5555
     MAX_PORT_NUMBER = 30000
     LOCK = Lock()
 
-    def __new__(cls, port: int = 5555):
+    def __new__(cls, port: int = DEFAULT_PORT_NUMBER):
         with cls.LOCK:
             proto_ref = cls.PROTOTYPES.get(port)
             proto: Optional["ZmqTrackCallback"] = proto_ref() if proto_ref else None

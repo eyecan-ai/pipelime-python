@@ -12,7 +12,7 @@ from pipelime.piper.progress.tracker.zmq import ZmqTrackCallback
 def zmq_socket():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    socket.connect("tcp://localhost:5556")
+    socket.connect(f"tcp://localhost:{ZmqTrackCallback.DEFAULT_PORT_NUMBER}")
     socket.subscribe(b"token")
     yield socket
     socket.close()

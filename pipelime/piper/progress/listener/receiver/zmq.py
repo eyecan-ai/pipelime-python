@@ -9,7 +9,11 @@ from pipelime.piper.progress.model import ProgressUpdate
 class ZMQProgressReceiver(ProgressReceiver):
     """A receiver for progress updates over pubsub ZMQ socket"""
 
-    def __init__(self, token: str, host: str = "localhost", port: int = 5555) -> None:
+    DEFAULT_PORT_NUMBER = 5555
+
+    def __init__(
+        self, token: str, host: str = "localhost", port: int = DEFAULT_PORT_NUMBER
+    ) -> None:
         self._token = token
         super().__init__(token)
         self._context = zmq.Context()
