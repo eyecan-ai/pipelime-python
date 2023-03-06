@@ -41,10 +41,19 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
 
     @pyd.validator("must_exist", always=True)
     def check_folder_exists(cls, v, values):
-        p = values["folder"]
-        if v and not p.exists():
-            raise ValueError(f"Root folder {p} does not exist.")
+        if v:
+            root_folder = values["folder"]
+            if not root_folder.exists() or not root_folder.is_dir():
+                raise ValueError(f"Root folder {root_folder} does not exist.")
+
+            data_folder = cls.data_path(root_folder)
+            if not data_folder.exists() or not data_folder.is_dir():
+                raise ValueError(f"Data folder {data_folder} does not exist.")
         return v
+
+    @classmethod
+    def data_path(cls, root_folder: Path) -> Path:
+        return root_folder / "data"
 
     def __init__(self, folder: Path, **data):
         super().__init__(folder=folder, **data)  # type: ignore
@@ -52,6 +61,10 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
         if not self.watch:
             self._scan_root_files()
             self._scan_sample_files()
+
+    @property
+    def data_folder(self) -> Path:
+        return self.data_path(self.folder)
 
     @property
     def root_sample(self) -> pls.Sample:
@@ -105,7 +118,7 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
             self._root_sample = pls.Sample()
 
     def _scan_sample_files(self):
-        data_folder = self.folder / "data"
+        data_folder = self.data_folder
         if data_folder.exists():
             samples = []
             with os.scandir(str(data_folder)) as it:
