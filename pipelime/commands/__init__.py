@@ -10,6 +10,7 @@ from pipelime.commands.general import (
     MapCommand,
     SortCommand,
     FilterCommand,
+    SliceCommand,
 )
 from pipelime.commands.shell import ShellCommand
 from pipelime.commands.split_ops import (
