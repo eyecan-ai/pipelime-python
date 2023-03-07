@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from pipelime.sequences import SamplesSequence, DataStream
+from pipelime.sequences import SamplesSequence, DataStream, PipeBuildingError
 
 
 class TestDataStream:
@@ -141,7 +141,7 @@ class TestDataStream:
             [minimnist_dataset["image_keys"][0]],
         )
 
-        with pytest.raises(FileExistsError):
+        with pytest.raises(PipeBuildingError):
             _ = DataStream.create_new_underfolder(output_path)
 
     def test_output_stream(self, minimnist_dataset: dict, tmp_path: Path):

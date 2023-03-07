@@ -130,7 +130,7 @@ class TestSamplesSequences:
 
         assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(pls.PipeBuildingError):
             pls.build_pipe("shuffle")
 
         with pytest.raises(ValueError):
