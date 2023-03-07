@@ -133,7 +133,7 @@ class TestSamplesSequences:
         with pytest.raises(pls.PipeBuildingError):
             pls.build_pipe("shuffle")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(pls.PipeBuildingError):
             pls.build_pipe(pipe_list=[])
 
     def _direct_access_check_results(self, sseq, da_seq):
