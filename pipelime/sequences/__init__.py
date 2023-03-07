@@ -10,6 +10,6 @@ import pipelime.sequences.sources
 import pipelime.sequences.pipes
 
 from pipelime.sequences.grabber import Grabber, grab_all
-from pipelime.sequences.utils import build_pipe, DataStream
+from pipelime.sequences.utils import build_pipe, DataStream, PipeBuildingError
 
 from pipelime.utils.pydantic_types import SampleValidationInterface, ItemValidationModel

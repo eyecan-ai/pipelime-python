@@ -8,6 +8,20 @@ from pydantic import BaseModel, Field, PrivateAttr
 from pipelime.sequences import Sample, SamplesSequence
 
 
+class PipeBuildingError(Exception):
+    @classmethod
+    def from_exc(cls, message: str, source_exc: Exception):
+        return cls(f"{message}\n--> {source_exc}")
+
+    @classmethod
+    def from_call(cls, name, sequence, args, source_exc):
+        return cls.from_exc(
+            f"Error while calling `{name}` on sequence "
+            f"`{sequence}` with arguments: {args}\n",
+            source_exc,
+        )
+
+
 def _build_op(
     src: t.Union[SamplesSequence, t.Type[SamplesSequence]],
     ops: t.Union[str, t.Mapping[str, t.Any]],
@@ -17,20 +31,23 @@ def _build_op(
         name: str,
         args: t.Union[t.Mapping[str, t.Any], t.Sequence],
     ) -> SamplesSequence:
-        if ":" in name:
-            from pipelime.choixe.utils.imports import import_module
-
-            module_name, _, op_name = name.rpartition(":")
-            import_module(module_name)
-        else:
-            op_name = name
-
-        fn = getattr(seq, op_name)
         try:
-            return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
-        except TypeError:
-            # try to call without expanding args
-            return fn(args)
+            if ":" in name:
+                from pipelime.choixe.utils.imports import import_module
+
+                module_name, _, op_name = name.rpartition(":")
+                import_module(module_name)
+            else:
+                op_name = name
+
+            fn = getattr(seq, op_name)
+            try:
+                return fn(**args) if isinstance(args, t.Mapping) else fn(*args)
+            except TypeError:
+                # try to call without expanding args
+                return fn(args)
+        except Exception as e:
+            raise PipeBuildingError.from_call(name, seq, args, e)
 
     if isinstance(ops, str):
         return _op_call(src, ops, {})
@@ -71,7 +88,7 @@ def build_pipe(
     ):
         source = _build_op(source, op_item)
     if not isinstance(source, SamplesSequence):
-        raise ValueError(
+        raise PipeBuildingError(
             f"Pipe `{repr(pipe_list)}` does not return a samples sequence instance."
         )
     return source
@@ -161,7 +178,9 @@ class DataStream(
         )
 
     @classmethod
-    def create_output_stream(cls, path: t.Union[str, Path], zfill: int = 0) -> DataStream:
+    def create_output_stream(
+        cls, path: t.Union[str, Path], zfill: int = 0
+    ) -> DataStream:
         """Creates a DataStream to write samples to a new underfolder dataset
         or update an existing one. NB: Samples cannot be read from this stream."""
         return cls(
