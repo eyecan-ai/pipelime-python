@@ -113,6 +113,14 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
             "If a string is provided, it is used as the name of the watcher backend."
         ),
     )
+    force_gc: t.Union[bool, str, t.Sequence[str]] = Field(
+        False,
+        alias="gc",
+        description=(
+            "Force garbage collection before and after the execution of all nodes, "
+            "if True, or only for the specified nodes."
+        ),
+    )
 
     def run(self):
         import uuid
@@ -142,7 +150,7 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
                 total=self.piper_graph.num_operation_nodes, message=message
             ),
         )
-        if not executor.exec(self.piper_graph, token=token):
+        if not executor(self.piper_graph, token=token, force_gc=self.force_gc):
             raise RuntimeError("Piper execution failed")
 
 

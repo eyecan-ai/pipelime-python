@@ -302,7 +302,7 @@ class PipelimeCommand(
     _tracker: t.Optional["Tracker"] = PrivateAttr(None)
 
     @classmethod
-    def __init_subclass__(cls, force_gc: bool = False):
+    def __init_subclass__(cls, force_gc: bool = False, **kwargs):
         cls._force_gc = force_gc
 
     @abstractmethod
