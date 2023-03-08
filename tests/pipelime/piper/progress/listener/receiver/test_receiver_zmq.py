@@ -43,6 +43,7 @@ class TestZMQProgressReceiver:
                     packets.append(prog)
                     print(prog)
 
+            assert len(packets) == self.N_PACKETS
             for i, prog in enumerate(packets):
                 assert isinstance(prog, ProgressUpdate)
                 assert prog.op_info == op_info

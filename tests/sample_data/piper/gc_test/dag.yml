@@ -1,0 +1,10 @@
+nodes:
+  toy_n:
+    toy_dataset:
+      toy:
+        length: 20
+      output: $tmp()/gc_test
+  clone_n:
+    clone:
+      input: $tmp()/gc_test
+      output: $tmp()/gc_test_clone
