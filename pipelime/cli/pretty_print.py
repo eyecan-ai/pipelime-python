@@ -8,8 +8,6 @@ from rich import get_console
 from rich import print as rprint
 from rich.pretty import Pretty
 from rich.table import Table, Column
-from rich.text import Text
-from rich.style import Style
 from rich.panel import Panel
 
 if t.TYPE_CHECKING:

@@ -86,7 +86,6 @@ class ToyDataset(
         return sample
 
     def _generate_sample(self, idx) -> pls.Sample:
-        import uuid
         import pipelime.items as pli
         import json
 

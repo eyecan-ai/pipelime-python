@@ -1,4 +1,3 @@
-from loguru import logger
 from typing import Union, Sequence
 
 from pipelime.piper.executors.base import NodesGraphExecutor

@@ -230,9 +230,13 @@ class SamplesSequence(
                 from pipelime.piper.progress.tracker.base import TqdmTask
 
                 message = track_fn if isinstance(track_fn, str) else ""
-                track_fn = lambda x: TqdmTask.default_bar(
-                    iterable=x, total=len(self), message=message
-                )
+
+                def _tqdm_track_fn(x):
+                    return TqdmTask.default_bar(
+                        iterable=x, total=len(self), message=message
+                    )
+
+                track_fn = _tqdm_track_fn
             else:
                 track_fn = None
 
