@@ -13,7 +13,7 @@ class TestZMQProgressReceiver:
     def _sending_thread(self, op_info: OperationInfo) -> None:
         context = zmq.Context()
         socket = context.socket(zmq.PUB)
-        socket.bind("tcp://*:5556")
+        socket.bind(f"tcp://*:{ZMQProgressReceiver.DEFAULT_PORT_NUMBER}")
         time.sleep(1)
         for i in range(2 * self.N_PACKETS):
             token = "token" if i % 2 == 0 else "token2"
@@ -43,6 +43,7 @@ class TestZMQProgressReceiver:
                     packets.append(prog)
                     print(prog)
 
+            assert len(packets) == self.N_PACKETS
             for i, prog in enumerate(packets):
                 assert isinstance(prog, ProgressUpdate)
                 assert prog.op_info == op_info

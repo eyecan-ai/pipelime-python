@@ -1,14 +1,12 @@
 import itertools
 from abc import ABC, abstractmethod
 from pathlib import Path
-from pydantic import BaseModel
 from typing import (
     Optional,
     Union,
     Sequence,
     Mapping,
     Set,
-    Iterable,
     Iterator,
     Collection,
     Any,

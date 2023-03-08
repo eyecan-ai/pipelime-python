@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
 
 import astunparse
-import numpy as np
 import schema as S
 
 import pipelime.choixe.ast.nodes as c_ast

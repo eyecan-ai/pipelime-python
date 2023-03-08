@@ -94,7 +94,6 @@ def _process_cfg_or_die(
 ) -> t.List["XConfig"]:
     from pipelime.cli.pretty_print import print_error, print_info
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
-    from pipelime.cli.pretty_print import print_error
 
     if verbose:
         print_info(f"> Processing {cfg_name}...")

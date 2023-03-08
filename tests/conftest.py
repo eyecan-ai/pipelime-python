@@ -99,6 +99,7 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
 def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
     import pipelime.choixe.utils.io as choixe_io
     from pipelime.choixe import XConfig
+    from . import TestUtils
 
     def _add_if_exists(out, path, key):
         if path.exists():
@@ -108,17 +109,13 @@ def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
     with os.scandir(str(piper_folder / "dags")) as dirit:
         for entry in dirit:
             if entry.is_dir():
-                dag_path = Path(entry.path) / "dag.yml"
-                cfg = XConfig(choixe_io.load(dag_path))
-
+                cfg_path = Path(entry.path) / "dag.yml"
                 ctx_path = Path(entry.path) / "ctx.yml"
-                ctx = XConfig(choixe_io.load(ctx_path)) if ctx_path.exists() else None
-                cfg = cfg.process(ctx).to_dict()
 
                 dag = {}
-                dag["cfg_path"] = dag_path
+                dag["cfg_path"] = cfg_path
                 dag["ctx_path"] = ctx_path
-                dag["config"] = cfg
+                dag["config"] = TestUtils.choixe_process(cfg_path, ctx_path)
                 _add_if_exists(dag, Path(entry.path) / "dag.dot", "dot")
 
                 all_dags.append(dag)

@@ -70,8 +70,6 @@ class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
         return fn(idx, x, s)
 
     def __init__(self, **data):
-        from inspect import signature, Parameter
-
         super().__init__(**data)
 
         num_prms = len(self.condition.args)

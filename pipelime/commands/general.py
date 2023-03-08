@@ -657,8 +657,6 @@ class SortCommand(PipelimeCommand, title="sort"):
         return x.deep_get(self.sort_key)
 
     def run(self):
-        from pipelime.choixe.utils.imports import import_symbol
-
         if (self.sort_key is None) == (self.sort_fn is None):
             raise ValueError("You should define either `sort_key` or `sort_fn`")
 
@@ -716,7 +714,6 @@ class FilterCommand(PipelimeCommand, title="filter"):
         return x.match(self.filter_query)
 
     def run(self):
-        from pipelime.choixe.utils.imports import import_symbol
         from pipelime.sequences import DataStream
 
         if (self.filter_query is None) == (self.filter_fn is None):

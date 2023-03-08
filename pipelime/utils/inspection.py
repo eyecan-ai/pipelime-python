@@ -1,5 +1,6 @@
 from typing import Optional
 
+
 class MyCaller:
     def __init__(self, steps_back: int = 0):
         """Get information about your caller.
@@ -10,7 +11,7 @@ class MyCaller:
         """
         import inspect
 
-        self._caller = inspect.stack()[2+steps_back]
+        self._caller = inspect.stack()[2 + steps_back]
 
     @property
     def globals(self):
