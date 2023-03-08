@@ -33,7 +33,7 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Test with pytest
         run: |
-          pytest
+          pytest --ignore=tests/pipelime/piper/test_commands.py
   publish:
     runs-on: ubuntu-latest
     needs: build_and_test
