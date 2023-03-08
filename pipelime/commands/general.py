@@ -657,8 +657,6 @@ class SortCommand(PipelimeCommand, title="sort"):
         return x.deep_get(self.sort_key)
 
     def run(self):
-        from pipelime.choixe.utils.imports import import_symbol
-
         if (self.sort_key is None) == (self.sort_fn is None):
             raise ValueError("You should define either `sort_key` or `sort_fn`")
 
@@ -716,7 +714,6 @@ class FilterCommand(PipelimeCommand, title="filter"):
         return x.match(self.filter_query)
 
     def run(self):
-        from pipelime.choixe.utils.imports import import_symbol
         from pipelime.sequences import DataStream
 
         if (self.filter_query is None) == (self.filter_fn is None):
@@ -752,4 +749,54 @@ class FilterCommand(PipelimeCommand, title="filter"):
             parent_cmd=self,
             sample_fn=writer_helper,
             track_message=f"Filtering data ({len(seq)} samples)",
+        )
+
+
+class SliceCommand(PipelimeCommand, title="slice"):
+    """Extract a subset of samples from a dataset."""
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    slice: pl_interfaces.ExtendedInterval = pl_interfaces.ExtendedInterval.pyd_field(
+        alias="s"
+    )
+
+    shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
+        False,
+        alias="shf",
+        description=(
+            "Shuffle the dataset before slicing. Optionally specify the random seed."
+        ),
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def run(self):
+        seq = self.input.create_reader()
+        if self.shuffle:
+            seq = seq.shuffle(
+                seed=self.shuffle if not isinstance(self.shuffle, bool) else None
+            )
+        seq = seq.slice(
+            start=self.slice.start, stop=self.slice.stop, step=self.slice.step
+        )
+        seq = self.output.append_writer(seq)
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Slicing dataset ({len(seq)} samples)",
         )

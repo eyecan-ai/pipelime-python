@@ -1,6 +1,7 @@
 import pytest
 import pipelime.sequences as pls
 import typing as t
+from pathlib import Path
 
 
 class TestSamplesSequencesSources:
@@ -37,14 +38,19 @@ class TestSamplesSequencesSources:
                 assert k in sample
                 assert not sample[k].is_shared
 
-    def test_from_underfolder_must_exist(self):
-        sseq = pls.SamplesSequence.from_underfolder(folder="no-path", must_exist=False)
-        assert str(sseq.folder) == "no-path"  # type: ignore
+    @pytest.mark.parametrize(
+        "root_folder", [Path("no-path"), Path(__file__).parent.resolve()]
+    )
+    def test_from_underfolder_must_exist(self, root_folder: Path):
+        sseq = pls.SamplesSequence.from_underfolder(
+            folder=root_folder, must_exist=False
+        )
+        assert sseq.folder == root_folder  # type: ignore
         assert not sseq.must_exist  # type: ignore
 
         with pytest.raises(ValueError):
             sseq = pls.SamplesSequence.from_underfolder(
-                folder="no-path", must_exist=True
+                folder=root_folder, must_exist=True
             )
 
     def test_from_list(self, minimnist_dataset: dict):

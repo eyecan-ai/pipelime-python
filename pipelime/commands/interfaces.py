@@ -686,3 +686,97 @@ class ToyDatasetInterface(
             objects_range=self.objects_range,
             seed=self.seed,
         )
+
+
+class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
+    """An interval of indexes, with optional start and stop indices.
+
+    Accepts a single value as ``start`` index, a sequence as ``start`` and ``stop``
+    indices or a string ``start:stop``.
+    """
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "An interval of indexes."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<start>[:<stop>]"
+
+    start: t.Optional[int] = pyd.Field(
+        None,
+        description="The first index (included), defaults to the first element (can be negative).",
+    )
+    stop: t.Optional[int] = pyd.Field(
+        None,
+        description="The last index (excluded), defaults to the last element (can be negative).",
+    )
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value) -> Interval:
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, str):
+            value = value.split(":")
+
+        data = {}
+        if isinstance(value, int):
+            data["start"] = value
+        elif isinstance(value, t.Sequence):
+            if len(value) > 2:
+                raise ValueError(f"Invalid interval: {value}")
+            if value[0]:
+                data["start"] = int(value[0])  # type: ignore
+            if len(value) > 1 and value[1]:
+                data["stop"] = int(value[1])  # type: ignore
+        elif isinstance(value, t.Mapping):
+            data = value
+        else:
+            raise ValueError(f"Invalid interval: {value}")
+
+        return cls(**data)
+
+
+class ExtendedInterval(Interval):
+    """An interval of indexes, with optional start, stop and step indices.
+
+    Accepts a single value as ``start`` index, a sequence as ``start``, ``stop`` and
+    ``step`` indices or a string ``start:stop:step``.
+    """
+
+    _compact_form: t.ClassVar[t.Optional[str]] = "<start>[:<stop>[:<step>]]"
+
+    step: t.Optional[int] = pyd.Field(
+        None, description="The slice step, defaults to 1 (can be negative)."
+    )
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value) -> Interval:
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, str):
+            value = value.split(":")
+
+        data = {}
+        if isinstance(value, int):
+            data["start"] = value
+        elif isinstance(value, t.Sequence):
+            if len(value) > 3:
+                raise ValueError(f"Invalid interval: {value}")
+            if value[0]:
+                data["start"] = int(value[0])  # type: ignore
+            if len(value) > 1 and value[1]:
+                data["stop"] = int(value[1])  # type: ignore
+            if len(value) > 2 and value[2]:
+                data["step"] = int(value[2])  # type: ignore
+        elif isinstance(value, t.Mapping):
+            data = value
+        else:
+            raise ValueError(f"Invalid interval: {value}")
+
+        return cls(**data)

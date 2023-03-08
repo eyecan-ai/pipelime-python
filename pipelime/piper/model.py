@@ -290,12 +290,20 @@ class PipelimeCommand(
     extra="forbid",
     copy_on_model_validation="none",
 ):
-    """Base class for all pipelime commands.
-    Subclasses should implement the run method.
+    """Base class for all pipelime commands. Subclasses should implement the run method.
+
+    Extra class definition kwargs:
+        force_gc (bool): force garbage collection after the command is executed.
     """
+
+    _force_gc: t.ClassVar[bool] = False
 
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: t.Optional["Tracker"] = PrivateAttr(None)
+
+    @classmethod
+    def __init_subclass__(cls, force_gc: bool = False, **kwargs):
+        cls._force_gc = force_gc
 
     @abstractmethod
     def run(self) -> None:
@@ -368,6 +376,11 @@ class PipelimeCommand(
 
     def __call__(self) -> None:
         self.run()
+
+        if self._force_gc:
+            import gc
+
+            gc.collect()
 
 
 class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"):

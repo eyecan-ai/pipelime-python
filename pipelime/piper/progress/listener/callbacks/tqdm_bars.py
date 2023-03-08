@@ -15,9 +15,7 @@ class TqdmBarsListenerCallback(ListenerCallback):
         from rich import print as rp
         from rich.align import Align
         from rich.panel import Panel
-        from rich.style import Style
         from rich import box
-        from rich.rule import Rule
 
         rp(
             Panel(

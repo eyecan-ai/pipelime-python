@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Union
 
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import DIRECTIVE_PREFIX
-import astunparse
 
 
 class Unparser(ast.NodeVisitor):

@@ -108,6 +108,7 @@ class FilteredSequence(PipedSequenceBase, title="filter"):
             return x if self.filter_fn(x) else pls.Sample()
         return self.source[self._get_valid_indexes()[idx]]
 
+
 @pls.piped_sequence
 class SortedSequence(PipedSequenceBase, title="sort"):
     """A sorted view of an input SamplesSequence."""
@@ -163,17 +164,18 @@ class SlicedSequence(
     def __init__(self, **data):
         super().__init__(**data)
 
+        effective_step = 1 if self.step is None else self.step
         effective_start = (
-            0
+            (len(self.source) - 1 if effective_step < 0 else 0)
             if self.start is None
-            else max(0, min(len(self.source), self._normalized(self.start)))
+            else max(0, min(len(self.source) - 1, self._normalized(self.start)))
         )
         effective_stop = (
-            len(self.source)
+            (-1 if effective_step < 0 else len(self.source))
             if self.stop is None
-            else max(0, min(len(self.source), self._normalized(self.stop)))
+            else max(-1, min(len(self.source), self._normalized(self.stop)))
         )
-        effective_step = 1 if self.step is None else self.step
+
         self._sliced_idxs = range(effective_start, effective_stop, effective_step)
 
     def _normalized(self, idx: int) -> int:

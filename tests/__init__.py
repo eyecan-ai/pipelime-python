@@ -9,10 +9,29 @@ class TestUtils:
     @staticmethod
     def has_torch():
         try:
-            import torch
+            import torch  # type: ignore
         except ImportError:
             return False
         return True
+
+    @staticmethod
+    def choixe_process(cfg_path, ctx_or_path):
+        from typing import Mapping
+        from pathlib import Path
+        from pipelime.choixe import XConfig
+        import pipelime.choixe.utils.io as choixe_io
+
+        cfg = XConfig(choixe_io.load(Path(cfg_path)), cwd=Path(cfg_path).parent)
+        ctx = (
+            ctx_or_path
+            if isinstance(ctx_or_path, Mapping)
+            else (
+                XConfig(choixe_io.load(Path(ctx_or_path)))
+                if ctx_or_path and Path(ctx_or_path).exists()
+                else None
+            )
+        )
+        return cfg.process(ctx).to_dict()  # type: ignore
 
 
 class TestAssert:

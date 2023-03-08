@@ -14,6 +14,8 @@ if t.TYPE_CHECKING:
 
 
 class NewPath(Path):
+    """A path that does not exist yet."""
+
     @classmethod
     def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
         field_schema.update(format="new-path")

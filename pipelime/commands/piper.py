@@ -113,6 +113,14 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
             "If a string is provided, it is used as the name of the watcher backend."
         ),
     )
+    force_gc: t.Union[bool, str, t.Sequence[str]] = Field(
+        False,
+        alias="gc",
+        description=(
+            "Force garbage collection before and after the execution of all nodes, "
+            "if True, or only for the specified nodes."
+        ),
+    )
 
     def run(self):
         import uuid
@@ -142,7 +150,7 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
                 total=self.piper_graph.num_operation_nodes, message=message
             ),
         )
-        if not executor.exec(self.piper_graph, token=token):
+        if not executor(self.piper_graph, token=token, force_gc=self.force_gc):
             raise RuntimeError("Piper execution failed")
 
 
@@ -260,6 +268,11 @@ class WatchCommand(PipelimeCommand, title="watch"):
     watcher: WatcherBackend = Field(
         WatcherBackend.TQDM, alias="w", description="The listener to use."
     )
+    port: t.Optional[int] = Field(
+        None,
+        alias="p",
+        description="The port to listen to. Use the default port if not specified.",
+    )
 
     def run(self):
         from pipelime.piper.progress.listener.base import Listener
@@ -270,7 +283,9 @@ class WatchCommand(PipelimeCommand, title="watch"):
         from pipelime.utils.context_managers import CatchSignals
         from time import sleep
 
-        receiver = ProgressReceiverFactory.get_receiver(self.token)
+        receiver = ProgressReceiverFactory.get_receiver(
+            self.token, **({"port": self.port} if self.port else {})
+        )
         callback = ListenerCallbackFactory.get_callback(self.watcher.listener_key())
         listener = Listener(receiver, callback)
         listener.start()

@@ -701,4 +701,4 @@ def show_field_alias_valerr(e: ValidationError):
 
     for err in e.errors():
         if "loc" in err:
-            err["loc"] = tuple(_replace_alias(l) for l in err["loc"])
+            err["loc"] = tuple(_replace_alias(pos) for pos in err["loc"])

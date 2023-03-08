@@ -1,12 +1,10 @@
 import importlib
 import importlib.util
-import os
 import sys
 from contextlib import ContextDecorator
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional, Union
-from uuid import uuid1
 
 
 class add_to_sys_path(ContextDecorator):

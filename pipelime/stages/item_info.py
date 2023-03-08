@@ -32,11 +32,6 @@ class StageItemInfo(SampleStage, title="item-info"):
 
     def __call__(self, x: "Sample") -> "Sample":
         for k, v in x.items():
-            class_name = (
-                v.__class__.__name__
-                if v.__class__.__module__.startswith("pipelime.items")
-                else f"{v.__class__.__module__}.{v.__class__.__name__}"
-            )
             if k in self._items_info:
                 if self._items_info[k].item_type != v.__class__:
                     raise ValueError(

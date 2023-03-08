@@ -19,9 +19,9 @@ class ProgressReceiverFactory:
 
     @classmethod
     def get_receiver(
-        cls, token: str, type_: str = DEFAULT_RECEIVER_TYPE
+        cls, token: str, type_: str = DEFAULT_RECEIVER_TYPE, **kwargs
     ) -> ProgressReceiver:
-        return cls.CLASS_MAP[type_](token)
+        return cls.CLASS_MAP[type_](token, **kwargs)
 
 
 class ListenerCallbackFactory:

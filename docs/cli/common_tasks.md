@@ -161,10 +161,12 @@ pipe:
 [^alb]: The `transformation.yaml` file must be a valid [albumentation pipeline](https://albumentations.ai/docs/examples/serialization/#serializing-an-augmentation-pipeline-to-a-json-or-yaml-file).
 [^pipe]: The original index is stored in the `~idx` key as `TxtNumpyItem`.
 
-### Split
+### Slicing And Splitting
 
 | Description | Command |
 | ---- | ---- |
+| Slice a dataset from 10, included, to 20, excluded | `pipelime slice +i <input> +o <output> +s 10:20` |
+| Shuffle and slice a dataset, keeping 1 every 3 samples from the end | `pipelime slice +i <input> +o <output> +shf +s ::-3` |
 | Train/test/val splits | `pipelime split +i <input> +s 0.8,train +s 0.1,test +s null,val` |
 | Dataset shuffling, subsampling (1 every 3) and reduction (half of the length) | `pipelime split +i <input> +s 0.5,<output> +shf +ss 3` |
 | Split by (a boolean) query | `pipelime split-query +i <input> +q <dictquery> +os <output_true> +od <output_false>` |
