@@ -34,7 +34,7 @@ class ZmqTrackCallback(TrackCallback):
 
                 while port < cls.MAX_PORT_NUMBER:
                     if ZmqTrackCallback._try_bind(proto._socket, port):
-                        if port == 5555:
+                        if port == cls.DEFAULT_PORT_NUMBER:
                             logger.info(f"Piper tracking bound to the default port")
                             logger.info(
                                 f"Run `pipelime watch +t YOUR_TOKEN` to see the progress"

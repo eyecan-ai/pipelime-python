@@ -12,7 +12,7 @@ def _try_import_graphviz():
 
 
 class TestCommands:
-    def _gc_run(self, cmd, force_gc: bool):
+    def _gc_run(self, cmd):
         import gc
 
         gc.disable()
@@ -22,6 +22,11 @@ class TestCommands:
         count_end = gc.get_count()
         gc.collect()
         gc.enable()
+
+        return count_start, count_end
+
+    def _gc_run_and_check(self, cmd, force_gc: bool):
+        count_start, count_end = self._gc_run(cmd)
 
         if force_gc:
             assert count_end[0] == count_start[0]
@@ -62,13 +67,13 @@ class TestCommands:
                 assert g_out is not None
                 assert g_ref == g_out
 
-    @pytest.mark.parametrize("force_gc", [True, False])
-    def test_run_dag(self, all_dags: t.Sequence[t.Mapping[str, t.Any]], force_gc: bool):
+    def test_run_dag(self, all_dags: t.Sequence[t.Mapping[str, t.Any]]):
         from pipelime.commands.piper import RunCommand
+        from ... import TestUtils
 
         for dag in all_dags:
-            cmd = RunCommand(**(dag["config"]), gc=force_gc)
-            self._gc_run(cmd, force_gc)
+            cmd = RunCommand(**(dag["config"]))
+            cmd()
 
             # output folders now exist, so the commands should fail
             # when creating the output pipes
@@ -100,15 +105,12 @@ class TestCommands:
         assert cmd.piper_graph.num_data_nodes == 6
 
     def test_nested_dag(self, piper_folder: Path, tmp_path: Path):
-        import pipelime.choixe.utils.io as choixe_io
-        from pipelime.choixe import XConfig
         from pipelime.commands.piper import RunCommand
         from pipelime.sequences import SamplesSequence
-        from ... import TestAssert
+        from ... import TestUtils, TestAssert
 
         dag_path = piper_folder / "nested" / "nested.yml"
-        cfg = XConfig(choixe_io.load(dag_path), cwd=piper_folder / "nested")
-        cfg = cfg.process({"folder": tmp_path.as_posix()}).to_dict()
+        cfg = TestUtils.choixe_process(dag_path, {"folder": tmp_path.as_posix()})
 
         cmd = RunCommand(**cfg)
         cmd()
@@ -128,8 +130,28 @@ class TestCommands:
         for gt, pred in zip(inverted, dag_output):
             TestAssert.samples_equal(gt, pred)
 
+    def test_dag_gc(self, piper_folder: Path):
+        from pipelime.commands.piper import RunCommand
+        from ... import TestUtils
+
+        dag_path = piper_folder / "gc_test" / "dag.yml"
+        cfg = TestUtils.choixe_process(dag_path, None)
+
+        cmd = RunCommand(**cfg, gc=False)
+        nogc_start, nogc_end = self._gc_run(cmd)
+
+        reprocessed_dag = TestUtils.choixe_process(dag_path, None)
+        cmd = RunCommand(**reprocessed_dag, gc=True)
+        gc_start, gc_end = self._gc_run(cmd)
+
+        assert nogc_start[0] == gc_start[0]
+        assert nogc_end[0] > gc_end[0]
+        assert nogc_end[1] == nogc_start[1]
+        assert nogc_end[2] == nogc_start[2]
+        assert gc_end[1] == gc_start[1]
+        assert gc_end[2] == gc_start[2]
+
     def test_force_gc(self):
-        import gc
         from pipelime.piper import command
 
         @command(title="testcm_no_set")
@@ -152,12 +174,12 @@ class TestCommands:
 
         # force_gc not set
         cmd = _testcm_no_set()
-        self._gc_run(cmd, False)
+        self._gc_run_and_check(cmd, False)
 
         # force_gc = False
         cmd = _testcm_false()
-        self._gc_run(cmd, False)
+        self._gc_run_and_check(cmd, False)
 
         # force_gc = True
         cmd = _testcm_true()
-        self._gc_run(cmd, True)
+        self._gc_run_and_check(cmd, True)
