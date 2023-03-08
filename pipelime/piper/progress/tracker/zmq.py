@@ -17,7 +17,7 @@ class ZmqTrackCallback(TrackCallback):
     _finalizer: weakref.finalize
 
     PROTOTYPES: Dict[int, "weakref.ReferenceType[ZmqTrackCallback]"] = {}
-    DEFAULT_PORT_NUMBER = 5556
+    DEFAULT_PORT_NUMBER = 5555
     MAX_PORT_NUMBER = 30000
     LOCK = Lock()
 
