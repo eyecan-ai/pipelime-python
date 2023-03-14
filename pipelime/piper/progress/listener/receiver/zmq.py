@@ -29,14 +29,20 @@ class ZMQProgressReceiver(ProgressReceiver):
             f"with {'any token' if token is None else f'token `{token}`'}"
         )
 
-    def receive(self) -> Tuple[str, Optional[ProgressUpdate]]:
+    def receive(self) -> Optional[ProgressUpdate]:
         if self._socket is not None:
             # Receive a message
             try:
                 token, messagedata = self._socket.recv_multipart(flags=zmq.NOBLOCK)
             except zmq.ZMQError:
-                return "", None  # no message
+                return None  # no message
 
             # Parse message and return
-            return token.decode(), ProgressUpdate.parse_raw(messagedata.decode())
-        return "", None  # no message
+            # NB: sadly, subscribing to "topic" will receive any "topic*" message
+            # so we need to check and filter them out
+            return (
+                ProgressUpdate.parse_raw(messagedata.decode())
+                if self._token is None or token.decode() == self._token
+                else None
+            )
+        return None  # no message

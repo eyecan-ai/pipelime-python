@@ -39,23 +39,20 @@ class ProgressReceiver(ABC):
         self._token = token
 
     @abstractmethod
-    def receive(self) -> Tuple[str, Optional[ProgressUpdate]]:
-        """Receive a progress update
-
-        Returns:
-            Tuple[str, Optional[ProgressUpdate]]: the token and the progress update
-        """
-        pass
+    def receive(self) -> Optional[ProgressUpdate]:
+        """Receive a progress update"""
 
     def __next__(self) -> Optional[ProgressUpdate]:
         """Wait for the next progress update"""
         try:
-            tkn, res = self.receive()
+            res = self.receive()
         except Exception:  # pragma: no cover
             logger.exception("Progress receiver error")
             return None
 
-        return res if self._token is None or tkn == self._token else None
+        if res is None:
+            return None
+        return res if self._token is None or res.op_info.token == self._token else None
 
 
 class Listener:
