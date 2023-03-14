@@ -302,10 +302,12 @@ class WatchCommand(PipelimeCommand, title="watch"):
             self.token, **({"port": self.port} if self.port else {})
         )
         if isinstance(self.watcher, WatcherBackend):
-            callback = ListenerCallbackFactory.get_callback(self.watcher.listener_key())
+            callback = ListenerCallbackFactory.get_callback(
+                self.watcher.listener_key(), show_token=self.token is None
+            )
         else:
             callback = ListenerCallbackFactory.get_callback(
-                "FILE", filename=self.watcher
+                "FILE", filename=self.watcher, show_token=self.token is None
             )
         listener = Listener(receiver, callback)
         listener.start()

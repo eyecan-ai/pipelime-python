@@ -18,8 +18,9 @@ class FileListenerCallback(ListenerCallback):
         self,
         filename: t.Union[str, Path] = "progress.json",
         format: Format = Format.AUTO,
+        show_token: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(show_token)
         self._filename = Path(filename)
         if format == self.Format.AUTO:
             if self._filename.suffix == ".json":
@@ -51,10 +52,14 @@ class FileListenerCallback(ListenerCallback):
 
     def on_update(self, prog: ProgressUpdate) -> None:
         """Called when a progress update is received"""
-        chunk_data = (
+        root = (
             self._data.setdefault(prog.op_info.token, {})
-            .setdefault(prog.op_info.node, {})
-            .setdefault(prog.op_info.chunk, {})
+            if self.show_token
+            else self._data
+        )
+
+        chunk_data = root.setdefault(prog.op_info.node, {}).setdefault(
+            prog.op_info.chunk, {}
         )
         chunk_data["message"] = prog.op_info.message
         chunk_data["total"] = prog.op_info.total

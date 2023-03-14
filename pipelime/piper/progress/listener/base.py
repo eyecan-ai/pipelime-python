@@ -11,6 +11,13 @@ from pipelime.piper.progress.model import ProgressUpdate
 class ListenerCallback:
     """A callback for the listener"""
 
+    def __init__(self, show_token: bool):
+        self._show_token = show_token
+
+    @property
+    def show_token(self) -> bool:
+        return self._show_token
+
     def on_start(self) -> None:
         """Called when the listener starts"""
         pass

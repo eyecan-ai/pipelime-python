@@ -141,9 +141,13 @@ class WatcherNodesGraphExecutor(NodesGraphExecutor):
         force_gc: Union[bool, str, Sequence[str]] = False,
     ) -> bool:
         if isinstance(self._listener_clbk, Path):
-            callback = ListenerCallbackFactory.get_callback("FILE", filename=self._listener_clbk)
+            callback = ListenerCallbackFactory.get_callback(
+                "FILE", filename=self._listener_clbk
+            )
         else:
-            callback = ListenerCallbackFactory.get_callback(self._listener_clbk or ListenerCallbackFactory.DEFAULT_CALLBACK_TYPE)
+            callback = ListenerCallbackFactory.get_callback(
+                self._listener_clbk or ListenerCallbackFactory.DEFAULT_CALLBACK_TYPE
+            )
 
         logger.disable(self._executor.__module__)
         logger.disable(self.__module__)

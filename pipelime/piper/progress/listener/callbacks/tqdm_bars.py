@@ -7,8 +7,8 @@ from pipelime.piper.progress.tracker.base import TqdmTask
 class TqdmBarsListenerCallback(ListenerCallback):
     """Listener callback based on tqdm progress bars."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, show_token: bool = False) -> None:
+        super().__init__(show_token)
         self._bars: Dict[OperationInfo, TqdmTask] = {}
 
     def on_start(self) -> None:
@@ -34,10 +34,10 @@ class TqdmBarsListenerCallback(ListenerCallback):
             )
 
             # adapt the width of the description to the longest one
-            mlen = max(self._bars, key=lambda x: len(x.node) + len(x.message))
-            mlen = len(mlen.node) + len(mlen.message) + 3
+            mlen = max(self._bars, key=lambda x: len(self._build_message(x)))
+            mlen = len(self._build_message(mlen))
             for k, v in self._bars.items():
-                v.set_message((f"[{k.node}] {k.message}").ljust(mlen))
+                v.set_message(self._build_message(k).ljust(mlen))
 
         bar = self._bars[prog.op_info]
 
@@ -47,3 +47,11 @@ class TqdmBarsListenerCallback(ListenerCallback):
 
     def on_stop(self):
         pass
+
+    def _build_message(self, x: OperationInfo):
+        chunk = "" if x.chunk <= 0 else f"${x.chunk}"
+        return (
+            "["
+            + (f"{x.token}/" if self.show_token else "")
+            + f"{x.node}{chunk}] {x.message}"
+        )
