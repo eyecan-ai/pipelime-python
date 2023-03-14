@@ -72,3 +72,34 @@ class GLBModel3DItem(Model3DItem):
     @classmethod
     def file_extensions(cls) -> t.Sequence[str]:
         return (".glb",)
+
+
+class GLTFModel3DItem(Model3DItem):
+    @classmethod
+    def file_extensions(cls) -> t.Sequence[str]:
+        return (".gltf",)
+
+    @classmethod
+    def encode(cls, value: Geometry, fp: t.BinaryIO):
+        import base64
+        import json
+        from io import TextIOWrapper
+        from trimesh.exchange import gltf
+
+        def _encode_data(target, source):
+            for bin_data in target:
+                if "uri" in bin_data and bin_data["uri"] in source:
+                    bin_data["uri"] = (
+                        "data:application/octet-stream;base64,"
+                        + base64.b64encode(source[bin_data["uri"]]).decode()
+                    )
+
+        data = gltf.export_gltf(value)
+        for k, v in data.items():
+            if k.endswith(".gltf"):
+                v = json.loads(v)
+                if "buffers" in v:
+                    _encode_data(v["buffers"], data)
+                if "images" in v:
+                    _encode_data(v["images"], data)
+                json.dump(v, TextIOWrapper(fp))

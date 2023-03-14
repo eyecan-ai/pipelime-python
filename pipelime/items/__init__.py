@@ -36,4 +36,5 @@ from pipelime.items.model3d_item import (
     PLYModel3DItem,
     OFFModel3DItem,
     GLBModel3DItem,
+    GLTFModel3DItem,
 )
