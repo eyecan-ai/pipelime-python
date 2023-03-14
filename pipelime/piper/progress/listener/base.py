@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from threading import Thread
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 from loguru import logger
 
@@ -27,23 +27,28 @@ class ListenerCallback:
 class ProgressReceiver(ABC):
     """A receiver for progress updates"""
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: Optional[str]) -> None:
         super().__init__()
         self._token = token
 
     @abstractmethod
-    def receive(self) -> Optional[ProgressUpdate]:
-        """Receive a progress update"""
+    def receive(self) -> Tuple[str, Optional[ProgressUpdate]]:
+        """Receive a progress update
+
+        Returns:
+            Tuple[str, Optional[ProgressUpdate]]: the token and the progress update
+        """
         pass
 
     def __next__(self) -> Optional[ProgressUpdate]:
         """Wait for the next progress update"""
         try:
-            res = self.receive()
-        except Exception as e:  # pragma: no cover
-            logger.exception(e)
-            res = None
-        return res
+            tkn, res = self.receive()
+        except Exception:  # pragma: no cover
+            logger.exception("Progress receiver error")
+            return None
+
+        return res if self._token is None or tkn == self._token else None
 
 
 class Listener:

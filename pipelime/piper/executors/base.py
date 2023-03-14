@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Optional, Union, Sequence
 
 from loguru import logger
@@ -128,7 +129,7 @@ class WatcherNodesGraphExecutor(NodesGraphExecutor):
     """
 
     def __init__(
-        self, executor: NodesGraphExecutor, listener_clbk: Optional[str] = None
+        self, executor: NodesGraphExecutor, listener_clbk: Union[str, Path, None] = None
     ) -> None:
         self._executor = executor
         self._listener_clbk = listener_clbk
@@ -139,13 +140,14 @@ class WatcherNodesGraphExecutor(NodesGraphExecutor):
         token: str = "",
         force_gc: Union[bool, str, Sequence[str]] = False,
     ) -> bool:
-        res = False
+        if isinstance(self._listener_clbk, Path):
+            callback = ListenerCallbackFactory.get_callback("FILE", filename=self._listener_clbk)
+        else:
+            callback = ListenerCallbackFactory.get_callback(self._listener_clbk or ListenerCallbackFactory.DEFAULT_CALLBACK_TYPE)
+
         logger.disable(self._executor.__module__)
         logger.disable(self.__module__)
         receiver = ProgressReceiverFactory.get_receiver(token)
-        callback = ListenerCallbackFactory.get_callback(
-            self._listener_clbk or ListenerCallbackFactory.DEFAULT_CALLBACK_TYPE
-        )
         listener = Listener(receiver, callback)
         try:
             listener.start()
