@@ -37,7 +37,7 @@ class StageKeyFormat(SampleStage, title="format-key"):
             "`imageMyKey`. If empty, the source key will not be changed."
         ),
     )
-    apply_to: t.Optional[t.Sequence[str]] = pyd.Field(
+    apply_to: t.Union[str, t.Sequence[str], None] = pyd.Field(
         None,
         description=(
             "The keys to apply the new format to. `None` applies to all the keys."
@@ -50,8 +50,15 @@ class StageKeyFormat(SampleStage, title="format-key"):
             return v
         return "*" + v
 
+    def _apply_to(self, x: "Sample") -> t.Iterable[str]:
+        if self.apply_to is None:
+            return x.keys()
+        if isinstance(self.apply_to, str):
+            return (self.apply_to,)
+        return self.apply_to
+
     def __call__(self, x: "Sample") -> "Sample":
-        for k in x.keys() if self.apply_to is None else self.apply_to:
+        for k in self._apply_to(x):
             x = x.rename_key(k, self.key_format.replace("*", k))
         return x
 
@@ -79,7 +86,9 @@ class StageRemap(SampleStage, title="remap-key"):
 class StageKeysFilter(SampleStage, title="filter-keys"):
     """Filters sample keys."""
 
-    key_list: t.Sequence[str] = pyd.Field(..., description="List of keys to preserve.")
+    key_list: t.Union[str, t.Sequence[str]] = pyd.Field(
+        ..., description="List of keys to preserve."
+    )
     negate: bool = pyd.Field(
         False,
         description=(
@@ -87,9 +96,11 @@ class StageKeysFilter(SampleStage, title="filter-keys"):
         ),
     )
 
+    def _apply_to(self) -> t.Sequence[str]:
+        if isinstance(self.key_list, str):
+            return (self.key_list,)
+        return self.key_list
+
     def __call__(self, x: "Sample") -> "Sample":
-        return (
-            x.remove_keys(*self.key_list)
-            if self.negate
-            else x.extract_keys(*self.key_list)
-        )
+        keys = self._apply_to()
+        return x.remove_keys(*keys) if self.negate else x.extract_keys(*keys)
