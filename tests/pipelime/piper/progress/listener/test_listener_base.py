@@ -24,7 +24,7 @@ class MockProgressReceiver(ProgressReceiver):
 
 class MockListenerCallback(ListenerCallback):
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(False)
         self.on_start_called = 0
         self.on_update_called: List[ProgressUpdate] = []
         self.on_stop_called = 0

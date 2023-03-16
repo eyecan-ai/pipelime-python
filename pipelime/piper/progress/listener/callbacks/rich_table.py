@@ -17,8 +17,8 @@ from pipelime.piper.progress.estimator.factory import EstimatorFactory
 class RichTableListenerCallback(ListenerCallback):
     """A callback for the listener that displays a rich table"""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, show_token: bool = False) -> None:
+        super().__init__(show_token)
         self._printer_thread = None
         self.on_stop()
 
@@ -67,10 +67,11 @@ class RichTableListenerCallback(ListenerCallback):
             title_style="on white",
         )
         for op in self._progress_map.keys():
+            chunk = "" if op.chunk <= 0 else f"${op.chunk}"
             prog = self._progress_map[op]
             est = self._estimators[op]
             table.add_row(
-                op.node,
+                (f"{op.token}/" if self.show_token else "") + f"{op.node}{chunk}",
                 op.message,
                 self._percentage_string(
                     prog.progress / op.total if op.total != 0 else 1.0

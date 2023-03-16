@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from threading import Thread
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 from loguru import logger
 
@@ -10,6 +10,13 @@ from pipelime.piper.progress.model import ProgressUpdate
 
 class ListenerCallback:
     """A callback for the listener"""
+
+    def __init__(self, show_token: bool):
+        self._show_token = show_token
+
+    @property
+    def show_token(self) -> bool:
+        return self._show_token
 
     def on_start(self) -> None:
         """Called when the listener starts"""
@@ -27,23 +34,25 @@ class ListenerCallback:
 class ProgressReceiver(ABC):
     """A receiver for progress updates"""
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: Optional[str]) -> None:
         super().__init__()
         self._token = token
 
     @abstractmethod
     def receive(self) -> Optional[ProgressUpdate]:
         """Receive a progress update"""
-        pass
 
     def __next__(self) -> Optional[ProgressUpdate]:
         """Wait for the next progress update"""
         try:
             res = self.receive()
-        except Exception as e:  # pragma: no cover
-            logger.exception(e)
-            res = None
-        return res
+        except Exception:  # pragma: no cover
+            logger.exception("Progress receiver error")
+            return None
+
+        if res is None:
+            return None
+        return res if self._token is None or res.op_info.token == self._token else None
 
 
 class Listener:
