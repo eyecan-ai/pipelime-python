@@ -321,9 +321,8 @@ class TestGeneralCommands:
             TestAssert.samples_equal(s3 + s2 + s1, d)
 
         params["key_format"].append("s3_*")
-        cmd = ZipCommand.parse_obj(params)
         with pytest.raises(ValueError):
-            cmd()
+            cmd = ZipCommand.parse_obj(params)  # output exists
 
     @pytest.mark.parametrize("nproc", [0, 1, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
@@ -522,15 +521,17 @@ class TestGeneralCommands:
             cmd()
 
         del params["sort_key"]
-        cmd = SortCommand.parse_obj(params)
         if nproc == 0:
+            cmd = SortCommand.parse_obj(params)
             cmd()
             _check_output(params["output"], "metadata.random")
-
-        del params["sort_fn"]
-        cmd = SortCommand.parse_obj(params)
-        with pytest.raises(ValueError):
-            cmd()
+            with pytest.raises(ValueError):
+                cmd = SortCommand.parse_obj(params)  # output exists
+        else:
+            del params["sort_fn"]
+            cmd = SortCommand.parse_obj(params)
+            with pytest.raises(ValueError):
+                cmd()
 
     @pytest.mark.parametrize("nproc", [0, 1, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
@@ -560,15 +561,17 @@ class TestGeneralCommands:
             cmd()
 
         del params["filter_query"]
-        cmd = FilterCommand.parse_obj(params)
         if nproc == 0:
+            cmd = FilterCommand.parse_obj(params)
             cmd()
             _check_output(params["output"])
-
-        del params["filter_fn"]
-        cmd = FilterCommand.parse_obj(params)
-        with pytest.raises(ValueError):
-            cmd()
+            with pytest.raises(ValueError):
+                cmd = FilterCommand.parse_obj(params)  # output exists
+        else:
+            del params["filter_fn"]
+            cmd = FilterCommand.parse_obj(params)
+            with pytest.raises(ValueError):
+                cmd()
 
     @pytest.mark.parametrize("nproc", [0, 1, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
