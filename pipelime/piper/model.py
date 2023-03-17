@@ -5,6 +5,7 @@ import typing as t
 from pydantic import BaseModel, Field, PrivateAttr
 
 from pipelime.piper.progress.tracker.base import Tracker, TrackedTask, TqdmTask
+from pipelime.piper.progress.tracker.base import TrackCallback
 
 
 # The return type is a hack to fool the type checker
@@ -297,6 +298,7 @@ class PipelimeCommand(
     """
 
     _force_gc: t.ClassVar[bool] = False
+    _track_callback: t.ClassVar[t.Optional[TrackCallback]] = None
 
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: t.Optional["Tracker"] = PrivateAttr(None)
@@ -326,10 +328,9 @@ class PipelimeCommand(
 
     def _get_piper_tracker(self) -> "Tracker":
         if self._tracker is None:  # pragma: no branch
-            from pipelime.piper.progress.tracker.base import Tracker
             from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
 
-            cb = TrackCallbackFactory.get_callback()
+            cb = self._track_callback or TrackCallbackFactory.get_callback()
             self._tracker = Tracker(self._piper.token, self._piper.node, cb)
 
         return self._tracker
