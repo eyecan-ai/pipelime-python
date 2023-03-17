@@ -1,4 +1,5 @@
 from typing import Optional, Union
+from pathlib import Path
 
 from pipelime.piper.executors.base import NodesGraphExecutor, WatcherNodesGraphExecutor
 from pipelime.piper.executors.naive import NaiveNodesGraphExecutor
@@ -17,7 +18,7 @@ class NodesGraphExecutorFactory:
         cls,
         type_: Optional[str] = None,
         node_prefix: str = "",
-        watch: Union[bool, str] = False,
+        watch: Union[bool, str, Path] = False,
         task: Optional[TrackedTask] = None,
         **kwargs,
     ) -> NodesGraphExecutor:
@@ -28,7 +29,7 @@ class NodesGraphExecutorFactory:
 
         if watch:
             executor = WatcherNodesGraphExecutor(
-                executor, watch if isinstance(watch, str) else None
+                executor, watch if isinstance(watch, (str, Path)) else None
             )
 
         return executor

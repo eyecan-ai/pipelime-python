@@ -69,7 +69,6 @@ class TestCommands:
 
     def test_run_dag(self, all_dags: t.Sequence[t.Mapping[str, t.Any]]):
         from pipelime.commands.piper import RunCommand
-        from ... import TestUtils
 
         for dag in all_dags:
             cmd = RunCommand(**(dag["config"]))
@@ -78,7 +77,7 @@ class TestCommands:
             # output folders now exist, so the commands should fail
             # when creating the output pipes
             cmd = RunCommand(**(dag["config"]))
-            with pytest.raises(RuntimeError) as excinfo:
+            with pytest.raises(ValueError) as excinfo:
                 cmd()
 
     def test_port_forwarding(self, piper_folder: Path, tmp_path: Path):

@@ -75,14 +75,12 @@ def _mesh_eq(x, y, exact: bool, sort_vertices: bool) -> bool:
 
 class TestItems:
     def test_reference_items(self, items_folder: Path):
-        from pipelime.items.base import ItemFactory
-
         checked_items = set()
         for fp in items_folder.iterdir():
             if fp not in checked_items:
                 print("reference item:", fp)
                 checked_items.add(fp)
-                ref_item = ItemFactory.get_instance(fp)
+                ref_item = pli.Item.get_instance(fp)
                 ref_value = ref_item()
 
                 trg_files = list(items_folder.glob(fp.stem + ".*")) + list(
@@ -92,7 +90,7 @@ class TestItems:
                     if other not in checked_items:
                         print("target item:", other)
                         checked_items.add(other)
-                        trg_item = ItemFactory.get_instance(other)
+                        trg_item = pli.Item.get_instance(other)
                         trg_value = trg_item()
 
                         if isinstance(ref_value, np.ndarray):
@@ -189,6 +187,11 @@ class TestItems:
                 _generic_scene(),
                 lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
             ),
+            (
+                pli.GLTFModel3DItem,
+                _generic_scene(),
+                lambda x, y: _mesh_eq(x, y, exact=False, sort_vertices=False),
+            ),
         ],
     )
     def test_read_write(self, tmp_path: Path, item_cls: t.Type[pli.Item], value, eq_fn):
@@ -265,14 +268,12 @@ class TestItems:
         assert source_path.stat().st_nlink == 2
 
     def test_data_cache(self, items_folder: Path):
-        from pipelime.items.base import ItemFactory
-
-        for v in ItemFactory.ITEM_DATA_CACHE_MODE.values():
+        for v in pli.Item.ITEM_DATA_CACHE_MODE.values():
             assert v is None
 
         def _reload() -> t.Tuple[pli.Item, pli.Item]:
-            bmp_item = ItemFactory.get_instance(items_folder / "0.bmp")
-            json_item = ItemFactory.get_instance(items_folder / "3.json")
+            bmp_item = pli.Item.get_instance(items_folder / "0.bmp")
+            json_item = pli.Item.get_instance(items_folder / "3.json")
             return bmp_item, json_item
 
         def _check_single(item, should_cache, is_cached):

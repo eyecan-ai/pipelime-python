@@ -3,6 +3,7 @@ from typing import Optional
 from pipelime.piper.progress.tracker.base import TrackCallback
 from pipelime.piper.progress.tracker.loguru import LoguruTrackCallback
 from pipelime.piper.progress.tracker.zmq import ZmqTrackCallback
+from pipelime.piper.progress.tracker.direct import DirectTrackCallback
 
 
 class TrackCallbackFactory:
@@ -13,6 +14,7 @@ class TrackCallbackFactory:
     CLASS_MAP = {
         "ZMQ": ZmqTrackCallback,
         "LOGURU": LoguruTrackCallback,
+        "DIRECT": DirectTrackCallback,
     }
 
     @classmethod

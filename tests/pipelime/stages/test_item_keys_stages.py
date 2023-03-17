@@ -51,30 +51,28 @@ class TestKeyStages:
             stage(Sample({"a": UnknownItem(10), "b": UnknownItem(20)})),
         )
 
-    def test_filter_positive(self):
+    @pytest.mark.parametrize("input_keys", [["a", "b"], "a"])
+    @pytest.mark.parametrize("negate", [True, False])
+    def test_filter(self, input_keys: t.Sequence[str], negate: bool):
         from pipelime.stages import StageKeysFilter
 
-        stage = StageKeysFilter(key_list=["a", "b"], negate=False)
-        self._check_target_pred(
-            Sample({"a": UnknownItem(10), "b": UnknownItem(20)}),
-            stage(
-                Sample(
-                    {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(30)}
-                )
-            ),
+        sample = Sample(
+            {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(30)}
         )
+        stage = StageKeysFilter(key_list=input_keys, negate=negate)
 
-    def test_filter_negate(self):
-        from pipelime.stages import StageKeysFilter
+        if isinstance(input_keys, str):
+            input_keys = [input_keys]
 
-        stage = StageKeysFilter(key_list=["a", "b"], negate=True)
         self._check_target_pred(
-            Sample({"c": UnknownItem(30)}),
-            stage(
-                Sample(
-                    {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(30)}
-                )
+            Sample(
+                {
+                    k: v.make_new(v())
+                    for k, v in sample.items()
+                    if (k in input_keys) is (not negate)
+                }
             ),
+            stage(sample),
         )
 
     def test_replace(self):
@@ -110,7 +108,7 @@ class TestKeyStages:
                 "*",
                 None,
                 Sample(
-                    {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(20)}
+                    {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(30)}
                 ),
             ),
             (
@@ -120,7 +118,7 @@ class TestKeyStages:
                     {
                         "new_a": UnknownItem(10),
                         "new_b": UnknownItem(20),
-                        "new_c": UnknownItem(20),
+                        "new_c": UnknownItem(30),
                     }
                 ),
             ),
@@ -131,7 +129,7 @@ class TestKeyStages:
                     {
                         "aNew": UnknownItem(10),
                         "bNew": UnknownItem(20),
-                        "cNew": UnknownItem(20),
+                        "cNew": UnknownItem(30),
                     }
                 ),
             ),
@@ -142,7 +140,18 @@ class TestKeyStages:
                     {
                         "par_a_tial": UnknownItem(10),
                         "b": UnknownItem(20),
-                        "par_c_tial": UnknownItem(20),
+                        "par_c_tial": UnknownItem(30),
+                    }
+                ),
+            ),
+            (
+                "par_*_tial",
+                "a",
+                Sample(
+                    {
+                        "par_a_tial": UnknownItem(10),
+                        "b": UnknownItem(20),
+                        "c": UnknownItem(30),
                     }
                 ),
             ),
@@ -153,7 +162,18 @@ class TestKeyStages:
                     {
                         "a": UnknownItem(10),
                         "bStr": UnknownItem(20),
-                        "cStr": UnknownItem(20),
+                        "cStr": UnknownItem(30),
+                    }
+                ),
+            ),
+            (
+                "Str",
+                "b",
+                Sample(
+                    {
+                        "a": UnknownItem(10),
+                        "bStr": UnknownItem(20),
+                        "c": UnknownItem(30),
                     }
                 ),
             ),
@@ -172,7 +192,7 @@ class TestKeyStages:
             target_sample,
             stage(
                 Sample(
-                    {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(20)}
+                    {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(30)}
                 )
             ),
         )

@@ -208,7 +208,7 @@ class TestOutputDataset(TestInterface):
         self._standard_checks(
             interf_cls=plint.OutputDatasetInterface,
             interf_compact_list=[opt_str],
-            should_fail=False,
+            should_fail=exists_ok is not True and Path(folder).exists(),
             folder=folder,
             zfill=zfill,
             exists_ok=exists_ok,

@@ -66,7 +66,7 @@ class TestSamplesSequenceWriters:
             _ = pls.SamplesSequence.from_list([]).to_underfolder(  # type: ignore
                 folder=tmp_path, exists_ok=exists_ok
             )
-        except FileExistsError:
+        except ValueError:
             assert not exists_ok
             return
         assert exists_ok

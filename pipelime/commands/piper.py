@@ -1,6 +1,7 @@
 import typing as t
 from enum import Enum
 from pathlib import Path
+from loguru import logger
 
 from pydantic import Field, PrivateAttr, PositiveInt
 
@@ -95,7 +96,8 @@ class GraphPortForwardingCommand(PiperGraphCommandBase):
 
 
 class RunCommand(GraphPortForwardingCommand, title="run"):
-    """Executes a DAG of pipelime commands."""
+    """Executes a DAG of pipelime commands.
+    NB: when run inside a graph, `token` and `watch` are ignored."""
 
     token: t.Optional[str] = Field(
         None,
@@ -104,13 +106,14 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
             "The execution token. If not specified, a new token will be generated."
         ),
     )
-    watch: t.Union[bool, WatcherBackend, None] = Field(
+    watch: t.Union[bool, WatcherBackend, Path, None] = Field(
         None,
         alias="w",
         description=(
             "Monitor the execution in the current console. "
             "Defaults to True if no token is provided, False othrewise. "
-            "If a string is provided, it is used as the name of the watcher backend."
+            "If a string is provided, it is used as the name of the watcher backend or "
+            "the json/yaml progress file path."
         ),
     )
     force_gc: t.Union[bool, str, t.Sequence[str]] = Field(
@@ -124,8 +127,11 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
 
     def run(self):
         import uuid
+        from contextlib import ExitStack
 
         from pipelime.piper.executors.factory import NodesGraphExecutorFactory
+
+        exit_stack = ExitStack()
 
         if self._piper.active:
             # nested graph should disable the default watcher
@@ -143,15 +149,40 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
             # activate piper, so that this node will send updates to the watchers
             self.set_piper_info(token=token, node=message)
 
-        executor = NodesGraphExecutorFactory.get_executor(
-            watch=watch if isinstance(watch, bool) else watch.listener_key(),
-            node_prefix=prefix,
-            task=self.create_task(
-                total=self.piper_graph.num_operation_nodes, message=message
-            ),
-        )
-        if not executor(self.piper_graph, token=token, force_gc=self.force_gc):
-            raise RuntimeError("Piper execution failed")
+        # setup the direct track callback
+        if watch:
+            from pipelime.piper.progress.tracker.direct import DirectTrackCallback
+            from pipelime.piper.progress.listener.factory import (
+                ListenerCallbackFactory,
+            )
+
+            if isinstance(watch, Path):
+                callback = ListenerCallbackFactory.get_callback("FILE", filename=watch)
+            else:
+                callback = ListenerCallbackFactory.get_callback(
+                    watch.listener_key()
+                    if isinstance(watch, WatcherBackend)
+                    else ListenerCallbackFactory.DEFAULT_CALLBACK_TYPE
+                )
+
+            PipelimeCommand._track_callback = DirectTrackCallback(callback)
+
+            # disable annoying logging
+            logger.disable("pipelime")
+            exit_stack.callback(logger.enable, "pipelime")
+            exit_stack.callback(PipelimeCommand._track_callback.stop_callbacks)
+
+        with exit_stack:
+            executor = NodesGraphExecutorFactory.get_executor(
+                watch=False,
+                node_prefix=prefix,
+                task=self.create_task(
+                    total=self.piper_graph.num_operation_nodes, message=message
+                ),
+            )
+
+            if not executor(self.piper_graph, token=token, force_gc=self.force_gc):
+                raise RuntimeError("Piper execution failed")
 
 
 class DrawCommand(PiperGraphCommandBase, title="draw"):
@@ -262,11 +293,21 @@ class DrawCommand(PiperGraphCommandBase, title="draw"):
 
 
 class WatchCommand(PipelimeCommand, title="watch"):
-    token: str = Field(
-        ..., alias="t", description="The token of the DAG you want to monitor."
+    token: t.Optional[str] = Field(
+        None,
+        alias="t",
+        description=(
+            "The token of the DAG you want to monitor. "
+            "Defaults to any DAG if not specified."
+        ),
     )
-    watcher: WatcherBackend = Field(
-        WatcherBackend.TQDM, alias="w", description="The listener to use."
+    watcher: t.Union[WatcherBackend, Path] = Field(
+        WatcherBackend.TQDM,
+        alias="w",
+        description=(
+            "The watcher to use. If a string is provided, it is used as the name "
+            "of the backend or the progress file path."
+        ),
     )
     port: t.Optional[int] = Field(
         None,
@@ -286,12 +327,19 @@ class WatchCommand(PipelimeCommand, title="watch"):
         receiver = ProgressReceiverFactory.get_receiver(
             self.token, **({"port": self.port} if self.port else {})
         )
-        callback = ListenerCallbackFactory.get_callback(self.watcher.listener_key())
+        if isinstance(self.watcher, WatcherBackend):
+            callback = ListenerCallbackFactory.get_callback(
+                self.watcher.listener_key(), show_token=self.token is None
+            )
+        else:
+            callback = ListenerCallbackFactory.get_callback(
+                "FILE", filename=self.watcher, show_token=self.token is None
+            )
         listener = Listener(receiver, callback)
         listener.start()
 
         with CatchSignals() as catcher:
             while not catcher.interrupted:
-                sleep(0.01)
+                sleep(0.1)
 
         listener.stop()

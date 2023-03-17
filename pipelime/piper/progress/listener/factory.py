@@ -1,3 +1,4 @@
+from typing import Optional
 from pipelime.piper.progress.listener.base import ListenerCallback, ProgressReceiver
 from pipelime.piper.progress.listener.receiver.zmq import ZMQProgressReceiver
 from pipelime.piper.progress.listener.callbacks.rich_table import (
@@ -6,6 +7,7 @@ from pipelime.piper.progress.listener.callbacks.rich_table import (
 from pipelime.piper.progress.listener.callbacks.tqdm_bars import (
     TqdmBarsListenerCallback,
 )
+from pipelime.piper.progress.listener.callbacks.file import FileListenerCallback
 
 
 class ProgressReceiverFactory:
@@ -19,7 +21,7 @@ class ProgressReceiverFactory:
 
     @classmethod
     def get_receiver(
-        cls, token: str, type_: str = DEFAULT_RECEIVER_TYPE, **kwargs
+        cls, token: Optional[str], type_: str = DEFAULT_RECEIVER_TYPE, **kwargs
     ) -> ProgressReceiver:
         return cls.CLASS_MAP[type_](token, **kwargs)
 
@@ -32,6 +34,7 @@ class ListenerCallbackFactory:
     CLASS_MAP = {
         "RICH_TABLE": RichTableListenerCallback,
         "TQDM_BARS": TqdmBarsListenerCallback,
+        "FILE": FileListenerCallback,
     }
 
     @classmethod

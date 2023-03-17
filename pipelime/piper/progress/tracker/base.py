@@ -154,6 +154,7 @@ class TqdmTask(TrackedTask):
         elif bar.n > self.progress:
             bar.reset()
             bar.update(self.progress)
+        bar.refresh()
 
 
 class Tracker:
