@@ -46,7 +46,8 @@ class TqdmBarsListenerCallback(ListenerCallback):
             bar.update(prog.progress)
 
     def on_stop(self):
-        pass
+        for bar in self._bars.values():
+            bar.finish()
 
     def _build_message(self, x: OperationInfo):
         chunk = "" if x.chunk <= 0 else f"${x.chunk}"
