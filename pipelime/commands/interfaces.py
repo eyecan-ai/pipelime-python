@@ -470,6 +470,15 @@ class OutputDatasetInterface(
         # see https://bugs.python.org/issue38671
         return v.resolve().absolute()
 
+    @pyd.validator("exists_ok", always=True)
+    def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
+        if not v and "folder" in values and values["folder"].exists():
+            raise ValueError(
+                f"Trying to overwrite an existing dataset: `{values['folder']}`. "
+                "Please use `exists_ok=True` to overwrite."
+            )
+        return v
+
     @classmethod
     def __get_validators__(cls):
         yield cls.validate

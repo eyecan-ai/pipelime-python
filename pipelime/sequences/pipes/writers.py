@@ -49,6 +49,15 @@ class UnderfolderWriter(
     _effective_zfill: int
     _temp_folder: TemporaryDirectory
 
+    @pyd.validator("exists_ok", always=True)
+    def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
+        if not v and "folder" in values and values["folder"].exists():
+            raise ValueError(
+                f"Trying to overwrite an existing dataset: `{values['folder']}`. "
+                "Please use `exists_ok=True` to overwrite."
+            )
+        return v
+
     def __init__(self, folder: Path, **data):
         super().__init__(folder=folder, **data)  # type: ignore
 
@@ -58,13 +67,6 @@ class UnderfolderWriter(
         )
         if self.key_serialization_mode is None:
             self.key_serialization_mode = {}
-
-        if not self.exists_ok and (self.folder.exists() or self._data_folder.exists()):
-            raise FileExistsError(
-                "Trying to overwrite an existing dataset: `"
-                + str(self.folder)
-                + "`. Please use `exists_ok=True` to overwrite."
-            )
 
         self._data_folder.mkdir(parents=True, exist_ok=True)
         self._temp_folder = TemporaryDirectory()  # will be automatically deleted
