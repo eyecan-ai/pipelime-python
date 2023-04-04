@@ -3,14 +3,14 @@ from pathlib import Path, PurePosixPath
 from typing import Tuple
 
 import numpy as np
+import pytest
 from deepdiff import DeepDiff
 from pydantic import BaseModel
 
+import pipelime.choixe.visitors.processor as processor_module
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors import process
-import pytest
-import pipelime.choixe.visitors.processor as processor_module
 
 
 @pytest.fixture()
@@ -450,19 +450,42 @@ class TestProcessor:
     def test_switch_base(self):
         data = {
             "$switch(animal)": [
-                {
-                    "$case": ["cat", "dog", "hamster"],
-                    "$then": 10,
-                },
-                {
-                    "$case": ["cow"],
-                    "$then": 20,
-                },
+                {"$case": ["cat", "dog", "hamster"], "$then": 10},
+                {"$case": ["cow"], "$then": 20},
             ]
         }
         expected = [20]
         print(process(parse(data)))
         self._expectation_test(data, expected)
+
+    def test_switch_default(self):
+        data = {
+            "$switch(animal)": [
+                {"$case": ["cat", "dog", "hamster"], "$then": 10},
+                {"$case": ["horse"], "$then": 20},
+                {"$default": 30},
+            ]
+        }
+        expected = [30]
+        self._expectation_test(data, expected)
+
+    def test_switch_no_match(self):
+        data = {
+            "$switch(animal)": [
+                {"$case": ["seal"], "$then": 200},
+            ]
+        }
+        with pytest.raises(processor_module.ChoixeProcessingError):
+            process(parse(data))
+
+    def test_switch_not_found(self):
+        data = {
+            "$switch(WRONG)": [
+                {"$case": ["value"], "$then": 200},
+            ]
+        }
+        with pytest.raises(processor_module.ChoixeProcessingError):
+            process(parse(data))
 
     def test_uuid(self):
         data = "$uuid"
