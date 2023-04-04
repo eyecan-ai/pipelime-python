@@ -455,7 +455,6 @@ class TestProcessor:
             ]
         }
         expected = [20]
-        print(process(parse(data)))
         self._expectation_test(data, expected)
 
     def test_switch_default(self):
