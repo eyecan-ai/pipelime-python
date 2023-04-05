@@ -254,18 +254,36 @@ class Processor(ast.NodeVisitor):
 
         branches = []
         for branch in all_branches:
-            value = py_.get(self._context, branch[0])
+            varname = branch[0]
+
+            # If the variable is not in the context, raise an error
+            if not py_.has(self._context, varname):
+                msg = f"Switch variable `{varname}` not found in context"
+                raise ChoixeProcessingError(msg)
+
+            # Get the value of the variable
+            value = py_.get(self._context, varname)
+
+            # Match the value to the correct case
             for i in range(len(node.cases)):
                 set_ = branch[i + 1]
+
+                # If the set is not iterable, make it a list
                 if not isinstance(set_, Iterable) or isinstance(set_, str):
                     set_ = [set_]
 
+                # If the value is in the set, use the corresponding branch and break
                 if value in set_:
                     branches.append(branch[i + 1 + len(node.cases)])
                     break
+
+            # If no case matched, use the default if available, otherwise raise an error
             else:
                 if node.default is not None:
                     branches.append(branch[-1])
+                else:
+                    msg = f"Switch variable `{varname}`={value} did not match any case"
+                    raise ChoixeProcessingError(msg)
 
         return branches
 
