@@ -1,4 +1,5 @@
 from __future__ import annotations
+import billiard.context
 import billiard.pool
 import pydantic as pyd
 import typing as t
@@ -102,7 +103,11 @@ class _GrabContext:
         self._pool = billiard.pool.Pool(
             self._grabber.num_workers if self._grabber.num_workers > 0 else None,
             initializer=_GrabContext.wrk_init,
-            initargs=(PipelimeSymbolsHelper.extra_modules, self._worker_init_fn),
+            initargs=(
+                PipelimeSymbolsHelper.extra_modules,
+                self._worker_init_fn,
+            ),
+            context=billiard.context.SpawnContext(),
         )
         runner = self._pool.__enter__()
 
