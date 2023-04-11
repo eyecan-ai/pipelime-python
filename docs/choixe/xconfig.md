@@ -107,6 +107,33 @@ output = cfg.process()
 outputs = cfg.process_all()
 ```
 
+### Unsafe processing variant
+
+The `process` and `process_all` methods always return a new `XConfig` object, but sometimes you might want to use an `XConfig` to create a completely different object that cannot be represented as a `XConfig`, like a `numpy.ndarray` or a `pydantic.BaseModel` or anything else. In this case, you can use the `unsafe_process` and `unsafe_process_all` methods, which will return the result of the processing, without creating a new `XConfig` object. 
+
+These methods don't perform any validation on the result, all typing and content checks are left to the user, and you should use them only if you want to allow different types of objects to be returned by the choixe processing.
+
+Example:
+
+```python
+import numpy as np
+
+cfg = {
+    "$call": "numpy.array",
+    "$args": {
+        "object": [1, 2, 3],
+    }
+}
+xcfg = XConfig(cfg)
+
+# xcfg.process() <--- This will raise an error
+
+result = xcfg.unsafe_process() # <--- This will return a numpy.ndarray
+
+assert isinstance(result, np.ndarray)
+assert np.array_equal(result, np.array([1, 2, 3]))
+```
+
 ## Inspection
 What if you just loaded an XConfig and are about to process it, only, you don't know what to pass as **context**, what environment variables are required, or what files are going to be imported. You can use the `inspect` method, to get some info on the `XConfig` that you are about to process.
 

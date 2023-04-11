@@ -226,15 +226,20 @@ class XConfig(Box):
     def _process(
         self, context: Optional[Dict[str, Any]] = None, allow_branching: bool = True
     ) -> List[XConfig]:
-        data = process(
+        data = self._unsafe_process(context=context, allow_branching=allow_branching)
+        return [
+            XConfig(data=x, cwd=self.get_cwd(), schema=self.get_schema()) for x in data
+        ]
+
+    def _unsafe_process(
+        self, context: Optional[Dict[str, Any]] = None, allow_branching: bool = True
+    ) -> List[Any]:
+        return process(
             self.parse(),
             context=context,
             cwd=self.get_cwd(),
             allow_branching=allow_branching,
         )
-        return [
-            XConfig(data=x, cwd=self.get_cwd(), schema=self.get_schema()) for x in data
-        ]
 
     def process(self, context: Optional[Dict[str, Any]] = None) -> XConfig:
         """Process this XConfig without branching.
@@ -248,6 +253,22 @@ class XConfig(Box):
         """
         return self._process(context=context, allow_branching=False)[0]
 
+    def unsafe_process(self, context: Optional[Dict[str, Any]] = None) -> Any:
+        """Process this XConfig without branching and return the result, without
+        wrapping it in an XConfig to allow for more flexibility in the result.
+
+        No guarantees can be made about the result type, so it is up to the user to
+        handle it properly.
+
+        Args:
+            context (Optional[Dict[str, Any]], optional): Optional data structure
+                containing all variables values. Defaults to None.
+
+        Returns:
+            Any: The processed result.
+        """
+        return self._unsafe_process(context=context, allow_branching=False)[0]
+
     def process_all(self, context: Optional[Dict[str, Any]] = None) -> List[XConfig]:
         """Process this XConfig with branching.
 
@@ -259,6 +280,22 @@ class XConfig(Box):
             List[XConfig]: A list of all processing outcomes.
         """
         return self._process(context=context, allow_branching=True)
+
+    def unsafe_process_all(self, context: Optional[Dict[str, Any]] = None) -> List[Any]:
+        """Process this XConfig with branching and return the results, without
+        wrapping them in XConfigs to allow for more flexibility in the result.
+
+        No guarantees can be made about the result types, so it is up to the user to
+        handle them properly.
+
+        Args:
+            context (Optional[Dict[str, Any]], optional): Optional data structure
+                containing all variables values. Defaults to None.
+
+        Returns:
+            List[Any]: A list of all processing outcomes.
+        """
+        return self._unsafe_process(context=context, allow_branching=True)
 
     def inspect(self) -> Inspection:
         return inspect(self.parse(), cwd=self.get_cwd())
