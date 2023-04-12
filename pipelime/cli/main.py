@@ -254,6 +254,12 @@ def pl_main(
         ),
         autocompletion=_complete_yaml,
     ),
+    clear_tmp: bool = typer.Option(
+        False,
+        "--clear-tmp",
+        "-t",
+        help="Remove temporary folders, if any, after running this command.",
+    ),
     ctx_autoload: bool = typer.Option(
         True,
         help=(
@@ -648,7 +654,7 @@ def pl_main(
                     cmd_name = next(iter(cfg_dict))
                     cfg_dict = next(iter(cfg_dict.values()))
 
-                run_command(cmd_name, cfg_dict, verbose, dry_run)
+                run_command(cmd_name, cfg_dict, verbose, dry_run, clear_tmp)
     else:
         from pipelime.cli.pretty_print import print_error
 
@@ -656,7 +662,9 @@ def pl_main(
         raise typer.Exit(1)
 
 
-def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
+def run_command(
+    command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool, clear_tmp: bool
+):
     """
     Run a pipelime command.
     """
@@ -664,8 +672,15 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     import time
     from pydantic.error_wrappers import ValidationError
 
+    from pipelime.choixe.utils.io import TempDir
+    from pipelime.commands import TempCommand
+
     from pipelime.cli.pretty_print import print_info, print_command_outputs
-    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str, show_field_alias_valerr
+    from pipelime.cli.utils import (
+        get_pipelime_command_cls,
+        time_to_str,
+        show_field_alias_valerr,
+    )
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
@@ -697,6 +712,10 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)
+
+    if clear_tmp and TempDir.SESSION_TMP_DIR:
+        print_info("\nCleaning temporary files...")
+        TempCommand(name=TempDir.SESSION_TMP_DIR.stem, force=True)()  # type: ignore
 
 
 def _create_typer_app(
