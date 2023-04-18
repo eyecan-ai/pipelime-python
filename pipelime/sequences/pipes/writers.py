@@ -4,7 +4,6 @@ import re
 
 import pydantic as pyd
 from filelock import FileLock, Timeout
-from tempfile import TemporaryDirectory
 
 import pipelime.sequences as pls
 from pipelime.items import Item, SerializationMode
@@ -47,7 +46,7 @@ class UnderfolderWriter(
 
     _data_folder: Path
     _effective_zfill: int
-    _temp_folder: TemporaryDirectory
+    _temp_folder: t.Any
 
     @pyd.validator("exists_ok", always=True)
     def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
@@ -59,6 +58,8 @@ class UnderfolderWriter(
         return v
 
     def __init__(self, folder: Path, **data):
+        from pipelime.choixe.utils.io import PipelimeTemporaryDirectory
+
         super().__init__(folder=folder, **data)  # type: ignore
 
         self._data_folder = self.folder / "data"
@@ -69,7 +70,9 @@ class UnderfolderWriter(
             self.key_serialization_mode = {}
 
         self._data_folder.mkdir(parents=True, exist_ok=True)
-        self._temp_folder = TemporaryDirectory()  # will be automatically deleted
+
+        # will be automatically deleted
+        self._temp_folder = PipelimeTemporaryDirectory()
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self.source[idx]

@@ -1,5 +1,4 @@
 import os
-import tempfile
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,7 +12,7 @@ import pydash as py_
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
-from pipelime.choixe.utils.io import load
+from pipelime.choixe.utils.io import load, PipelimeTmp
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
@@ -56,7 +55,6 @@ class Processor(ast.NodeVisitor):
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
-        self._tmp_name = uuid.uuid1().hex
 
     def _branches(self, *branches: List[Any]) -> List[Any]:
         if len(branches) == 1:
@@ -327,10 +325,9 @@ class Processor(ast.NodeVisitor):
 
     def visit_tmp_dir(self, node: ast.TmpDirNode) -> Any:
         paths = []
-        branches = node.name.accept(self) if node.name else [self._tmp_name]
+        branches = node.name.accept(self) if node.name else [""]
         for branch in branches:
-            path = Path(tempfile.gettempdir()) / str(branch)
-            path.parent.mkdir(exist_ok=True, parents=True)
+            path = PipelimeTmp.make_subdir(str(branch))
             paths.append(str(path))
         return paths
 

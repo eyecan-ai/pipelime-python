@@ -156,7 +156,7 @@ def print_models_short_help(
         col_vals = [escape(get_model_title(m))]
         if show_class_path:
             col_vals.append(f"[italic grey50]{escape(get_model_classpath(m))}[/]")
-        col_vals.append(escape(inspect.getdoc(m) or ""))
+        col_vals.append(escape((inspect.getdoc(m) or "").partition("\n")[0]))
         grid.add_row(*col_vals)
     rprint(grid)
 
@@ -226,6 +226,8 @@ def _field_row(
     show_description: bool,
     recursive: bool,
 ):
+    from enum import Enum
+
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
@@ -291,7 +293,10 @@ def _field_row(
         line.append(fport)  # type: ignore
 
     # Default value
-    line.append("[red]✗[/]" if field.required else f"[green]{field.get_default()}[/]")
+    field_default = field.get_default()
+    if isinstance(field_default, Enum):
+        field_default = field_default.value
+    line.append("[red]✗[/]" if field.required else f"[green]{field_default}[/]")
 
     grid.add_row(*line)
 
