@@ -710,19 +710,23 @@ class FilterCommand(PipelimeCommand, title="filter"):
         alias="g"
     )
 
+    @pyd.validator("filter_fn", always=True)
+    def _check_filters(
+        cls, v: t.Optional[pl_types.CallableDef], values: t.Mapping[str, t.Any]
+    ) -> bool:
+        fquery = values.get("filter_query", default=None)
+        if (v is None) == (fquery is None):
+            raise ValueError("You should define either `filter_query` or `filter_fn`")
+        return True
+
     def _filter_key_fn(self, x):
         return x.match(self.filter_query)
 
     def run(self):
         from pipelime.sequences import DataStream
 
-        if (self.filter_query is None) == (self.filter_fn is None):
-            raise ValueError("You should define either `filter_query` or `filter_fn`")
-
         filter_fn = (
-            self._filter_key_fn
-            if self.filter_query is not None
-            else self.filter_fn.value  # type: ignore
+            self._filter_key_fn if self.filter_fn is None else self.filter_fn.value
         )
 
         # multi-processing friendly filtering
@@ -799,4 +803,39 @@ class SliceCommand(PipelimeCommand, title="slice"):
             keep_order=False,
             parent_cmd=self,
             track_message=f"Slicing dataset ({len(seq)} samples)",
+        )
+
+
+class SetMetadataCommand(FilterCommand, title="set-meta"):
+    """Set a metadata for some or all samples in a dataset.
+
+    The metadata is set only on samples selected by a dictquery or a filter function.
+    """
+
+    key_path: str = pyd.Field(
+        ..., alias="k", description="The metadata key in pydash dot notation."
+    )
+    value: pl_types.YamlInput = pyd.Field(
+        None, alias="v", description="The value to set, ie, any valid yaml/json value."
+    )
+
+    def run(self) -> None:
+        from pipelime.stages import StageSetMetadata
+
+        seq = self.input.create_reader()
+        seq = seq.map(
+            StageSetMetadata(
+                key_path=self.key_path,
+                value=self.value,
+                filter_query=self.filter_query,
+                filter_fn=self.filter_fn,
+            )
+        )
+        seq = self.output.append_writer(seq)
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Setting metadata ({len(seq)} samples)",
         )
