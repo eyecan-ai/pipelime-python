@@ -11,6 +11,7 @@ from pipelime.commands.general import (
     SortCommand,
     FilterCommand,
     SliceCommand,
+    SetMetadataCommand,
 )
 from pipelime.commands.shell import ShellCommand
 from pipelime.commands.split_ops import (

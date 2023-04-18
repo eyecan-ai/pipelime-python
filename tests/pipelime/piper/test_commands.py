@@ -55,10 +55,11 @@ class TestCommands:
                 )
                 cmd()
 
-                # NOTE: output dots have different node names due to the use of absolute paths,
-                # so we create here the images and compare them. We do not save a reference image
-                # since graphviz may change the layout in the future. Also, we do not compare SVGs,
-                # since graphviz writes as comments the names of the nodes.
+                # NOTE: output dots have different node names due to the use of
+                # absolute paths, so we create here the images and compare them.
+                # We do not save a reference image since graphviz may change the
+                # layout in the future. Also, we do not compare SVGs, since graphviz
+                # writes as comments the names of the nodes.
                 import pygraphviz as pgv
 
                 g_ref = pgv.AGraph(str(target_dot)).draw(format="bmp", prog="dot")
@@ -77,7 +78,7 @@ class TestCommands:
             # output folders now exist, so the commands should fail
             # when creating the output pipes
             cmd = RunCommand(**(dag["config"]))
-            with pytest.raises(ValueError) as excinfo:
+            with pytest.raises(ValueError):
                 cmd()
 
     def test_port_forwarding(self, piper_folder: Path, tmp_path: Path):

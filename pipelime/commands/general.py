@@ -713,11 +713,11 @@ class FilterCommand(PipelimeCommand, title="filter"):
     @pyd.validator("filter_fn", always=True)
     def _check_filters(
         cls, v: t.Optional[pl_types.CallableDef], values: t.Mapping[str, t.Any]
-    ) -> bool:
-        fquery = values.get("filter_query", default=None)
+    ) -> t.Optional[pl_types.CallableDef]:
+        fquery = values.get("filter_query", None)
         if (v is None) == (fquery is None):
             raise ValueError("You should define either `filter_query` or `filter_fn`")
-        return True
+        return v
 
     def _filter_key_fn(self, x):
         return x.match(self.filter_query)
@@ -812,6 +812,20 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
     The metadata is set only on samples selected by a dictquery or a filter function.
     """
 
+    filter_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
+        None,
+        alias="f",
+        description=(
+            "A `class.path.to.func` (or `file.py:func`) to "
+            "a callable returning True for any valid sample.\n"
+            "Accepted signatures:\n"
+            "  `() -> bool`\n"
+            "  `(index: int) -> bool`\n"
+            "  `(index: int, sample: Sample) -> bool`\n"
+            "  `(index: int, sample: Sample, source: SamplesSequence) -> bool`."
+        ),
+    )
+
     key_path: str = pyd.Field(
         ..., alias="k", description="The metadata key in pydash dot notation."
     )
@@ -819,17 +833,18 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
         None, alias="v", description="The value to set, ie, any valid yaml/json value."
     )
 
+    def _filter_key_fn(self, idx, x):
+        return x.match(self.filter_query)
+
     def run(self) -> None:
         from pipelime.stages import StageSetMetadata
 
         seq = self.input.create_reader()
-        seq = seq.map(
-            StageSetMetadata(
-                key_path=self.key_path,
-                value=self.value,
-                filter_query=self.filter_query,
-                filter_fn=self.filter_fn,
-            )
+        seq = seq.map_if(
+            stage=StageSetMetadata(key_path=self.key_path, value=self.value),
+            condition=(
+                self._filter_key_fn if self.filter_fn is None else self.filter_fn.value
+            ),
         )
         seq = self.output.append_writer(seq)
         self.grabber.grab_all(
