@@ -131,13 +131,18 @@ class TestCommands:
 
     def test_dag_gc(self, piper_folder: Path):
         from pipelime.commands.piper import RunCommand
+        from pipelime.choixe.utils.io import PipelimeTmp
         from ... import TestUtils
+
+        PipelimeTmp.SESSION_TMP_DIR = None
 
         dag_path = piper_folder / "gc_test" / "dag.yml"
         cfg = TestUtils.choixe_process(dag_path, None)
 
         cmd = RunCommand(**cfg, gc=False)
         nogc_start, nogc_end = self._gc_run(cmd)
+
+        PipelimeTmp.SESSION_TMP_DIR = None
 
         reprocessed_dag = TestUtils.choixe_process(dag_path, None)
         cmd = RunCommand(**reprocessed_dag, gc=True)
