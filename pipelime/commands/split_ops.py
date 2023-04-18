@@ -304,8 +304,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
 
 
 class SplitByValueCommand(PipelimeCommand, title="split-value"):
-    """Split a dataset into multiple sequences,
-    one for each unique value of a given key."""
+    """Creates a new sequence for each unique value of a given key."""
 
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(

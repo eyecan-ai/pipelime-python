@@ -293,6 +293,8 @@ class DrawCommand(PiperGraphCommandBase, title="draw"):
 
 
 class WatchCommand(PipelimeCommand, title="watch"):
+    """Show the progress of a running DAG."""
+
     token: t.Optional[str] = Field(
         None,
         alias="t",

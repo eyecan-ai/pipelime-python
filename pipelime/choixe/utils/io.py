@@ -1,10 +1,10 @@
-import functools
 import json
-import tempfile
 import os.path
+import tempfile
 import uuid
+import weakref
 from pathlib import Path
-from typing import Any, Optional, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -47,7 +47,7 @@ def dump(obj: Any, path: Path) -> None:
             yaml.safe_dump(obj, fd, sort_keys=False)
 
 
-class TempDir:
+class PipelimeTmp:
     SESSION_TMP_DIR: Optional[Path] = None
 
     @staticmethod
@@ -68,12 +68,12 @@ class TempDir:
     @staticmethod
     def user_prefix(user: str) -> str:
         """Prefix with user name for temporary directories."""
-        return f"{TempDir.prefix()}{user}-"
+        return f"{PipelimeTmp.prefix()}{user}-"
 
     @staticmethod
     def current_user_prefix() -> str:
         """Prefix with user name for temporary directories."""
-        return TempDir.user_prefix(TempDir.current_user())
+        return PipelimeTmp.user_prefix(PipelimeTmp.current_user())
 
     @staticmethod
     def make_session_dir() -> Path:
@@ -82,11 +82,11 @@ class TempDir:
         Returns:
             Path: Path to the temporary directory.
         """
-        if not TempDir.SESSION_TMP_DIR:
-            TempDir.SESSION_TMP_DIR = Path(
-                tempfile.mkdtemp(prefix=TempDir.current_user_prefix())
+        if not PipelimeTmp.SESSION_TMP_DIR:
+            PipelimeTmp.SESSION_TMP_DIR = Path(
+                tempfile.mkdtemp(prefix=PipelimeTmp.current_user_prefix())
             )
-        return TempDir.SESSION_TMP_DIR
+        return PipelimeTmp.SESSION_TMP_DIR
 
     @staticmethod
     def make_subdir(subdir: Optional[str] = None) -> Path:
@@ -95,7 +95,7 @@ class TempDir:
         Returns:
             Path: Path to the temporary subdirectory.
         """
-        path = TempDir.make_session_dir()
+        path = PipelimeTmp.make_session_dir()
         if subdir:
             path /= subdir
             path.mkdir(parents=True, exist_ok=True)
@@ -111,9 +111,22 @@ class TempDir:
         from glob import iglob
 
         user_dirs: Dict[str, List[str]] = {}
-        for d in iglob(str(TempDir.base_dir() / (TempDir.prefix() + "*"))):
+        for d in iglob(str(PipelimeTmp.base_dir() / (PipelimeTmp.prefix() + "*"))):
             if os.path.isdir(d):
                 names = os.path.basename(d).split("-")
                 if len(names) >= 3:
                     user_dirs.setdefault(names[2], []).append(d)
         return user_dirs
+
+
+class PipelimeTemporaryDirectory(tempfile.TemporaryDirectory):
+    """A tempfile.TemporaryDirectory within the session temporary directory."""
+
+    def __init__(self, name: Optional[str] = None):
+        self.name = PipelimeTmp.make_subdir(name or uuid.uuid1().hex)
+        self._finalizer = weakref.finalize(
+            self,
+            self._cleanup,  # type: ignore
+            str(self.name),
+            warn_message="Implicitly cleaning up {!r}".format(self),
+        )

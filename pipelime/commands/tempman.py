@@ -3,7 +3,7 @@ import datetime as dt
 from enum import Enum
 from loguru import logger
 
-from pydantic import Field
+from pydantic import Field, ByteSize
 
 from pipelime.piper import PipelimeCommand
 
@@ -29,9 +29,9 @@ class TempCommand(PipelimeCommand, title="tmp"):
     Examples:
         Show disk usage: ``pipelime tmp``
 
-        Clear all temporary folders of the current DAG: ``pipelime tmp +``
-
         Clear all temporary folders with no confirmation: ``pipelime tmp +all +f``
+
+        Clear folders with size greater than 1GB: ``pipelime tmp +m 1GB``
 
         Clear all folders (date-time and time period as in ISO-8601):
           - accessed after a date-time:   ``pipelime tmp +a 2023-04-05T12:30``
@@ -57,10 +57,10 @@ class TempCommand(PipelimeCommand, title="tmp"):
         None, alias="db", description="Clear folders before ``now - delta_before``"
     )
 
-    min_size: t.Optional[int] = Field(
+    min_size: t.Optional[ByteSize] = Field(
         None, alias="m", description="Clear folders with size greater than this"
     )
-    max_size: t.Optional[int] = Field(
+    max_size: t.Optional[ByteSize] = Field(
         None, alias="M", description="Clear folders with size lower than this"
     )
 
@@ -135,13 +135,13 @@ class TempCommand(PipelimeCommand, title="tmp"):
         from rich.markup import escape
         from rich.rule import Rule
 
-        from pipelime.choixe.utils.io import TempDir
+        from pipelime.choixe.utils.io import PipelimeTmp
         from pipelime.cli.pretty_print import print_info, print_debug
 
-        print_info(f"Temporary folder: {TempDir.base_dir()}")
+        print_info(f"Temporary folder: {PipelimeTmp.base_dir()}")
         print_debug(f"showing {self.file_time.value}", end="\n\n")
 
-        for user, paths in TempDir.get_temp_dirs().items():
+        for user, paths in PipelimeTmp.get_temp_dirs().items():
             grid, total_size = self._paths_table(paths)
             rprint(Rule(title=f"{escape(user)} ({self._human_size(total_size)})"))
             rprint(grid)
@@ -149,10 +149,10 @@ class TempCommand(PipelimeCommand, title="tmp"):
 
     def _folders_to_delete(self):
         from pathlib import Path
-        from pipelime.choixe.utils.io import TempDir
+        from pipelime.choixe.utils.io import PipelimeTmp
 
         if self.all:
-            return [p for ps in TempDir.get_temp_dirs().values() for p in ps]
+            return [p for ps in PipelimeTmp.get_temp_dirs().values() for p in ps]
 
         delta_after_t = (
             dt.datetime.now() - self.delta_after if self.delta_after else None
@@ -176,13 +176,13 @@ class TempCommand(PipelimeCommand, title="tmp"):
         name = Path(self.name or "").stem
 
         users = (
-            [TempDir.current_user()]
+            [PipelimeTmp.current_user()]
             if not self.user
             else ([self.user] if isinstance(self.user, str) else self.user)
         )
 
         to_delete: t.List[str] = []
-        for u, ps in TempDir.get_temp_dirs().items():
+        for u, ps in PipelimeTmp.get_temp_dirs().items():
             if not self.all_users and u not in users:
                 continue
 

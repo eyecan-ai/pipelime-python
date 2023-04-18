@@ -316,7 +316,7 @@ class CachedSequence(PipedSequenceBase, title="cache"):
         None,
         description=(
             "The cache folder path. Leave empty to use a temporary folder "
-            "which will be deleted when exiting the process."
+            "which will be deleted when the object will be garbage collected."
         ),
     )
     reuse_cache: bool = pyd.Field(
@@ -332,9 +332,9 @@ class CachedSequence(PipedSequenceBase, title="cache"):
     def __init__(self, cache_folder: t.Optional[Path] = None, **data):
         super().__init__(cache_folder=cache_folder, **data)  # type: ignore
         if self.cache_folder is None:
-            from tempfile import TemporaryDirectory
+            from pipelime.choixe.utils.io import PipelimeTemporaryDirectory as PlTmpDir
 
-            self._temp_folder = TemporaryDirectory()
+            self._temp_folder = PlTmpDir()
             self.cache_folder = Path(self._temp_folder.name)
         else:
             if not self.reuse_cache and self.cache_folder.exists():

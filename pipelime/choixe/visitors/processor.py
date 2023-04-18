@@ -12,7 +12,7 @@ import pydash as py_
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
-from pipelime.choixe.utils.io import load, TempDir
+from pipelime.choixe.utils.io import load, PipelimeTmp
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
@@ -327,7 +327,7 @@ class Processor(ast.NodeVisitor):
         paths = []
         branches = node.name.accept(self) if node.name else [""]
         for branch in branches:
-            path = TempDir.make_subdir(str(branch))
+            path = PipelimeTmp.make_subdir(str(branch))
             paths.append(str(path))
         return paths
 

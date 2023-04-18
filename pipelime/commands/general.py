@@ -192,8 +192,11 @@ class PipeCommand(PipelimeCommand, title="pipe"):
 
 
 class CloneCommand(PipelimeCommand, title="clone"):
-    """Clone a dataset. You can use this command to create a local copy of a dataset
-    hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option."""
+    """Clone a dataset.
+
+    You can use this command to create a local copy of a dataset
+    hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option.
+    """
 
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
@@ -390,6 +393,7 @@ class RemoteCommandBase(PipelimeCommand):
 
 class AddRemoteCommand(RemoteCommandBase, title="remote-add"):
     """Upload samples to one or more remotes.
+
     Slicing and key options filter the samples to upload,
     but the whole dataset is always written out.
     """
@@ -408,8 +412,10 @@ class AddRemoteCommand(RemoteCommandBase, title="remote-add"):
 
 class RemoveRemoteCommand(RemoteCommandBase, title="remote-remove"):
     """Remove one or more remote from a dataset.
+
     Slicing and key options filter the samples,
     but the whole dataset is always written out.
+
     NB: data is not removed from the remote data lake.
     """
 
