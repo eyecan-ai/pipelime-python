@@ -189,7 +189,7 @@ from pipelime.choixe.visitors import unparse
                     }
                 ),
             ),
-            {"$for(my.var)": {"Hello": "World", "Number_$index": "$item"}},
+            {"$for(my.var)": {"Hello": "World", "Number_$index()": "$item"}},
         ],
         [
             ast.SwitchNode(
@@ -273,8 +273,8 @@ from pipelime.choixe.visitors import unparse
                 ),
             ),
             {
-                "$for(alpha)": {"node_$index": "Hello_$item"},
-                "$for(beta)": {"node_$index": "Ciao_$item"},
+                "$for(alpha)": {"node_$index()": "Hello_$item()"},
+                "$for(beta)": {"node_$index()": "Ciao_$item()"},
                 "a": 10,
                 "b": {"c": 10.0, "d": "hello"},
             },

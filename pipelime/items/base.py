@@ -380,6 +380,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         class MyOtherItem(Item):
             @deferred_classattr
             def default_concrete(cls):
+                return MyOtherItemConcrete
     """
 
     _data_cache: t.Optional[T]

@@ -1,5 +1,4 @@
 import os
-import tempfile
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,7 +12,7 @@ import pydash as py_
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
-from pipelime.choixe.utils.io import load
+from pipelime.choixe.utils.io import load, PipelimeTmp
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
@@ -56,7 +55,6 @@ class Processor(ast.NodeVisitor):
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
-        self._tmp_name = uuid.uuid1().hex
 
     def _branches(self, *branches: List[Any]) -> List[Any]:
         if len(branches) == 1:
@@ -254,18 +252,36 @@ class Processor(ast.NodeVisitor):
 
         branches = []
         for branch in all_branches:
-            value = py_.get(self._context, branch[0])
+            varname = branch[0]
+
+            # If the variable is not in the context, raise an error
+            if not py_.has(self._context, varname):
+                msg = f"Switch variable `{varname}` not found in context"
+                raise ChoixeProcessingError(msg)
+
+            # Get the value of the variable
+            value = py_.get(self._context, varname)
+
+            # Match the value to the correct case
             for i in range(len(node.cases)):
                 set_ = branch[i + 1]
+
+                # If the set is not iterable, make it a list
                 if not isinstance(set_, Iterable) or isinstance(set_, str):
                     set_ = [set_]
 
+                # If the value is in the set, use the corresponding branch and break
                 if value in set_:
                     branches.append(branch[i + 1 + len(node.cases)])
                     break
+
+            # If no case matched, use the default if available, otherwise raise an error
             else:
                 if node.default is not None:
                     branches.append(branch[-1])
+                else:
+                    msg = f"Switch variable `{varname}`={value} did not match any case"
+                    raise ChoixeProcessingError(msg)
 
         return branches
 
@@ -309,10 +325,9 @@ class Processor(ast.NodeVisitor):
 
     def visit_tmp_dir(self, node: ast.TmpDirNode) -> Any:
         paths = []
-        branches = node.name.accept(self) if node.name else [self._tmp_name]
+        branches = node.name.accept(self) if node.name else [""]
         for branch in branches:
-            path = Path(tempfile.gettempdir()) / str(branch)
-            path.parent.mkdir(exist_ok=True, parents=True)
+            path = PipelimeTmp.make_subdir(str(branch))
             paths.append(str(path))
         return paths
 

@@ -1,7 +1,8 @@
-import pytest
 from copy import deepcopy
 from pathlib import Path
 
+import numpy as np
+import pytest
 from deepdiff import DeepDiff
 from schema import Or, Schema, Use
 
@@ -158,6 +159,16 @@ class TestXConfig:
         )[0]
         assert not DeepDiff(processed, processed_expected)
 
+    def test_unsafe_process(self, choixe_plain_cfg: Path):
+        cfg = XConfig.from_file(choixe_plain_cfg)
+        processed = cfg.unsafe_process()
+        # The unsafe process method returns something that is not a XConfig
+        assert not isinstance(processed, XConfig)
+        processed_expected = process(
+            parse(load(choixe_plain_cfg)), allow_branching=True
+        )[0]
+        assert not DeepDiff(processed, processed_expected)
+
     def test_process_all(self, choixe_plain_cfg: Path):
         cfg = XConfig.from_file(choixe_plain_cfg)
         processed = cfg.process_all()
@@ -166,6 +177,30 @@ class TestXConfig:
         )
         for a, b in zip(processed, processed_expected):
             assert not DeepDiff(a.decode(), b)
+
+    def test_unsafe_process_all(self, choixe_plain_cfg: Path):
+        cfg = XConfig.from_file(choixe_plain_cfg)
+        processed = cfg.unsafe_process_all()
+        # The unsafe process method returns something that is not a XConfig
+        for x in processed:
+            assert not isinstance(x, XConfig)
+        processed_expected = process(
+            parse(load(choixe_plain_cfg)), allow_branching=True
+        )
+        for a, b in zip(processed, processed_expected):
+            assert not DeepDiff(a, b)
+
+    def test_unsafe_process_non_xconfig(self):
+        cfg = {
+            "$call": "numpy.array",
+            "$args": {
+                "object": [1, 2, 3],
+            },
+        }
+        xcfg = XConfig(data=cfg)
+        processed = xcfg.unsafe_process()
+        assert isinstance(processed, np.ndarray)
+        assert (processed == np.array([1, 2, 3])).all()
 
     def test_inspect(self, choixe_plain_cfg: Path):
         cfg = XConfig.from_file(choixe_plain_cfg)

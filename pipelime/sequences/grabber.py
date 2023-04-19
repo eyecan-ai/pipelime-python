@@ -77,8 +77,11 @@ class _GrabContext:
         self._worker_init_fn = (None, ()) if worker_init_fn is None else worker_init_fn
 
     @staticmethod
-    def wrk_init(extra_modules, user_init_fn):
+    def wrk_init(extra_modules, session_temp_dir, user_init_fn):
+        from pipelime.choixe.utils.io import PipelimeTmp
         from pipelime.cli.utils import PipelimeSymbolsHelper
+
+        PipelimeTmp.SESSION_TMP_DIR = session_temp_dir
 
         PipelimeSymbolsHelper.set_extra_modules(extra_modules)
         PipelimeSymbolsHelper.import_everything()
@@ -87,6 +90,7 @@ class _GrabContext:
             user_init_fn[0](*user_init_fn[1])
 
     def __enter__(self):
+        from pipelime.choixe.utils.io import PipelimeTmp
         from pipelime.cli.utils import PipelimeSymbolsHelper
 
         if self._grabber.num_workers == 0:
@@ -105,6 +109,7 @@ class _GrabContext:
             initializer=_GrabContext.wrk_init,
             initargs=(
                 PipelimeSymbolsHelper.extra_modules,
+                PipelimeTmp.SESSION_TMP_DIR,
                 self._worker_init_fn,
             ),
             context=billiard.context.SpawnContext(),
