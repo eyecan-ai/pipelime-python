@@ -713,11 +713,16 @@ class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
 
     start: t.Optional[int] = pyd.Field(
         None,
-        description="The first index (included), defaults to the first element (can be negative).",
+        description=(
+            "The first index (included), defaults to the first element "
+            "(can be negative)."
+        ),
     )
     stop: t.Optional[int] = pyd.Field(
         None,
-        description="The last index (excluded), defaults to the last element (can be negative).",
+        description=(
+            "The last index (excluded), defaults to the last element (can be negative)."
+        ),
     )
 
     @classmethod

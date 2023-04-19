@@ -2,7 +2,7 @@ import typing as t
 import pydantic as pyd
 
 from pipelime.stages import SampleStage
-from pipelime.utils.pydantic_types import ItemType
+from pipelime.utils.pydantic_types import ItemType, YamlInput
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
@@ -26,3 +26,17 @@ class StageReplaceItem(SampleStage, title="replace-item"):
                     key, item_cls.value.make_new(old_item, shared=old_item.is_shared)
                 )
         return x
+
+
+class StageSetMetadata(SampleStage, title="set-meta"):
+    """Sets metadata in samples."""
+
+    key_path: str = pyd.Field(
+        ..., description="The metadata key in pydash dot notation."
+    )
+    value: YamlInput = pyd.Field(
+        None, description="The value to set, ie, any valid yaml/json value."
+    )
+
+    def __call__(self, x: "Sample") -> "Sample":
+        return x.deep_set(self.key_path, self.value.value)
