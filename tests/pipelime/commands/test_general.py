@@ -64,6 +64,7 @@ class TestGeneralCommands:
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     @pytest.mark.parametrize("nproc", [0, 1, 2])
     @pytest.mark.parametrize("prefetch", [1, 2, 4])
+    @pytest.mark.parametrize("skip_empty", [True, False])
     def test_clone(
         self,
         minimnist_dataset,
@@ -71,15 +72,28 @@ class TestGeneralCommands:
         ignore_extra_keys: bool,
         nproc: int,
         prefetch: int,
+        skip_empty: bool,
         tmp_path,
     ):
+        import shutil
         from pipelime.commands import CloneCommand
         from pipelime.sequences import SamplesSequence
+
+        partial_input = tmp_path / "partial_input"
+        shutil.copytree(
+            minimnist_dataset["path"],
+            partial_input,
+            ignore=shutil.ignore_patterns("*01_*", "*10_*"),
+        )
+        len_out = (
+            minimnist_dataset["len"] - 2 if skip_empty else minimnist_dataset["len"]
+        )
 
         cmd = CloneCommand.parse_obj(
             {
                 "input": {
-                    "folder": minimnist_dataset["path"],
+                    "folder": partial_input,
+                    "skip_empty": skip_empty,
                     "schema": {
                         "sample_schema": TestGeneralCommands.minimnist_partial_schema
                         if ignore_extra_keys
@@ -99,13 +113,26 @@ class TestGeneralCommands:
                 "grabber": f"{nproc},{prefetch}",
             }
         )
+
+        if lazy and not skip_empty:
+            # schema validation fails
+            with pytest.raises(ValueError):
+                cmd()
+            return
+
         cmd()
 
-        src = SamplesSequence.from_underfolder(minimnist_dataset["path"])
+        src = SamplesSequence.from_underfolder(partial_input)
         dst = SamplesSequence.from_underfolder(tmp_path / "output")
-        assert len(src) == len(dst) == minimnist_dataset["len"]
-        for s1, s2 in zip(src, dst):
-            TestAssert.samples_equal(s1, s2)
+        assert len(src) == minimnist_dataset["len"]
+        assert len(dst) == len_out
+
+        iout = 0
+        for iin in range(len(src)):
+            if skip_empty and iin in [1, 10]:
+                continue
+            TestAssert.samples_equal(src[iin], dst[iout])
+            iout += 1
 
     @pytest.mark.parametrize("skip_first", [0, 1, 5])
     @pytest.mark.parametrize("max_samples", [1, 3, None])
@@ -556,9 +583,8 @@ class TestGeneralCommands:
 
         params["output"] = (tmp_path / "output_fn").as_posix()
         params["filter_fn"] = f"{Path(__file__).with_name('helper.py')}:filter_fn"
-        cmd = FilterCommand.parse_obj(params)
         with pytest.raises(ValueError):
-            cmd()
+            cmd = FilterCommand.parse_obj(params)
 
         del params["filter_query"]
         if nproc == 0:
@@ -569,9 +595,8 @@ class TestGeneralCommands:
                 cmd = FilterCommand.parse_obj(params)  # output exists
         else:
             del params["filter_fn"]
-            cmd = FilterCommand.parse_obj(params)
             with pytest.raises(ValueError):
-                cmd()
+                cmd = FilterCommand.parse_obj(params)
 
     @pytest.mark.parametrize("nproc", [0, 1, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
@@ -640,3 +665,44 @@ class TestGeneralCommands:
 
         for i, s in zip(idxs, outseq):
             TestAssert.samples_equal(inseq[i], s)
+
+    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    def test_set_meta(self, minimnist_dataset, nproc, prefetch, tmp_path):
+        from pipelime.commands import SetMetadataCommand
+        from pipelime.sequences import SamplesSequence
+
+        def _check_output(path):
+            outseq = SamplesSequence.from_underfolder(path)
+            for x in outseq:
+                if x.deep_get("metadata.double") == 6:
+                    assert x.deep_get("metadata.the_answer") == "fourtytwo"
+
+        params = {
+            "input": minimnist_dataset["path"].as_posix(),
+            "output": (tmp_path / "output_key").as_posix(),
+            "grabber": f"{nproc},{prefetch}",
+            "filter_query": "`metadata.double` == 6",
+            "key_path": "metadata.the_answer",
+            "value": "fourtytwo",
+        }
+        cmd = SetMetadataCommand.parse_obj(params)
+        cmd()
+        _check_output(params["output"])
+
+        params["output"] = (tmp_path / "output_fn").as_posix()
+        params["filter_fn"] = f"{Path(__file__).with_name('helper.py')}:set_meta_fn"
+        with pytest.raises(ValueError):
+            cmd = SetMetadataCommand.parse_obj(params)
+
+        del params["filter_query"]
+        if nproc == 0:
+            cmd = SetMetadataCommand.parse_obj(params)
+            cmd()
+            _check_output(params["output"])
+            with pytest.raises(ValueError):
+                cmd = SetMetadataCommand.parse_obj(params)  # output exists
+        else:
+            del params["filter_fn"]
+            with pytest.raises(ValueError):
+                cmd = SetMetadataCommand.parse_obj(params)
