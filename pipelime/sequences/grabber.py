@@ -1,5 +1,6 @@
 from __future__ import annotations
-import multiprocessing
+import billiard.context
+import billiard.pool
 import pydantic as pyd
 import typing as t
 from enum import Enum, auto
@@ -103,7 +104,7 @@ class _GrabContext:
             return it
 
         # MULTIPLE PROCESSES
-        self._pool = multiprocessing.Pool(
+        self._pool = billiard.pool.Pool(
             self._grabber.num_workers if self._grabber.num_workers > 0 else None,
             initializer=_GrabContext.wrk_init,
             initargs=(
@@ -111,6 +112,7 @@ class _GrabContext:
                 PipelimeTmp.SESSION_TMP_DIR,
                 self._worker_init_fn,
             ),
+            context=billiard.context.SpawnContext(),
         )
         runner = self._pool.__enter__()
 
@@ -193,9 +195,9 @@ def grab_all(
         )
         if return_type == ReturnType.SAMPLE_AND_INDEX:
             with ctx as gseq:
-                for idx, sample in track_fn(gseq):
+                for idx, sample in track_fn(gseq):  # type: ignore
                     sample_fn(sample, idx)  # type: ignore
         else:
             with ctx as gseq:
-                for sample in track_fn(gseq):
+                for sample in track_fn(gseq):  # type: ignore
                     sample_fn(sample)  # type: ignore
