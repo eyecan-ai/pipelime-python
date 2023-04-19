@@ -92,7 +92,7 @@ def _process_cfg_or_die(
     verbose: bool,
     print_all: bool,
 ) -> t.List["XConfig"]:
-    from pipelime.cli.pretty_print import print_error, print_info
+    from pipelime.cli.pretty_print import print_error, print_info, print_warning
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
     if verbose:
@@ -111,6 +111,12 @@ def _process_cfg_or_die(
             )
             raise typer.Exit(1)
         raise e
+    except RecursionError:
+        print_error(f"Recursion detected while processing {cfg_name}!")
+        print_warning(
+            "Please check your context for self-references, eg, `myvar: $var(myvar)`."
+        )
+        raise typer.Exit(1)
 
     if verbose:
         pls = "s" if len(effective_configs) != 1 else ""
