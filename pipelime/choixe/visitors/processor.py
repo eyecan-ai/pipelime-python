@@ -328,7 +328,7 @@ class Processor(ast.NodeVisitor):
         branches = node.name.accept(self) if node.name else [""]
         for branch in branches:
             path = PipelimeTmp.make_subdir(str(branch))
-            paths.append(str(path))
+            paths.append(path.resolve().absolute().as_posix())
         return paths
 
     def visit_rand(self, node: ast.RandNode) -> Any:

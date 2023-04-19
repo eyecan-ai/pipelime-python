@@ -44,8 +44,9 @@ class ShellCommand(PipelimeCommand, title="shell"):
     def get_outputs(self) -> Dict[str, Any]:
         return self.outputs
 
+    @PipelimeCommand.command_name.getter
     def command_name(self) -> str:
-        return self.command
+        return self.command_title() + "/" + self.command.partition(" ")[0]
 
     def _to_command_chunk(self, key: str, value: Any) -> str:
         cmd = ""
@@ -70,4 +71,6 @@ class ShellCommand(PipelimeCommand, title="shell"):
             value = args[key]
             cmd += self._to_command_chunk(key, value)
 
-        subprocess.run(cmd, shell=True)
+        with self.create_task(1, "Executing") as t:
+            subprocess.run(cmd, shell=True)
+            t.advance()
