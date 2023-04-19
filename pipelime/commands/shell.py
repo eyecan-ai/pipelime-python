@@ -46,7 +46,7 @@ class ShellCommand(PipelimeCommand, title="shell"):
 
     @PipelimeCommand.command_name.getter
     def command_name(self) -> str:
-        return self.command_title() + "/" + self.command.partition(" ")[0]
+        return self.command_title() + ":" + self.command.partition(" ")[0]
 
     def _to_command_chunk(self, key: str, value: Any) -> str:
         cmd = ""
