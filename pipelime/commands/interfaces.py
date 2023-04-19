@@ -316,6 +316,10 @@ class InputDatasetInterface(
             return InputDatasetInterface(**value)
         raise ValueError("Invalid input dataset definition.")
 
+    @staticmethod
+    def is_empty_fn(x):
+        return not all(i.is_shared for i in x.values())
+
     def create_reader(self):
         from pipelime.sequences import SamplesSequence
 
@@ -323,7 +327,7 @@ class InputDatasetInterface(
             folder=self.folder, merge_root_items=self.merge_root_items, must_exist=True
         )
         if self.skip_empty:
-            reader = reader.filter(lambda x: not all(i.is_shared for i in x.values()))
+            reader = reader.filter(InputDatasetInterface.is_empty_fn)
         if self.schema_ is not None:
             reader = self.schema_.append_validator(reader)
         return reader
