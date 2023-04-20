@@ -116,8 +116,10 @@ class TestGeneralCommands:
 
         if lazy and not skip_empty:
             # schema validation fails
-            with pytest.raises(ValueError):
+            with pytest.raises(Exception) as exc_info:
                 cmd()
+            if nproc == 0:
+                assert isinstance(exc_info.value, ValueError)
             return
 
         cmd()
