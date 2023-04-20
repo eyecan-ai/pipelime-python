@@ -7,6 +7,9 @@ from pipelime.choixe.ast.parser import DIRECTIVE_PREFIX
 class Unparser(ast.NodeVisitor):
     """`NodeVisitor` for the `unparse` operation."""
 
+    def __init__(self):
+        self._allow_compact = True
+
     def visit_dict(self, node: ast.DictNode) -> Dict:
         data = {}
         for k, v in node.nodes.items():
@@ -29,7 +32,18 @@ class Unparser(ast.NodeVisitor):
         return data
 
     def visit_str_bundle(self, node: ast.StrBundleNode) -> str:
-        return "".join(x.accept(self) for x in node.nodes)
+        # Disable compact mode for the duration of the bundle
+        # Because we don't want compact directives the middle of a string
+        # (e.g. "aaa$tmp()bbb" getting unparsed as "aaa$tmpbbb") and
+        # causing a parsing error.
+        old_allow_compact = self._allow_compact
+        self._allow_compact = False
+
+        result = "".join(x.accept(self) for x in node.nodes)
+
+        # Restore compact mode to its previous state
+        self._allow_compact = old_allow_compact
+        return result
 
     def visit_sweep(self, node: ast.SweepNode) -> Union[Dict, str]:
         return self._unparse_auto("sweep", *node.cases)
@@ -143,8 +157,15 @@ class Unparser(ast.NodeVisitor):
     def _unparse_as_kwargs(self, **nodes: ast.Node) -> str:
         return ", ".join([f"{k}={self._unparse_as_arg(v)}" for k, v in nodes.items()])
 
-    def _unparse_compact(self, name: str) -> str:
+    def _directive_name(self, name: str) -> str:
         return f"{DIRECTIVE_PREFIX}{name}"
+
+    def _unparse_compact(self, name: str) -> str:
+        # If compact mode is not allowed, fall back to call syntax.
+        if not self._allow_compact:
+            return self._unparse_call(name)
+
+        return self._directive_name(name)
 
     def _unparse_call(self, name: str, *args: ast.Node, **kwargs: ast.Node) -> str:
         parts = []
@@ -152,7 +173,7 @@ class Unparser(ast.NodeVisitor):
             parts.append(self._unparse_as_args(*args))
         if len(kwargs) > 0:
             parts.append(self._unparse_as_kwargs(**kwargs))
-        return f"{self._unparse_compact(name)}({', '.join(parts)})"
+        return f"{self._directive_name(name)}({', '.join(parts)})"
 
     def _unparse_extended(
         self, name: str, *args: ast.Node, **kwargs: ast.Node
