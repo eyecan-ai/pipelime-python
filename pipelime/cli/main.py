@@ -556,6 +556,8 @@ def pl_main(
             effective_ctx = functools.reduce(
                 lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3), effective_ctx
             )
+            if output_ctx:
+                effective_ctx.save_to(output_ctx)
         else:
             effective_ctx = XConfig()
 
