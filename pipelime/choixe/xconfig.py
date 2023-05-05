@@ -301,20 +301,20 @@ class XConfig(Box):
         return inspect(self.parse(), cwd=self.get_cwd())
 
 
-class ChoixeView:
+class Choixe:
     """A lightweight wrapper that enables the use of Choixe on any python object,
     overcoming the limitations of the `XConfig` class, which is limited to the use of
     dictionaries as data source.
 
-    Unlike `XConfig`, `ChoixeView` does not implement any python data structure, and
+    Unlike `XConfig`, `Choixe` does not implement any python data structure, and
     delegates all access operations to the wrapped object. This means that it is
-    possible to use `ChoixeView` on any python object, including dictionaries, lists,
+    possible to use `Choixe` on any python object, including dictionaries, lists,
     tuples, sets, strings, integers, floats, booleans, etc, as well as custom classes
     and instances.
     """
 
     def __init__(self, data: Any = None, cwd: Optional[Path] = None):
-        """Constructor for `ChoixeView`
+        """Constructor for `Choixe`
 
         Args:
             data (Any, optional): Optional object containing
@@ -328,17 +328,17 @@ class ChoixeView:
         self._data = data
 
     def __repr__(self) -> str:
-        return f"ChoixeView(data={self.data})"
+        return f"Choixe(data={self.data})"
 
     @classmethod
-    def from_file(cls, path: Union[str, Path]) -> ChoixeView:
-        """Factory method to create a `ChoixeView` from file.
+    def from_file(cls, path: Union[str, Path]) -> Choixe:
+        """Factory method to create a `Choixe` from file.
 
         Args:
             path (Union[str, Path]): Path to a markup file from which to load the data
 
         Returns:
-            ChoixeView: The loaded `ChoixeView`
+            Choixe: The loaded `Choixe`
         """
         path = Path(path)
         return cls(data=load(path), cwd=path.parent)
@@ -353,13 +353,13 @@ class ChoixeView:
         """Getter for the configuration data"""
         return self._data
 
-    def copy(self) -> ChoixeView:
+    def copy(self) -> Choixe:
         """Prototype method to copy this object.
 
         Returns:
-            ChoixeView: A copy of this object
+            Choixe: A copy of this object
         """
-        return ChoixeView(data=self.data, cwd=self.cwd)
+        return Choixe(data=self.data, cwd=self.cwd)
 
     def save_to(self, filename: Union[str, Path]) -> None:
         """Save configuration to output file
@@ -378,7 +378,7 @@ class ChoixeView:
         return parse(self.data)
 
     def decode(self) -> Dict:
-        """Convert this `ChoixeView` to a plain python dictionary. Also converts some nodes
+        """Convert this `Choixe` to a plain python dictionary. Also converts some nodes
         like numpy arrays into plain lists and restores some directives, eg, `$model`.
 
         Returns:
@@ -387,7 +387,7 @@ class ChoixeView:
         return decode(self.parse())
 
     def walk(self) -> List[Tuple[List[Union[str, int]], Any]]:
-        """Perform the walk operation on this `ChoixeView`.
+        """Perform the walk operation on this `Choixe`.
 
         Returns:
             List[Tuple[List[Union[str, int]], Any]]: The walk output.
@@ -396,38 +396,38 @@ class ChoixeView:
 
     def _process(
         self, context: Optional[Dict[str, Any]] = None, allow_branching: bool = True
-    ) -> List[ChoixeView]:
+    ) -> List[Choixe]:
         data = process(
             self.parse(), context=context, cwd=self.cwd, allow_branching=allow_branching
         )
-        return [ChoixeView(data=x, cwd=self.cwd) for x in data]
+        return [Choixe(data=x, cwd=self.cwd) for x in data]
 
-    def process(self, context: Optional[Dict[str, Any]] = None) -> ChoixeView:
-        """Process this ChoixeView without branching.
+    def process(self, context: Optional[Dict[str, Any]] = None) -> Choixe:
+        """Process this Choixe without branching.
 
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
                 containing all variables values. Defaults to None.
 
         Returns:
-            `ChoixeView`: The processed ChoixeView.
+            `Choixe`: The processed Choixe.
         """
         return self._process(context=context, allow_branching=False)[0]
 
-    def process_all(self, context: Optional[Dict[str, Any]] = None) -> List[ChoixeView]:
-        """Process this ChoixeView with branching.
+    def process_all(self, context: Optional[Dict[str, Any]] = None) -> List[Choixe]:
+        """Process this Choixe with branching.
 
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
                 containing all variables values. Defaults to None.
 
         Returns:
-            List[ChoixeView]: A list of all processing outcomes.
+            List[Choixe]: A list of all processing outcomes.
         """
         return self._process(context=context, allow_branching=True)
 
     def inspect(self) -> Inspection:
-        """Inspect this ChoixeView returning all variables and imports.
+        """Inspect this Choixe returning all variables and imports.
 
         Returns:
             Inspection: The inspection result.
