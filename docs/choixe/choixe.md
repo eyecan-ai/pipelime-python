@@ -87,3 +87,10 @@ Deep access is cool, but its very coupled with the fact that `XConfig` implement
 ### Schema validation
 
 Nobody really uses choixe schema validation, because that feature is usually implemented in a more robust way in the application itself, or by means of external json-schema validators. So, we decided to remove it from the new `Choixe` class.
+
+
+```{admonition} Note
+:class: note
+
+The `XConfig` class is still not deprecated, and since it's used pretty much everywhere in Pipelime, it will probably last for a little while. But, if you are starting a new project, we recommend you to use `Choixe` instead.
+```
