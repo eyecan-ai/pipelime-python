@@ -237,7 +237,7 @@ class TestChoixe:
 
     def test_repr(self, choixe_data: t.Any):
         view = Choixe(choixe_data)
-        assert repr(view) == f"ChoixeView(data={choixe_data})"
+        assert repr(view) == f"Choixe(data={choixe_data})"
 
     @pytest.mark.parametrize("cwd", [None, Path.cwd()])
     def test_cwd(self, choixe_data: t.Any, cwd: Path):
