@@ -351,6 +351,21 @@ class SamplesSequence(
 
     @samples_sequence_stub
     @staticmethod
+    def from_images(
+        folder: "Path",  # type: ignore # noqa: E602,F821
+        *,
+        must_exist: bool = True,
+        image_key: str = "image",
+        sort_files: bool = True,
+        recursive: bool = True,
+    ) -> SamplesSequence:
+        """A SamplesSequence loading images from a folder.
+        Run `pipelime help from_images` to read the complete documentation.
+        """
+        ...
+
+    @samples_sequence_stub
+    @staticmethod
     def toy_dataset(
         length: int,
         *,

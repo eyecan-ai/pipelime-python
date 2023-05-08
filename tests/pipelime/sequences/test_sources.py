@@ -1,7 +1,11 @@
-import pytest
-import pipelime.sequences as pls
+import contextlib
 import typing as t
 from pathlib import Path
+
+import numpy as np
+import pytest
+
+import pipelime.sequences as pls
 
 
 class TestSamplesSequencesSources:
@@ -84,3 +88,37 @@ class TestSamplesSequencesSources:
 
         assert len(source) == len(sseq)
         assert all(s1 is s2 for s1, s2 in zip(source, sseq))
+
+    @pytest.mark.parametrize(["recursive", "expected_len"], [[True, 20], [False, 8]])
+    @pytest.mark.parametrize("must_exist", [True, False])
+    @pytest.mark.parametrize("sort_files", [True, False])
+    def test_from_images(
+        self,
+        raw_images: Path,
+        recursive: bool,
+        must_exist: bool,
+        sort_files: bool,
+        expected_len: int,
+    ):
+        sseq = pls.SamplesSequence.from_images(
+            folder=raw_images,
+            recursive=recursive,
+            sort_files=sort_files,
+            must_exist=must_exist,
+        )
+        assert isinstance(sseq, pls.SamplesSequence)
+
+        assert len(sseq) == expected_len
+
+        for _ in range(2):  # Do it twice to check that the cache is working
+            for sample in sseq:
+                assert set(sample.keys()) == {"image"}
+                assert isinstance(sample["image"](), np.ndarray)
+
+    @pytest.mark.parametrize("must_exist", [True, False])
+    def test_from_images_must_exist(self, must_exist: bool):
+        cm = pytest.raises(ValueError) if must_exist else contextlib.nullcontext()
+        with cm:
+            pls.SamplesSequence.from_images(
+                folder=Path("/WRONG"), must_exist=must_exist
+            )

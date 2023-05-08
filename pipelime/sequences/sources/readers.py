@@ -1,11 +1,14 @@
 import os
 import typing as t
 from pathlib import Path
-from loguru import logger
 
 import pydantic as pyd
+from loguru import logger
+from pydantic import Field, PrivateAttr, validator
 
 import pipelime.sequences as pls
+from pipelime.items.base import ItemFactory
+from pipelime.sequences import Sample, SamplesSequence, source_sequence
 
 
 @pls.source_sequence
@@ -152,12 +155,82 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
         sample = self._samples[idx]
         if not isinstance(sample, pls.Sample):
             sample = pls.Sample(
-                {
-                    k: Item.get_instance(v, shared_item=False)
-                    for k, v in sample.items()
-                }
+                {k: Item.get_instance(v, shared_item=False) for k, v in sample.items()}
             )
             if self.merge_root_items:
                 sample = self.root_sample.merge(sample)
+            self._samples[idx] = sample
+        return sample
+
+
+@source_sequence
+class SequenceFromImageFolders(SamplesSequence, title="from_images"):
+    """Recursively scan a folder tree and load all the images as samples."""
+
+    folder: Path = Field(
+        ..., description="The root folder in which to scan for images."
+    )
+    must_exist: bool = Field(
+        True, description="If True raises an error when `folder` does not exist."
+    )
+    image_key: str = Field("image", description="The key of the image item.")
+    sort_files: bool = Field(
+        False, description="If True, read the files in sorted order."
+    )
+    recursive: bool = Field(True, description="If True, scan the `folder` recursively.")
+
+    _samples: t.List[t.Union[str, Sample]] = PrivateAttr(default_factory=list)
+
+    @validator("must_exist", always=True)
+    def check_folder_exists(cls, v, values):
+        p = values["folder"]
+        if v and not p.exists():
+            raise ValueError(f"Root folder {p} does not exist.")
+        return v
+
+    def __init__(self, folder: Path, **data):
+        from pipelime.items import ImageItem
+        from pipelime.items.base import ItemFactory
+
+        super().__init__(folder=folder, **data)  # type: ignore
+        self._samples = []
+        self._scan_folder(
+            self.folder.as_posix(),
+            # grab all the extensions of the ImageItem subclasses
+            {
+                ext
+                for ext, item_cls in ItemFactory.ITEM_CLASSES.items()
+                if issubclass(item_cls, ImageItem)
+            },
+        )
+
+    def _scan_folder(self, folder: str, extensions: t.Container[str]):
+        if not self.folder.exists():
+            logger.warning(f"{self.__class__}: folder `{folder}` does not exist")
+            return
+
+        # NB: os.scandir is faster than pathlib
+        with os.scandir(folder) as it:
+            if self.sort_files:
+                it = sorted(it, key=lambda entry: entry.name)
+            for entry in it:
+                if (
+                    entry.is_file()
+                    and os.path.splitext(entry.name)[1].lower() in extensions
+                ):
+                    self._samples.append(entry.path)
+                elif entry.is_dir() and self.recursive:
+                    self._scan_folder(entry.path, extensions)
+
+    def size(self) -> int:
+        return len(self._samples)
+
+    def get_sample(self, idx: int) -> Sample:
+        sample = self._samples[idx]
+        if not isinstance(sample, Sample):
+            image_item = ItemFactory.get_instance(
+                sample, shared_item=False
+            )  # type: ignore
+            sample = Sample({self.image_key: image_item})
             self._samples[idx] = sample
         return sample
