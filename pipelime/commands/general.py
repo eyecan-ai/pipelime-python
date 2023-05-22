@@ -922,8 +922,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         for idx, sample in enumerate(self.track(seq, message="Computing hashes")):
             with pli.no_data_cache():
                 items = [sample[k]() for k in keys]
-                items_pickle = [pickle.dumps(item) for item in items]
-                item_hashes = [self._compute_item_hash(item) for item in items_pickle]
+                item_hashes = [self._compute_item_hash(item) for item in items]
                 hashes[idx] = tuple(item_hashes)
 
         # for each hash, count how many times it appears
