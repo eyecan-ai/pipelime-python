@@ -1,9 +1,14 @@
+import hashlib
+import itertools
+import pickle
 import typing as t
+
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
-from pipelime.piper import PipelimeCommand, PiperPortType
+import pipelime.items as pli
 import pipelime.utils.pydantic_types as pl_types
+from pipelime.piper import PipelimeCommand, PiperPortType
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -860,3 +865,92 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
             parent_cmd=self,
             track_message=f"Setting metadata ({len(seq)} samples)",
         )
+
+
+class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
+    """Filter duplicated samples based on the hash of a set of items."""
+
+    # ALGORITHMS_WITH_PARAMETERS = ["shake_128", "shake_256"]
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    algorithm: str = pyd.Field(
+        "sha256",
+        description=(
+            "The hashing algorithm from `hashlib` to use. Only algorithms that"
+            "do not require parameters are supported."
+        ),
+    )
+
+    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
+        ...,
+        description=(
+            "The keys to use for comparison. All items must be equal to consider"
+            "two samples as duplicates."
+        ),
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    @pyd.validator("algorithm")
+    def _validate_algorithm(cls, v: str) -> str:
+        algorithms_with_parameters = ["shake_128", "shake_256"]
+        if v not in hashlib.algorithms_available or v in algorithms_with_parameters:
+            raise ValueError(f"Invalid algorithm: {v}")
+        return v
+
+    def run(self):
+        from pipelime.sequences import SamplesSequence
+
+        seq = self.input.create_reader()
+        keys = [self.keys] if isinstance(self.keys, str) else self.keys
+
+        # compute the hash of each sample
+        hashes = {}
+        for idx, sample in enumerate(self.track(seq, message="Computing hashes")):
+            with pli.no_data_cache():
+                items = [sample[k]() for k in keys]
+                items_pickle = [pickle.dumps(item) for item in items]
+                item_hashes = [self._compute_item_hash(item) for item in items_pickle]
+                hashes[idx] = tuple(item_hashes)
+
+        # for each hash, count how many times it appears
+        hashes_grouped = itertools.groupby(sorted(hashes.values()))
+        hashes_count = {k: len(list(g)) for k, g in hashes_grouped}
+
+        # filter out samples that have a hash that appears more than once
+        idx_to_filter = []
+        already_seen = set()
+        for idx, hash in self.track(hashes.items(), message="Filtering duplicates"):
+            if hashes_count[hash] > 1:
+                # keep only the first sample with this hash
+                if hash not in already_seen:
+                    already_seen.add(hash)
+                else:
+                    idx_to_filter.append(idx)
+
+        samples = [sample for idx, sample in enumerate(seq) if idx not in idx_to_filter]
+        seq = SamplesSequence.from_list(samples)
+        seq = self.output.append_writer(seq)
+        self.grabber.grab_all(
+            seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Writing to disk ({len(seq)} samples)",
+        )
+
+    def _compute_item_hash(self, item: t.Any) -> str:
+        return hashlib.new(self.algorithm, pickle.dumps(item)).hexdigest()

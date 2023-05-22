@@ -12,6 +12,7 @@ from pipelime.commands.general import (
     FilterCommand,
     SliceCommand,
     SetMetadataCommand,
+    FilterDuplicatesCommand,
 )
 from pipelime.commands.shell import ShellCommand
 from pipelime.commands.split_ops import (

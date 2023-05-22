@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 from pydantic import ValidationError
 from ... import TestAssert, TestUtils
+from contextlib import nullcontext
 
 
 class TestGeneralCommands:
@@ -708,3 +709,106 @@ class TestGeneralCommands:
             del params["filter_fn"]
             with pytest.raises(ValueError):
                 cmd = SetMetadataCommand.parse_obj(params)
+
+    @pytest.mark.parametrize(
+        "keys,expected_length",
+        [
+            ["cfg", 1],
+            ["numbers", 1],
+            ["pose", 1],
+            ["image", 20],
+            ["label", 10],
+            ["mask", 12],
+            ["metadata", 20],
+            ["points", 12],
+            [["cfg", "image"], 20],
+            [["cfg", "numbers", "pose"], 1],
+            [["image", "label"], 20],
+            [
+                [
+                    "cfg",
+                    "numbers",
+                    "pose",
+                    "image",
+                    "label",
+                    "mask",
+                    "metadata",
+                    "points",
+                ],
+                20,
+            ],
+        ],
+    )
+    @pytest.mark.parametrize("algorithm", ["sha256"])
+    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    def test_filter_duplicates(
+        self,
+        minimnist_dataset,
+        keys,
+        expected_length,
+        algorithm,
+        nproc,
+        prefetch,
+        tmp_path,
+    ):
+        from pipelime.sequences import SamplesSequence
+        from pipelime.commands import FilterDuplicatesCommand
+
+        output_path = (tmp_path / "output").as_posix()
+        params = {
+            "input": minimnist_dataset["path"].as_posix(),
+            "output": output_path,
+            "grabber": f"{nproc},{prefetch}",
+            "keys": keys,
+            "algorithm": algorithm,
+        }
+        cmd = FilterDuplicatesCommand.parse_obj(params)
+        cmd()
+
+        seq = SamplesSequence.from_underfolder(output_path)
+        assert len(seq) == expected_length
+
+    @pytest.mark.parametrize("keys", ["image"])
+    @pytest.mark.parametrize(
+        "algorithm,raises",
+        [
+            ["blake2b", False],
+            ["blake2s", False],
+            ["md4", False],
+            ["md5", False],
+            ["md5-sha1", False],
+            ["ripemd160", False],
+            ["sha1", False],
+            ["sha224", False],
+            ["sha256", False],
+            ["sha384", False],
+            ["sha3_224", False],
+            ["sha3_256", False],
+            ["sha3_384", False],
+            ["sha3_512", False],
+            ["sha512", False],
+            ["sha512_224", False],
+            ["sha512_256", False],
+            ["sm3", False],
+            ["whirlpool", False],
+            ["shake_128", True],
+            ["shake_256", True],
+            ["myalgorithm", True],
+        ],
+    )
+    def test_filter_duplicates_algorithm(
+        self, minimnist_dataset, keys, algorithm, raises, tmp_path
+    ):
+        from pipelime.commands import FilterDuplicatesCommand
+
+        context = pytest.raises(ValueError) if raises else nullcontext()
+        with context:
+            params = {
+                "input": minimnist_dataset["path"].as_posix(),
+                "output": (tmp_path / "output").as_posix(),
+                "keys": keys,
+                "algorithm": algorithm,
+            }
+            cmd = FilterDuplicatesCommand.parse_obj(params)
+            cmd()
