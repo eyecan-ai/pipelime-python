@@ -870,8 +870,6 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
 class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
     """Filter duplicated samples based on the hash of a set of items."""
 
-    # ALGORITHMS_WITH_PARAMETERS = ["shake_128", "shake_256"]
-
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
             alias="i", piper_port=PiperPortType.INPUT
@@ -895,8 +893,8 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         ...,
         description=(
-            "The keys to use for comparison. All items must be equal to consider"
-            "two samples as duplicates."
+            "The keys to use for comparison. All items selected must be equal to"
+            "consider two samples as duplicates."
         ),
     )
 
@@ -918,28 +916,18 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         keys = [self.keys] if isinstance(self.keys, str) else self.keys
 
         # compute the hash of each sample
-        hashes = {}
-        for idx, sample in enumerate(self.track(seq, message="Computing hashes")):
+        unique_hashes = []
+        idx_to_filter = []
+        for idx, sample in enumerate(self.track(seq, message="Filtering duplicates")):
             with pli.no_data_cache():
                 items = [sample[k]() for k in keys]
-                item_hashes = [self._compute_item_hash(item) for item in items]
-                hashes[idx] = tuple(item_hashes)
-
-        # for each hash, count how many times it appears
-        hashes_grouped = itertools.groupby(sorted(hashes.values()))
-        hashes_count = {k: len(list(g)) for k, g in hashes_grouped}
+                hash = tuple([self._compute_item_hash(item) for item in items])
+                if hash in unique_hashes:
+                    idx_to_filter.append(idx)
+                else:
+                    unique_hashes.append(hash)
 
         # filter out samples that have a hash that appears more than once
-        idx_to_filter = []
-        already_seen = set()
-        for idx, hash in self.track(hashes.items(), message="Filtering duplicates"):
-            if hashes_count[hash] > 1:
-                # keep only the first sample with this hash
-                if hash not in already_seen:
-                    already_seen.add(hash)
-                else:
-                    idx_to_filter.append(idx)
-
         samples = [sample for idx, sample in enumerate(seq) if idx not in idx_to_filter]
         seq = SamplesSequence.from_list(samples)
         seq = self.output.append_writer(seq)

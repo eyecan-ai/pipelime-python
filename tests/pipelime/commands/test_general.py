@@ -755,10 +755,9 @@ class TestGeneralCommands:
         from pipelime.sequences import SamplesSequence
         from pipelime.commands import FilterDuplicatesCommand
 
-        output_path = (tmp_path / "output").as_posix()
         params = {
             "input": minimnist_dataset["path"].as_posix(),
-            "output": output_path,
+            "output": (tmp_path / "output").as_posix(),
             "grabber": f"{nproc},{prefetch}",
             "keys": keys,
             "algorithm": algorithm,
@@ -766,7 +765,7 @@ class TestGeneralCommands:
         cmd = FilterDuplicatesCommand.parse_obj(params)
         cmd()
 
-        seq = SamplesSequence.from_underfolder(output_path)
+        seq = SamplesSequence.from_underfolder(params["output"])
         assert len(seq) == expected_length
 
     @pytest.mark.parametrize("keys", ["image"])
