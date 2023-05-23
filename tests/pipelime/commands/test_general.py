@@ -2,7 +2,6 @@ import pytest
 from pathlib import Path
 from pydantic import ValidationError
 from ... import TestAssert, TestUtils
-from contextlib import nullcontext
 
 
 class TestGeneralCommands:
@@ -799,6 +798,7 @@ class TestGeneralCommands:
     def test_filter_duplicates_algorithm(
         self, minimnist_dataset, keys, algorithm, raises, tmp_path
     ):
+        from contextlib import nullcontext
         from pipelime.commands import FilterDuplicatesCommand
 
         context = pytest.raises(ValueError) if raises else nullcontext()

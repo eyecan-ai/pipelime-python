@@ -1,12 +1,9 @@
-import hashlib
-import itertools
-import pickle
 import typing as t
 
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
-import pipelime.items as pli
+import pipelime.sequences as pls
 import pipelime.utils.pydantic_types as pl_types
 from pipelime.piper import PipelimeCommand, PiperPortType
 
@@ -902,42 +899,54 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         alias="g"
     )
 
-    @pyd.validator("algorithm")
-    def _validate_algorithm(cls, v: str) -> str:
-        algorithms_with_parameters = ["shake_128", "shake_256"]
-        if v not in hashlib.algorithms_available or v in algorithms_with_parameters:
-            raise ValueError(f"Invalid algorithm: {v}")
-        return v
-
     def run(self):
-        from pipelime.sequences import SamplesSequence
+        from pipelime.stages import StageSampleHash
 
         seq = self.input.create_reader()
+        hash_key = self._get_hash_key(list(seq[0].keys()))
         keys = [self.keys] if isinstance(self.keys, str) else self.keys
+        stage = StageSampleHash(algorithm=self.algorithm, keys=keys, hash_key=hash_key)
+        seq = seq.map(stage)
 
-        # compute the hash of each sample
-        unique_hashes = []
-        idx_to_filter = []
-        for idx, sample in enumerate(self.track(seq, message="Filtering duplicates")):
-            with pli.no_data_cache():
-                items = [sample[k]() for k in keys]
-                hash = tuple([self._compute_item_hash(item) for item in items])
-                if hash in unique_hashes:
-                    idx_to_filter.append(idx)
-                else:
-                    unique_hashes.append(hash)
+        # multi-processing friendly filtering
+        class _WriterHelper:
+            def __init__(self, output_pipe):
+                self.stream = pls.DataStream(output_pipe=output_pipe)
+                self.curr_idx = 0
+                self.unique_hashes = set()
+
+            def __call__(self, sample):
+                sample_hash = sample[hash_key]()
+                sample.remove_keys(hash_key)
+                if sample_hash not in self.unique_hashes:
+                    self.unique_hashes.add(sample_hash)
+                    self.stream.set_output(self.curr_idx, sample)
+                    self.curr_idx += 1
+
+        if self.output.zfill is None:
+            self.output.zfill = seq.best_zfill()
+        writer_helper = _WriterHelper(output_pipe=self.output.as_pipe())
 
         # filter out samples that have a hash that appears more than once
-        samples = [sample for idx, sample in enumerate(seq) if idx not in idx_to_filter]
-        seq = SamplesSequence.from_list(samples)
-        seq = self.output.append_writer(seq)
         self.grabber.grab_all(
             seq,
-            grab_context_manager=self.output.serialization_cm(),
-            keep_order=False,
+            keep_order=True,
             parent_cmd=self,
-            track_message=f"Writing to disk ({len(seq)} samples)",
+            sample_fn=writer_helper,
+            track_message=f"Filtering ({len(seq)} samples)",
         )
 
-    def _compute_item_hash(self, item: t.Any) -> str:
-        return hashlib.new(self.algorithm, pickle.dumps(item)).hexdigest()
+    def _get_hash_key(self, keys: t.Sequence[str]) -> str:
+        """Get a key that has no conflict with the given keys.
+
+        Args:
+            keys (t.Sequence[str]): the keys of the samples
+
+        Returns:
+            str: the hash key
+        """
+        key = "hash"
+        while True:
+            if key not in keys:
+                return key
+            key += "_"
