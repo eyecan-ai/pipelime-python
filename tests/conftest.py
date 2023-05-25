@@ -77,6 +77,11 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
     }
 
 
+@pytest.fixture(scope="session")
+def raw_images(datasets_folder: Path) -> Path:
+    return datasets_folder / "raw_images"
+
+
 @pytest.fixture(scope="function")
 def minimnist_private_dataset(minimnist_dataset: dict, tmp_path: Path) -> dict:
     from copy import deepcopy
@@ -97,8 +102,8 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
 
 @pytest.fixture(scope="function")
 def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
-    import pipelime.choixe.utils.io as choixe_io
-    from pipelime.choixe import XConfig
+    import pipelime.choixe.utils.io as choixe_io  # noqa: F401
+    from pipelime.choixe import XConfig  # noqa: F401
     from . import TestUtils
 
     def _add_if_exists(out, path, key):
