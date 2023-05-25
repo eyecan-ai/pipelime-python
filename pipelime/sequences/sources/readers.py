@@ -2,47 +2,40 @@ import os
 import typing as t
 from pathlib import Path
 
-import pydantic as pyd
 from loguru import logger
 from pydantic import Field, PrivateAttr, validator
 
-import pipelime.sequences as pls
-from pipelime.items.base import ItemFactory
 from pipelime.sequences import Sample, SamplesSequence, source_sequence
 
 
-@pls.source_sequence
-class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
+@source_sequence
+class UnderfolderReader(SamplesSequence, title="from_underfolder"):
     """A SamplesSequence loading data from an Underfolder dataset."""
 
-    folder: Path = pyd.Field(
-        ..., description="The root folder of the Underfolder dataset."
-    )
-    merge_root_items: bool = pyd.Field(
+    folder: Path = Field(..., description="The root folder of the Underfolder dataset.")
+    merge_root_items: bool = Field(
         True,
         description=(
             "Adds root items as shared items "
             "to each sample (sample values take precedence)."
         ),
     )
-    must_exist: bool = pyd.Field(
+    must_exist: bool = Field(
         True, description="If True raises an error when `folder` does not exist."
     )
-    watch: bool = pyd.Field(
+    watch: bool = Field(
         False,
         description=(
             "If True, the dataset is scanned every time a new Sample is requested."
         ),
     )
 
-    _samples: t.List[t.Union[pls.Sample, t.Dict[str, str]]] = pyd.PrivateAttr(
+    _samples: t.List[t.Union[Sample, t.Dict[str, str]]] = PrivateAttr(
         default_factory=list
     )
-    _root_sample: t.Optional[t.Union[pls.Sample, t.Dict[str, str]]] = pyd.PrivateAttr(
-        None
-    )
+    _root_sample: t.Optional[t.Union[Sample, t.Dict[str, str]]] = PrivateAttr(None)
 
-    @pyd.validator("must_exist", always=True)
+    @validator("must_exist", always=True)
     def check_folder_exists(cls, v, values):
         if v:
             root_folder = values["folder"]
@@ -70,15 +63,15 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
         return self.data_path(self.folder)
 
     @property
-    def root_sample(self) -> pls.Sample:
+    def root_sample(self) -> Sample:
         from pipelime.items import Item
 
         # user may change the value of `self.watch` at any time,
         # so both checks are necessary
         if self.watch or self._root_sample is None:
             self._scan_root_files()
-        if not isinstance(self._root_sample, pls.Sample):
-            self._root_sample = pls.Sample(
+        if not isinstance(self._root_sample, Sample):
+            self._root_sample = Sample(
                 {
                     k: Item.get_instance(v, shared_item=True)
                     for k, v in self._root_sample.items()  # type: ignore
@@ -113,12 +106,12 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
                         key = self._extract_key(entry.name)
                         if key:
                             root_items[key] = entry.path
-            self._root_sample = root_items if root_items else pls.Sample()
+            self._root_sample = root_items if root_items else Sample()
         else:  # pragma: no cover
             logger.warning(
                 f"{self.__class__}: root folder `{self.folder}` does not exist"
             )
-            self._root_sample = pls.Sample()
+            self._root_sample = Sample()
 
     def _scan_sample_files(self):
         data_folder = self.data_folder
@@ -146,15 +139,15 @@ class UnderfolderReader(pls.SamplesSequence, title="from_underfolder"):
 
         return len(self._samples)
 
-    def get_sample(self, idx: int) -> pls.Sample:
+    def get_sample(self, idx: int) -> Sample:
         from pipelime.items import Item
 
         if self.watch:
             self._scan_sample_files()
 
         sample = self._samples[idx]
-        if not isinstance(sample, pls.Sample):
-            sample = pls.Sample(
+        if not isinstance(sample, Sample):
+            sample = Sample(
                 {k: Item.get_instance(v, shared_item=False) for k, v in sample.items()}
             )
             if self.merge_root_items:
@@ -189,8 +182,7 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
         return v
 
     def __init__(self, folder: Path, **data):
-        from pipelime.items import ImageItem
-        from pipelime.items.base import ItemFactory
+        from pipelime.items import Item, ImageItem
 
         super().__init__(folder=folder, **data)  # type: ignore
         self._samples = []
@@ -199,7 +191,7 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
             # grab all the extensions of the ImageItem subclasses
             {
                 ext
-                for ext, item_cls in ItemFactory.ITEM_CLASSES.items()
+                for ext, item_cls in Item.ITEM_CLASSES.items()
                 if issubclass(item_cls, ImageItem)
             },
         )
@@ -226,11 +218,11 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
         return len(self._samples)
 
     def get_sample(self, idx: int) -> Sample:
+        from pipelime.items import Item
+
         sample = self._samples[idx]
         if not isinstance(sample, Sample):
-            image_item = ItemFactory.get_instance(
-                sample, shared_item=False
-            )  # type: ignore
+            image_item = Item.get_instance(sample, shared_item=False)  # type: ignore
             sample = Sample({self.image_key: image_item})
             self._samples[idx] = sample
         return sample
