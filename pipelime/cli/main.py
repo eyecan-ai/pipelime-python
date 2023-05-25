@@ -92,7 +92,7 @@ def _process_cfg_or_die(
     verbose: bool,
     print_all: bool,
 ) -> t.List["XConfig"]:
-    from pipelime.cli.pretty_print import print_error, print_info
+    from pipelime.cli.pretty_print import print_error, print_info, print_warning
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
 
     if verbose:
@@ -111,6 +111,12 @@ def _process_cfg_or_die(
             )
             raise typer.Exit(1)
         raise e
+    except RecursionError:
+        print_error(f"Recursion detected while processing {cfg_name}!")
+        print_warning(
+            "Please check your context for self-references, eg, `myvar: $var(myvar)`."
+        )
+        raise typer.Exit(1)
 
     if verbose:
         pls = "s" if len(effective_configs) != 1 else ""
@@ -231,7 +237,7 @@ def pl_main(
             "all the arguments required by the command.\n\n"
             "`++opt` or `+opt` command line options update and override them.\n\n "
         ),
-        autocompletion=_complete_yaml,
+        # autocompletion=_complete_yaml,
     ),
     context: t.List[Path] = typer.Option(
         None,
@@ -252,7 +258,13 @@ def pl_main(
             "`@@opt` or `@opt` command line options update and override them.\n\n"
             "After a `//` token, `++opt` and `+opt` are accepted as well.\n\n "
         ),
-        autocompletion=_complete_yaml,
+        # autocompletion=_complete_yaml,
+    ),
+    keep_tmp: bool = typer.Option(
+        False,
+        "--keep-tmp",
+        "-t",
+        help="DO NOT remove temporary folders, if any, after running this command.",
     ),
     ctx_autoload: bool = typer.Option(
         True,
@@ -305,12 +317,12 @@ def pl_main(
             )
             + subc.get_help()
         ),
-        autocompletion=PipelimeSymbolsHelper.complete_name(
-            is_cmd=True,
-            is_seq_op=False,
-            is_stage=False,
-            additional_names=subc.get_autocompletions(),
-        ),
+        # autocompletion=PipelimeSymbolsHelper.complete_name(
+        #     is_cmd=True,
+        #     is_seq_op=False,
+        #     is_stage=False,
+        #     additional_names=subc.get_autocompletions(),
+        # ),
     ),
     command_args: t.Optional[t.List[str]] = typer.Argument(
         None,
@@ -544,6 +556,8 @@ def pl_main(
             effective_ctx = functools.reduce(
                 lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3), effective_ctx
             )
+            if output_ctx:
+                effective_ctx.save_to(output_ctx)
         else:
             effective_ctx = XConfig()
 
@@ -648,7 +662,7 @@ def pl_main(
                     cmd_name = next(iter(cfg_dict))
                     cfg_dict = next(iter(cfg_dict.values()))
 
-                run_command(cmd_name, cfg_dict, verbose, dry_run)
+                run_command(cmd_name, cfg_dict, verbose, dry_run, keep_tmp)
     else:
         from pipelime.cli.pretty_print import print_error
 
@@ -656,7 +670,9 @@ def pl_main(
         raise typer.Exit(1)
 
 
-def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
+def run_command(
+    command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool, keep_tmp: bool
+):
     """
     Run a pipelime command.
     """
@@ -664,8 +680,15 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
     import time
     from pydantic.error_wrappers import ValidationError
 
+    from pipelime.choixe.utils.io import PipelimeTmp
+    from pipelime.commands import TempCommand
+
     from pipelime.cli.pretty_print import print_info, print_command_outputs
-    from pipelime.cli.utils import get_pipelime_command_cls, time_to_str, show_field_alias_valerr
+    from pipelime.cli.utils import (
+        get_pipelime_command_cls,
+        time_to_str,
+        show_field_alias_valerr,
+    )
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
@@ -697,6 +720,10 @@ def run_command(command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool):
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)
+
+    if not keep_tmp and PipelimeTmp.SESSION_TMP_DIR:
+        print_info("\nCleaning temporary files...")
+        TempCommand(name=PipelimeTmp.SESSION_TMP_DIR.stem, force=True)()  # type: ignore
 
 
 def _create_typer_app(

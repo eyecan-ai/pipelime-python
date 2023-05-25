@@ -1,19 +1,14 @@
 import pytest
 import typing as t
 from pipelime.sequences import Sample
-from pipelime.items import UnknownItem
+from pipelime.items import UnknownItem, YamlMetadataItem
 
 
 class TestKeyStages:
     def _check_target_pred(self, target: Sample, pred: Sample):
-        assert all(
-            k in target and type(target[k]) == type(v) and target[k]() == v()
-            for k, v in pred.items()
-        )
-        assert all(
-            k in pred and type(pred[k]) == type(v) and pred[k]() == v()
-            for k, v in target.items()
-        )
+        from ... import TestAssert
+
+        TestAssert.samples_equal(target, pred)
 
     def test_remap_keep(self):
         from pipelime.stages import StageRemap
@@ -193,6 +188,61 @@ class TestKeyStages:
             stage(
                 Sample(
                     {"a": UnknownItem(10), "b": UnknownItem(20), "c": UnknownItem(30)}
+                )
+            ),
+        )
+
+    @pytest.mark.parametrize(
+        ("key_path", "value", "target_sample"),
+        [
+            (
+                "a.b",
+                "newv",
+                Sample(
+                    {
+                        "a": YamlMetadataItem({"b": "newv", "c": ["fourty two"]}),
+                        "d": UnknownItem(20),
+                    }
+                ),
+            ),
+            (
+                "a.c[2]",
+                [1, 2, 3],
+                Sample(
+                    {
+                        "a": YamlMetadataItem(
+                            {"b": 42, "c": ["fourty two", None, [1, 2, 3]]}
+                        ),
+                        "d": UnknownItem(20),
+                    }
+                ),
+            ),
+            (
+                "a.e.f",
+                {"g": True},
+                Sample(
+                    {
+                        "a": YamlMetadataItem(
+                            {"b": 42, "c": ["fourty two"], "e": {"f": {"g": True}}}
+                        ),
+                        "d": UnknownItem(20),
+                    }
+                ),
+            ),
+        ],
+    )
+    def test_set_meta(self, key_path, value, target_sample):
+        from pipelime.stages import StageSetMetadata
+
+        stage = StageSetMetadata(key_path=key_path, value=value)
+        self._check_target_pred(
+            target_sample,
+            stage(
+                Sample(
+                    {
+                        "a": YamlMetadataItem({"b": 42, "c": ["fourty two"]}),
+                        "d": UnknownItem(20),
+                    }
                 )
             ),
         )

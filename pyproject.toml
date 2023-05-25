@@ -45,12 +45,13 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic>=1.10",
+    "pydantic>=1.10.8,<2",
     "schema",
     "pyzmq",
     "dictquery",
     "minio",
     "requests",
+    "billiard",
 ]
 dynamic = [ "version" ]
 

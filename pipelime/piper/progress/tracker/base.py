@@ -1,3 +1,4 @@
+import shutil
 from abc import ABC, abstractmethod
 from itertools import count
 from typing import Iterable, Optional, Sequence, Union
@@ -81,6 +82,14 @@ class PiperTask(TrackedTask):
 
 class TqdmTask(TrackedTask):
     @staticmethod
+    def _tty_length():
+        return shutil.get_terminal_size((80, 20)).columns
+
+    @staticmethod
+    def _clip_message(msg: str, length: int) -> str:
+        return msg if len(msg) <= length else msg[: length - 3] + "..."
+
+    @staticmethod
     def default_bar(
         iterable=None,
         *,
@@ -92,12 +101,14 @@ class TqdmTask(TrackedTask):
     ):
         from tqdm import tqdm
 
+        tty_length = TqdmTask._tty_length()
         bar = tqdm(
             iterable,
             total=len(iterable) if total is None else total,  # type: ignore
             colour="#4CAE4F",
             position=position,
-            ncols=88 if ncols is None else (None if ncols <= 0 else ncols),
+            ncols=tty_length if ncols is None else (None if ncols <= 0 else ncols),
+            dynamic_ncols=ncols is None,
             bar_format=(
                 None
                 if bar_width is None
@@ -109,7 +120,17 @@ class TqdmTask(TrackedTask):
 
     @staticmethod
     def _set_description(bar, message: Optional[str]):
-        bar.set_description_str("🍋 " + message if message else "🍋")
+        # Hardcoded factor: the message will not be longer than the 40% of the
+        # TTY width. This should be appropriate for most cases.
+        factor = 0.4
+        maxlen = int(TqdmTask._tty_length() * factor)
+
+        # Format the message, adding emoji and clipping it if necessary
+        message = "🍋 " + message if message else "🍋"
+        message = TqdmTask._clip_message(message, maxlen)
+
+        # Set the description
+        bar.set_description_str(message)
 
     def __init__(
         self,
