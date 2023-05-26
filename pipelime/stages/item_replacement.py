@@ -3,7 +3,6 @@ import pickle
 import typing as t
 import pydantic as pyd
 
-from pipelime.items import Item
 from pipelime.stages import SampleStage
 from pipelime.utils.pydantic_types import ItemType, YamlInput
 
@@ -80,7 +79,7 @@ class StageSampleHash(SampleStage, title="sample-hash"):
         x = x.set_item(self.hash_key, YamlMetadataItem(hash))
         return x
 
-    def _compute_item_hash(self, item: Item) -> str:
+    def _compute_item_hash(self, item: t.Any) -> str:
         return hashlib.new(self.algorithm, pickle.dumps(item)).hexdigest()
 
     def _compute_sample_hash(self, sample: "Sample") -> str:

@@ -889,6 +889,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
 
     keys: t.Union[str, t.Sequence[str]] = pyd.Field(
         ...,
+        alias="k",
         description=(
             "The keys to use for comparison. All items selected must be equal to"
             "consider two samples as duplicates."
@@ -917,7 +918,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
 
             def __call__(self, sample):
                 sample_hash = sample[hash_key]()
-                sample.remove_keys(hash_key)
+                sample = sample.remove_keys(hash_key)
                 if sample_hash not in self.unique_hashes:
                     self.unique_hashes.add(sample_hash)
                     self.stream.set_output(self.curr_idx, sample)
@@ -933,7 +934,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
             keep_order=True,
             parent_cmd=self,
             sample_fn=writer_helper,
-            track_message=f"Filtering ({len(seq)} samples)",
+            track_message=f"Checking hashes ({len(seq)} samples)",
         )
 
     def _get_hash_key(self, keys: t.Sequence[str]) -> str:
