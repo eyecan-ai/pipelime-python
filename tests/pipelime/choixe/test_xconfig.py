@@ -1,5 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
+import typing as t
 
 import numpy as np
 import pytest
@@ -10,7 +11,7 @@ from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.io import load
 from pipelime.choixe.visitors import process, walk
 from pipelime.choixe.visitors.inspector import Inspection
-from pipelime.choixe.xconfig import XConfig
+from pipelime.choixe.xconfig import Choixe, XConfig
 
 
 class TestXConfig:
@@ -207,3 +208,77 @@ class TestXConfig:
         inspection = cfg.inspect()
         expected = Inspection(processed=True)
         assert inspection == expected
+
+
+@pytest.fixture(
+    params=[
+        None,
+        "aa",
+        0.52,
+        10,
+        True,
+        [1, "a", 2],
+        {"a": 1, "b": 2},
+        {"a": {"b": 10}},
+        {"a": {"b": [10, 20, 30]}},
+        (1, "a", 20),
+        {1, "a", 354, 0.42},
+        np.zeros((10, 10)),
+    ]
+)
+def choixe_data(request) -> t.Any:
+    return request.param
+
+
+class TestChoixe:
+    def test_init(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        assert view.data is choixe_data
+
+    def test_repr(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        assert repr(view) == f"Choixe(data={choixe_data})"
+
+    @pytest.mark.parametrize("cwd", [None, Path.cwd()])
+    def test_cwd(self, choixe_data: t.Any, cwd: Path):
+        view = Choixe(choixe_data, cwd=cwd)
+        assert view.cwd == cwd
+
+    def test_parse(self, choixe_data: t.Any, monkeypatch):
+        view = Choixe(choixe_data)
+        assert not DeepDiff(view.parse(), parse(view.data))
+
+    def test_walk(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        assert not DeepDiff(view.walk(), walk(parse(view.data)))
+
+    def test_process(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        assert not DeepDiff(view.process().data, process(parse(view.data))[0])
+
+    def test_process_all(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        assert not DeepDiff(
+            [x.data for x in view.process_all()], process(parse(view.data))
+        )
+
+    def test_inspect(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        inspection = view.inspect()
+        expected = Inspection(processed=True)
+        assert inspection == expected
+
+    def test_file_io(self, tmp_path: Path, choixe_plain_cfg: Path):
+        view = Choixe.from_file(choixe_plain_cfg)
+        save_path = tmp_path / "config.yml"
+        view.save_to(save_path)
+        re_view = Choixe.from_file(save_path)
+
+        assert re_view.cwd == save_path.parent
+        assert not DeepDiff(re_view.decode(), view.decode())
+
+    def test_copy(self, choixe_data: t.Any):
+        view = Choixe(choixe_data)
+        copy = view.copy()
+        assert not DeepDiff(view.data, copy.data)
+        assert view.cwd == copy.cwd
