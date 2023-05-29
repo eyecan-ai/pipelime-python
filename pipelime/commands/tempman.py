@@ -1,17 +1,11 @@
-import typing as t
 import datetime as dt
+import typing as t
 from enum import Enum
-from loguru import logger
 
-from pydantic import Field, ByteSize
+from loguru import logger
+from pydantic import ByteSize, Field
 
 from pipelime.piper import PipelimeCommand
-
-
-class FileTime(Enum):
-    CTIME = "ctime"
-    MTIME = "mtime"
-    ATIME = "atime"
 
 
 class SortBy(Enum):
@@ -81,18 +75,16 @@ class TempCommand(PipelimeCommand, title="tmp"):
 
     all: bool = Field(False, description="Clear all temporary folders")
 
-    file_time: FileTime = Field(
-        FileTime.ATIME, alias="t", description="File time to use"
-    )
     sort_by: SortBy = Field(
         SortBy.TIME, alias="s", description="Sort by name, size or time"
     )
 
     def run(self):
         import shutil
+
         from rich import print as rprint
-        from rich.rule import Rule
         from rich.prompt import Confirm
+        from rich.rule import Rule
 
         if (
             self.after is None
@@ -136,10 +128,10 @@ class TempCommand(PipelimeCommand, title="tmp"):
         from rich.rule import Rule
 
         from pipelime.choixe.utils.io import PipelimeTmp
-        from pipelime.cli.pretty_print import print_info, print_debug
+        from pipelime.cli.pretty_print import print_debug, print_info
 
         print_info(f"Temporary folder: {PipelimeTmp.base_dir()}")
-        print_debug(f"showing {self.file_time.value}", end="\n\n")
+        print_debug(f"showing last modification time", end="\n\n")
 
         for user, paths in PipelimeTmp.get_temp_dirs().items():
             grid, total_size = self._paths_table(paths)
@@ -149,6 +141,7 @@ class TempCommand(PipelimeCommand, title="tmp"):
 
     def _folders_to_delete(self):
         from pathlib import Path
+
         from pipelime.choixe.utils.io import PipelimeTmp
 
         if self.all:
@@ -201,6 +194,7 @@ class TempCommand(PipelimeCommand, title="tmp"):
     def _paths_table(self, paths: t.Sequence[str]):
         import time
         from pathlib import Path
+
         from rich.markup import escape
         from rich.table import Column, Table
 
@@ -241,21 +235,21 @@ class TempCommand(PipelimeCommand, title="tmp"):
 
         return grid, total_size
 
-    def _get_time(self, path: str):
-        import os
-
-        if self.file_time is FileTime.ATIME:
-            return os.path.getatime(path)
-        if self.file_time is FileTime.MTIME:
-            return os.path.getmtime(path)
-        return os.path.getctime(path)
-
     def _get_size(self, root_path: str):
+        return self._traverse(root_path, self._size_update, 0)
+
+    def _get_time(self, root_path: str):
+        return self._traverse(root_path, self._time_update, 0)
+
+    def _traverse(self, root_path: str, update_fn: t.Callable, total_init):
         import os
 
-        total_size = 0
+        total = total_init
         seen = set()
-        for dirpath, _, filenames in os.walk(root_path):
+        for dirpath, subdirs, filenames in os.walk(root_path):
+            if not subdirs and not filenames:
+                filenames = [dirpath]
+
             for f in filenames:
                 fp = os.path.join(dirpath, f)
                 try:
@@ -267,9 +261,15 @@ class TempCommand(PipelimeCommand, title="tmp"):
                     continue
 
                 seen.add(stat.st_ino)
-                total_size += stat.st_size
+                total = update_fn(fp, stat, total)
 
-        return total_size
+        return total
+
+    def _size_update(self, fp: str, stat, total):
+        return total + stat.st_size
+
+    def _time_update(self, fp: str, stat, total):
+        return max(total, stat.st_mtime)
 
     def _human_size(self, size, u=[" bytes", "KB", "MB", "GB", "TB", "PB", "EB"]):
         return str(size) + u[0] if size < 1024 else self._human_size(size >> 10, u[1:])
