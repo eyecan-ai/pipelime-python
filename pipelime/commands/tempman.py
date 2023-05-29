@@ -84,7 +84,6 @@ class TempCommand(PipelimeCommand, title="tmp"):
 
         from rich import print as rprint
         from rich.prompt import Confirm
-        from rich.rule import Rule
 
         if (
             self.after is None
@@ -104,9 +103,9 @@ class TempCommand(PipelimeCommand, title="tmp"):
         to_delete = self._folders_to_delete()
 
         if not self.force and to_delete:
-            grid, total_size = self._paths_table(to_delete)
-            rprint(Rule(title=f"Total clean up: {self._human_size(total_size)}"))
-            rprint(grid)
+            table, total_size = self._paths_table(to_delete)
+            table.title = f"\nTotal clean up: {self._human_size(total_size)}"
+            rprint(table)
             print("")
             if not Confirm.ask(
                 "Do you want to PERMANENTLY delete these folders?", default=False
@@ -125,18 +124,16 @@ class TempCommand(PipelimeCommand, title="tmp"):
     def show_usage(self):
         from rich import print as rprint
         from rich.markup import escape
-        from rich.rule import Rule
 
         from pipelime.choixe.utils.io import PipelimeTmp
-        from pipelime.cli.pretty_print import print_debug, print_info
+        from pipelime.cli.pretty_print import print_info
 
         print_info(f"Temporary folder: {PipelimeTmp.base_dir()}")
-        print_debug(f"showing last modification time", end="\n\n")
 
         for user, paths in PipelimeTmp.get_temp_dirs().items():
-            grid, total_size = self._paths_table(paths)
-            rprint(Rule(title=f"{escape(user)} ({self._human_size(total_size)})"))
-            rprint(grid)
+            table, total_size = self._paths_table(paths)
+            table.title = f"\n{escape(user)} ({self._human_size(total_size)})"
+            rprint(table)
             print("")
 
     def _folders_to_delete(self):
@@ -198,10 +195,10 @@ class TempCommand(PipelimeCommand, title="tmp"):
         from rich.markup import escape
         from rich.table import Column, Table
 
-        grid = Table.grid(
-            Column(overflow="fold"),
-            Column(overflow="fold"),
-            Column(overflow="fold"),
+        table = Table(
+            Column("Path", justify="center", overflow="fold"),
+            Column("Last Modification Time", justify="center", overflow="fold"),
+            Column("Size", justify="center", overflow="fold"),
             padding=(0, 5),
         )
 
@@ -227,13 +224,13 @@ class TempCommand(PipelimeCommand, title="tmp"):
         )
 
         for r in rows:
-            grid.add_row(
+            table.add_row(
                 f"[link={r[0].as_uri()}]{escape(r[0].stem)}[/link]",
                 escape(time.ctime(r[1])),
                 self._human_size(r[2]),
             )
 
-        return grid, total_size
+        return table, total_size
 
     def _get_size(self, root_path: str):
         return self._traverse(root_path, self._size_update, 0)
