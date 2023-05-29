@@ -298,6 +298,12 @@ def pl_main(
         resolve_path=True,
         help="Save final processed context to json/yaml.",
     ),
+    command_outputs: t.Optional[Path] = typer.Option(
+        None,
+        writable=True,
+        resolve_path=True,
+        help="Save command outputs to json/yaml.",
+    ),
     verbose: int = typer.Option(
         0,
         "--verbose",
@@ -662,7 +668,9 @@ def pl_main(
                     cmd_name = next(iter(cfg_dict))
                     cfg_dict = next(iter(cfg_dict.values()))
 
-                run_command(cmd_name, cfg_dict, verbose, dry_run, keep_tmp)
+                run_command(
+                    cmd_name, cfg_dict, verbose, dry_run, keep_tmp, command_outputs
+                )
     else:
         from pipelime.cli.pretty_print import print_error
 
@@ -671,7 +679,12 @@ def pl_main(
 
 
 def run_command(
-    command: str, cmd_args: t.Mapping, verbose: int, dry_run: bool, keep_tmp: bool
+    command: str,
+    cmd_args: t.Mapping,
+    verbose: int,
+    dry_run: bool,
+    keep_tmp: bool,
+    command_outputs: t.Optional[Path],
 ):
     """
     Run a pipelime command.
@@ -680,7 +693,7 @@ def run_command(
     import time
     from pydantic.error_wrappers import ValidationError
 
-    from pipelime.choixe.utils.io import PipelimeTmp
+    from pipelime.choixe.utils.io import PipelimeTmp, dump
     from pipelime.commands import TempCommand
 
     from pipelime.cli.pretty_print import print_info, print_command_outputs
@@ -720,6 +733,25 @@ def run_command(
 
     print_info(f"\n`{command}` outputs:")
     print_command_outputs(cmd_obj)
+
+    if command_outputs:
+
+        def _cvt_data(data):
+            if hasattr(data, "__piper_repr__"):
+                return data.__piper_repr__()
+            if isinstance(data, (bytes, str)):
+                return str(data)
+            if isinstance(data, Path):
+                return data.resolve().absolute().as_posix()
+            elif isinstance(data, t.Mapping):
+                return {k: _cvt_data(v) for k, v in data.items()}
+            elif isinstance(data, t.Sequence):
+                return [_cvt_data(v) for v in data]
+            return repr(data)
+
+        print_info(f"\nSaving command outputs to `{command_outputs}`")
+        outs = {k: _cvt_data(v) for k, v in cmd_obj.get_outputs().items()}
+        dump(outs, command_outputs)
 
     if not keep_tmp and PipelimeTmp.SESSION_TMP_DIR:
         print_info("\nCleaning temporary files...")
