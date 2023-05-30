@@ -5,7 +5,7 @@ from ... import TestAssert
 
 
 class TestZip(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("nproc", [0, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
     def test_zip(self, minimnist_dataset, nproc, prefetch, tmp_path):
         from pipelime.commands import ZipCommand

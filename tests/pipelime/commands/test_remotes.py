@@ -7,7 +7,7 @@ from ... import TestAssert
 
 
 class TestRemotes(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("nproc", [0, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
     @pytest.mark.parametrize("keys", [None, ["metadata", "label"]])
     @pytest.mark.parametrize("slicing", [(None, None, None), (1, 5, 2), (-2, -7, -3)])

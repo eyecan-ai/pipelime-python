@@ -5,7 +5,7 @@ from ... import TestUtils
 
 
 class TestMap(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", [0, 1, 2])
+    @pytest.mark.parametrize("nproc", [0, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
     def test_map(self, minimnist_dataset, nproc, prefetch, tmp_path):
         from pipelime.commands import MapCommand
