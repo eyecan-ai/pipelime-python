@@ -52,6 +52,7 @@ dependencies = [
     "minio",
     "requests",
     "billiard",
+    "textual",
 ]
 dynamic = [ "version" ]
 
