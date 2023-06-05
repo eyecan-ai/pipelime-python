@@ -61,6 +61,7 @@ draw = ["pygraphviz"]
 tests = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
 ]
 dev = [
     "pylama",
