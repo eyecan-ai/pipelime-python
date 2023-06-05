@@ -1,9 +1,11 @@
 import typing as t
+
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
-from pipelime.piper import PipelimeCommand, PiperPortType
+import pipelime.sequences as pls
 import pipelime.utils.pydantic_types as pl_types
+from pipelime.piper import PipelimeCommand, PiperPortType
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -860,3 +862,92 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
             parent_cmd=self,
             track_message=f"Setting metadata ({len(seq)} samples)",
         )
+
+
+class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
+    """Filter duplicated samples based on the hash of a set of items."""
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    algorithm: str = pyd.Field(
+        "sha256",
+        description=(
+            "The hashing algorithm from `hashlib` to use. Only algorithms that"
+            "do not require parameters are supported."
+        ),
+    )
+
+    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
+        ...,
+        alias="k",
+        description=(
+            "The keys to use for comparison. All items selected must be equal to"
+            "consider two samples as duplicates."
+        ),
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    def run(self):
+        from pipelime.stages import StageSampleHash
+
+        seq = self.input.create_reader()
+        hash_key = self._get_hash_key(list(seq[0].keys()))
+        keys = [self.keys] if isinstance(self.keys, str) else self.keys
+        stage = StageSampleHash(algorithm=self.algorithm, keys=keys, hash_key=hash_key)
+        seq = seq.map(stage)
+
+        # multi-processing friendly filtering
+        class _WriterHelper:
+            def __init__(self, output_pipe):
+                self.stream = pls.DataStream(output_pipe=output_pipe)
+                self.curr_idx = 0
+                self.unique_hashes = set()
+
+            def __call__(self, sample):
+                sample_hash = sample[hash_key]()
+                sample = sample.remove_keys(hash_key)
+                if sample_hash not in self.unique_hashes:
+                    self.unique_hashes.add(sample_hash)
+                    self.stream.set_output(self.curr_idx, sample)
+                    self.curr_idx += 1
+
+        if self.output.zfill is None:
+            self.output.zfill = seq.best_zfill()
+        writer_helper = _WriterHelper(output_pipe=self.output.as_pipe())
+
+        # filter out samples that have a hash that appears more than once
+        self.grabber.grab_all(
+            seq,
+            keep_order=True,
+            parent_cmd=self,
+            sample_fn=writer_helper,
+            track_message=f"Checking hashes ({len(seq)} samples)",
+        )
+
+    def _get_hash_key(self, keys: t.Sequence[str]) -> str:
+        """Get a key that has no conflict with the given keys.
+
+        Args:
+            keys (t.Sequence[str]): the keys of the samples
+
+        Returns:
+            str: the hash key
+        """
+        key = "hash"
+        while True:
+            if key not in keys:
+                return key
+            key += "_"
