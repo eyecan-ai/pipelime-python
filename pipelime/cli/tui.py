@@ -16,15 +16,19 @@ class TuiApp(App[Dict[str, str]]):
         ("ctrl+c", "ctrl_c", ""),
     ]
 
-    def __init__(self, cmd: Type[PipelimeCommand], cmd_args: Dict[str, str]) -> None:
+    def __init__(
+        self,
+        cmd_cls: Type[PipelimeCommand],
+        cmd_args: Dict[str, str],
+    ) -> None:
         """Create a new TUI app.
 
         Args:
-            cmd: The pipelime command.
+            cmd_cls: The pipelime command class.
             cmd_args: The args provided by the user (if any).
         """
         super().__init__()
-        self.cmd_schema = cmd.schema(by_alias=False)
+        self.cmd_schema = cmd_cls.schema(by_alias=False)
         self.cmd_args = self.init_args(cmd_args)
         self.inputs: Dict[str, Input] = {}
 
@@ -70,7 +74,12 @@ class TuiApp(App[Dict[str, str]]):
         if title:
             labels.append(Label(title, classes="title-label"))
         if description:
-            description = fill(description, width=79, replace_whitespace=False)
+            description = fill(
+                description,
+                width=79,
+                replace_whitespace=False,
+                tabsize=4,
+            )
             labels.append(Label(description, classes="title-label"))
         return labels
 
@@ -91,7 +100,12 @@ class TuiApp(App[Dict[str, str]]):
         labels = [Label(name, classes="field-label")]
         description = field_info.get("description", "")
         if description:
-            description = fill(description, width=79, replace_whitespace=False)
+            description = fill(
+                description,
+                width=79,
+                replace_whitespace=False,
+                tabsize=4,
+            )
             labels.append(Label(description))
 
         default = self.cmd_args[name]
