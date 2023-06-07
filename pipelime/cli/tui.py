@@ -2,6 +2,7 @@ from textwrap import fill
 from typing import Any, Dict, List, Tuple, Type
 
 from textual.app import App, ComposeResult
+from textual.keys import Keys
 from textual.widgets import Footer, Input, Label
 
 from pipelime.piper import PipelimeCommand
@@ -12,8 +13,8 @@ class TuiApp(App[Dict[str, str]]):
 
     CSS_PATH = "tui.css"
     BINDINGS = [
-        ("ctrl+n", "exit", "Confirm and exit"),
-        ("ctrl+c", "ctrl_c", ""),
+        (Keys.ControlN, "exit", "Confirm and exit"),
+        (Keys.ControlC, "ctrl_c", ""),
     ]
 
     def __init__(
