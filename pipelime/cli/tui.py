@@ -51,9 +51,9 @@ class TuiApp(App[Dict[str, str]]):
         for f in fields:
             alias = fields[f].get("title", "").lower()
             if f in cmd_args:
-                args[f] = cmd_args.pop(f)
+                args[f] = str(cmd_args.pop(f))
             elif alias.lower() in cmd_args:
-                args[f] = cmd_args.pop(alias)
+                args[f] = str(cmd_args.pop(alias))
             else:
                 default = fields[f].get("default", "")
                 args[f] = str(default)
