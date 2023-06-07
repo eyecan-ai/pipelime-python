@@ -1,9 +1,11 @@
 import typing as t
+
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
-from pipelime.piper import PipelimeCommand, PiperPortType
 import pipelime.utils.pydantic_types as pl_types
+from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.stages import StageInput
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -82,9 +84,10 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
     )
 
     def run(self):
-        import time
         import shutil
-        from pipelime.sequences import build_pipe, SamplesSequence
+        import time
+
+        from pipelime.sequences import SamplesSequence, build_pipe
 
         if self.input is None and self.operations is None:
             raise ValueError("No input dataset or operation defined.")
@@ -176,7 +179,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         return v
 
     def run(self):
-        from pipelime.sequences import build_pipe, SamplesSequence
+        from pipelime.sequences import SamplesSequence, build_pipe
 
         seq = SamplesSequence if self.input is None else self.input.create_reader()
         seq = build_pipe(self.operations.value, seq)  # type: ignore
@@ -583,7 +586,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 class MapCommand(PipelimeCommand, title="map"):
     """Apply a stage on a dataset."""
 
-    stage: t.Union[str, t.Mapping[str, t.Mapping[str, t.Any]]] = pyd.Field(
+    stage: StageInput = pyd.Field(
         ...,
         alias="s",
         description=(
