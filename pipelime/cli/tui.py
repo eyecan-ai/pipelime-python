@@ -1,9 +1,14 @@
+import json
+from ast import literal_eval
+from json import JSONDecodeError
 from textwrap import fill
 from typing import Any, Dict, List, Tuple, Type
 
+import yaml
 from textual.app import App, ComposeResult
 from textual.keys import Keys
 from textual.widgets import Footer, Input, Label
+from yaml.error import YAMLError
 
 from pipelime.piper import PipelimeCommand
 
@@ -139,7 +144,21 @@ class TuiApp(App[Dict[str, str]]):
         Collect the values from the input boxes and exit the TUI.
         """
         for inp in self.inputs:
-            self.cmd_args[inp] = self.inputs[inp].value
+            value = self.inputs[inp].value
+
+            if value:
+                parse_fns = [yaml.safe_load, json.loads, literal_eval]
+                parsed = False
+
+                while not parsed and parse_fns:
+                    try:
+                        value = parse_fns.pop(0)(value)
+                        parsed = True
+                    except (YAMLError, JSONDecodeError, ValueError, SyntaxError):
+                        pass
+
+            self.cmd_args[inp] = value
+
         self.exit(self.cmd_args)
 
     def action_ctrl_c(self) -> None:
