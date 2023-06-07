@@ -1,3 +1,4 @@
+import asyncio
 from textwrap import fill
 from typing import Dict, cast
 
@@ -244,6 +245,17 @@ def test_create_field() -> None:
         assert description in cast(str, labels[1].render())
 
         assert input_.value == defaults[f]
+
+
+def test_tui_ctrl_c() -> None:
+    async def task() -> None:
+        app = TuiApp(FooCommand, {})
+        async with app.run_test() as pilot:
+            # press "ctrl+c" to abort
+            await pilot.press(Keys.ControlC)
+
+    with pytest.raises(KeyboardInterrupt):
+        asyncio.run(task())
 
 
 @pytest.mark.asyncio
