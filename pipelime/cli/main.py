@@ -711,7 +711,7 @@ def run_command(
 
     if is_tui_needed(cmd_cls, cmd_args):
         app = TuiApp(cmd_cls, cmd_args)
-        cmd_args = app.run()
+        cmd_args = t.cast(t.Mapping, app.run())
 
     if verbose > 2:
         print_info(f"\nCreating command `{command}` with options:")

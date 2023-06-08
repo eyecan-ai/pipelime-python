@@ -1,38 +1,44 @@
-import json
-from ast import literal_eval
-from json import JSONDecodeError
+from dataclasses import dataclass
 from textwrap import fill
-from typing import Any, Dict, List, Tuple, Type
+from typing import Dict, List, Mapping, Type
 
-import yaml
 from textual.app import App, ComposeResult
 from textual.keys import Keys
 from textual.widget import Widget
 from textual.widgets import Footer, Input, Label
-from yaml.error import YAMLError
 
 from pipelime.cli.tui.utils import (
     TuiField,
     init_field,
     init_stageinput_field,
     is_stageinput,
+    parse_value,
 )
 from pipelime.piper import PipelimeCommand
 
 
-class TuiApp(App[Dict[str, str]]):
+@dataclass(frozen=True)
+class Constants:
+    """Constants used by the TUI."""
+
+    MAX_WIDTH = 100
+    SUB_FIELD_MARGIN = (0, 0, 0, 4)
+
+
+class TuiApp(App[Mapping]):
     """A Textual app to handle Pipelime configurations."""
 
     CSS_PATH = "tui.css"
     BINDINGS = [
-        (Keys.ControlN, "exit", "Confirm and exit"),
-        (Keys.ControlC, "ctrl_c", ""),
+        (Keys.ControlN, "exit", "Confirm"),
+        (Keys.ControlS, "save", "Save to file"),
+        (Keys.ControlC, "ctrl_c", "Abort"),
     ]
 
     def __init__(
         self,
         cmd_cls: Type[PipelimeCommand],
-        cmd_args: Dict[str, str],
+        cmd_args: Mapping,
     ) -> None:
         """Create a new TUI app.
 
@@ -45,37 +51,36 @@ class TuiApp(App[Dict[str, str]]):
         self.fields = self.init_fields(cmd_args)
         self.inputs: Dict[str, Input] = {}
 
-    def init_fields(self, cmd_args: Dict[str, Any]) -> Dict[str, TuiField]:
-        """Initialize the command fields.
+    def init_fields(self, cmd_args: Mapping) -> Dict[str, TuiField]:
+        """Initialize the TUI fields.
 
-        Look inside the command schema to find the required fields,
-        populating them with the default values or the ones provided
-        by the user.
+        Look inside the command schema to find the fields, populating
+        them with the default values or the ones provided by the user.
 
         Args:
             cmd_args: The args provided by the user (if any).
 
         Returns:
-            The command fields possibly initialized with default values.
+            The TUI fields possibly initialized with default values.
         """
-        args = {}
+        tui_fields = {}
 
         fields = self.cmd_schema["properties"]
         for f in fields:
             field_info = fields[f]
 
             if is_stageinput(field_info):
-                args[f] = init_stageinput_field(f, field_info, cmd_args)
+                tui_fields[f] = init_stageinput_field(f, field_info, cmd_args)
             else:
-                args[f] = init_field(f, field_info, cmd_args)
+                tui_fields[f] = init_field(f, field_info, cmd_args)
 
-        return args
+        return tui_fields
 
     def create_title(self) -> List[Label]:
         """Create the title label using the command title and description.
 
         Returns:
-            A list of labels for the tile.
+            A list of labels for the title.
         """
         title = self.cmd_schema.get("title", "")
         description = self.cmd_schema.get("description", "")
@@ -85,7 +90,7 @@ class TuiApp(App[Dict[str, str]]):
         if description:
             description = fill(
                 description,
-                width=79,
+                width=Constants.MAX_WIDTH,
                 replace_whitespace=False,
                 tabsize=4,
             )
@@ -93,13 +98,13 @@ class TuiApp(App[Dict[str, str]]):
         return labels
 
     def create_simple_field(self, field: TuiField) -> List[Widget]:
-        """Create labels and input box for a field.
+        """Create labels and input box for a simple field.
 
         Args:
             field: The field.
 
         Returns:
-            A tuple containing the labels and the input box.
+            A list of widgets containing the labels and the input box.
         """
         widgets: List[Widget] = [Label(field.title, classes="field-label")]
 
@@ -107,7 +112,7 @@ class TuiApp(App[Dict[str, str]]):
         if description:
             description = fill(
                 description,
-                width=79,
+                width=Constants.MAX_WIDTH,
                 replace_whitespace=False,
                 tabsize=4,
             )
@@ -121,13 +126,13 @@ class TuiApp(App[Dict[str, str]]):
         return widgets
 
     def create_dict_field(self, field: TuiField) -> List[Widget]:
-        """Create labels and input box for a dictionary field.
+        """Create labels and input boxes for a dictionary field.
 
         Args:
-            field_name: The name of the field.
+            field: The dictionary field.
 
         Returns:
-            A tuple containing the labels and the input box.
+            A list with all the needed widgets.
         """
         widgets: List[Widget] = [Label(field.title, classes="field-label")]
 
@@ -135,33 +140,35 @@ class TuiApp(App[Dict[str, str]]):
         if description:
             description = fill(
                 description,
-                width=79,
+                width=Constants.MAX_WIDTH,
                 replace_whitespace=False,
                 tabsize=4,
             )
             widgets.append(Label(description))
 
-        for f in field.value:
-            f_widgets = self.create_simple_field(f)
-            for f_widget in f_widgets:
-                f_widget.styles.margin = (0, 0, 0, 2)
-                widgets.append(f_widget)
-            # self.inputs[field.title] = inp
+        for sub_field in field.values:
+            sub_widgets = self.create_simple_field(sub_field)
+            for widget in sub_widgets:
+                widget.styles.margin = Constants.SUB_FIELD_MARGIN
+                widgets.append(widget)
 
         return widgets
 
     def compose(self) -> ComposeResult:
         """Compose the TUI."""
+
         title_labels = self.create_title()
         for label in title_labels:
             yield label
         yield Label(" ")
 
         for f in self.fields:
-            if self.fields[f].simple:
-                widgets = self.create_simple_field(self.fields[f])
+            field = self.fields[f]
+
+            if field.simple:
+                widgets = self.create_simple_field(field)
             else:
-                widgets = self.create_dict_field(self.fields[f])
+                widgets = self.create_dict_field(field)
 
             for widget in widgets:
                 yield widget
@@ -174,24 +181,28 @@ class TuiApp(App[Dict[str, str]]):
 
         Collect the values from the input boxes and exit the TUI.
         """
-        for inp in self.inputs:
-            value = self.inputs[inp].value
+        cmd_args = {}
 
-            if value:
-                parse_fns = [yaml.safe_load, json.loads, literal_eval]
-                parsed = False
+        for f in self.fields:
+            field = self.fields[f]
 
-                while not parsed and parse_fns:
-                    try:
-                        value = parse_fns.pop(0)(value)
-                        parsed = True
-                    except (YAMLError, JSONDecodeError, ValueError, SyntaxError):
-                        pass
+            if field.simple:
+                value = parse_value(self.inputs[field.title].value)
+                cmd_args[f] = value
+            else:
+                cmd_args[f] = {field.title: {}}
+                for sub_f in field.values:
+                    value = parse_value(self.inputs[sub_f.title].value)
+                    cmd_args[f][field.title][sub_f.title] = value
 
-            self.cmd_args[inp] = value
+        self.exit(cmd_args)
 
-        self.exit(self.cmd_args)
+    def action_save(self) -> None:
+        """Save the current configuration."""
+
+        pass
 
     def action_ctrl_c(self) -> None:
         """Propagate the KeyboardInterrupt exception."""
+
         raise KeyboardInterrupt
