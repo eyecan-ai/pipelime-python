@@ -1,10 +1,12 @@
 import json
 from ast import literal_eval
+from enum import Enum
 from json import JSONDecodeError
-from typing import Any, List, Mapping, Tuple, Type, cast
+from typing import Any, List, Mapping, Optional, Tuple, Type, cast
 
 import yaml
 from pydantic import BaseModel
+from pydantic.fields import ModelField
 from yaml.error import YAMLError
 
 from pipelime.cli.utils import PipelimeSymbolsHelper
@@ -13,8 +15,8 @@ from pipelime.stages import SampleStage, StageInput
 
 
 class TuiField(BaseModel):
-    title: str
-    description: str
+    name: str
+    description: Optional[str]
     value: str = ""
     values: List["TuiField"] = []
     type_: str
@@ -33,23 +35,18 @@ def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
     Returns:
         True if the TUI is needed, False otherwise.
     """
-    schema = cmd_cls.schema(by_alias=False)
+    for field in cmd_cls.__fields__.values():
+        name = field.name
+        alias = field.alias
+        required = field.required
 
-    required = schema.get("required", [])
-    fields = schema["properties"]
-    required_fields = [f for f in fields if f in required]
-
-    for f in required_fields:
-        field_info = fields[f]
-        alias = field_info.get("title", "").lower()
-
-        if (f not in cmd_args) and (alias not in cmd_args):
+        if (name not in cmd_args) and (alias not in cmd_args) and required:
             # if required and not present, return True
             return True
 
         # if present, check if it's a StageInput
-        if is_stageinput(field_info):
-            stage_input_args = cmd_args.get(f, cmd_args[alias])
+        if field.type_ == StageInput:
+            stage_input_args = cmd_args.get(name, cmd_args[alias])
 
             if isinstance(stage_input_args, Mapping):
                 stage_name = list(stage_input_args.keys())[0]
@@ -83,93 +80,69 @@ def are_stageinput_args_present(
     Returns:
         True if the StageInput required args are present, False otherwise.
     """
-    schema = stage_cls.schema(by_alias=False)
-    required = schema.get("required", [])
-    fields = schema["properties"]
-    required_fields = [f for f in fields if f in required]
+    for field in stage_cls.__fields__.values():
+        name = field.name
+        alias = field.alias
+        required = field.required
 
-    for f in required_fields:
-        alias = fields[f].get("title", "").lower()
-        if (f not in stage_args) and (alias not in stage_args):
+        if (name not in stage_args) and (alias not in stage_args) and required:
+            # if required and not present, return True
             return True
 
     return False
 
 
-def is_stageinput(field_info: Mapping) -> bool:
-    """Check if the field is a StageInput.
-
-    Args:
-        field_info: The field info from the parent schema.
-
-    Returns:
-        True if the field is a StageInput, False otherwise.
-    """
-    field_types = [field.get("$ref", "") for field in field_info.get("allOf", [])]
-    return any([StageInput.__name__ in ft for ft in field_types])
-
-
-def init_field(field_name: str, field_info: Mapping, cmd_args: Mapping) -> TuiField:
+def init_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     """Initialize a TuiField.
 
     Args:
-        field_name: The field name.
-        field_info: The field info from the parent schema.
+        field: The field from the parent pydantic model.
         cmd_args: The args provided by the user (if any).
 
     Returns:
         The initialized TuiField.
     """
-    alias = field_info.get("title", "").lower()
-    if field_name in cmd_args:
-        value = str(cmd_args[field_name])
-    elif alias in cmd_args:
-        value = str(cmd_args[alias])
+    if field.name in cmd_args:
+        value = str(cmd_args[field.name])
+    elif field.alias in cmd_args:
+        value = str(cmd_args[field.alias])
     else:
-        default = field_info.get("default", "")
-        value = str(default)
+        field_default = field.get_default()
+        if isinstance(field_default, Enum):
+            field_default = field_default.value
+        value = str(field_default)
 
-    description = field_info.get("description", "")
-
-    field = TuiField(
-        title=field_name,
-        description=description,
+    tui_field = TuiField(
+        name=field.name,
+        description=field.field_info.description,
         value=value,
-        type_="str",
+        type_=str(field.type_),
         simple=True,
     )
-    return field
+    return tui_field
 
 
-def init_stageinput_field(
-    field_name: str,
-    field_info: Mapping,
-    cmd_args: Mapping,
-) -> TuiField:
+def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     """Initialize a TuiField for a StageInput.
 
     Args:
-        field_name: The field name.
-        field_info: The field info from the parent schema.
+        field: The field from the parent pydantic model.
         cmd_args: The args provided by the user (if any).
 
     Returns:
         The initialized TuiField.
     """
-    alias = field_info.get("title", "").lower()
-
-    if (field_name not in cmd_args) and (alias not in cmd_args):
-        description = field_info.get("description", "")
-        field = TuiField(
-            title=field_name,
-            description=description,
+    if (field.name not in cmd_args) and (field.alias not in cmd_args):
+        tui_field = TuiField(
+            name=field.name,
+            description=field.field_info.description,
             value="",
-            type_="str",
+            type_=str(field.type_),
             simple=True,
         )
-        return field
+        return tui_field
 
-    stage_input_args = cmd_args.get(field_name, cmd_args[alias])
+    stage_input_args = cmd_args.get(field.name, cmd_args[field.alias])
     if isinstance(stage_input_args, Mapping):
         stage_name = list(stage_input_args.keys())[0]
         stage_args = cast(Mapping, stage_input_args[stage_name])
@@ -180,22 +153,19 @@ def init_stageinput_field(
     stage_info = PipelimeSymbolsHelper.get_stage(stage_name)
     stage_info = cast(Tuple[str, str, Type[SampleStage]], stage_info)
     stage_cls = stage_info[-1]
-    schema = stage_cls.schema(by_alias=False)
-    stage_fields = schema["properties"]
 
-    fields = []
-    for f in stage_fields:
-        field_info = stage_fields[f]
-        fields.append(init_field(f, field_info, stage_args))
+    tui_fields = []
+    for field in stage_cls.__fields__.values():
+        tui_fields.append(init_tui_field(field, stage_args))
 
-    field = TuiField(
-        title=stage_name,
+    tui_field = TuiField(
+        name=stage_name,
         description="",
-        values=fields,
+        values=tui_fields,
         type_="",
         simple=False,
     )
-    return field
+    return tui_field
 
 
 def parse_value(s: str) -> Any:

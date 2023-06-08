@@ -9,12 +9,12 @@ from textual.widgets import Footer, Input, Label
 
 from pipelime.cli.tui.utils import (
     TuiField,
-    init_field,
-    init_stageinput_field,
-    is_stageinput,
+    init_stageinput_tui_field,
+    init_tui_field,
     parse_value,
 )
 from pipelime.piper import PipelimeCommand
+from pipelime.stages import StageInput
 
 
 @dataclass(frozen=True)
@@ -47,14 +47,14 @@ class TuiApp(App[Mapping]):
             cmd_args: The args provided by the user (if any).
         """
         super().__init__()
-        self.cmd_schema = cmd_cls.schema(by_alias=False)
+        self.cmd_cls = cmd_cls
         self.fields = self.init_fields(cmd_args)
         self.inputs: Dict[str, Input] = {}
 
     def init_fields(self, cmd_args: Mapping) -> Dict[str, TuiField]:
         """Initialize the TUI fields.
 
-        Look inside the command schema to find the fields, populating
+        Look inside the command pydantic model to find the fields, populating
         them with the default values or the ones provided by the user.
 
         Args:
@@ -65,14 +65,11 @@ class TuiApp(App[Mapping]):
         """
         tui_fields = {}
 
-        fields = self.cmd_schema["properties"]
-        for f in fields:
-            field_info = fields[f]
-
-            if is_stageinput(field_info):
-                tui_fields[f] = init_stageinput_field(f, field_info, cmd_args)
+        for field in self.cmd_cls.__fields__.values():
+            if field.type_ == StageInput:
+                tui_fields[field.name] = init_stageinput_tui_field(field, cmd_args)
             else:
-                tui_fields[f] = init_field(f, field_info, cmd_args)
+                tui_fields[field.name] = init_tui_field(field, cmd_args)
 
         return tui_fields
 
@@ -82,8 +79,8 @@ class TuiApp(App[Mapping]):
         Returns:
             A list of labels for the title.
         """
-        title = self.cmd_schema.get("title", "")
-        description = self.cmd_schema.get("description", "")
+        title = self.cmd_cls.command_title()
+        description = self.cmd_cls.__doc__
         labels = []
         if title:
             title = TuiApp.preprocess_string(title)
@@ -104,7 +101,7 @@ class TuiApp(App[Mapping]):
         """
         widgets: List[Widget] = []
 
-        title = field.title + f" ({field.type_})"
+        title = field.name + f" ({field.type_})"
         title = TuiApp.preprocess_string(title)
         label = Label(title, classes="field-label")
         widgets.append(label)
@@ -117,7 +114,7 @@ class TuiApp(App[Mapping]):
         default = str(field.value)
         inp = Input(value=default)
         widgets.append(inp)
-        self.inputs[field.title] = inp
+        self.inputs[field.name] = inp
 
         return widgets
 
@@ -132,7 +129,7 @@ class TuiApp(App[Mapping]):
         """
         widgets: List[Widget] = []
 
-        title = field.title + f" ({field.type_})"
+        title = field.name + f" ({field.type_})"
         title = TuiApp.preprocess_string(title)
         label = Label(title, classes="field-label")
         widgets.append(label)
@@ -179,13 +176,13 @@ class TuiApp(App[Mapping]):
 
         for f, field in self.fields.items():
             if field.simple:
-                value = parse_value(self.inputs[field.title].value)
+                value = parse_value(self.inputs[field.name].value)
                 cmd_args[f] = value
             else:
-                cmd_args[f] = {field.title: {}}
+                cmd_args[f] = {field.name: {}}
                 for sub_f in field.values:
-                    value = parse_value(self.inputs[sub_f.title].value)
-                    cmd_args[f][field.title][sub_f.title] = value
+                    value = parse_value(self.inputs[sub_f.name].value)
+                    cmd_args[f][field.name][sub_f.name] = value
 
         self.exit(cmd_args)
 
