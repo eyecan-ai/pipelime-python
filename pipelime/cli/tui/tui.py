@@ -86,14 +86,10 @@ class TuiApp(App[Mapping]):
         description = self.cmd_schema.get("description", "")
         labels = []
         if title:
+            title = TuiApp.preprocess_string(title)
             labels.append(Label(title, classes="title-label"))
         if description:
-            description = fill(
-                description,
-                width=Constants.MAX_WIDTH,
-                replace_whitespace=False,
-                tabsize=4,
-            )
+            description = TuiApp.preprocess_string(description)
             labels.append(Label(description, classes="title-label"))
         return labels
 
@@ -106,16 +102,16 @@ class TuiApp(App[Mapping]):
         Returns:
             A list of widgets containing the labels and the input box.
         """
-        widgets: List[Widget] = [Label(field.title, classes="field-label")]
+        widgets: List[Widget] = []
+
+        title = field.title + f" ({field.type_})"
+        title = TuiApp.preprocess_string(title)
+        label = Label(title, classes="field-label")
+        widgets.append(label)
 
         description = field.description
         if description:
-            description = fill(
-                description,
-                width=Constants.MAX_WIDTH,
-                replace_whitespace=False,
-                tabsize=4,
-            )
+            description = TuiApp.preprocess_string(description)
             widgets.append(Label(description))
 
         default = str(field.value)
@@ -134,16 +130,16 @@ class TuiApp(App[Mapping]):
         Returns:
             A list with all the needed widgets.
         """
-        widgets: List[Widget] = [Label(field.title, classes="field-label")]
+        widgets: List[Widget] = []
+
+        title = field.title + f" ({field.type_})"
+        title = TuiApp.preprocess_string(title)
+        label = Label(title, classes="field-label")
+        widgets.append(label)
 
         description = field.description
         if description:
-            description = fill(
-                description,
-                width=Constants.MAX_WIDTH,
-                replace_whitespace=False,
-                tabsize=4,
-            )
+            description = TuiApp.preprocess_string(description)
             widgets.append(Label(description))
 
         for sub_field in field.values:
@@ -162,9 +158,7 @@ class TuiApp(App[Mapping]):
             yield label
         yield Label(" ")
 
-        for f in self.fields:
-            field = self.fields[f]
-
+        for field in self.fields.values():
             if field.simple:
                 widgets = self.create_simple_field(field)
             else:
@@ -183,9 +177,7 @@ class TuiApp(App[Mapping]):
         """
         cmd_args = {}
 
-        for f in self.fields:
-            field = self.fields[f]
-
+        for f, field in self.fields.items():
             if field.simple:
                 value = parse_value(self.inputs[field.title].value)
                 cmd_args[f] = value
@@ -206,3 +198,9 @@ class TuiApp(App[Mapping]):
         """Propagate the KeyboardInterrupt exception."""
 
         raise KeyboardInterrupt
+
+    @staticmethod
+    def preprocess_string(s: str) -> str:
+        s = fill(s, width=Constants.MAX_WIDTH, replace_whitespace=False, tabsize=4)
+        s = s.replace("[", "\[")
+        return s
