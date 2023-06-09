@@ -189,6 +189,7 @@ class DrawCommand(PiperGraphCommandBase, title="draw"):
     """Draws a pipelime DAG."""
 
     class DrawBackendChoice(Enum):
+        AUTO = "auto"
         GRAPHVIZ = "graphviz"
         MERMAID = "mermaid"
 
@@ -214,7 +215,7 @@ class DrawCommand(PiperGraphCommandBase, title="draw"):
         piper_port=PiperPortType.OUTPUT,
     )
     backend: DrawBackendChoice = Field(
-        DrawBackendChoice.GRAPHVIZ, alias="b", description="The graph backend to use."
+        DrawBackendChoice.AUTO, alias="b", description="The graph backend to use."
     )
     open: bool = Field(
         False,
@@ -269,6 +270,13 @@ class DrawCommand(PiperGraphCommandBase, title="draw"):
                 os.startfile(filename)
             else:  # linux variants #TODO: verify!
                 subprocess.call(("xdg-open", filename))
+
+        if self.backend == self.DrawBackendChoice.AUTO:
+            try:
+                import pygraphviz  # noqa: F401
+                self.backend = self.DrawBackendChoice.GRAPHVIZ
+            except ImportError:
+                self.backend = self.DrawBackendChoice.MERMAID
 
         graph = self.piper_graph
         drawer = NodesGraphDrawerFactory.create(self.backend.value)
