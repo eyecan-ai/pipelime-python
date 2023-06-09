@@ -110,13 +110,13 @@ def init_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
         field_default = field.get_default()
         if isinstance(field_default, Enum):
             field_default = field_default.value
-        value = str(field_default)
+        value = str(field_default) if field_default else ""
 
     tui_field = TuiField(
         name=field.name,
         description=field.field_info.description,
         value=value,
-        type_=str(field.type_),
+        type_=get_field_type(field),
         simple=True,
     )
     return tui_field
@@ -137,7 +137,7 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
             name=field.name,
             description=field.field_info.description,
             value="",
-            type_=str(field.type_),
+            type_=get_field_type(field),
             simple=True,
         )
         return tui_field
@@ -192,3 +192,21 @@ def parse_value(s: str) -> Any:
                 pass
 
     return value
+
+
+def get_field_type(field: ModelField) -> str:
+    """Get the type of a field.
+
+    Args:
+        field: The field from the parent pydantic model.
+
+    Returns:
+        The type of the field.
+    """
+    try:
+        type_ = field.type_.__name__
+    except AttributeError:
+        # happens with typing objects
+        type_ = str(field.type_).replace("typing.", "")
+
+    return type_

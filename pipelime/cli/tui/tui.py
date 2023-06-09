@@ -101,15 +101,14 @@ class TuiApp(App[Mapping]):
         """
         widgets: List[Widget] = []
 
-        title = field.name + f" ({field.type_})"
-        title = TuiApp.preprocess_string(title)
+        title = TuiApp.preprocess_string(field.name)
         label = Label(title, classes="field-label")
         widgets.append(label)
 
         description = field.description
-        if description:
-            description = TuiApp.preprocess_string(description)
-            widgets.append(Label(description))
+        descr = f"({field.type_}) {description}" if description else f"({field.type_})"
+        description = TuiApp.preprocess_string(descr)
+        widgets.append(Label(description))
 
         default = str(field.value)
         inp = Input(value=default)
