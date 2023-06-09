@@ -197,6 +197,19 @@ class TuiApp(App[Mapping]):
 
     @staticmethod
     def preprocess_string(s: str) -> str:
-        s = fill(s, width=Constants.MAX_WIDTH, replace_whitespace=False, tabsize=4)
-        s = s.replace("[", "\[")
-        return s
+        subs = s.split("\n")
+        preprocessed = ""
+
+        for sub in subs:
+            sub = fill(
+                sub,
+                width=Constants.MAX_WIDTH,
+                replace_whitespace=False,
+                tabsize=4,
+            )
+            sub = sub.replace("[", "\[")
+            preprocessed += sub + "\n"
+
+        preprocessed = preprocessed[:-1]
+
+        return preprocessed
