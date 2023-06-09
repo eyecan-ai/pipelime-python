@@ -1,7 +1,7 @@
 import pytest
 import typing as t
 from pydantic import Field
-from pipelime.piper import command, PipelimeCommand
+from pipelime.piper import command, PipelimeCommand, self_
 
 
 @command
@@ -63,10 +63,9 @@ def mixed_var(
     i: bool = False,
     **kwargs: int,
 ):
-    """asdfasdf
-    asdfasdfasdf
-    asdfasdfasdf
-    asdfasdfasdf
+    """A very long
+    description of
+    this command
     """
     print(a, b, c)
     print(d, e, f)
@@ -81,6 +80,12 @@ class MyType:
 def my_addup_func(a: int, b: int, c: t.Optional[MyType] = None):
     """This is a function that adds two numbers"""
     print(a + b)
+
+
+@command
+def bindme(self: PipelimeCommand, a: str = "a"):
+    assert self.command_name == "bindme"
+    assert self_() is self
 
 
 class TestCommandDecorator:
@@ -201,3 +206,8 @@ class TestCommandDecorator:
         self._type_error(my_addup_func, 1, 2, b=3)
         self._validation_error(my_addup_func, None, None, None)
         self._validation_error(my_addup_func, 1, 2, 3)
+
+    def test_bindme(self):
+        bindme()()
+        bindme("c")()
+        bindme(a="c")()
