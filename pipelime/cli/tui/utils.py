@@ -90,9 +90,9 @@ def are_stageinput_args_present(
 
         if (name not in stage_args) and (alias not in stage_args) and required:
             # if required and not present, return True
-            return True
+            return False
 
-    return False
+    return True
 
 
 def init_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
