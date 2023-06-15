@@ -160,7 +160,7 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
 
     tui_field = TuiField(
         name=stage_name,
-        description="",
+        description=stage_cls.__doc__,
         values=tui_fields,
         type_="",
         simple=False,
