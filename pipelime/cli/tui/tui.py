@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from textwrap import fill
 from typing import Dict, List, Mapping, Type
 
+import yaml
 from textual.app import App, ComposeResult
 from textual.keys import Keys
 from textual.widget import Widget
@@ -167,10 +168,11 @@ class TuiApp(App[Mapping]):
 
         yield Footer()
 
-    def action_exit(self) -> None:
-        """Exit the TUI.
+    def collect_cmd_args(self) -> Mapping:
+        """Collect the command args from the input boxes.
 
-        Collect the values from the input boxes and exit the TUI.
+        Returns:
+            The command args.
         """
         cmd_args = {}
 
@@ -184,11 +186,20 @@ class TuiApp(App[Mapping]):
                     value = parse_value(self.inputs[sub_f.name].value)
                     cmd_args[f][field.name][sub_f.name] = value
 
+        return cmd_args
+
+    def action_exit(self) -> None:
+        """Exit the TUI.
+
+        Collect the values from the input boxes and exit the TUI.
+        """
+        cmd_args = self.collect_cmd_args()
         self.exit(cmd_args)
 
     def action_save(self) -> None:
         """Save the current configuration."""
-        raise NotImplementedError
+        with open("config.yaml", "w") as f:
+            yaml.dump(self.collect_cmd_args(), f)
 
     def action_ctrl_c(self) -> None:
         """Propagate the KeyboardInterrupt exception."""
