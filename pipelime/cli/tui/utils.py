@@ -204,9 +204,9 @@ def get_field_type(field: ModelField) -> str:
         The type of the field.
     """
     try:
-        type_ = field.type_.__name__
+        type_ = field.annotation.__name__
     except AttributeError:
         # happens with typing objects
-        type_ = str(field.type_).replace("typing.", "")
+        type_ = str(field.annotation).replace("typing.", "")
 
     return type_
