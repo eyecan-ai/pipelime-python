@@ -33,6 +33,7 @@ class TuiApp(App[Mapping]):
         (Keys.ControlN, "exit", "Confirm"),
         (Keys.ControlS, "save", "Save to file"),
         (Keys.ControlC, "ctrl_c", "Abort"),
+        (Keys.ControlJ, "toggle_descriptions", "Show/hide descriptions"),
     ]
 
     def __init__(
@@ -50,6 +51,7 @@ class TuiApp(App[Mapping]):
         self.cmd_cls = cmd_cls
         self.fields = self.init_fields(cmd_args)
         self.inputs: Dict[str, Input] = {}
+        self.show_descriptions = False
 
     def init_fields(self, cmd_args: Mapping) -> Dict[str, TuiField]:
         """Initialize the TUI fields.
@@ -87,7 +89,7 @@ class TuiApp(App[Mapping]):
             labels.append(Label(title, classes="title-label"))
         if description:
             description = TuiApp.preprocess_string(description)
-            labels.append(Label(description, classes="title-label"))
+            labels.append(Label(description, classes="title-label description"))
         return labels
 
     def create_simple_field(self, field: TuiField) -> List[Widget]:
@@ -108,7 +110,7 @@ class TuiApp(App[Mapping]):
         description = field.description
         descr = f"({field.type_}) {description}" if description else f"({field.type_})"
         description = TuiApp.preprocess_string(descr)
-        widgets.append(Label(description))
+        widgets.append(Label(description, classes="description"))
 
         default = str(field.value)
         inp = Input(value=default)
@@ -128,7 +130,7 @@ class TuiApp(App[Mapping]):
         """
         widgets: List[Widget] = []
 
-        title = field.name + f" ({field.type_})"
+        title = field.name
         title = TuiApp.preprocess_string(title)
         label = Label(title, classes="field-label")
         widgets.append(label)
@@ -136,7 +138,7 @@ class TuiApp(App[Mapping]):
         description = field.description
         if description:
             description = TuiApp.preprocess_string(description)
-            widgets.append(Label(description))
+            widgets.append(Label(description, classes="description"))
 
         for sub_field in field.values:
             sub_widgets = self.create_simple_field(sub_field)
@@ -148,7 +150,6 @@ class TuiApp(App[Mapping]):
 
     def compose(self) -> ComposeResult:
         """Compose the TUI."""
-
         title_labels = self.create_title()
         for label in title_labels:
             yield label
@@ -187,16 +188,33 @@ class TuiApp(App[Mapping]):
 
     def action_save(self) -> None:
         """Save the current configuration."""
-
-        pass
+        raise NotImplementedError
 
     def action_ctrl_c(self) -> None:
         """Propagate the KeyboardInterrupt exception."""
-
         raise KeyboardInterrupt
+
+    def action_toggle_descriptions(self) -> None:
+        """Hide/show all the descriptions."""
+        self.show_descriptions = not self.show_descriptions
+        query = self.query(".description")
+        for widget in query:
+            widget.styles.height = "auto" if self.show_descriptions else 0
 
     @staticmethod
     def preprocess_string(s: str) -> str:
+        """Preprocess a string to be displayed in the TUI.
+
+        The input string is first split according to the newlines, then each
+        substring is wrapped to a maximum width and finally the square brackets
+        are escaped to avoid rich syntax.
+
+        Args:
+            s: The string to preprocess.
+
+        Returns:
+            The preprocessed string.
+        """
         subs = s.split("\n")
         preprocessed = ""
 

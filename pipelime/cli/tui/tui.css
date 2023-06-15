@@ -12,3 +12,7 @@
 .sub-field {
     margin: 0 0 0 4;
 }
+
+.description {
+    height: 0;
+}
