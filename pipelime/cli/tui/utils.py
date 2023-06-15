@@ -46,7 +46,10 @@ def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
 
         # if present, check if it's a StageInput
         if field.type_ == StageInput:
-            stage_input_args = cmd_args.get(name, cmd_args[alias])
+            if name in cmd_args:
+                stage_input_args = cmd_args.get(name)
+            else:
+                stage_input_args = cmd_args.get(alias)
 
             if isinstance(stage_input_args, Mapping):
                 stage_name = list(stage_input_args.keys())[0]
@@ -142,7 +145,11 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
         )
         return tui_field
 
-    stage_input_args = cmd_args.get(field.name, cmd_args[field.alias])
+    if field.name in cmd_args:
+        stage_input_args = cmd_args.get(field.name)
+    else:
+        stage_input_args = cmd_args.get(field.alias)
+
     if isinstance(stage_input_args, Mapping):
         stage_name = list(stage_input_args.keys())[0]
         stage_args = cast(Mapping, stage_input_args[stage_name])
