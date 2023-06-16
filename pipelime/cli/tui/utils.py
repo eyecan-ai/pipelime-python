@@ -230,14 +230,17 @@ def get_field_type(field: ModelField) -> str:
         # happens with typing objects
         type_ = str(field.annotation).replace("typing.", "")
 
-    if type_.startswith("Union["):
-        type_ = type_.replace("Union[", "")[:-1]
-        union_types = type_.split(", ")
-        type_ = ""
-        for union_type in union_types:
-            if "pipelime" in union_type:
-                union_type = union_type.split(".")[-1]
-            type_ += f"{union_type} | "
-        type_ = type_[:-3]
+    # replace common pipelime types
+    common_pipelime_types = {
+        "pipelime.piper.model.PipelimeCommand": "PipelimeCommand",
+        "pipelime.sequences.sample.Sample": "Sample",
+        "pipelime.stages.base.SampleStage": "SampleStage",
+        "pipelime.stages.base.StageInput": "StageInput",
+        "pipelime.commands.interfaces.InputDatasetInterface": "InputDatasetInterface",
+        "pipelime.commands.interfaces.OutputDatasetInterface": "OutputDatasetInterface",
+        "pipelime.commands.interfaces.GrabberInterface": "GrabberInterface",
+    }
+    for k, v in common_pipelime_types.items():
+        type_ = type_.replace(k, v)
 
     return type_
