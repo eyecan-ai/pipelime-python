@@ -9,10 +9,28 @@
     color: yellow;
 }
 
+.error-label {
+    color: red;
+    height: 0;
+}
+
 .sub-field {
     margin: 0 0 0 4;
 }
 
 .description {
     height: 0;
+    opacity: 0.5;
+}
+
+SaveScreen {
+    align: center middle;
+}
+
+#dialog {
+    padding: 0 1;
+    width: 60%;
+    height: auto;
+    border: thick $background 80%;
+    background: $surface;
 }

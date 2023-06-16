@@ -1,10 +1,13 @@
 from dataclasses import dataclass
+from pathlib import Path
 from textwrap import fill
-from typing import Dict, List, Mapping, Type
+from typing import Dict, List, Mapping, Type, cast
 
 import yaml
 from textual.app import App, ComposeResult
+from textual.containers import Container
 from textual.keys import Keys
+from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Footer, Input, Label
 
@@ -22,8 +25,63 @@ from pipelime.stages import StageInput
 class Constants:
     """Constants used by the TUI."""
 
-    MAX_WIDTH = 100
+    MAX_STRING_WIDTH = 100
     SUB_FIELD_MARGIN = (0, 0, 0, 4)
+
+
+class SaveScreen(ModalScreen):
+    BINDINGS = [
+        (Keys.ControlS, "confirm", "Confirm"),
+        (Keys.Escape, "cancel", "Cancel"),
+        (Keys.ControlC, "ctrl_c", "Abort"),
+    ]
+    HELP = "CTRL+S to confirm, ESC to cancel"
+
+    def __init__(self, config: Mapping) -> None:
+        """Create a new save screen.
+
+        Args:
+            config: The configuration to save.
+        """
+        super().__init__()
+        self.config = config
+
+    def compose(self) -> ComposeResult:
+        yield Container(
+            Label("Save path", classes="field-label"),
+            Input(""),
+            Label(SaveScreen.HELP),
+            Label("", classes="error-label"),
+            id="dialog",
+        )
+
+    def action_confirm(self) -> None:
+        """Confirm the save path."""
+        path = self.query_one(Input).value
+
+        try:
+            if Path(path).is_dir():
+                raise FileExistsError(f"'{path}' is a directory.")
+            elif Path(path).exists():
+                raise FileExistsError(f"'{path}' already exists.")
+
+            with open(path, "w") as f:
+                yaml.dump(self.config, f)
+            self.app.pop_screen()
+
+        except Exception as e:
+            error_label = self.query_one(".error-label")
+            error_label = cast(Label, error_label)
+            error_label.styles.height = "auto"
+            error_label.update(str(e))
+
+    def action_cancel(self) -> None:
+        """Cancel the save."""
+        self.app.pop_screen()
+
+    def action_ctrl_c(self) -> None:
+        """Propagate the KeyboardInterrupt exception."""
+        raise KeyboardInterrupt
 
 
 class TuiApp(App[Mapping]):
@@ -198,8 +256,8 @@ class TuiApp(App[Mapping]):
 
     def action_save(self) -> None:
         """Save the current configuration."""
-        with open("config.yaml", "w") as f:
-            yaml.dump(self.collect_cmd_args(), f)
+        save_screen = SaveScreen(self.collect_cmd_args())
+        self.push_screen(save_screen)
 
     def action_ctrl_c(self) -> None:
         """Propagate the KeyboardInterrupt exception."""
@@ -232,7 +290,7 @@ class TuiApp(App[Mapping]):
         for sub in subs:
             sub = fill(
                 sub,
-                width=Constants.MAX_WIDTH,
+                width=Constants.MAX_STRING_WIDTH,
                 replace_whitespace=False,
                 tabsize=4,
             )
