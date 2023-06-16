@@ -271,6 +271,11 @@ class TuiApp(App[Mapping]):
         for widget in query:
             widget.styles.height = "auto" if self.show_descriptions else 0
 
+        query = self.query(Input)
+        for widget in query:
+            if widget.has_focus:
+                widget.scroll_visible()
+
     @staticmethod
     def preprocess_string(s: str) -> str:
         """Preprocess a string to be displayed in the TUI.
