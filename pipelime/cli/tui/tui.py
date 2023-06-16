@@ -60,7 +60,9 @@ class SaveScreen(ModalScreen):
         path = self.query_one(Input).value
 
         try:
-            if Path(path).is_dir():
+            if path == "":
+                raise ValueError("Path cannot be empty.")
+            elif Path(path).is_dir():
                 raise FileExistsError(f"'{path}' is a directory.")
             elif Path(path).exists():
                 raise FileExistsError(f"'{path}' already exists.")
