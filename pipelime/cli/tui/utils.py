@@ -190,6 +190,9 @@ def parse_value(s: str) -> Any:
     value = s
 
     if len(value) > 0:
+        if value.lower() in ["none", "null", "nul"]:
+            return None
+
         parse_fns = [yaml.safe_load, json.loads, literal_eval]
         while parse_fns:
             try:
