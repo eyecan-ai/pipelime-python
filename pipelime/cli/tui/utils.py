@@ -15,13 +15,13 @@ from pipelime.stages import SampleStage, StageInput
 
 
 class TuiField(BaseModel):
+    simple: bool
     name: str
     description: str = ""
-    value: str = ""
-    values: List["TuiField"] = []
-    type_: str
-    simple: bool
     hint: str = ""
+    type_: str = ""
+    values: List["TuiField"] = []
+    value: str = ""
 
 
 def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
@@ -52,10 +52,12 @@ def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
             else:
                 stage_input_args = cmd_args.get(alias)
 
+            stage_name = ""
+            stage_args = {}
             if isinstance(stage_input_args, Mapping):
                 stage_name = list(stage_input_args.keys())[0]
                 stage_args = cast(Mapping, stage_input_args[stage_name])
-            else:
+            elif isinstance(stage_input_args, str):
                 stage_name = stage_input_args
                 stage_args = {}
 
@@ -96,12 +98,12 @@ def are_stageinput_args_present(
     return True
 
 
-def init_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
+def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
     """Initialize a TuiField.
 
     Args:
         field: The field from the parent pydantic model.
-        cmd_args: The args provided by the user (if any).
+        args: The args provided by the user (if any).
 
     Returns:
         The initialized TuiField.
@@ -109,27 +111,27 @@ def init_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     default = ""
     hint = ""
 
-    if field.name in cmd_args:
-        default = str(cmd_args[field.name])
-    elif field.alias in cmd_args:
-        default = str(cmd_args[field.alias])
+    if field.name in args:
+        default = str(args[field.name])
+    elif field.alias in args:
+        default = str(args[field.alias])
     else:
         field_default = field.get_default()
 
         if isinstance(field_default, BaseModel):
-            hint = str(field_default) if field_default else ""
+            hint = str(field_default)
         else:
             if isinstance(field_default, Enum):
                 field_default = field_default.value
-            default = str(field_default) if field_default else ""
+            default = str(field_default)
 
     tui_field = TuiField(
-        name=field.name,
-        description=field.field_info.description,
-        value=default,
-        type_=get_field_type(field),
         simple=True,
+        name=field.name,
+        description=str(field.field_info.description),
         hint=hint,
+        type_=get_field_type(field),
+        value=default,
     )
     return tui_field
 
@@ -146,11 +148,10 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     """
     if (field.name not in cmd_args) and (field.alias not in cmd_args):
         tui_field = TuiField(
-            name=field.name,
-            description=field.field_info.description,
-            value="",
-            type_=get_field_type(field),
             simple=True,
+            name=field.name,
+            description=str(field.field_info.description),
+            type_=get_field_type(field),
         )
         return tui_field
 
@@ -159,10 +160,12 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     else:
         stage_input_args = cmd_args.get(field.alias)
 
+    stage_name = ""
+    stage_args = {}
     if isinstance(stage_input_args, Mapping):
         stage_name = list(stage_input_args.keys())[0]
         stage_args = cast(Mapping, stage_input_args[stage_name])
-    else:
+    elif isinstance(stage_input_args, str):
         stage_name = stage_input_args
         stage_args = {}
 
@@ -175,11 +178,10 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
         tui_fields.append(init_tui_field(field, stage_args))
 
     tui_field = TuiField(
-        name=stage_name,
-        description=stage_cls.__doc__,
-        values=tui_fields,
-        type_="",
         simple=False,
+        name=stage_name,
+        description=str(stage_cls.__doc__),
+        values=tui_fields,
     )
     return tui_field
 
