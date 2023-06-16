@@ -204,7 +204,7 @@ def parse_value(s: str) -> Any:
         if value.lower() in ["none", "null", "nul"]:
             return None
 
-        parse_fns = [yaml.safe_load, json.loads, literal_eval]
+        parse_fns = [literal_eval, yaml.safe_load, json.loads]
         while parse_fns:
             try:
                 value = parse_fns.pop(0)(value)
