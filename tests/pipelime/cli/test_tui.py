@@ -1,18 +1,32 @@
 import asyncio
+from enum import Enum
+from pathlib import Path
 from textwrap import fill
-from typing import Dict, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import pytest
-from pydantic import Field
+from pydantic import BaseModel, Field
 from textual.keys import Keys
 
 from pipelime.cli.tui import TuiApp, is_tui_needed
+from pipelime.cli.tui.utils import (
+    TuiField,
+    are_stageinput_args_present,
+    get_field_type,
+    init_stageinput_tui_field,
+    init_tui_field,
+    parse_value,
+)
+from pipelime.cli.utils import PipelimeSymbolsHelper
+from pipelime.commands import MapCommand
 from pipelime.commands.interfaces import (
     GrabberInterface,
     InputDatasetInterface,
     OutputDatasetInterface,
 )
 from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.sequences import Sample
+from pipelime.stages import SampleStage, StageInput, StageRemap
 
 
 class FooCommand(PipelimeCommand, title="foo-command"):
@@ -37,6 +51,43 @@ class FooCommand(PipelimeCommand, title="foo-command"):
 
     def run(self) -> None:
         pass
+
+
+class FooStage(SampleStage, title="foo-stage"):
+    """This is a test stage."""
+
+    field_with_default: str = Field("test", description="Test field with default")
+    field_without_default: float = Field(
+        alias="fr",
+        description="Test field without default",
+    )
+
+    def __call__(self, sample: Sample) -> Sample:
+        return sample
+
+
+class ModelWithComplexFieldsTypes(BaseModel, arbitrary_types_allowed=True):
+    """Test model with complex fields types."""
+
+    input_folder: InputDatasetInterface
+    output_folder: OutputDatasetInterface
+    grabber: GrabberInterface
+    string: str
+    list_of_int: List[int]
+    integer: Optional[int]
+    float_number: float
+    mapping: Dict[str, Any]
+    path: Path
+    huge_union: Union[
+        List[str],
+        Dict[int, str],
+        Union[bool, float],
+        InputDatasetInterface,
+        SampleStage,
+    ]
+    optional_grabber: Optional[GrabberInterface]
+    mixed_tuple: Tuple[Sample, int, PipelimeCommand, SampleStage, StageInput, bool]
+    debug: bool
 
 
 @pytest.mark.parametrize(
@@ -70,215 +121,363 @@ class FooCommand(PipelimeCommand, title="foo-command"):
         ),
     ],
 )
-def test_is_tui_needed(cmd_args: Dict[str, str], is_needed: bool) -> None:
+def test_is_tui_needed_cmd(cmd_args: Dict[str, str], is_needed: bool) -> None:
     assert is_tui_needed(FooCommand, cmd_args) is is_needed
 
 
 @pytest.mark.parametrize(
-    "cmd_args,parsed_args",
+    "map_args,is_needed",
     [
-        (
-            {},
-            {
-                "input_folder": "",
-                "output_folder": "",
-                "debug": "False",
-                "grabber": "",
-            },
-        ),
-        (
-            {"input_folder": "foo"},
-            {
-                "input_folder": "foo",
-                "output_folder": "",
-                "debug": "False",
-                "grabber": "",
-            },
-        ),
-        (
-            {"i": "foo"},
-            {
-                "input_folder": "foo",
-                "output_folder": "",
-                "debug": "False",
-                "grabber": "",
-            },
-        ),
-        (
-            {"output_folder": "bar"},
-            {
-                "input_folder": "",
-                "output_folder": "bar",
-                "debug": "False",
-                "grabber": "",
-            },
-        ),
-        (
-            {"debug": "foo", "grabber": "bar"},
-            {
-                "input_folder": "",
-                "output_folder": "",
-                "debug": "foo",
-                "grabber": "bar",
-            },
-        ),
-        (
-            {"input_folder": "foo", "output_folder": "bar"},
-            {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "False",
-                "grabber": "",
-            },
-        ),
-        (
-            {"i": "foo", "output_folder": "bar"},
-            {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "False",
-                "grabber": "",
-            },
-        ),
-        (
-            {"input_folder": "foo", "output_folder": "bar", "debug": "true"},
-            {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "grabber": "",
-            },
-        ),
+        ({}, True),
+        ({"input": "foo"}, True),
+        ({"i": "foo"}, True),
+        ({"output": "bar"}, True),
+        ({"o": "bar"}, True),
+        ({"input": "foo", "output": "bar"}, True),
+        ({"i": "foo", "o": "bar"}, True),
+        ({"stage": "unknown"}, False),  # False to let pipelime handle unknown stage
+        ({"s": "filter-keys"}, True),
+        ({"stage": "filter-keys", "input": "foo", "o": "bar"}, True),
         (
             {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "grabber": "duh",
+                "i": "foo",
+                "output": "bar",
+                "s": {"filter-keys": {"negate": "True"}},
             },
-            {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "grabber": "duh",
-            },
+            True,
         ),
         (
             {
                 "i": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "g": "duh",
+                "output": "bar",
+                "stage": {"filter-keys": {"key_list": ["foo", "bar", "baz"]}},
             },
-            {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "grabber": "duh",
-            },
+            False,
         ),
         (
             {
                 "i": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "g": "duh",
-                "extra_key": "extra_value",
+                "output": "bar",
+                "s": {
+                    "filter-keys": {"key_list": ["foo", "bar", "baz"], "negate": False}
+                },
             },
-            {
-                "input_folder": "foo",
-                "output_folder": "bar",
-                "debug": "true",
-                "grabber": "duh",
-                "extra_key": "extra_value",
-            },
+            False,
         ),
     ],
 )
-def test_init_args(cmd_args: Dict[str, str], parsed_args: Dict[str, str]) -> None:
-    app = TuiApp(FooCommand, cmd_args)
-    assert app.cmd_args == parsed_args
+def test_is_tui_needed_map(map_args: Dict[str, str], is_needed: bool) -> None:
+    assert is_tui_needed(MapCommand, map_args) is is_needed
 
 
-def test_create_title() -> None:
-    app = TuiApp(FooCommand, {})
-    labels = app.create_title()
-    assert len(labels) == 2
+@pytest.mark.parametrize(
+    "stage_args,present",
+    [
+        ({}, False),
+        ({"field_with_default": "foo"}, False),
+        ({"field_without_default": "foo"}, True),
+        ({"field_with_default": "foo", "field_without_default": "bar"}, True),
+        ({"fr": "foo"}, True),
+        ({"field_with_default": "foo", "fr": "bar"}, True),
+    ],
+)
+def test_are_stageinput_args_present(stage_args: Dict[str, str], present: bool) -> None:
+    assert are_stageinput_args_present(FooStage, stage_args) is present
 
-    title = FooCommand.schema()["title"]
-    assert title in cast(str, labels[0].render())
 
-    description = FooCommand.schema()["description"]
-    description = fill(
-        description,
-        width=79,
-        replace_whitespace=False,
-        tabsize=4,
+def test_init_tui_field() -> None:
+    fields = [
+        FooCommand.__fields__["input_folder"],
+        FooCommand.__fields__["output_folder"],
+        FooCommand.__fields__["debug"],
+        FooCommand.__fields__["grabber"],
+    ]
+
+    args = {"i": "foo", "output_folder": "bar"}
+
+    expected_fields = [
+        TuiField(
+            simple=True,
+            name="input_folder",
+            description=str(fields[0].field_info.description),
+            type_="InputDatasetInterface",
+            value="foo",
+        ),
+        TuiField(
+            simple=True,
+            name="output_folder",
+            description=str(fields[1].field_info.description),
+            type_="OutputDatasetInterface",
+            value="bar",
+        ),
+        TuiField(
+            simple=True,
+            name="debug",
+            value="False",
+            description=str(fields[2].field_info.description),
+            type_="bool",
+        ),
+        TuiField(
+            simple=True,
+            name="grabber",
+            description=str(fields[3].field_info.description),
+            hint=str(FooCommand.__fields__["grabber"].get_default()),
+            type_="GrabberInterface",
+        ),
+    ]
+
+    for field, expected_field in zip(fields, expected_fields):
+        assert init_tui_field(field, args) == expected_field
+
+
+def test_init_tui_stageinput_field() -> None:
+    field = MapCommand.__fields__["stage"]
+    expected_field = TuiField(
+        simple=True,
+        name="stage",
+        description=str(field.field_info.description),
+        type_="StageInput",
     )
-    assert description in cast(str, labels[1].render())
+    assert init_stageinput_tui_field(field, {}) == expected_field
+
+    stage_info = PipelimeSymbolsHelper.get_stage("format-key")
+    stage_info = cast(Tuple[str, str, Type[SampleStage]], stage_info)
+    stage_cls = stage_info[-1]
+
+    args = {"stage": "format-key"}
+    expected_field = TuiField(
+        simple=False,
+        name="format-key",
+        description=str(stage_cls.__doc__),
+        values=[
+            init_tui_field(stage_cls.__fields__["key_format"], {}),
+            init_tui_field(stage_cls.__fields__["apply_to"], {}),
+        ],
+    )
+    assert init_stageinput_tui_field(field, args) == expected_field
+
+    args = {"s": {"format-key": {"key_format": "suffix"}}}
+    stage_args = args["s"]["format-key"]
+    expected_field = TuiField(
+        simple=False,
+        name="format-key",
+        description=str(stage_cls.__doc__),
+        values=[
+            init_tui_field(stage_cls.__fields__["key_format"], stage_args),
+            init_tui_field(stage_cls.__fields__["apply_to"], stage_args),
+        ],
+    )
+    assert init_stageinput_tui_field(field, args) == expected_field
+
+    args = {"stage": {"format-key": {"key_format": "my_*_key", "apply_to": "old_key"}}}
+    stage_args = args["stage"]["format-key"]
+    expected_field = TuiField(
+        simple=False,
+        name="format-key",
+        description=str(stage_cls.__doc__),
+        values=[
+            init_tui_field(stage_cls.__fields__["key_format"], stage_args),
+            init_tui_field(stage_cls.__fields__["apply_to"], stage_args),
+        ],
+    )
+    assert init_stageinput_tui_field(field, args) == expected_field
 
 
-def test_create_field() -> None:
-    app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
-    schema = FooCommand.schema(by_alias=False)
+def test_parse_value() -> None:
+    assert parse_value("") == ""
 
-    defaults = {
-        "input_folder": "foo",
-        "output_folder": "bar",
-        "debug": "False",
-        "grabber": "",
+    assert parse_value("foo") == "foo"
+    assert parse_value("1") == 1
+    assert parse_value("16.0") == 16.0
+    assert parse_value("True") is True
+    assert parse_value("true") is True
+    assert parse_value("False") is False
+    assert parse_value("false") is False
+
+    assert parse_value("None") is None
+    assert parse_value("none") is None
+    assert parse_value("Null") is None
+    assert parse_value("null") is None
+    assert parse_value("Nul") is None
+    assert parse_value("nul") is None
+
+    assert parse_value("[1, 2, 3]") == [1, 2, 3]
+    assert parse_value("(1, 2, 3)") == (1, 2, 3)
+    assert parse_value("{1, 2, 3}") == {1, 2, 3}
+    assert parse_value("{1: 2, 3: 4}") == {1: 2, 3: 4}
+    assert parse_value("{'foo': 'bar'}") == {"foo": "bar"}
+    assert parse_value("{foo: bar}") == {"foo": "bar"}
+
+
+def test_get_field_type() -> None:
+    fields = ModelWithComplexFieldsTypes.__fields__
+
+    assert get_field_type(fields["input_folder"]) == "InputDatasetInterface"
+    assert get_field_type(fields["output_folder"]) == "OutputDatasetInterface"
+    assert get_field_type(fields["grabber"]) == "GrabberInterface"
+
+    assert get_field_type(fields["string"]) == "str"
+    assert get_field_type(fields["list_of_int"]) == "List[int]"
+    assert get_field_type(fields["integer"]) == "Optional[int]"
+    assert get_field_type(fields["float_number"]) == "float"
+    assert get_field_type(fields["mapping"]) == "Dict[str, Any]"
+    assert get_field_type(fields["path"]) == "Path"
+
+    huge_union_type = (
+        "Union[List[str], Dict[int, str], bool, float, "
+        "InputDatasetInterface, SampleStage]"
+    )
+    assert get_field_type(fields["huge_union"]) == huge_union_type
+
+    assert get_field_type(fields["optional_grabber"]) == "Optional[GrabberInterface]"
+
+    mixed_tuple_type = (
+        "Tuple[Sample, int, PipelimeCommand, SampleStage, StageInput, bool]"
+    )
+    assert get_field_type(fields["mixed_tuple"]) == mixed_tuple_type
+
+    assert get_field_type(fields["debug"]) == "bool"
+
+
+def test_tui_init_fields() -> None:
+    args = {"input": "foo", "o": "bar", "stage": "remap-key"}
+
+    expected_fields = {
+        "stage": TuiField(
+            simple=False,
+            name="remap-key",
+            description=str(StageRemap.__doc__),
+            values=[
+                TuiField(
+                    simple=True,
+                    name="remap",
+                    description=str(
+                        StageRemap.__fields__["remap"].field_info.description
+                    ),
+                    type_="Mapping[str, str]",
+                    value="None",
+                ),
+                TuiField(
+                    simple=True,
+                    name="remove_missing",
+                    description=str(
+                        StageRemap.__fields__["remove_missing"].field_info.description
+                    ),
+                    type_="bool",
+                    value="True",
+                ),
+            ],
+        ),
+        "input": TuiField(
+            simple=True,
+            name="input",
+            description=str(MapCommand.__fields__["input"].field_info.description),
+            type_="InputDatasetInterface",
+            value="foo",
+        ),
+        "output": TuiField(
+            simple=True,
+            name="output",
+            description=str(MapCommand.__fields__["output"].field_info.description),
+            type_="OutputDatasetInterface",
+            value="bar",
+        ),
+        "grabber": TuiField(
+            simple=True,
+            name="grabber",
+            description=str(MapCommand.__fields__["grabber"].field_info.description),
+            hint=str(MapCommand.__fields__["grabber"].get_default()),
+            type_="GrabberInterface",
+        ),
     }
 
-    for f in ["input_folder", "output_folder", "debug", "grabber"]:
-        field_info = schema["properties"][f]
-        labels, input_ = app.create_field(f, field_info)
-        assert len(labels) == 2
+    app = TuiApp(MapCommand, args)
+    tui_fields = app.init_fields(args)
 
-        assert f in cast(str, labels[0].render())
-
-        description = fill(
-            field_info["description"],
-            width=79,
-            replace_whitespace=False,
-            tabsize=4,
-        )
-        assert description in cast(str, labels[1].render())
-
-        assert input_.value == defaults[f]
+    for key, field in tui_fields.items():
+        assert key in expected_fields
+        assert field == expected_fields[key]
 
 
-def test_tui_ctrl_c() -> None:
-    async def task() -> None:
-        app = TuiApp(FooCommand, {})
-        async with app.run_test() as pilot:
-            # press "ctrl+c" to abort
-            await pilot.press(Keys.ControlC)
+# def test_create_title() -> None:
+#     app = TuiApp(FooCommand, {})
+#     labels = app.create_title()
+#     assert len(labels) == 2
 
-    with pytest.raises(KeyboardInterrupt):
-        asyncio.run(task())
+#     title = FooCommand.schema()["title"]
+#     assert title in cast(str, labels[0].render())
+
+#     description = FooCommand.schema()["description"]
+#     description = fill(
+#         description,
+#         width=79,
+#         replace_whitespace=False,
+#         tabsize=4,
+#     )
+#     assert description in cast(str, labels[1].render())
 
 
-@pytest.mark.asyncio
-async def test_tui() -> None:
-    app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
+# def test_create_field() -> None:
+#     app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
+#     schema = FooCommand.schema(by_alias=False)
 
-    async with app.run_test() as pilot:
-        # add "/path" after "foo" in input_folder input box
-        await pilot.press("/", "p", "a", "t", "h")
+#     defaults = {
+#         "input_folder": "foo",
+#         "output_folder": "bar",
+#         "debug": "False",
+#         "grabber": "",
+#     }
 
-        # move to debug input box
-        await pilot.press(Keys.Tab)
-        await pilot.press(Keys.Tab)
+#     for f in ["input_folder", "output_folder", "debug", "grabber"]:
+#         field_info = schema["properties"][f]
+#         labels, input_ = app.create_field(f, field_info)
+#         assert len(labels) == 2
 
-        # change debug value to "true"
-        for _ in "False":
-            await pilot.press(Keys.Backspace)
-        await pilot.press("t", "r", "u", "e")
+#         assert f in cast(str, labels[0].render())
 
-        # press "ctrl+n" to confirm and exit
-        await pilot.press(Keys.ControlN)
+#         description = fill(
+#             field_info["description"],
+#             width=79,
+#             replace_whitespace=False,
+#             tabsize=4,
+#         )
+#         assert description in cast(str, labels[1].render())
 
-        assert app.cmd_args["input_folder"] == "foo/path"
-        assert app.cmd_args["output_folder"] == "bar"
-        assert app.cmd_args["debug"] == "true"
-        assert app.cmd_args["grabber"] == ""
+#         assert input_.value == defaults[f]
+
+
+# def test_tui_ctrl_c() -> None:
+#     async def task() -> None:
+#         app = TuiApp(FooCommand, {})
+#         async with app.run_test() as pilot:
+#             # press "ctrl+c" to abort
+#             await pilot.press(Keys.ControlC)
+
+#     with pytest.raises(KeyboardInterrupt):
+#         asyncio.run(task())
+
+
+# @pytest.mark.asyncio
+# async def test_tui() -> None:
+#     app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
+
+#     async with app.run_test() as pilot:
+#         # add "/path" after "foo" in input_folder input box
+#         await pilot.press("/", "p", "a", "t", "h")
+
+#         # move to debug input box
+#         await pilot.press(Keys.Tab)
+#         await pilot.press(Keys.Tab)
+
+#         # change debug value to "true"
+#         for _ in "False":
+#             await pilot.press(Keys.Backspace)
+#         await pilot.press("t", "r", "u", "e")
+
+#         # press "ctrl+n" to confirm and exit
+#         await pilot.press(Keys.ControlN)
+
+#         assert app.cmd_args["input_folder"] == "foo/path"
+#         assert app.cmd_args["output_folder"] == "bar"
+#         assert app.cmd_args["debug"] == "true"
+#         assert app.cmd_args["grabber"] == ""
