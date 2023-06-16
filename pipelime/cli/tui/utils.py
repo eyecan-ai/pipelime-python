@@ -2,7 +2,7 @@ import json
 from ast import literal_eval
 from enum import Enum
 from json import JSONDecodeError
-from typing import Any, List, Mapping, Optional, Tuple, Type, cast
+from typing import Any, List, Mapping, Tuple, Type, cast
 
 import yaml
 from pydantic import BaseModel
