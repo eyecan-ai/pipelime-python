@@ -16,11 +16,12 @@ from pipelime.stages import SampleStage, StageInput
 
 class TuiField(BaseModel):
     name: str
-    description: Optional[str]
+    description: str = ""
     value: str = ""
     values: List["TuiField"] = []
     type_: str
     simple: bool
+    hint: str = ""
 
 
 def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
@@ -105,22 +106,30 @@ def init_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     Returns:
         The initialized TuiField.
     """
+    default = ""
+    hint = ""
+
     if field.name in cmd_args:
-        value = str(cmd_args[field.name])
+        default = str(cmd_args[field.name])
     elif field.alias in cmd_args:
-        value = str(cmd_args[field.alias])
+        default = str(cmd_args[field.alias])
     else:
         field_default = field.get_default()
-        if isinstance(field_default, Enum):
-            field_default = field_default.value
-        value = str(field_default) if field_default else ""
+
+        if isinstance(field_default, BaseModel):
+            hint = str(field_default) if field_default else ""
+        else:
+            if isinstance(field_default, Enum):
+                field_default = field_default.value
+            default = str(field_default) if field_default else ""
 
     tui_field = TuiField(
         name=field.name,
         description=field.field_info.description,
-        value=value,
+        value=default,
         type_=get_field_type(field),
         simple=True,
+        hint=hint,
     )
     return tui_field
 

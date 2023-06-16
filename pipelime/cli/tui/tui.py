@@ -173,8 +173,7 @@ class TuiApp(App[Mapping]):
         description = TuiApp.preprocess_string(descr)
         widgets.append(Label(description, classes="description"))
 
-        default = str(field.value)
-        inp = Input(value=default)
+        inp = Input(value=field.value, placeholder=field.hint)
         widgets.append(inp)
         self.inputs[field.name] = inp
 
