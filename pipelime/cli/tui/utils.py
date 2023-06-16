@@ -216,4 +216,14 @@ def get_field_type(field: ModelField) -> str:
         # happens with typing objects
         type_ = str(field.annotation).replace("typing.", "")
 
+    if type_.startswith("Union["):
+        type_ = type_.replace("Union[", "")[:-1]
+        union_types = type_.split(", ")
+        type_ = ""
+        for union_type in union_types:
+            if "pipelime" in union_type:
+                union_type = union_type.split(".")[-1]
+            type_ += f"{union_type} | "
+        type_ = type_[:-3]
+
     return type_
