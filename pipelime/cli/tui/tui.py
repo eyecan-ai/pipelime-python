@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Footer, Input, Label
 
+from pipelime.choixe import Choixe
 from pipelime.cli.tui.utils import (
     TuiField,
     init_stageinput_tui_field,
@@ -67,8 +68,11 @@ class SaveScreen(ModalScreen):
             elif Path(path).exists():
                 raise FileExistsError(f"'{path}' already exists.")
 
+            config = Choixe(self.config)
+            config = config.decode()
+
             with open(path, "w") as f:
-                yaml.dump(self.config, f)
+                yaml.dump(config, f)
             self.app.pop_screen()
 
         except Exception as e:
