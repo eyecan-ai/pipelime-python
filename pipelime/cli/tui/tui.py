@@ -28,13 +28,20 @@ class Constants:
 
     MAX_STRING_WIDTH = 100
     SUB_FIELD_MARGIN = (0, 0, 0, 4)
+    TUI_KEY_CONFIRM = Keys.ControlN
+    TUI_KEY_SAVE = Keys.ControlS
+    TUI_KEY_ABORT = Keys.ControlC
+    TUI_KEY_TOGGLE_DESCRIPTIONS = Keys.ControlJ
+    SAVE_KEY_CONFIRM = Keys.ControlS
+    SAVE_KEY_CANCEL = Keys.Escape
+    SAVE_KEY_ABORT = Keys.ControlC
 
 
 class SaveScreen(ModalScreen):
     BINDINGS = [
-        (Keys.ControlS, "confirm", "Confirm"),
-        (Keys.Escape, "cancel", "Cancel"),
-        (Keys.ControlC, "ctrl_c", "Abort"),
+        (Constants.SAVE_KEY_CONFIRM, "confirm", "Confirm"),
+        (Constants.SAVE_KEY_CANCEL, "cancel", "Cancel"),
+        (Constants.SAVE_KEY_ABORT, "ctrl_c", "Abort"),
     ]
     HELP = "CTRL+S to confirm, ESC to cancel"
 
@@ -95,10 +102,14 @@ class TuiApp(App[Mapping]):
 
     CSS_PATH = "tui.css"
     BINDINGS = [
-        (Keys.ControlN, "exit", "Confirm"),
-        (Keys.ControlS, "save", "Save to file"),
-        (Keys.ControlC, "ctrl_c", "Abort"),
-        (Keys.ControlJ, "toggle_descriptions", "Show/hide descriptions"),
+        (Constants.TUI_KEY_CONFIRM, "confirm", "Confirm"),
+        (Constants.TUI_KEY_SAVE, "save", "Save to file"),
+        (Constants.TUI_KEY_ABORT, "ctrl_c", "Abort"),
+        (
+            Constants.TUI_KEY_TOGGLE_DESCRIPTIONS,
+            "toggle_descriptions",
+            "Show/hide descriptions",
+        ),
     ]
 
     def __init__(
@@ -251,7 +262,7 @@ class TuiApp(App[Mapping]):
 
         return cmd_args
 
-    def action_exit(self) -> None:
+    def action_confirm(self) -> None:
         """Exit the TUI.
 
         Collect the values from the input boxes and exit the TUI.
