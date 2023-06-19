@@ -118,12 +118,13 @@ def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
     else:
         field_default = field.get_default()
 
-        if isinstance(field_default, BaseModel):
-            hint = str(field_default)
-        else:
-            if isinstance(field_default, Enum):
-                field_default = field_default.value
-            default = str(field_default)
+        if field_default is not None:
+            if isinstance(field_default, BaseModel):
+                hint = str(field_default)
+            else:
+                if isinstance(field_default, Enum):
+                    field_default = field_default.value
+                default = str(field_default)
 
     tui_field = TuiField(
         simple=True,
