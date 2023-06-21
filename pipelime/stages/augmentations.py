@@ -1,8 +1,10 @@
-from pathlib import Path
-import albumentations as A
 import typing as t
+from pathlib import Path
+
+import albumentations as A
+import numpy as np
 import pydantic as pyd
-from pipelime.sequences import Sample
+from pydantic.color import Color
 
 from pipelime.stages import SampleStage
 
@@ -99,9 +101,9 @@ class StageAlbumentations(SampleStage, title="albumentations"):
 
         self.transform.value.add_targets(target_types)
 
-    def __call__(self, x: "Sample") -> "Sample":
+    def __call__(self, x: Sample) -> Sample:
         to_transform = {k: x[v]() for k, v in self._target_to_keys.items() if v in x}
-        transformed = self.transform.value(**to_transform)
+        transformed = self.transform.value(**to_transform)  # type: ignore
         for k, v in transformed.items():
             x_key = self._target_to_keys[k]
             x = x.set_value_as(self.output_key_format.replace("*", x_key), x_key, v)
@@ -109,16 +111,10 @@ class StageAlbumentations(SampleStage, title="albumentations"):
 
 
 class StageResizeImages(SampleStage, title="resize-images"):
-    images: t.Sequence[str] = pyd.Field(
-        [], description=("A list of image keys to resize.")
-    )
-    masks: t.Sequence[str] = pyd.Field(
-        [],
-        description=(
-            "A list of mask keys to resize. No interpolation is used, regardless "
-            "of the `interpolation` parameter."
-        ),
-    )
+    """Helper stage to resize images and masks without having to define a
+    full albumentations transformation.
+    """
+
     size: t.Union[
         t.Tuple[t.Literal["max"], int],
         t.Tuple[t.Literal["min"], int],
@@ -127,19 +123,35 @@ class StageResizeImages(SampleStage, title="resize-images"):
     interpolation: t.Literal["nearest", "bilinear", "bicubic"] = pyd.Field(
         "bilinear", description=("The interpolation method to use.")
     )
+    images: t.Union[str, t.Sequence[str]] = pyd.Field(
+        [], description=("A list of image keys to resize.")
+    )
+    masks: t.Union[str, t.Sequence[str]] = pyd.Field(
+        [],
+        description=(
+            "A list of mask keys to resize. No interpolation is used, regardless "
+            "of the `interpolation` parameter."
+        ),
+    )
+    output_key_format: str = pyd.Field(
+        "*", description=("How to format the output keys.")
+    )
 
     _wrapped: StageAlbumentations = pyd.PrivateAttr()
 
     def __init__(self, **data) -> None:
-        import cv2 as cv
+        import cv2
 
         super().__init__(**data)
 
+        self.images = [self.images] if isinstance(self.images, str) else self.images
+        self.masks = [self.masks] if isinstance(self.masks, str) else self.masks
+
         # Create the albumentations transform
         interp_map = {
-            "nearest": cv.INTER_NEAREST,
-            "bilinear": cv.INTER_LINEAR,
-            "bicubic": cv.INTER_CUBIC,
+            "nearest": cv2.INTER_NEAREST,
+            "bilinear": cv2.INTER_LINEAR,
+            "bicubic": cv2.INTER_CUBIC,
         }
         interp = interp_map[self.interpolation]
         if self.size[0] == "max":
@@ -158,7 +170,118 @@ class StageResizeImages(SampleStage, title="resize-images"):
         self._wrapped = StageAlbumentations(
             transform=transforms,
             keys_to_targets=keys_to_targets,
+            output_key_format=self.output_key_format,
         )
 
     def __call__(self, x: Sample) -> Sample:
         return self._wrapped(x)
+
+
+class CropAndPad(SampleStage):
+    """Helper stage to crop and pad images in a desired size without having to define
+    a full albumentations transformation."""
+
+    x: int = pyd.Field(
+        0,
+        description=(
+            "If positive image is cropped from the left, otherwise image is padded."
+        ),
+    )
+    y: int = pyd.Field(
+        0,
+        description=(
+            "If positive image is cropped from the top, otherwise image is padded."
+        ),
+    )
+    width: pyd.NonNegativeInt = pyd.Field(
+        0,
+        description=(
+            "Width of the output image, cropped or padded from the right as needed. "
+            "If 0 no cropping or padding is done."
+        ),
+    )
+    height: pyd.NonNegativeInt = pyd.Field(
+        0,
+        description=(
+            "Height of the output image, cropped or padded from the bottom as needed. "
+            "If 0 no cropping or padding is done."
+        ),
+    )
+    pad_border: t.Literal["constant", "reflect", "replicate", "circular"] = pyd.Field(
+        "constant", description="Padding mode."
+    )
+    pad_colors: t.Union[Color, t.Sequence[Color]] = pyd.Field(
+        Color("black"), description="Padding color for each image."
+    )
+
+    images: t.Union[str, t.Sequence[str]] = pyd.Field(
+        "image", description="Keys of the images to crop/pad."
+    )
+    output_key_format: str = pyd.Field(
+        "*", description="How to format the output keys."
+    )
+
+    def __call__(self, x: Sample) -> Sample:
+        import cv2
+
+        img_keys = [self.images] if isinstance(self.images, str) else self.images
+        out_keys = [self.output_key_format.replace("*", k) for k in img_keys]
+        colors = (
+            [self.pad_colors] if isinstance(self.pad_colors, Color) else self.pad_colors
+        )
+
+        if len(out_keys) < len(img_keys):
+            out_keys = list(out_keys) + list(img_keys[len(out_keys) :])
+        if len(colors) < len(img_keys):
+            colors = list(colors) + [Color("black")] * (len(img_keys) - len(colors))
+
+        for inkey, outkey, pad_col in zip(img_keys, out_keys, colors):
+            if inkey in x:
+                image: np.ndarray = x[inkey]()  # type: ignore
+
+                from_right = self.width and (self.x + self.width - image.shape[1])
+                from_bottom = self.height and (self.y + self.height - image.shape[0])
+
+                cv_border = {
+                    "constant": cv2.BORDER_CONSTANT,
+                    "reflect": cv2.BORDER_REFLECT_101,
+                    "replicate": cv2.BORDER_REPLICATE,
+                    "circular": cv2.BORDER_WRAP,
+                }
+
+                crop_left = max(0, self.x)
+                crop_top = max(0, self.y)
+                crop_right = abs(min(0, from_right))
+                crop_bottom = abs(min(0, from_bottom))
+
+                outimg = image[
+                    crop_top : max(0, image.shape[0] - crop_bottom),
+                    crop_left : max(0, image.shape[1] - crop_right),
+                ]
+
+                pad_left = (
+                    abs(min(0, self.x)) if crop_right < image.shape[1] else self.width
+                )
+                pad_top = (
+                    abs(min(0, self.y)) if crop_bottom < image.shape[0] else self.height
+                )
+                pad_right = (
+                    max(0, from_right) if crop_left < image.shape[1] else self.width
+                )
+                pad_bottom = (
+                    max(0, from_bottom) if crop_top < image.shape[0] else self.height
+                )
+
+                outimg = cv2.copyMakeBorder(
+                    src=outimg.copy(),
+                    top=pad_top,
+                    bottom=pad_bottom,
+                    left=pad_left,
+                    right=pad_right,
+                    borderType=cv_border[self.pad_border],
+                    value=pad_col.as_rgb_tuple(alpha=False),
+                )
+
+                x = x.set_value_as(outkey, inkey, outimg)
+
+        return x
