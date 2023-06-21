@@ -176,7 +176,7 @@ class StageResize(SampleStage, title="resize"):
         return self._wrapped(x)
 
 
-class CropAndPad(SampleStage, title="crop-and-pad"):
+class StageCropAndPad(SampleStage, title="crop-and-pad"):
     """Helper stage to crop and pad images in a desired size without having to define
     a full albumentations transformation."""
 
@@ -206,7 +206,7 @@ class CropAndPad(SampleStage, title="crop-and-pad"):
             "If 0 no cropping or padding is done."
         ),
     )
-    pad_border: t.Literal["constant", "reflect", "replicate", "circular"] = pyd.Field(
+    border: t.Literal["constant", "reflect", "replicate", "circular"] = pyd.Field(
         "constant", description="Padding mode."
     )
     pad_colors: t.Union[Color, t.Sequence[Color]] = pyd.Field(
@@ -229,8 +229,6 @@ class CropAndPad(SampleStage, title="crop-and-pad"):
             [self.pad_colors] if isinstance(self.pad_colors, Color) else self.pad_colors
         )
 
-        if len(out_keys) < len(img_keys):
-            out_keys = list(out_keys) + list(img_keys[len(out_keys) :])
         if len(colors) < len(img_keys):
             colors = list(colors) + [Color("black")] * (len(img_keys) - len(colors))
 
@@ -277,7 +275,7 @@ class CropAndPad(SampleStage, title="crop-and-pad"):
                     bottom=pad_bottom,
                     left=pad_left,
                     right=pad_right,
-                    borderType=cv_border[self.pad_border],
+                    borderType=cv_border[self.border],
                     value=pad_col.as_rgb_tuple(alpha=False),
                 )
 
