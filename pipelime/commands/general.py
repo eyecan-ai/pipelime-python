@@ -953,23 +953,36 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
             key += "_"
 
 
-class CopySharedItems(PipelimeCommand, title="copy-shared-items"):
+class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
     """Copy shared items from a source dataset to a destination dataset. Datasets may
     not have the same length."""
 
     source: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="src", piper_port=PiperPortType.INPUT
+            alias="src",
+            piper_port=PiperPortType.INPUT,
+            description=(
+                "Where the shared items are copied from. Must have at least one "
+                "sample and one shared item."
+            ),
         )
     )
     dest: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="dst", piper_port=PiperPortType.INPUT
+            alias="dst",
+            piper_port=PiperPortType.INPUT,
+            description=(
+                "Where the shared items are copied to. Must have at least one sample "
+                "and any number of shared items. Source and destination datasets may "
+                "not have the same length, as only the shared items are copied."
+            ),
         )
     )
     output: pl_interfaces.OutputDatasetInterface = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o", piper_port=PiperPortType.OUTPUT
+            alias="o",
+            piper_port=PiperPortType.OUTPUT,
+            description=("Where the resulting dataset is written to."),
         )
     )
 

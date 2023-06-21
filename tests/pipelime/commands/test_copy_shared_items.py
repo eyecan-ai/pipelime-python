@@ -1,6 +1,7 @@
-from pathlib import Path
+import numpy as np
 
-import pytest
+import pipelime.stages as plst
+
 from .test_general_base import TestGeneralCommandsBase
 
 
@@ -9,37 +10,47 @@ class TestSetCopySharedItemsCommand(TestGeneralCommandsBase):
         from pipelime.commands import CopySharedItemsCommand
         from pipelime.sequences import SamplesSequence
 
-        def _check_output(path):
-            outseq = SamplesSequence.from_underfolder(path)
-            for x in outseq:
-                if x.deep_get("metadata.double") == 6:
-                    assert x.deep_get("metadata.the_answer") == "fourtytwo"
+        # Paths
+        source_path = minimnist_dataset["path"]
+        dest_path = tmp_path / "minimnist_copy_shared_items" / "dest"
+        output_path = tmp_path / "minimnist_copy_shared_items" / "output"
 
-        params = {
-            "input": minimnist_dataset["path"].as_posix(),
-            "output": (tmp_path / "output_key").as_posix(),
-            "grabber": f"{nproc},{prefetch}",
-            "filter_query": "`metadata.double` == 6",
-            "key_path": "metadata.the_answer",
-            "value": "fourtytwo",
-        }
-        cmd = SetMetadataCommand.parse_obj(params)
-        cmd()
-        _check_output(params["output"])
+        # Remove a samples and items from the dataset to make it a suitable dest seq
+        dest_seq = SamplesSequence.from_underfolder(source_path)
+        dest_seq = dest_seq.slice(start=0, stop=10, step=2)
+        dest_seq = dest_seq.map(
+            plst.StageKeysFilter(key_list=["mask", "metadata", "numbers"], negate=True)
+        )
+        dest_seq.to_underfolder(dest_path).run()
 
-        params["output"] = (tmp_path / "output_fn").as_posix()
-        params["filter_fn"] = f"{Path(__file__).with_name('helper.py')}:set_meta_fn"
-        with pytest.raises(ValueError):
-            cmd = SetMetadataCommand.parse_obj(params)
+        # Transfer numbers.txt from source to dest
+        CopySharedItemsCommand(
+            source=source_path,
+            dest=dest_path,
+            output=output_path,
+            k=["numbers"],
+        ).run()
 
-        del params["filter_query"]
-        if nproc == 0:
-            cmd = SetMetadataCommand.parse_obj(params)
-            cmd()
-            _check_output(params["output"])
-            with pytest.raises(ValueError):
-                cmd = SetMetadataCommand.parse_obj(params)  # output exists
-        else:
-            del params["filter_fn"]
-            with pytest.raises(ValueError):
-                cmd = SetMetadataCommand.parse_obj(params)
+        # Check that the numbers.txt file was copied
+        source_seq = SamplesSequence.from_underfolder(source_path)
+        out_seq = SamplesSequence.from_underfolder(output_path)
+
+        # Must have the same number of samples
+        assert len(out_seq) == len(dest_seq)
+
+        # Every sample should be the same, but with the numbers item
+        for out_sample, dest_sample in zip(out_seq, dest_seq):
+            # Numbers must always be present and equal to the first source numbers
+            assert (out_sample["numbers"]() == source_seq[0]["numbers"]()).all()
+
+            # Numbers must be shared
+            assert out_sample["numbers"].is_shared
+
+            # All other items must be the same as the dest sample
+            for k in dest_sample.keys():
+                assert k in out_sample.keys()
+                assert out_sample[k].is_shared == dest_sample[k].is_shared
+                eq = out_sample[k]() == dest_sample[k]()
+                if isinstance(eq, np.ndarray):
+                    eq = eq.all()
+                assert eq
