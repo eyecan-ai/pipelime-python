@@ -2,6 +2,7 @@ from pathlib import Path
 import albumentations as A
 import typing as t
 import pydantic as pyd
+from pipelime.sequences import Sample
 
 from pipelime.stages import SampleStage
 
@@ -105,3 +106,59 @@ class StageAlbumentations(SampleStage, title="albumentations"):
             x_key = self._target_to_keys[k]
             x = x.set_value_as(self.output_key_format.replace("*", x_key), x_key, v)
         return x
+
+
+class StageResizeImages(SampleStage, title="resize-images"):
+    images: t.Sequence[str] = pyd.Field(
+        [], description=("A list of image keys to resize.")
+    )
+    masks: t.Sequence[str] = pyd.Field(
+        [],
+        description=(
+            "A list of mask keys to resize. No interpolation is used, regardless "
+            "of the `interpolation` parameter."
+        ),
+    )
+    size: t.Union[
+        t.Tuple[t.Literal["max"], int],
+        t.Tuple[t.Literal["min"], int],
+        t.Tuple[int, int],
+    ] = pyd.Field(..., description=("The target size."))
+    interpolation: t.Literal["nearest", "bilinear", "bicubic"] = pyd.Field(
+        "bilinear", description=("The interpolation method to use.")
+    )
+
+    _wrapped: StageAlbumentations = pyd.PrivateAttr()
+
+    def __init__(self, **data) -> None:
+        import cv2 as cv
+
+        super().__init__(**data)
+
+        # Create the albumentations transform
+        interp_map = {
+            "nearest": cv.INTER_NEAREST,
+            "bilinear": cv.INTER_LINEAR,
+            "bicubic": cv.INTER_CUBIC,
+        }
+        interp = interp_map[self.interpolation]
+        if self.size[0] == "max":
+            resize_tr = A.LongestMaxSize(max_size=self.size[1], interpolation=interp)
+        elif self.size[0] == "min":
+            resize_tr = A.SmallestMaxSize(max_size=self.size[1], interpolation=interp)
+        else:
+            resize_tr = A.Resize(*self.size, interpolation=interp)
+        transforms = A.Compose([resize_tr])
+
+        # Keys to targets
+        keys_to_targets = {k: "image" for k in self.images}
+        keys_to_targets.update({k: "mask" for k in self.masks})
+
+        # Create the inner stage
+        self._wrapped = StageAlbumentations(
+            transform=transforms,
+            keys_to_targets=keys_to_targets,
+        )
+
+    def __call__(self, x: Sample) -> Sample:
+        return self._wrapped(x)
