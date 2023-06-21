@@ -8,8 +8,7 @@ from pydantic.color import Color
 
 from pipelime.stages import SampleStage
 
-if t.TYPE_CHECKING:
-    from pipelime.sequences import Sample
+from pipelime.sequences import Sample
 
 
 class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
@@ -110,7 +109,7 @@ class StageAlbumentations(SampleStage, title="albumentations"):
         return x
 
 
-class StageResizeImages(SampleStage, title="resize-images"):
+class StageResize(SampleStage, title="resize"):
     """Helper stage to resize images and masks without having to define a
     full albumentations transformation.
     """
@@ -177,7 +176,7 @@ class StageResizeImages(SampleStage, title="resize-images"):
         return self._wrapped(x)
 
 
-class CropAndPad(SampleStage):
+class CropAndPad(SampleStage, title="crop-and-pad"):
     """Helper stage to crop and pad images in a desired size without having to define
     a full albumentations transformation."""
 

@@ -5,7 +5,7 @@ from pipelime.stages.base import (
     StageLambda,
     StageInput,
 )
-from pipelime.stages.augmentations import StageAlbumentations, StageResizeImages
+from pipelime.stages.augmentations import StageAlbumentations, StageResize
 from pipelime.stages.item_replacement import (
     StageReplaceItem,
     StageSetMetadata,
