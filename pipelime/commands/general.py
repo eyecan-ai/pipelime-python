@@ -951,3 +951,47 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
             if key not in keys:
                 return key
             key += "_"
+
+
+class CopySharedItems(PipelimeCommand, title="copy-shared-items"):
+    """Copy shared items from a source dataset to a destination dataset. Datasets may
+    not have the same length."""
+
+    source: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="src", piper_port=PiperPortType.INPUT
+        )
+    )
+    dest: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="dst", piper_port=PiperPortType.INPUT
+        )
+    )
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    key_list: t.Sequence[str] = pyd.Field(
+        ...,
+        alias="k",
+        description=("The keys to copy. Must be present in source dataset."),
+    )
+
+    def run(self):
+        src_seq = self.source.create_reader()
+        dst_seq = self.dest.create_reader()
+        out_seq = []
+
+        src_sample = src_seq[0]
+
+        for dst_sample in dst_seq:
+            for key in self.key_list:
+                dst_sample = dst_sample.set_item(key, src_sample[key])
+
+            out_seq.append(dst_sample)  # type: ignore
+
+        out_seq = pls.SamplesSequence.from_list(out_seq)
+        out_seq = self.output.append_writer(out_seq)
+        out_seq.run()
