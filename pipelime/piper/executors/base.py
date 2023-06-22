@@ -1,9 +1,11 @@
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Union, Sequence
+from typing import Optional, Sequence, Union
 
 from loguru import logger
 
+from pipelime.cli.utils import time_to_str
 from pipelime.piper.graph import DAGNodesGraph, GraphNodeOperation
 from pipelime.piper.progress.listener.base import Listener
 from pipelime.piper.progress.listener.factory import (
@@ -22,6 +24,7 @@ class NodesGraphExecutor(ABC):
         super().__init__()
         self._node_prefix = node_prefix
         self._task = None
+        self._timers = {}
 
     @property
     def task(self) -> Optional[TrackedTask]:
@@ -34,8 +37,11 @@ class NodesGraphExecutor(ABC):
     def _set_piper_info(self, node: GraphNodeOperation, token: str):
         node.command.set_piper_info(token=token, node=self._node_prefix + node.name)
 
+    def _original_node_name(self, node: GraphNodeOperation) -> str:
+        return node.command._piper.node[len(self._node_prefix) :]
+
     def _log_message(self, message: str, *, token: str):
-        logger.debug(f"[prefix={self._node_prefix},token={token}] {message}")
+        logger.debug(f"[{token}/{self._node_prefix}*] {message}")
 
     def preproc_node(
         self,
@@ -45,7 +51,10 @@ class NodesGraphExecutor(ABC):
         force_gc: Union[bool, str, Sequence[str]],
     ):
         self._set_piper_info(node=node, token=token)
-        self._log_message(f"Executing command: {node.command._piper.node}", token=token)
+        self._log_message(
+            f"[{self._original_node_name(node)}] Execution started", token=token
+        )
+        self._timers[node.command._piper.node] = time.perf_counter_ns()
 
     def postproc_node(
         self,
@@ -54,6 +63,14 @@ class NodesGraphExecutor(ABC):
         token: str,
         force_gc: Union[bool, str, Sequence[str]],
     ):
+        end_time = time.perf_counter_ns()
+        if node.command._piper.node in self._timers:
+            timestr = " in " + time_to_str(
+                end_time - self._timers[node.command._piper.node]
+            )
+        else:
+            timestr = ""
+
         if isinstance(force_gc, str):
             force_gc = [force_gc]
 
@@ -62,12 +79,19 @@ class NodesGraphExecutor(ABC):
         ):
             import gc
 
-            self._log_message("Forcing garbage collection", token=token)
+            self._log_message(
+                f"[{self._original_node_name(node)}] Forcing garbage collection",
+                token=token,
+            )
             gc.collect()
 
         if self.task:
             self.task.advance()
-        self._log_message("Command execution completed", token=token)
+
+        self._log_message(
+            f"[{self._original_node_name(node)}] Execution completed{timestr}",
+            token=token,
+        )
 
     def __call__(
         self,
@@ -79,11 +103,16 @@ class NodesGraphExecutor(ABC):
         if self.task:
             self.task.restart()
 
+        start_time = time.perf_counter_ns()
         ret = self.exec(graph=graph, token=token, force_gc=force_gc)
+        end_time = time.perf_counter_ns()
 
         if self.task:
             self.task.finish()
-        self._log_message("Graph execution completed", token=token)
+        self._log_message(
+            f"Graph execution completed in {time_to_str(end_time - start_time)}",
+            token=token,
+        )
         return ret
 
     @abstractmethod

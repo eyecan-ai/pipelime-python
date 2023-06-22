@@ -119,8 +119,8 @@ class PipelimeTmp:
         return user_dirs
 
 
-class PipelimeTemporaryDirectory(tempfile.TemporaryDirectory):
-    """A tempfile.TemporaryDirectory within the session temporary directory."""
+class PipelimeTemporaryDirectory:
+    """A context manager creating a subfolder within the session temporary directory."""
 
     def __init__(self, name: Optional[str] = None):
         self.name = PipelimeTmp.make_subdir(name or uuid.uuid1().hex)
@@ -130,3 +130,56 @@ class PipelimeTemporaryDirectory(tempfile.TemporaryDirectory):
             str(self.name),
             warn_message="Implicitly cleaning up {!r}".format(self),
         )
+
+    @classmethod
+    def _rmtree(cls, name):
+        import shutil
+
+        def onerror(func, path, exc_info):
+            if issubclass(exc_info[0], PermissionError):
+
+                def resetperms(path):
+                    try:
+                        os.chflags(path, 0)  # type: ignore
+                    except AttributeError:
+                        pass
+                    os.chmod(path, 0o700)
+
+                try:
+                    if path != name:
+                        resetperms(os.path.dirname(path))
+                    resetperms(path)
+
+                    try:
+                        os.unlink(path)
+                    # PermissionError is raised on FreeBSD for directories
+                    except (IsADirectoryError, PermissionError):
+                        cls._rmtree(path)
+                except FileNotFoundError:
+                    pass
+            elif issubclass(exc_info[0], FileNotFoundError):
+                pass
+            else:
+                raise
+
+        shutil.rmtree(name, onerror=onerror)
+
+    @classmethod
+    def _cleanup(cls, name, warn_message):
+        import warnings
+
+        cls._rmtree(name)
+        warnings.warn(warn_message, ResourceWarning)
+
+    def __repr__(self):
+        return "<{} {!r}>".format(self.__class__.__name__, self.name)
+
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, exc, value, tb):
+        self.cleanup()
+
+    def cleanup(self):
+        if self._finalizer.detach() or os.path.exists(self.name):
+            self._rmtree(self.name)

@@ -30,11 +30,13 @@ def command(
     ...
 
 
-def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
+def command(
+    __func=None, *, title: t.Optional[str] = None, **__config_kwargs
+):
     """Creates a full-fledged PipelimeCommand from a general function.
     The command will have the same exact signature and docstring of the function.
-    Field names and types will taken from the function parameters and validated as usual.
-    Any function signature is allowed, including positional-only, keyword-only,
+    Field names and types will taken from the function parameters and validated as
+    usual. Any function signature is allowed, including positional-only, keyword-only,
     variable positional, variable keyword parameters. Variable positional and keyword
     can be annotated to get type checking and validation.
 
@@ -43,6 +45,16 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     are used to show meaningful help messages through `pipelime help`.
     Also, call it with extra `__config_kwargs` to add any pydantic config parameters,
     such as `title`, `arbitrary_types_allowed`, etc.
+
+    NB: if the first function argument is named `self`, the command will be bound to it.
+
+    Args:
+        __func: function to be converted to a PipelimeCommand.
+        title: the title of the command.
+        __config_kwargs: extra pydantic config parameters.
+
+    Returns:
+        A PipelimeCommand class.
 
     Examples:
         Create a command with the same name of the function::
@@ -95,6 +107,25 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
         then show the command help::
 
             $ pipelime merge help
+
+        Create a command which starts a pipelime task::
+
+            @command(bind=True)
+            def copy_data(
+                self,
+                src: InputDatasetInterface,
+                dst: OutputDatasetInterface,
+                grabber: GrabberInterface,
+            ):
+                seq = src.create_reader()
+                seq = dst.append_writer(seq)
+                grabber.grab_all(
+                    seq,
+                    grab_context_manager=dst.serialization_cm(),
+                    keep_order=False,
+                    parent_cmd=self,
+                    track_message=f"Copying...",
+                )
     """
 
     if title is not None:
@@ -130,27 +161,32 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
         # Translates signature to pydantic fields
         # and gathers positional arguments
         fsig = inspect.signature(func)
-        fields = {n: _make_field(p) for n, p in fsig.parameters.items()}
+        fsig_params = fsig.parameters
+        is_bound = next(iter(fsig.parameters.values())).name == "self"
+        if is_bound:
+            fsig_params = {k: v for k, v in fsig_params.items() if k != "self"}
+
+        fields = {n: _make_field(p) for n, p in fsig_params.items()}
         posonly_names = [
-            p.name for p in fsig.parameters.values() if p.kind is p.POSITIONAL_ONLY
+            p.name for p in fsig_params.values() if p.kind is p.POSITIONAL_ONLY
         ]
         poskw_names = [
             p.name
-            for p in fsig.parameters.values()
+            for p in fsig_params.values()
             if p.kind is p.POSITIONAL_OR_KEYWORD
         ]
         kwonly_names = [
-            p.name for p in fsig.parameters.values() if p.kind is p.KEYWORD_ONLY
+            p.name for p in fsig_params.values() if p.kind is p.KEYWORD_ONLY
         ]
         try:
             varpos_name = next(
-                p.name for p in fsig.parameters.values() if p.kind is p.VAR_POSITIONAL
+                p.name for p in fsig_params.values() if p.kind is p.VAR_POSITIONAL
             )
         except StopIteration:
             varpos_name = ""
         try:
             varkw_name = next(
-                p.name for p in fsig.parameters.values() if p.kind is p.VAR_KEYWORD
+                p.name for p in fsig_params.values() if p.kind is p.VAR_KEYWORD
             )
         except StopIteration:
             varkw_name = ""
@@ -203,11 +239,19 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
 
             def run(self):
                 # get all arguments in the right order
-                func(
-                    *[getattr(self, n) for n in posonly_names + poskw_names],
-                    *getattr(self, varpos_name, tuple()),
-                    **self.dict(include=set(kwonly_names + [varkw_name])),
-                )
+                if is_bound:
+                    func(
+                        self,
+                        *[getattr(self, n) for n in posonly_names + poskw_names],
+                        *getattr(self, varpos_name, tuple()),
+                        **self.dict(include=set(kwonly_names + [varkw_name])),
+                    )
+                else:
+                    func(
+                        *[getattr(self, n) for n in posonly_names + poskw_names],
+                        *getattr(self, varpos_name, tuple()),
+                        **self.dict(include=set(kwonly_names + [varkw_name])),
+                    )
 
         # override base docstring with a custom description
         _FnModel.__doc__ = (
@@ -247,7 +291,7 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
         fmodel.__signature__ = fsig.replace(
             parameters=[
                 p.replace(default=_unwrap_default(p.default))
-                for p in fsig.parameters.values()
+                for p in fsig_params.values()
             ],
             return_annotation=inspect.Signature.empty,
         )
