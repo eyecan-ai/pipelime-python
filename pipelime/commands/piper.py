@@ -277,6 +277,7 @@ class DrawCommand(PiperGraphCommandBase, title="draw"):
         if self.backend == self.DrawBackendChoice.AUTO:
             try:
                 import pygraphviz  # noqa: F401
+
                 self.backend = self.DrawBackendChoice.GRAPHVIZ
             except ImportError:
                 self.backend = self.DrawBackendChoice.MERMAID
@@ -360,6 +361,8 @@ class WatchCommand(PipelimeCommand, title="watch"):
 
 
 class DagBaseCommand(RunCommand):
+    """Base class for Python DAG Object."""
+
     nodes: t.Optional[T_NODES] = Field(
         None,
         description="A DAG of commands as a `<node>: <command>` mapping. The command "
@@ -367,29 +370,15 @@ class DagBaseCommand(RunCommand):
         "etc, while `<args>` is a mapping of its arguments.",
     )
 
-    snapshot_output: Path = Field(
-        None, description=("The output image file for graph snapshot.")
-    )
-
     folder_debug: Path = Field(None, description="Path to Debug dir folder.")
 
     _temp_folder: PipelimeTemporaryDirectory = PrivateAttr(None)
 
-    @validator("folder_debug", always=True)
-    def instantiate_folder_debug(cls, v):
-        if v:
-            return v
-        else:
-            cls._temp_folder = PipelimeTemporaryDirectory()
-            return cls._temp_folder.name
+    def __init__(self, **data):
+        super().__init__(**data)
 
-    @validator("snapshot_output", always=True)
-    def instantiate_snapshot_output(cls, v):
-        if v:
-            return v
-        else:
-            name = Path(f"{cls.__class__.__name__.lower()}.png")
-            return name
+        self._temp_folder = PipelimeTemporaryDirectory(self.folder_debug)  # type: ignore
+        self.folder_debug = self._temp_folder.name
 
     def _validate_graph(self):
         """Validates the graph before executing it.
@@ -407,9 +396,15 @@ class DagBaseCommand(RunCommand):
 
         raise RuntimeError(f"Cycle found {edges_cycles}")  # type: ignore
 
-    def _draw_graph(self):
-        """Invokes draw command to generate a graph snapshot."""
-        drawer = DrawCommand(nodes=self.nodes, output=self.snapshot_output)  # type: ignore
+    def draw(self, output: t.Optional[Path] = None) -> None:
+        """Draws a pipelime DAG.
+
+        Args:
+            output (Path, optional): The output file. If not specified, the graph will
+            be shown in a window. Defaults to None.
+        """
+        nodes = self.nodes if self.nodes else self.create_graph()
+        drawer = DrawCommand(nodes=nodes, output=output)  # type: ignore
         drawer.run()
 
     @abstractmethod
@@ -425,7 +420,5 @@ class DagBaseCommand(RunCommand):
         self.nodes = self.create_graph()
 
         self._validate_graph()
-
-        self._draw_graph()
 
         return super().run()
