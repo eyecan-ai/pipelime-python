@@ -1,14 +1,21 @@
 import typing as t
+from abc import abstractmethod
 from enum import Enum
 from pathlib import Path
+
 from loguru import logger
+from pydantic import Field, PositiveInt, PrivateAttr, validator
 
-from pydantic import Field, PrivateAttr, PositiveInt
-
+from pipelime.choixe.utils.io import PipelimeTemporaryDirectory
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 if t.TYPE_CHECKING:
     from pipelime.piper.graph import DAGNodesGraph
+
+T_NODES = t.Mapping[
+    str,
+    t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]],
+]
 
 
 class WatcherBackend(Enum):
@@ -27,9 +34,7 @@ class WatcherBackend(Enum):
 class PiperGraphCommandBase(PipelimeCommand):
     """Base class for piper-aware commands."""
 
-    nodes: t.Mapping[
-        str, t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]]
-    ] = Field(
+    nodes: T_NODES = Field(
         ...,
         alias="n",
         description=(
@@ -50,8 +55,8 @@ class PiperGraphCommandBase(PipelimeCommand):
 
     @property
     def piper_graph(self) -> "DAGNodesGraph":
-        from pipelime.piper.model import DAGModel, NodesDefinition
         from pipelime.piper.graph import DAGNodesGraph
+        from pipelime.piper.model import DAGModel, NodesDefinition
 
         if not self._piper_graph:
             inc_n = [self.include] if isinstance(self.include, str) else self.include
@@ -151,10 +156,8 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
 
         # setup the direct track callback
         if watch:
+            from pipelime.piper.progress.listener.factory import ListenerCallbackFactory
             from pipelime.piper.progress.tracker.direct import DirectTrackCallback
-            from pipelime.piper.progress.listener.factory import (
-                ListenerCallbackFactory,
-            )
 
             if isinstance(watch, Path):
                 callback = ListenerCallbackFactory.get_callback("FILE", filename=watch)
@@ -318,13 +321,14 @@ class WatchCommand(PipelimeCommand, title="watch"):
     )
 
     def run(self):
+        from time import sleep
+
         from pipelime.piper.progress.listener.base import Listener
         from pipelime.piper.progress.listener.factory import (
             ListenerCallbackFactory,
             ProgressReceiverFactory,
         )
         from pipelime.utils.context_managers import CatchSignals
-        from time import sleep
 
         receiver = ProgressReceiverFactory.get_receiver(
             self.token, **({"port": self.port} if self.port else {})
@@ -345,3 +349,75 @@ class WatchCommand(PipelimeCommand, title="watch"):
                 sleep(0.1)
 
         listener.stop()
+
+
+class DagBaseCommand(RunCommand):
+    nodes: t.Optional[T_NODES] = Field(
+        None,
+        description="A DAG of commands as a `<node>: <command>` mapping. The command "
+        "can be a `<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split`"
+        "etc, while `<args>` is a mapping of its arguments.",
+    )
+
+    snapshot_output: Path = Field(
+        None, description=("The output image file for graph snapshot.")
+    )
+
+    folder_debug: Path = Field(None, description="Path to Debug dir folder.")
+
+    _temp_folder: PipelimeTemporaryDirectory = PrivateAttr(None)
+
+    @validator("folder_debug", always=True)
+    def instantiate_folder_debug(cls, v):
+        if v:
+            return v
+        else:
+            cls._temp_folder = PipelimeTemporaryDirectory()
+            return cls._temp_folder.name
+
+    @validator("snapshot_output", always=True)
+    def instantiate_snapshot_output(cls, v):
+        if v:
+            return v
+        else:
+            name = Path(f"{cls.__class__.__name__.lower()}.png")
+            return name
+
+    def _validate_graph(self):
+        """Validates the graph before executing it.
+
+        Raises:
+            RuntimeError: if cycle is found.
+        """
+        from networkx.algorithms.cycles import find_cycle
+        from networkx.exception import NetworkXNoCycle
+
+        try:
+            edges_cycles = find_cycle(self.piper_graph.raw_graph)
+        except NetworkXNoCycle:
+            return
+
+        raise RuntimeError(f"Cycle found {edges_cycles}")  # type: ignore
+
+    def _draw_graph(self):
+        """Invokes draw command to generate a graph snapshot."""
+        drawer = DrawCommand(nodes=self.nodes, output=self.snapshot_output)  # type: ignore
+        drawer.run()
+
+    @abstractmethod
+    def create_graph(self) -> T_NODES:
+        """Creates the graph nodes.
+
+        Returns:
+            T_NODES: a dictionary containing the mapping between node names and nodes.
+        """
+        pass
+
+    def run(self) -> None:
+        self.nodes = self.create_graph()
+
+        self._validate_graph()
+
+        self._draw_graph()
+
+        return super().run()
