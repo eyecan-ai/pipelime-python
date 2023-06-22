@@ -138,17 +138,29 @@ class TestDAG:
         else:
             assert debug_folder.exists()  # type: ignore
 
-    def test_cleanup_folder_debug(
+    def test_cleanup_temp_folder_debug(
         self,
         minimnist_dataset: dict,
         tmp_path: Path,
     ):
-        dir_debug = tmp_path / "debug"
-        dag = _create_dag(minimnist_dataset, 1, tmp_path, dir_debug)
+        dag = _create_dag(minimnist_dataset, 1, tmp_path)
         dag.run()
 
-        assert dir_debug.exists()
+        dir_debug = dag.folder_debug
 
         del dag
 
         assert not dir_debug.exists()
+
+    def test_not_cleanup_folder_debug(
+        self,
+        minimnist_dataset: dict,
+        tmp_path: Path,
+    ):
+        debug_dir = tmp_path / "debug"
+        dag = _create_dag(minimnist_dataset, 1, tmp_path, debug_dir)
+        dag.run()
+
+        del dag
+
+        assert debug_dir.exists()

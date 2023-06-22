@@ -377,8 +377,9 @@ class DagBaseCommand(RunCommand):
     def __init__(self, **data):
         super().__init__(**data)
 
-        self._temp_folder = PipelimeTemporaryDirectory(self.folder_debug)  # type: ignore
-        self.folder_debug = self._temp_folder.name
+        if not self.folder_debug:
+            self._temp_folder = PipelimeTemporaryDirectory()
+            self.folder_debug = self._temp_folder.name
 
     def _validate_graph(self):
         """Validates the graph before executing it.
