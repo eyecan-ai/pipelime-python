@@ -349,7 +349,10 @@ def test_get_field_type() -> None:
 
     assert get_field_type(fields["string"]) == "str"
     assert get_field_type(fields["list_of_int"]) == "List[int]"
-    assert get_field_type(fields["integer"]) == "Optional[int]"
+
+    optional_types = ["Optional[int]", "Union[int, NoneType]"]
+    assert get_field_type(fields["integer"]) in optional_types
+
     assert get_field_type(fields["float_number"]) == "float"
     assert get_field_type(fields["mapping"]) == "Dict[str, Any]"
     assert get_field_type(fields["path"]) == "Path"
@@ -360,7 +363,8 @@ def test_get_field_type() -> None:
     )
     assert get_field_type(fields["huge_union"]) == huge_union_type
 
-    assert get_field_type(fields["optional_grabber"]) == "Optional[GrabberInterface]"
+    optional_types = ["Optional[GrabberInterface]", "Union[GrabberInterface, NoneType]"]
+    assert get_field_type(fields["optional_grabber"]) in optional_types
 
     mixed_tuple_type = (
         "Tuple[Sample, int, PipelimeCommand, SampleStage, StageInput, bool]"
