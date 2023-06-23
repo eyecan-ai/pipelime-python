@@ -14,6 +14,7 @@ from pipelime.stages.item_replacement import (
     StageReplaceItem,
     StageSetMetadata,
     StageSampleHash,
+    StageShareItems,
 )
 from pipelime.stages.item_sources import StageForgetSource, StageUploadToRemote
 from pipelime.stages.key_transformations import (
