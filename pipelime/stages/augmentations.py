@@ -110,7 +110,7 @@ class StageAlbumentations(SampleStage, title="albumentations"):
         return x
 
 
-class StageResize(SampleStage, title="resize"):
+class StageResize(SampleStage, title="resize-images"):
     """Helper stage to resize images and masks without having to define a
     full albumentations transformation.
     """
@@ -177,7 +177,7 @@ class StageResize(SampleStage, title="resize"):
         return self._wrapped(x)
 
 
-class StageCropAndPad(SampleStage, title="crop-and-pad"):
+class StageCropAndPad(SampleStage, title="crop-and-pad-images"):
     """Helper stage to crop and pad images in a desired size without having to define
     a full albumentations transformation."""
 
