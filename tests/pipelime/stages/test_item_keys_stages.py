@@ -246,3 +246,88 @@ class TestKeyStages:
                 )
             ),
         )
+
+    @pytest.mark.parametrize(
+        "input_samples,keys,equals",
+        [
+            [
+                [Sample({"a": UnknownItem(20)}), Sample({"a": UnknownItem(20)})],
+                "a",
+                True,
+            ],
+            [
+                [Sample({"a": UnknownItem(20)}), Sample({"a": UnknownItem(20)})],
+                ["a"],
+                True,
+            ],
+            [
+                [
+                    Sample({"a": UnknownItem(20), "b": UnknownItem(10)}),
+                    Sample({"a": UnknownItem(20), "b": YamlMetadataItem({"b": 10})}),
+                ],
+                ["a"],
+                True,
+            ],
+            [
+                [
+                    Sample({"a": UnknownItem(20), "b": UnknownItem(10)}),
+                    Sample(
+                        {
+                            "a": UnknownItem(20),
+                            "b": YamlMetadataItem({"b": 10}),
+                            "c": UnknownItem(1),
+                        }
+                    ),
+                ],
+                ["a"],
+                True,
+            ],
+            [
+                [Sample({"a": UnknownItem(10)}), Sample({"a": UnknownItem(30)})],
+                ["a"],
+                False,
+            ],
+            [
+                [
+                    Sample({"a": UnknownItem(10), "b": UnknownItem(10)}),
+                    Sample({"a": UnknownItem(30), "b": UnknownItem(10)}),
+                ],
+                ["a"],
+                False,
+            ],
+        ],
+    )
+    @pytest.mark.parametrize(
+        "algorithm,raises",
+        [
+            ["blake2b", False],
+            ["blake2s", False],
+            ["md5", False],
+            ["sha1", False],
+            ["sha224", False],
+            ["sha256", False],
+            ["sha384", False],
+            ["sha3_224", False],
+            ["sha3_256", False],
+            ["sha3_384", False],
+            ["sha3_512", False],
+            ["sha512", False],
+            ["shake_128", True],
+            ["shake_256", True],
+            ["myalgorithm", True],
+        ],
+    )
+    def test_sample_hash(self, input_samples, keys, equals, algorithm, raises):
+        from contextlib import nullcontext
+        from pipelime.stages import StageSampleHash
+
+        hash_key = "hash"
+        context = pytest.raises(ValueError) if raises else nullcontext()
+        with context:
+            stage = StageSampleHash(keys=keys, algorithm=algorithm, hash_key=hash_key)
+            sample0 = stage(input_samples[0])
+            sample1 = stage(input_samples[1])
+            if equals:
+                assert sample0[hash_key]() == sample1[hash_key]()
+            else:
+                assert sample0[hash_key]() != sample1[hash_key]()
