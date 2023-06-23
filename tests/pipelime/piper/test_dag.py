@@ -178,3 +178,32 @@ class TestDAG:
         del dag
 
         assert debug_dir.exists()
+
+    @pytest.mark.parametrize("slice", [2, 4, 8])
+    @pytest.mark.parametrize("size", [10, 20])
+    def test_nested_dag(
+        self, piper_folder: Path, tmp_path: Path, size: int, slice: int
+    ):
+        from pipelime.commands.piper import RunCommand
+
+        from ... import TestUtils
+
+        dag_yaml_path = piper_folder / "dags" / "python" / "nested.yml"
+        output_path = tmp_path / "output_dag"
+        cfg = TestUtils.choixe_process(
+            dag_yaml_path,
+            {
+                "folder": tmp_path.as_posix(),
+                "path_dag": Path(__file__).as_posix(),
+                "output": output_path.as_posix(),
+                "slice": slice,
+                "size": size,
+            },
+        )
+
+        cmd = RunCommand(**cfg)
+        cmd()
+
+        out = SamplesSequence.from_underfolder(output_path)
+
+        assert len(out) == 2 * (size - slice)
