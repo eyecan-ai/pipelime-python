@@ -6,8 +6,8 @@ import pydantic as pyd
 from pipelime.stages import SampleStage
 from pipelime.utils.pydantic_types import ItemType, YamlInput
 
-if t.TYPE_CHECKING:
-    from pipelime.sequences import Sample
+# if t.TYPE_CHECKING:
+from pipelime.sequences import Sample
 
 
 class StageReplaceItem(SampleStage, title="replace-item"):
@@ -85,3 +85,32 @@ class StageSampleHash(SampleStage, title="sample-hash"):
     def _compute_sample_hash(self, sample: "Sample") -> str:
         keys = [self.keys] if isinstance(self.keys, str) else self.keys
         return "".join([self._compute_item_hash(sample[k]()) for k in keys])  # type: ignore
+
+
+class StageCopyItems(SampleStage, title="copy-items", arbitrary_types_allowed=True):
+    """Copies items from a source sample to all samples of a sequence."""
+
+    source: "Sample" = pyd.Field(..., description="The source sample.")
+    key_list: t.Sequence[str] = pyd.Field(
+        ..., alias="k", description="The keys of the items to copy."
+    )
+    force_shared: bool = pyd.Field(
+        False,
+        alias="f",
+        description=("If True, the items will be copied as shared items"),
+    )
+
+    def __call__(self, x: "Sample") -> "Sample":
+        for key in self.key_list:
+            # If the key is not in the source, skip it.
+            item = self.source[key]
+
+            # If the item is not shared and the force_shared flag is set, make a new
+            # item with the same values but shared.
+            if self.force_shared and not item.is_shared:
+                item = item.__class__.make_new(item, shared=True)
+
+            # Set the item in the sample.
+            x = x.set_item(key, item)
+
+        return x

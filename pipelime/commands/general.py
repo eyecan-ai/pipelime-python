@@ -985,26 +985,42 @@ class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
             description=("Where the resulting dataset is written to."),
         )
     )
-
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
     key_list: t.Sequence[str] = pyd.Field(
         ...,
         alias="k",
         description=("The keys to copy. Must be present in source dataset."),
     )
+    force_shared: bool = pyd.Field(
+        False,
+        alias="f",
+        description=("If True, the items will be copied as shared items"),
+    )
 
     def run(self):
+        from pipelime.stages.item_replacement import StageCopyItems
+
         src_seq = self.source.create_reader()
         dst_seq = self.dest.create_reader()
-        out_seq = []
 
         src_sample = src_seq[0]
 
-        for dst_sample in dst_seq:
-            for key in self.key_list:
-                dst_sample = dst_sample.set_item(key, src_sample[key])
+        stage = StageCopyItems(
+            source=src_sample,
+            k=self.key_list,  # type: ignore
+            f=self.force_shared,  # type: ignore
+        )
 
-            out_seq.append(dst_sample)  # type: ignore
+        out_seq = dst_seq.map(stage)
 
-        out_seq = pls.SamplesSequence.from_list(out_seq)
         out_seq = self.output.append_writer(out_seq)
-        out_seq.run()
+
+        self.grabber.grab_all(
+            out_seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Copying items ({len(out_seq)} samples)",
+        )

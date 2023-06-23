@@ -8,7 +8,8 @@ from pydantic.color import Color
 
 from pipelime.stages import SampleStage
 
-from pipelime.sequences import Sample
+if t.TYPE_CHECKING:
+    from pipelime.sequences import Sample
 
 
 class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
@@ -100,7 +101,7 @@ class StageAlbumentations(SampleStage, title="albumentations"):
 
         self.transform.value.add_targets(target_types)
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":
         to_transform = {k: x[v]() for k, v in self._target_to_keys.items() if v in x}
         transformed = self.transform.value(**to_transform)  # type: ignore
         for k, v in transformed.items():
@@ -172,7 +173,7 @@ class StageResize(SampleStage, title="resize"):
             output_key_format=self.output_key_format,
         )
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":
         return self._wrapped(x)
 
 
@@ -220,7 +221,7 @@ class StageCropAndPad(SampleStage, title="crop-and-pad"):
         "*", description="How to format the output keys."
     )
 
-    def __call__(self, x: Sample) -> Sample:
+    def __call__(self, x: "Sample") -> "Sample":
         import cv2
 
         img_keys = [self.images] if isinstance(self.images, str) else self.images
