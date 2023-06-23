@@ -225,11 +225,12 @@ def get_field_type(field: ModelField) -> str:
     Returns:
         The type of the field.
     """
-    try:
+    type_ = field.annotation
+
+    if "typing." in str(type_):
+        type_ = str(type_).replace("typing.", "")
+    else:
         type_ = field.annotation.__name__
-    except AttributeError:
-        # happens with typing objects
-        type_ = str(field.annotation).replace("typing.", "")
 
     # replace common pipelime types
     common_pipelime_types = {
