@@ -5,7 +5,6 @@ import pytest
 from pydantic import Field
 
 import pipelime.commands.interfaces as pl_interfaces
-from pipelime.commands import CloneCommand, ConcatCommand, MapCommand, SliceCommand
 from pipelime.commands.piper import T_NODES, DagBaseCommand
 from pipelime.piper import PiperPortType
 from pipelime.sequences import SamplesSequence
@@ -46,7 +45,22 @@ class DAG(DagBaseCommand):
 
     key_image_item: str = Field(..., description="Key for image item.")
 
+    @property
+    def input_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+        return {"slice.slice.input": "input"}
+
+    @property
+    def output_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+        return {"cat.cat.output": "output"}
+
     def create_graph(self) -> T_NODES:
+        from pipelime.commands import (
+            CloneCommand,
+            ConcatCommand,
+            MapCommand,
+            SliceCommand,
+        )
+
         dir_out_split = self.folder_debug / "out_split"
         cmd_split = SliceCommand(
             input=self.input, output=dir_out_split, slice=self.subsample

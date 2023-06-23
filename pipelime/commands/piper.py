@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 
 from loguru import logger
-from pydantic import Field, PositiveInt, PrivateAttr, validator
+from pydantic import BaseModel, Field, PositiveInt, PrivateAttr
 
 from pipelime.choixe.utils.io import PipelimeTemporaryDirectory
 from pipelime.piper import PipelimeCommand, PiperPortType
@@ -34,24 +34,19 @@ class WatcherBackend(Enum):
 class PiperGraphCommandBase(PipelimeCommand):
     """Base class for piper-aware commands."""
 
-    nodes: T_NODES = Field(
-        ...,
-        alias="n",
-        description=(
-            "A DAG of commands as a `<node>: <command>` mapping. The command can be a "
-            "`<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split` etc, "
-            "while `<args>` is a mapping of its arguments."
-        ),
-        piper_port=PiperPortType.INPUT,
-    )
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="i", description="Nodes not in this list are not run."
+        None, alias="in", description="Nodes not in this list are not run."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="e", description="Nodes in this list are not run."
+        None, alias="ex", description="Nodes in this list are not run."
     )
 
     _piper_graph: t.Optional["DAGNodesGraph"] = PrivateAttr(None)
+
+    @property
+    @abstractmethod
+    def nodes_graph(self) -> T_NODES:
+        """The DAG of commands as a `<node>: <command>` mapping."""
 
     @property
     def piper_graph(self) -> "DAGNodesGraph":
@@ -68,7 +63,9 @@ class PiperGraphCommandBase(PipelimeCommand):
                 )
 
             nodes = {
-                name: cmd for name, cmd in self.nodes.items() if _node_to_run(name)
+                name: cmd
+                for name, cmd in self.nodes_graph.items()
+                if _node_to_run(name)
             }
             dag = DAGModel(nodes=NodesDefinition.create(nodes))
             self._piper_graph = DAGNodesGraph.build_nodes_graph(
@@ -87,33 +84,44 @@ class GraphPortForwardingCommand(PiperGraphCommandBase):
     """A command that uses the root and leaf data nodes of the internal DAG
     as its own I/O ports."""
 
+    @property
+    def input_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+        """Optional mapping from graph input data keys and desired keys."""
+        return None
+
+    @property
+    def output_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+        """Optional mapping from graph output data keys and desired keys."""
+        return None
+
+    def _mapped_name(self, name: str, mapping: t.Optional[t.Mapping[str, str]]) -> str:
+        return mapping.get(name, "") if mapping else name
+
     def get_inputs(self) -> t.Dict[str, t.Any]:
+        inmap = self.input_mapping
         return {
-            self.piper_graph.get_input_port_name(x): x.path
+            self._mapped_name(self.piper_graph.get_input_port_name(x), inmap): x.path
             for x in self.piper_graph.input_data_nodes
         }
 
     def get_outputs(self) -> t.Dict[str, t.Any]:
+        outmap = self.output_mapping
         return {
-            self.piper_graph.get_output_port_name(x): x.path
+            self._mapped_name(self.piper_graph.get_output_port_name(x), outmap): x.path
             for x in self.piper_graph.output_data_nodes
         }
 
 
-class RunCommand(GraphPortForwardingCommand, title="run"):
-    """Executes a DAG of pipelime commands.
-    NB: when run inside a graph, `token` and `watch` are ignored."""
-
+class RunCommandBase(GraphPortForwardingCommand):
     token: t.Optional[str] = Field(
         None,
-        alias="t",
+        alias="tk",
         description=(
             "The execution token. If not specified, a new token will be generated."
         ),
     )
     watch: t.Union[bool, WatcherBackend, Path, None] = Field(
         None,
-        alias="w",
         description=(
             "Monitor the execution in the current console. "
             "Defaults to True if no token is provided, False othrewise. "
@@ -123,7 +131,6 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
     )
     force_gc: t.Union[bool, str, t.Sequence[str]] = Field(
         False,
-        alias="gc",
         description=(
             "Force garbage collection before and after the execution of all nodes, "
             "if True, or only for the specified nodes."
@@ -188,7 +195,29 @@ class RunCommand(GraphPortForwardingCommand, title="run"):
                 raise RuntimeError("Piper execution failed")
 
 
-class DrawCommand(PiperGraphCommandBase, title="draw"):
+class ClassicPiperGraphCommand(BaseModel):
+    nodes: T_NODES = Field(
+        ...,
+        alias="n",
+        description=(
+            "A DAG of commands as a `<node>: <command>` mapping. The command can be a "
+            "`<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split` etc, "
+            "while `<args>` is a mapping of its arguments."
+        ),
+        piper_port=PiperPortType.INPUT,
+    )
+
+    @property
+    def nodes_graph(self) -> T_NODES:
+        return self.nodes
+
+
+class RunCommand(ClassicPiperGraphCommand, RunCommandBase, title="run"):
+    """Executes a DAG of pipelime commands.
+    NB: when run inside a graph, `token` and `watch` are ignored."""
+
+
+class DrawCommand(ClassicPiperGraphCommand, PiperGraphCommandBase, title="draw"):
     """Draws a pipelime DAG."""
 
     class DrawBackendChoice(Enum):
@@ -340,7 +369,7 @@ class WatchCommand(PipelimeCommand, title="watch"):
         from pipelime.utils.context_managers import CatchSignals
 
         receiver = ProgressReceiverFactory.get_receiver(
-            self.token, **({"port": self.port} if self.port else {})
+            self.token, **({"port": self.port} if self.port else {})  # type: ignore
         )
         if isinstance(self.watcher, WatcherBackend):
             callback = ListenerCallbackFactory.get_callback(
@@ -360,19 +389,27 @@ class WatchCommand(PipelimeCommand, title="watch"):
         listener.stop()
 
 
-class DagBaseCommand(RunCommand):
-    """Base class for Python DAG Object."""
-
-    nodes: t.Optional[T_NODES] = Field(
-        None,
-        description="A DAG of commands as a `<node>: <command>` mapping. The command "
-        "can be a `<name>: <args>` mapping, where `<name>` is `pipe`, `clone`, `split`"
-        "etc, while `<args>` is a mapping of its arguments.",
-    )
+class DagBaseCommand(RunCommandBase):
+    """Base class for Python DAG Object.
+    Derived class should add custom fields (beware to not overwrite
+    base class names and aliases!) and implement the `create_graph` method.
+    The `input_mapping` and `output_mapping` properties can be used to return
+    a custom name for the input and output data keys.
+    """
 
     folder_debug: Path = Field(None, description="Path to Debug dir folder.")
+    draw: t.Union[bool, Path, t.Mapping] = Field(
+        False,
+        description=(
+            "Draw the graph and exit. `+draw` to just show, "
+            "`+draw graph.png` to save to disk or "
+            "`+draw.o graph.png +draw.b mermaid ...` for a full control on "
+            "the underlying DrawCommand."
+        ),
+    )
 
     _temp_folder: PipelimeTemporaryDirectory = PrivateAttr(None)
+    _nodes: T_NODES = PrivateAttr(None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -397,15 +434,18 @@ class DagBaseCommand(RunCommand):
 
         raise RuntimeError(f"Cycle found {edges_cycles}")  # type: ignore
 
-    def draw(self, output: t.Optional[Path] = None) -> None:
+    def draw_graph(self, output: t.Optional[Path] = None, **kwargs) -> None:
         """Draws a pipelime DAG.
 
         Args:
             output (Path, optional): The output file. If not specified, the graph will
-            be shown in a window. Defaults to None.
+                be shown in a window. Defaults to None.
+            **kwargs: Any other argument accepted by the DrawCommand.
         """
-        nodes = self.nodes if self.nodes else self.create_graph()
-        drawer = DrawCommand(nodes=nodes, output=output)  # type: ignore
+        nodes = self.nodes_graph
+        if "o" not in kwargs and "output" not in kwargs:
+            kwargs["output"] = output
+        drawer = DrawCommand(nodes=nodes, **kwargs)  # type: ignore
         drawer.run()
 
     @abstractmethod
@@ -417,9 +457,18 @@ class DagBaseCommand(RunCommand):
         """
         pass
 
+    @property
+    def nodes_graph(self) -> T_NODES:
+        if self._nodes is None:
+            self._nodes = self.create_graph()
+        return self._nodes
+
     def run(self) -> None:
-        self.nodes = self.create_graph()
-
         self._validate_graph()
-
+        if self.draw:
+            output = self.draw if isinstance(self.draw, Path) else None
+            self.draw_graph(
+                output, **(self.draw if isinstance(self.draw, t.Mapping) else {})
+            )
+            return
         return super().run()
