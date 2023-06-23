@@ -903,6 +903,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
 
     def run(self):
         from pipelime.stages import StageSampleHash
+        from pipelime.sequences import DataStream
 
         seq = self.input.create_reader()
         hash_key = self._get_hash_key(list(seq[0].keys()))
@@ -913,7 +914,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         # multi-processing friendly filtering
         class _WriterHelper:
             def __init__(self, output_pipe):
-                self.stream = pls.DataStream(output_pipe=output_pipe)
+                self.stream = DataStream(output_pipe=output_pipe)
                 self.curr_idx = 0
                 self.unique_hashes = set()
 
