@@ -124,7 +124,7 @@ class TestDAG:
     def test_draw(self, minimnist_dataset: dict, tmp_path: Path):
         dag = _create_dag(minimnist_dataset, 0, tmp_path, None)
         file_draw_dag = tmp_path / "my_dag_draw.png"
-        dag.draw(output=file_draw_dag)
+        dag.draw_graph(output=file_draw_dag)
 
         assert file_draw_dag.exists()
 
