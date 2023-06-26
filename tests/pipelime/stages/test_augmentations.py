@@ -121,3 +121,107 @@ class TestAugmentationStages:
                 transform=42,
                 keys_to_targets={"image": "image"},
             )
+
+
+class TestResize:
+    @pytest.mark.parametrize(
+        "size", [(10, 10), (50, 10), (1, 1), ("max", 20), ("min", 20)]
+    )
+    @pytest.mark.parametrize("interpolation", ["nearest", "bilinear", "bicubic"])
+    def test_stage(self, size, interpolation) -> None:
+        from pipelime.stages import StageResize
+        import pipelime.items as pli
+        import numpy as np
+
+        stage = StageResize(
+            size=size,
+            interpolation=interpolation,
+            images="image",
+            masks=["mask1", "mask2"],
+            output_key_format="*_resized",
+        )
+
+        sample = Sample(
+            {
+                "image": pli.PngImageItem(
+                    np.random.randint(0, 255, (200, 100, 3), dtype=np.uint8)
+                ),
+                "mask1": pli.PngImageItem(
+                    np.random.randint(0, 255, (200, 100), dtype=np.uint8)
+                ),
+                "mask2": pli.PngImageItem(
+                    np.random.randint(0, 255, (200, 100, 10), dtype=np.uint8)
+                ),
+            }
+        )
+
+        sample = stage(sample)
+
+        in_keys = ["image", "mask1", "mask2"]
+        out_keys = [f"{k}_resized" for k in in_keys]
+        for in_key, out_key in zip(in_keys, out_keys):
+            assert in_key in sample
+            assert out_key in sample
+            orig_image = sample[in_key]()
+            resized_image = sample[out_key]()
+            assert isinstance(orig_image, np.ndarray)
+            assert isinstance(resized_image, np.ndarray)
+            if isinstance(size[0], int):
+                assert resized_image.shape[:2] == size
+            elif size[0] == "max":
+                assert max(resized_image.shape[:2]) == size[1]
+            else:
+                assert min(resized_image.shape[:2]) == size[1]
+            if len(resized_image.shape) == 3:
+                assert resized_image.shape[2] == orig_image.shape[2]
+
+
+class TestCropAndPad:
+    @pytest.mark.parametrize(
+        ["x", "y", "w", "h"],
+        [(0, 0, 10, 10), (1, 15, 50, 10), (0, 0, 1, 1), (10, -100, 1000, 200)],
+    )
+    @pytest.mark.parametrize("border", ["constant", "reflect", "replicate", "circular"])
+    def test_stage(self, x, y, w, h, border) -> None:
+        from pipelime.stages import StageCropAndPad
+        import pipelime.items as pli
+        import numpy as np
+
+        stage = StageCropAndPad(
+            x=x,
+            y=y,
+            width=w,
+            height=h,
+            images=["image", "mask1", "mask2"],
+            border=border,
+            output_key_format="*_crop",
+        )  # type: ignore
+
+        sample = Sample(
+            {
+                "image": pli.PngImageItem(
+                    np.random.randint(0, 255, (200, 100, 3), dtype=np.uint8)
+                ),
+                "mask1": pli.PngImageItem(
+                    np.random.randint(0, 255, (200, 100), dtype=np.uint8)
+                ),
+                "mask2": pli.PngImageItem(
+                    np.random.randint(0, 255, (200, 100, 10), dtype=np.uint8)
+                ),
+            }
+        )
+
+        sample = stage(sample)
+
+        in_keys = ["image", "mask1", "mask2"]
+        out_keys = [f"{k}_crop" for k in in_keys]
+        for in_key, out_key in zip(in_keys, out_keys):
+            assert in_key in sample
+            assert out_key in sample
+            orig_image = sample[in_key]()
+            cropped_image = sample[out_key]()
+            assert isinstance(orig_image, np.ndarray)
+            assert isinstance(cropped_image, np.ndarray)
+            if len(cropped_image.shape) == 3:
+                assert cropped_image.shape[2] == orig_image.shape[2]
+            assert cropped_image.shape[:2] == (h, w)

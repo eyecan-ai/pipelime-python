@@ -951,3 +951,76 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
             if key not in keys:
                 return key
             key += "_"
+
+
+class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
+    """Copy shared items from a source dataset to a destination dataset. Datasets may
+    not have the same length."""
+
+    source: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="src",
+            piper_port=PiperPortType.INPUT,
+            description=(
+                "Where the shared items are copied from. Must have at least one "
+                "sample and one shared item."
+            ),
+        )
+    )
+    dest: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="dst",
+            piper_port=PiperPortType.INPUT,
+            description=(
+                "Where the shared items are copied to. Must have at least one sample "
+                "and any number of shared items. Source and destination datasets may "
+                "not have the same length, as only the shared items are copied."
+            ),
+        )
+    )
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o",
+            piper_port=PiperPortType.OUTPUT,
+            description=("Where the resulting dataset is written to."),
+        )
+    )
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+    key_list: t.Sequence[str] = pyd.Field(
+        ...,
+        alias="k",
+        description=("The keys to copy. Must be present in source dataset."),
+    )
+    force_shared: bool = pyd.Field(
+        False,
+        alias="f",
+        description=("If True, the items will be copied as shared items"),
+    )
+
+    def run(self):
+        from pipelime.stages.item_replacement import StageCopyItems
+
+        src_seq = self.source.create_reader()
+        dst_seq = self.dest.create_reader()
+
+        src_sample = src_seq[0]
+
+        stage = StageCopyItems(
+            source=src_sample,
+            k=self.key_list,  # type: ignore
+            f=self.force_shared,  # type: ignore
+        )
+
+        out_seq = dst_seq.map(stage)
+
+        out_seq = self.output.append_writer(out_seq)
+
+        self.grabber.grab_all(
+            out_seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Copying items ({len(out_seq)} samples)",
+        )
