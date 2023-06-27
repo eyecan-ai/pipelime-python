@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import typing as t
 import functools
 import itertools
+import typing as t
 from pathlib import Path
 
 import typer
 
+from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 from pipelime.cli.subcommands import SubCommands as subc
-from pipelime.cli.parser import parse_pipelime_cli, CLIParsingError
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
     print_command_op_stage_info,
@@ -92,8 +92,8 @@ def _process_cfg_or_die(
     verbose: bool,
     print_all: bool,
 ) -> t.List["XConfig"]:
-    from pipelime.cli.pretty_print import print_error, print_info, print_warning
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
+    from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
     if verbose:
         print_info(f"> Processing {cfg_name}...")
@@ -154,8 +154,8 @@ def _process_all(
     exit_on_error: bool,
     verbose: int,
 ):
-    from pipelime.cli.pretty_print import print_info
     from pipelime.choixe import XConfig
+    from pipelime.cli.pretty_print import print_info
 
     if verbose > 1:
         print_info("\nProcessing configurations:")
@@ -691,22 +691,27 @@ def run_command(
     """
 
     import time
+
     from pydantic.error_wrappers import ValidationError
 
     from pipelime.choixe.utils.io import PipelimeTmp, dump
-    from pipelime.commands import TempCommand
-
-    from pipelime.cli.pretty_print import print_info, print_command_outputs
+    from pipelime.cli.pretty_print import print_command_outputs, print_info
+    from pipelime.cli.tui import TuiApp, is_tui_needed
     from pipelime.cli.utils import (
         get_pipelime_command_cls,
-        time_to_str,
         show_field_alias_valerr,
+        time_to_str,
     )
+    from pipelime.commands import TempCommand
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
     except ValueError:
         raise typer.Exit(1)
+
+    if is_tui_needed(cmd_cls, cmd_args):
+        app = TuiApp(cmd_cls, cmd_args)
+        cmd_args = t.cast(t.Mapping, app.run())
 
     if verbose > 2:
         print_info(f"\nCreating command `{command}` with options:")

@@ -1,9 +1,10 @@
 from __future__ import annotations
+
+import inspect
+import typing as t
 from abc import ABC, abstractmethod
 
 import pydantic as pyd
-import typing as t
-import inspect
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
@@ -82,6 +83,9 @@ class StageInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none")
                 __root__=create_stage_from_config(*next(iter(value.items())))
             )
         raise ValueError(f"Invalid stage definition: {value}")
+
+    def dict(self, *args, **kwargs) -> t.Mapping:
+        return {self.__root__.__config__.title: self.__root__.dict(*args, **kwargs)}
 
 
 class StageCompose(SampleStage, title="compose"):

@@ -3,9 +3,9 @@ import typing as t
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
-import pipelime.sequences as pls
 import pipelime.utils.pydantic_types as pl_types
 from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.stages import StageInput
 
 
 class TimeItCommand(PipelimeCommand, title="timeit"):
@@ -84,9 +84,10 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
     )
 
     def run(self):
-        import time
         import shutil
-        from pipelime.sequences import build_pipe, SamplesSequence
+        import time
+
+        from pipelime.sequences import SamplesSequence, build_pipe
 
         if self.input is None and self.operations is None:
             raise ValueError("No input dataset or operation defined.")
@@ -178,7 +179,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         return v
 
     def run(self):
-        from pipelime.sequences import build_pipe, SamplesSequence
+        from pipelime.sequences import SamplesSequence, build_pipe
 
         seq = SamplesSequence if self.input is None else self.input.create_reader()
         seq = build_pipe(self.operations.value, seq)  # type: ignore
@@ -585,7 +586,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 class MapCommand(PipelimeCommand, title="map"):
     """Apply a stage on a dataset."""
 
-    stage: t.Union[str, t.Mapping[str, t.Mapping[str, t.Any]]] = pyd.Field(
+    stage: StageInput = pyd.Field(
         ...,
         alias="s",
         description=(
@@ -902,6 +903,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
 
     def run(self):
         from pipelime.stages import StageSampleHash
+        from pipelime.sequences import DataStream
 
         seq = self.input.create_reader()
         hash_key = self._get_hash_key(list(seq[0].keys()))
@@ -912,7 +914,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         # multi-processing friendly filtering
         class _WriterHelper:
             def __init__(self, output_pipe):
-                self.stream = pls.DataStream(output_pipe=output_pipe)
+                self.stream = DataStream(output_pipe=output_pipe)
                 self.curr_idx = 0
                 self.unique_hashes = set()
 
@@ -951,3 +953,76 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
             if key not in keys:
                 return key
             key += "_"
+
+
+class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
+    """Copy shared items from a source dataset to a destination dataset. Datasets may
+    not have the same length."""
+
+    source: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="src",
+            piper_port=PiperPortType.INPUT,
+            description=(
+                "Where the shared items are copied from. Must have at least one "
+                "sample and one shared item."
+            ),
+        )
+    )
+    dest: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="dst",
+            piper_port=PiperPortType.INPUT,
+            description=(
+                "Where the shared items are copied to. Must have at least one sample "
+                "and any number of shared items. Source and destination datasets may "
+                "not have the same length, as only the shared items are copied."
+            ),
+        )
+    )
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o",
+            piper_port=PiperPortType.OUTPUT,
+            description=("Where the resulting dataset is written to."),
+        )
+    )
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+    key_list: t.Sequence[str] = pyd.Field(
+        ...,
+        alias="k",
+        description=("The keys to copy. Must be present in source dataset."),
+    )
+    force_shared: bool = pyd.Field(
+        False,
+        alias="f",
+        description=("If True, the items will be copied as shared items"),
+    )
+
+    def run(self):
+        from pipelime.stages.item_replacement import StageCopyItems
+
+        src_seq = self.source.create_reader()
+        dst_seq = self.dest.create_reader()
+
+        src_sample = src_seq[0]
+
+        stage = StageCopyItems(
+            source=src_sample,
+            k=self.key_list,  # type: ignore
+            f=self.force_shared,  # type: ignore
+        )
+
+        out_seq = dst_seq.map(stage)
+
+        out_seq = self.output.append_writer(out_seq)
+
+        self.grabber.grab_all(
+            out_seq,
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Copying items ({len(out_seq)} samples)",
+        )
