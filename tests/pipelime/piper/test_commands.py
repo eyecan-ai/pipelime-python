@@ -140,13 +140,13 @@ class TestCommands:
         dag_path = piper_folder / "gc_test" / "dag.yml"
         cfg = TestUtils.choixe_process(dag_path, None)
 
-        cmd = RunCommand(**cfg, gc=False)
+        cmd = RunCommand(**cfg, force_gc=False)
         nogc_start, nogc_end = self._gc_run(cmd)
 
         PipelimeTmp.SESSION_TMP_DIR = None
 
         reprocessed_dag = TestUtils.choixe_process(dag_path, None)
-        cmd = RunCommand(**reprocessed_dag, gc=True)
+        cmd = RunCommand(**reprocessed_dag, force_gc=True)
         gc_start, gc_end = self._gc_run(cmd)
 
         # assert nogc_start[0] == gc_start[0]
@@ -163,19 +163,19 @@ class TestCommands:
         def _testcm_no_set():
             a = [1, 2, 3]
             b = "test"
-            c = {"a": a, "b": b, "c": 42.5}
+            c = {"a": a, "b": b, "c": 42.5}  # noqa: F841, W0612
 
         @command(title="testcm_false", force_gc=False)
         def _testcm_false():
             a = [1, 2, 3]
             b = "test"
-            c = {"a": a, "b": b, "c": 42.5}
+            c = {"a": a, "b": b, "c": 42.5}  # noqa: F841, W0612
 
         @command(title="testcm_true", force_gc=True)
         def _testcm_true():
             a = [1, 2, 3]
             b = "test"
-            c = {"a": a, "b": b, "c": 42.5}
+            c = {"a": a, "b": b, "c": 42.5}  # noqa: F841, W0612
 
         # force_gc not set
         cmd = _testcm_no_set()
