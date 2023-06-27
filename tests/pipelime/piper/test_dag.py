@@ -188,7 +188,7 @@ class TestDAG:
 
         from ... import TestUtils
 
-        dag_yaml_path = piper_folder / "dags" / "python" / "nested.yml"
+        dag_yaml_path = piper_folder / "python_dags" / "nested.yml"
         output_path = tmp_path / "output_dag"
         cfg = TestUtils.choixe_process(
             dag_yaml_path,

@@ -140,7 +140,7 @@ class TestCommands:
         dag_path = piper_folder / "gc_test" / "dag.yml"
         cfg = TestUtils.choixe_process(dag_path, None)
 
-        cmd = RunCommand(**cfg, gc=False)
+        cmd = RunCommand(**cfg, force_gc=False)
         nogc_start, nogc_end = self._gc_run(cmd)
 
         PipelimeTmp.SESSION_TMP_DIR = None
