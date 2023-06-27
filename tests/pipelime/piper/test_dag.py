@@ -67,7 +67,9 @@ class DAG(DagBaseCommand):
         )  # type: ignore
 
         dir_out_copy = self.folder_debug / "out_copy"
-        cmd_copy = CloneCommand(input=dir_out_split, output=dir_out_copy)  # type: ignore
+        cmd_copy = CloneCommand(
+            input=dir_out_split, output=dir_out_copy  # type: ignore
+        )
 
         dir_out_remap = self.folder_debug / "out_remap"
         params = {

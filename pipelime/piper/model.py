@@ -30,9 +30,7 @@ def command(
     ...
 
 
-def command(
-    __func=None, *, title: t.Optional[str] = None, **__config_kwargs
-):
+def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     """Creates a full-fledged PipelimeCommand from a general function.
     The command will have the same exact signature and docstring of the function.
     Field names and types will taken from the function parameters and validated as
@@ -162,7 +160,9 @@ def command(
         # and gathers positional arguments
         fsig = inspect.signature(func)
         fsig_params = fsig.parameters
-        is_bound = next(iter(fsig.parameters.values())).name == "self"
+        is_bound = (
+            fsig.parameters and next(iter(fsig.parameters.values())).name == "self"
+        )
         if is_bound:
             fsig_params = {k: v for k, v in fsig_params.items() if k != "self"}
 
@@ -171,9 +171,7 @@ def command(
             p.name for p in fsig_params.values() if p.kind is p.POSITIONAL_ONLY
         ]
         poskw_names = [
-            p.name
-            for p in fsig_params.values()
-            if p.kind is p.POSITIONAL_OR_KEYWORD
+            p.name for p in fsig_params.values() if p.kind is p.POSITIONAL_OR_KEYWORD
         ]
         kwonly_names = [
             p.name for p in fsig_params.values() if p.kind is p.KEYWORD_ONLY
