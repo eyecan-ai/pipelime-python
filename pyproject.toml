@@ -52,7 +52,7 @@ dependencies = [
     "minio",
     "requests",
     "billiard",
-    "textual",
+    "textual>=0.26.0",
 ]
 dynamic = [ "version" ]
 
@@ -94,5 +94,6 @@ path = "pipelime/__init__.py"
 [tool.hatch.build]
 include = [
   "pipelime/**/*.py",
+  "pipelime/**/*.css",
   "LICENSE",
 ]
