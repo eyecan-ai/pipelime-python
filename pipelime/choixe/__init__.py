@@ -1,1 +1,1 @@
-from pipelime.choixe.xconfig import XConfig
+from pipelime.choixe.xconfig import XConfig, Choixe

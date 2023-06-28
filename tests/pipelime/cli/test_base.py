@@ -51,7 +51,7 @@ class TestCliBase:
         assert "Type" in result.output
         assert "Default" in result.output
 
-    def test_run(self, data_folder, minimnist_dataset, tmp_path):
+    def test_run(self, minimnist_dataset, tmp_path):
         from pathlib import Path
         from typing import Sequence
 
@@ -214,3 +214,33 @@ class TestCliBase:
             assert not should_fail
             assert cmdline_cfg == parsed_cfg
             assert cmdline_ctx == parsed_ctx
+
+    def test_command_outputs(self, minimnist_dataset, tmp_path):
+        import json
+
+        out1 = tmp_path / "out1"
+        out2 = tmp_path / "out2"
+        cmdout = tmp_path / "cmdout.json"
+        args = [
+            "split",
+            "+i",
+            str(minimnist_dataset["path"]),
+            "+s",
+            f"0.2,{out1}",
+            "+s",
+            f"0.5,{out2}",
+            "--command-outputs",
+            str(cmdout),
+        ]
+
+        self._base_launch(args)
+
+        assert cmdout.exists() and cmdout.is_file()
+        with open(cmdout, "r") as f:
+            data = json.load(f)
+        assert isinstance(data, dict)
+        assert "splits" in data
+        assert data["splits"] == [
+            out1.resolve().absolute().as_posix(),
+            out2.resolve().absolute().as_posix(),
+        ]

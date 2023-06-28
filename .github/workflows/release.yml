@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip --user
-          python -m pip install wheel flake8 pytest pytest-cov --user
+          python -m pip install wheel flake8 pytest pytest-cov pytest-asyncio --user
           python -m pip install -e .[draw] --user
       - name: Lint with flake8
         run: |

@@ -1,5 +1,10 @@
 # XConfig
 
+```{admonition} Warning
+:class: warning
+Consider switching to the new `Choixe` class! It's more lightweight and more flexible.
+```
+
 All **Choixe** functionalities can be accessed with the `XConfig` class. You can construct an `XConfig` from any python mapping, by simply passing it to the constructor:
 
 ```python

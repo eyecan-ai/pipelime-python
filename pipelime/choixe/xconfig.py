@@ -299,3 +299,137 @@ class XConfig(Box):
 
     def inspect(self) -> Inspection:
         return inspect(self.parse(), cwd=self.get_cwd())
+
+
+class Choixe:
+    """A lightweight wrapper that enables the use of Choixe on any python object,
+    overcoming the limitations of the `XConfig` class, which is limited to the use of
+    dictionaries as data source.
+
+    Unlike `XConfig`, `Choixe` does not implement any python data structure, and
+    delegates all access operations to the wrapped object. This means that it is
+    possible to use `Choixe` on any python object, including dictionaries, lists,
+    tuples, sets, strings, integers, floats, booleans, etc, as well as custom classes
+    and instances.
+    """
+
+    def __init__(self, data: Any = None, cwd: Optional[Path] = None):
+        """Constructor for `Choixe`
+
+        Args:
+            data (Any, optional): Optional object containing
+                initial data, it can be anything. Defaults to None.
+            cwd (Optional[Path], optional): An optional path with the current working
+                directory to use when resolving relative imports. If set to None, the
+                system current working directory will be used. Defaults to None.
+        """
+
+        self._cwd = cwd
+        self._data = data
+
+    def __repr__(self) -> str:
+        return f"Choixe(data={self.data})"
+
+    @classmethod
+    def from_file(cls, path: Union[str, Path]) -> Choixe:
+        """Factory method to create a `Choixe` from file.
+
+        Args:
+            path (Union[str, Path]): Path to a markup file from which to load the data
+
+        Returns:
+            Choixe: The loaded `Choixe`
+        """
+        path = Path(path)
+        return cls(data=load(path), cwd=path.parent)
+
+    @property
+    def cwd(self) -> Optional[Path]:
+        """Getter for the configuration cwd"""
+        return self._cwd
+
+    @property
+    def data(self) -> Any:
+        """Getter for the configuration data"""
+        return self._data
+
+    def copy(self) -> Choixe:
+        """Prototype method to copy this object.
+
+        Returns:
+            Choixe: A copy of this object
+        """
+        return Choixe(data=self.data, cwd=self.cwd)
+
+    def save_to(self, filename: Union[str, Path]) -> None:
+        """Save configuration to output file
+
+        Args:
+            filename (str): output filename
+        """
+        dump(self.decode(), Path(filename))
+
+    def parse(self) -> Node:
+        """Parse this object into a Choixe AST Node.
+
+        Returns:
+            Node: The parsed node.
+        """
+        return parse(self.data)
+
+    def decode(self) -> Dict:
+        """Convert this `Choixe` to a plain python dictionary. Also converts some nodes
+        like numpy arrays into plain lists and restores some directives, eg, `$model`.
+
+        Returns:
+            Dict: The decoded dictionary.
+        """
+        return decode(self.parse())
+
+    def walk(self) -> List[Tuple[List[Union[str, int]], Any]]:
+        """Perform the walk operation on this `Choixe`.
+
+        Returns:
+            List[Tuple[List[Union[str, int]], Any]]: The walk output.
+        """
+        return walk(self.parse())
+
+    def _process(
+        self, context: Optional[Dict[str, Any]] = None, allow_branching: bool = True
+    ) -> List[Choixe]:
+        data = process(
+            self.parse(), context=context, cwd=self.cwd, allow_branching=allow_branching
+        )
+        return [Choixe(data=x, cwd=self.cwd) for x in data]
+
+    def process(self, context: Optional[Dict[str, Any]] = None) -> Choixe:
+        """Process this Choixe without branching.
+
+        Args:
+            context (Optional[Dict[str, Any]], optional): Optional data structure
+                containing all variables values. Defaults to None.
+
+        Returns:
+            `Choixe`: The processed Choixe.
+        """
+        return self._process(context=context, allow_branching=False)[0]
+
+    def process_all(self, context: Optional[Dict[str, Any]] = None) -> List[Choixe]:
+        """Process this Choixe with branching.
+
+        Args:
+            context (Optional[Dict[str, Any]], optional): Optional data structure
+                containing all variables values. Defaults to None.
+
+        Returns:
+            List[Choixe]: A list of all processing outcomes.
+        """
+        return self._process(context=context, allow_branching=True)
+
+    def inspect(self) -> Inspection:
+        """Inspect this Choixe returning all variables and imports.
+
+        Returns:
+            Inspection: The inspection result.
+        """
+        return inspect(self.parse(), cwd=self.cwd)

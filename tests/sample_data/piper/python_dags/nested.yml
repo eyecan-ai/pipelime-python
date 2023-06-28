@@ -1,0 +1,17 @@
+nodes:
+  create_toy:
+    toy_dataset:
+      toy:
+        length: $var(size)
+      output: $var(folder)/toy_dataset
+  dag_python:
+    $var(path_dag):DAG:
+      input: $var(folder)/toy_dataset
+      output: $var(folder)/output_dag_python
+      subsample: $var(slice)
+      key_image_item: "image"
+  final_clone:
+    clone:
+      input: $var(folder)/output_dag_python
+      output: $var(output)
+

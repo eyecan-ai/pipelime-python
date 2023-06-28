@@ -45,13 +45,14 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic>=1.10",
+    "pydantic>=1.10.8,<2",
     "schema",
     "pyzmq",
     "dictquery",
     "minio",
     "requests",
     "billiard",
+    "textual",
 ]
 dynamic = [ "version" ]
 
@@ -60,6 +61,7 @@ draw = ["pygraphviz"]
 tests = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
 ]
 dev = [
     "pylama",

@@ -5,8 +5,17 @@ from pipelime.stages.base import (
     StageLambda,
     StageInput,
 )
-from pipelime.stages.augmentations import StageAlbumentations
-from pipelime.stages.item_replacement import StageReplaceItem, StageSetMetadata
+from pipelime.stages.augmentations import (
+    StageAlbumentations,
+    StageResize,
+    StageCropAndPad,
+)
+from pipelime.stages.item_replacement import (
+    StageReplaceItem,
+    StageSetMetadata,
+    StageSampleHash,
+    StageShareItems,
+)
 from pipelime.stages.item_sources import StageForgetSource, StageUploadToRemote
 from pipelime.stages.key_transformations import (
     StageDuplicateKey,
