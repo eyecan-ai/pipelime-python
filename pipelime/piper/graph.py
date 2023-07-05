@@ -449,12 +449,18 @@ class DAGNodesGraph:
 
         if io_map is not None:
             for name, value in io_map.items():
-                if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
-                    value = [value]
+                if isinstance(value, (str, bytes)):
+                    values = [value]
+                elif isinstance(value, Sequence):
+                    values = value
+                elif isinstance(value, Mapping):
+                    values = [value[k] for k in sorted(value.keys())]
+                else:
+                    values = [value]
 
                 port_basename = f"{node_name}.{node_cmd.command_name}.{name}"
                 attrs = {}
-                for idx, x in enumerate(value):
+                for idx, x in enumerate(values):
                     if x:  # discard empty strings and None
                         x_name = _to_str(x)
                         n0 = GraphNodeData(
@@ -474,7 +480,7 @@ class DAGNodesGraph:
                             {
                                 (n0, n1): {
                                     port_attr: f"{port_basename}[{idx}]"
-                                    if len(value) > 1
+                                    if len(values) > 1
                                     else port_basename,
                                     DAGNodesGraph.GraphAttrs.EDGE_TYPE: edge_attr,
                                 }
