@@ -349,6 +349,21 @@ class TestStringParse:
         )
         assert parse(expr) == expected
 
+    def test_parse_integers(self):
+        expr = {"a": 10, "b": {1: "alice", 2: "bob"}}
+        expected = ast.DictNode(
+            nodes={
+                ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                ast.LiteralNode(data="b"): ast.DictNode(
+                    nodes={
+                        ast.LiteralNode(data=1): ast.LiteralNode(data="alice"),
+                        ast.LiteralNode(data=2): ast.LiteralNode(data="bob"),
+                    }
+                ),
+            }
+        )
+        assert parse(expr) == expected
+
     def test_uuid(self):
         expr = "$uuid"
         expected = ast.UuidNode()

@@ -3,10 +3,11 @@ from typing import Any
 
 import numpy as np
 import pytest
-from pipelime.choixe.ast.nodes import DictNode, ListNode, Node, LiteralNode
-from pipelime.choixe.visitors import decode
 from deepdiff import DeepDiff
 from pydantic import BaseModel
+
+from pipelime.choixe.ast.nodes import DictNode, ListNode, LiteralNode, Node
+from pipelime.choixe.visitors import decode
 
 
 class Person(BaseModel):
