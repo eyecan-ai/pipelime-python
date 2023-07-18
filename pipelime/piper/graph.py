@@ -454,7 +454,7 @@ class DAGNodesGraph:
                 elif isinstance(value, Sequence):
                     values = value
                 elif isinstance(value, Mapping):
-                    values = [value[k] for k in sorted(value.keys())]
+                    values = list(value.values())
                 else:
                     values = [value]
 
