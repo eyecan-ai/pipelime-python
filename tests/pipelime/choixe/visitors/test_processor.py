@@ -116,6 +116,15 @@ class TestProcessor:
         expected = [{"a": "I am a yellow snake"}]
         self._expectation_test(data, expected)
 
+    def test_val_non_string(self):
+        data = {
+            "a": "$var(color.hue)",
+            1: "$var(color.hue)",
+            0.5: "$var(color.hue)",
+        }
+        expected = [{"a": "red", 1: "red", 0.5: "red"}]
+        self._expectation_test(data, expected)
+
     def test_import_plain(self, choixe_plain_cfg: Path):
         path_str = str(PurePosixPath(choixe_plain_cfg)).replace(
             "\\", "/"

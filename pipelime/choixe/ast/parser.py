@@ -1,7 +1,7 @@
 import ast
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, OrderedDict, Tuple, Type, Union
 
 import astunparse
 import schema as S
@@ -142,7 +142,7 @@ class Parser:
 
     def __init__(self) -> None:
         self._scanner = Scanner()
-        self._type_map = {
+        self._type_map: Dict[Type, Callable[[Any], c_ast.Node]] = {
             dict: self._parse_dict,
             list: self._parse_list,
             tuple: self._parse_list,
@@ -299,7 +299,8 @@ class Parser:
                     break
 
             if not any_valid:
-                parsed_other[self._parse_str(k)] = self.parse(v)
+                parsed_key = self._type_map.get(type(k), self._parse_value)(k)
+                parsed_other[parsed_key] = self.parse(v)
 
         # Parse the remaining entries as a DictNode.
         parsed_other = c_ast.DictNode(nodes=parsed_other)
@@ -333,6 +334,9 @@ class Parser:
 
         raise ChoixeTokenValidationError(token)
 
+    def _parse_value(self, data: Any) -> c_ast.LiteralNode:
+        return c_ast.LiteralNode(data=data)
+
     def _parse_str(self, data: str) -> c_ast.Node:
         nodes = []
         for token in self._scanner.scan(data):
@@ -355,12 +359,12 @@ class Parser:
             Node: The parsed Choixe AST node.
         """
         try:
-            fn = c_ast.LiteralNode
+            fn = self._parse_value
             for type_, parse_fn in self._type_map.items():
                 if isinstance(data, type_):
                     fn = parse_fn
                     break
-            res = fn(data)  # type: ignore
+            res = fn(data)
             return res
 
         except (ChoixeSyntaxError, SyntaxError) as e:

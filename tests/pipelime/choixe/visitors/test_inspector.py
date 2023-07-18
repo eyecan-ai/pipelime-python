@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.visitors import Inspection, inspect
 
@@ -37,6 +38,31 @@ class TestInspector:
                 Inspection(
                     variables={"variable": {"one": None, "two": 10.2, "three": None}},
                     environ={"variable.three": None},
+                ),
+            ],
+            [
+                {
+                    10: "$var(variable.one)",
+                    "aaaa": "$var(variable.two, default=10.2)",
+                    True: "$var(variable.three, env=True)",
+                    "four": [
+                        "$var(variable.four)",
+                        "$var(variable.five, default=10.2)",
+                        "$var(variable.six, env=True)",
+                    ],
+                },
+                Inspection(
+                    variables={
+                        "variable": {
+                            "one": None,
+                            "two": 10.2,
+                            "three": None,
+                            "four": None,
+                            "five": 10.2,
+                            "six": None,
+                        }
+                    },
+                    environ={"variable.three": None, "variable.six": None},
                 ),
             ],
             [
