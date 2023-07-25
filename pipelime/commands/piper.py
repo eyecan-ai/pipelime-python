@@ -1,10 +1,10 @@
 import typing as t
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel, Field, PositiveInt, PrivateAttr
+from pydantic import BaseModel, Field, PositiveInt, PrivateAttr, create_model
 
 from pipelime.choixe.utils.io import PipelimeTemporaryDirectory
 from pipelime.piper import PipelimeCommand, PiperPortType
@@ -35,10 +35,10 @@ class PiperGraphCommandBase(PipelimeCommand):
     """Base class for piper-aware commands."""
 
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="in", description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not run."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="ex", description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not run."
     )
 
     _piper_graph: t.Optional["DAGNodesGraph"] = PrivateAttr(None)
@@ -115,7 +115,7 @@ class GraphPortForwardingCommand(PiperGraphCommandBase):
 class RunCommandBase(GraphPortForwardingCommand):
     token: t.Optional[str] = Field(
         None,
-        alias="tk",
+        alias="t",
         description=(
             "The execution token. If not specified, a new token will be generated."
         ),
@@ -455,7 +455,6 @@ class DagBaseCommand(RunCommandBase):
         Returns:
             T_NODES: a dictionary containing the mapping between node names and nodes.
         """
-        pass
 
     @property
     def nodes_graph(self) -> T_NODES:
@@ -472,3 +471,80 @@ class DagBaseCommand(RunCommandBase):
             )
             return
         return super().run()
+
+
+class PiperDAG(
+    BaseModel,
+    ABC,
+    allow_population_by_field_name=True,
+    extra="forbid",
+    copy_on_model_validation="none",
+):
+    """Base class to ease the creation of Python DAG Object.
+
+    Derived classes should add custom properties as pydantic fields and implement
+    at least the `create_graph` method. Then, use the `piper_dag` decorator to create
+    a full-fledged command class.
+
+    Example:
+
+        @piper_dag
+        class MyGrandDAG(PiperDAG, title="mgd"):
+            '''My Grand DAG'''
+
+            aparam: str = Field(..., alias="a", description="a param")
+            bparam: int = Field(12, alias="b", description="b param")
+
+            def create_graph(self, folder_debug):
+                ...
+    """
+
+    @property
+    def input_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+        """Optional mapping from graph input data keys and desired keys."""
+        return None
+
+    @property
+    def output_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+        """Optional mapping from graph output data keys and desired keys."""
+        return None
+
+    @abstractmethod
+    def create_graph(self, folder_debug: Path) -> T_NODES:
+        """Creates the graph nodes.
+
+        Args:
+            folder_debug (Path): The path to the folder for debug data.
+
+        Returns:
+            T_NODES: a dictionary containing the mapping between node names and nodes.
+        """
+
+
+def piper_dag(cls: t.Type[PiperDAG]):
+    """A decorator to create a full-fledged command class from a PiperDAG class."""
+
+    class _PiperDagCommandHelper(DagBaseCommand):
+        properties: cls = Field(..., alias="p")
+
+        @property
+        def input_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+            """Optional mapping from graph input data keys and desired keys."""
+            return self.properties.input_mapping
+
+        @property
+        def output_mapping(self) -> t.Optional[t.Mapping[str, str]]:
+            """Optional mapping from graph output data keys and desired keys."""
+            return self.properties.output_mapping
+
+        def create_graph(self) -> T_NODES:
+            return self.properties.create_graph(self.folder_debug)
+
+    dag_command = create_model(
+        cls.__name__,
+        __base__=_PiperDagCommandHelper,
+        __module__=cls.__module__,
+        __cls_kwargs__={"title": cls.schema()["title"]},
+    )
+    dag_command.__doc__ = cls.__doc__
+    return dag_command
