@@ -267,14 +267,17 @@ class TestItems:
         assert dest_path.stat().st_nlink == 2
         assert source_path.stat().st_nlink == 2
 
-    def test_data_cache(self, items_folder: Path):
+    def test_data_cache(self, items_folder: Path, tmp_path: Path):
         for v in pli.Item.ITEM_DATA_CACHE_MODE.values():
             assert v is None
 
-        def _reload() -> t.Tuple[pli.Item, pli.Item]:
+        def _reload():
             bmp_item = pli.Item.get_instance(items_folder / "0.bmp")
             json_item = pli.Item.get_instance(items_folder / "3.json")
-            return bmp_item, json_item
+            npy_local_item = pli.NpyNumpyItem(np.array([1, 2, 3]))
+            npy_local_item.serialize(tmp_path / "local.npy")
+            txt_local_item = pli.TxtNumpyItem(np.array([1, 2, 3]))
+            return bmp_item, json_item, npy_local_item, txt_local_item
 
         def _check_single(item, should_cache, is_cached):
             item.cache_data = should_cache
@@ -289,27 +292,27 @@ class TestItems:
             for id, it in enumerate(_reload()):
                 _check_single(it, should_cache[id], is_cached[id])
 
-        _check((True, True), (True, True))
-        _check((False, False), (False, False))
+        _check((True, True, True, True), (True, True, True, True))
+        _check((False, False, False, False), (False, False, True, True))
 
-        with pli.no_data_cache(pli.ImageItem):
-            _check((True, True), (True, True))
-            _check((False, False), (False, False))
-            _check((None, None), (False, True))
+        with pli.no_data_cache(pli.NumpyItem):
+            _check((True, True, True, True), (True, True, True, True))
+            _check((False, False, False, False), (False, False, False, True))
+            _check((None, None, None, None), (False, True, False, True))
 
-        with pli.no_data_cache(pli.ImageItem, pli.JsonMetadataItem):
+        with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
             pli.enable_item_data_cache(pli.ImageItem)
-            _check((True, True), (True, True))
-            _check((False, False), (False, False))
-            _check((None, None), (True, False))
-            _check((None, None), (True, False))
+            _check((True, True, True, True), (True, True, True, True))
+            _check((False, False, False, False), (False, False, False, True))
+            _check((None, None, None, None), (True, False, False, True))
+            _check((None, None, None, None), (True, False, False, True))
 
         with pli.no_data_cache():
             with pli.data_cache(pli.JsonMetadataItem):
-                _check((True, True), (True, True))
-                _check((False, False), (False, False))
-                _check((None, None), (False, True))
-                _check((None, None), (False, True))
+                _check((True, True, True, True), (True, True, True, True))
+                _check((False, False, False, False), (False, False, False, True))
+                _check((None, None, None, None), (False, True, False, True))
+                _check((None, None, None, None), (False, True, False, True))
 
     def test_set_data_twice(self):
         with pytest.raises(ValueError):
