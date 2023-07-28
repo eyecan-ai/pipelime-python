@@ -15,7 +15,12 @@ from pipelime.items.base import (
 # import and register all items
 from pipelime.items.binary_item import BinaryItem
 from pipelime.items.pickle_item import PickleItem
-from pipelime.items.numpy_item import NumpyItem, NpyNumpyItem, TxtNumpyItem
+from pipelime.items.numpy_item import (
+    NumpyItem,
+    NumpyRawItem,
+    NpyNumpyItem,
+    TxtNumpyItem,
+)
 from pipelime.items.image_item import (
     ImageItem,
     BmpImageItem,
