@@ -317,6 +317,25 @@ from pipelime.choixe.visitors import unparse
             ),
             "$rand(10, 20, n=10, pdf=[[0.0, 0.1], [2.5, [1.0, 0.4]], [5.0, 2.0], [7.5, [0.0, 0.2]]])",
         ],
+        [
+            ast.DictNode(
+                nodes={
+                    ast.LiteralNode(data="a"): ast.LiteralNode(data=10),
+                    ast.LiteralNode(data=1): ast.DictNode(
+                        nodes={
+                            ast.LiteralNode(data=4): ast.LiteralNode(data=10.0),
+                            ast.LiteralNode(data=10): ast.LiteralNode(data="hello"),
+                        }
+                    ),
+                    ast.LiteralNode(data=10): ast.ListNode(
+                        ast.LiteralNode(data=1),
+                        ast.LiteralNode(data=2),
+                        ast.LiteralNode(data=3),
+                    ),
+                }
+            ),
+            {"a": 10, 1: {4: 10.0, 10: "hello"}, 10: [1, 2, 3]},
+        ],
     ],
 )
 def test_unparse(node: ast.Node, expected: Any):

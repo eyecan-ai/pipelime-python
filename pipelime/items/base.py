@@ -662,6 +662,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):
             )
             if data_source is not None:
                 self._add_data_source(data_source)
+                if (
+                    self.cache_data is None
+                    and Item.is_cache_enabled(self.__class__) is False
+                    or self.cache_data is False
+                ):
+                    self._data_cache = None
 
     def remove_data_source(
         self: DerivedItemTp, *sources: _item_data_source
