@@ -436,6 +436,16 @@ class DagBaseCommand(RunCommandBase):
 
         raise RuntimeError(f"Cycle found {edges_cycles}")  # type: ignore
 
+    def _auto_name_commands(self, nodes: t.Sequence[PipelimeCommand]) -> T_NODES:
+        name_counter = {}
+        node_map = {}
+        for node in nodes:
+            name = node.command_name
+            value = name_counter.setdefault(name, 0)
+            name_counter[name] = value + 1
+            node_map[name + f"-{value}"] = node
+        return node_map
+
     def draw_graph(self, output: t.Optional[Path] = None, **kwargs) -> None:
         """Draws a pipelime DAG.
 
@@ -451,17 +461,22 @@ class DagBaseCommand(RunCommandBase):
         drawer.run()
 
     @abstractmethod
-    def create_graph(self) -> T_NODES:
+    def create_graph(self) -> t.Union[T_NODES, t.Sequence[PipelimeCommand]]:
         """Creates the graph nodes.
 
         Returns:
-            T_NODES: a dictionary containing the mapping between node names and nodes.
+            t.Union[T_NODES, t.Sequence[PipelimeCommand]]: a dictionary containing the
+                mapping between node names and nodes or a simple list of commands (names
+                will be automatically generated)
         """
 
     @property
     def nodes_graph(self) -> T_NODES:
         if self._nodes is None:
-            self._nodes = self.create_graph()
+            nodes = self.create_graph()
+            if isinstance(nodes, t.Sequence):
+                nodes = self._auto_name_commands(nodes)
+            self._nodes = nodes
         return self._nodes
 
     def run(self) -> None:
@@ -512,14 +527,18 @@ class PiperDAG(
         return None
 
     @abstractmethod
-    def create_graph(self, folder_debug: Path) -> T_NODES:
+    def create_graph(
+        self, folder_debug: Path
+    ) -> t.Union[T_NODES, t.Sequence[PipelimeCommand]]:
         """Creates the graph nodes.
 
         Args:
             folder_debug (Path): The path to the folder for debug data.
 
         Returns:
-            T_NODES: a dictionary containing the mapping between node names and nodes.
+            t.Union[T_NODES, t.Sequence[PipelimeCommand]]: a dictionary containing the
+                mapping between node names and nodes or a simple list of commands (names
+                will be automatically generated)
         """
 
 
@@ -539,7 +558,7 @@ def piper_dag(cls: t.Type[PiperDAG]):
             """Optional mapping from graph output data keys and desired keys."""
             return self.properties.output_mapping
 
-        def create_graph(self) -> T_NODES:
+        def create_graph(self) -> t.Union[T_NODES, t.Sequence[PipelimeCommand]]:
             return self.properties.create_graph(self.folder_debug)
 
     dag_command = create_model(
