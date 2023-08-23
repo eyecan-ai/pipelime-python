@@ -339,6 +339,9 @@ class InputDatasetInterface(
         return self.folder.as_posix()
 
 
+InputDataset = InputDatasetInterface
+
+
 any_serialization_t = t.Literal[
     "CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HARD_LINK", "REMOTE_FILE"
 ]
@@ -540,11 +543,20 @@ class OutputDatasetInterface(
             **({} if self.schema_ is None else self.schema_.as_pipe()),
         }
 
+    def as_input(self, **kwargs):
+        """Returns an input dataset interface reading the same folder.
+        All other arguments are passed to the constructor.
+        """
+        return InputDatasetInterface(folder=self.folder, **kwargs)
+
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
         return self.folder.as_posix()
+
+
+OutputDataset = OutputDatasetInterface
 
 
 class UrlDataModel(
