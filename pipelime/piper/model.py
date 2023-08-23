@@ -237,19 +237,18 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
 
             def run(self):
                 # get all arguments in the right order
-                if is_bound:
-                    func(
-                        self,
-                        *[getattr(self, n) for n in posonly_names + poskw_names],
-                        *getattr(self, varpos_name, tuple()),
-                        **self.dict(include=set(kwonly_names + [varkw_name])),
-                    )
-                else:
-                    func(
-                        *[getattr(self, n) for n in posonly_names + poskw_names],
-                        *getattr(self, varpos_name, tuple()),
-                        **self.dict(include=set(kwonly_names + [varkw_name])),
-                    )
+                # NB: do not use self.dict(), it returns sub-models as dict!
+                fargs = (
+                    (self,) if is_bound else tuple(),
+                    [getattr(self, n) for n in posonly_names + poskw_names],
+                    getattr(self, varpos_name, tuple()),
+                    {
+                        n: getattr(self, n)
+                        for n in set(kwonly_names + [varkw_name])
+                        if hasattr(self, n)
+                    },
+                )
+                func(*fargs[0], *fargs[1], *fargs[2], **fargs[3])
 
         # override base docstring with a custom description
         _FnModel.__doc__ = (

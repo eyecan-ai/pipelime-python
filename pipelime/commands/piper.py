@@ -122,6 +122,7 @@ class RunCommandBase(GraphPortForwardingCommand):
     )
     watch: t.Union[bool, WatcherBackend, Path, None] = Field(
         None,
+        alias="w",
         description=(
             "Monitor the execution in the current console. "
             "Defaults to True if no token is provided, False othrewise. "
@@ -131,6 +132,7 @@ class RunCommandBase(GraphPortForwardingCommand):
     )
     force_gc: t.Union[bool, str, t.Sequence[str]] = Field(
         False,
+        alias="gc",
         description=(
             "Force garbage collection before and after the execution of all nodes, "
             "if True, or only for the specified nodes."
