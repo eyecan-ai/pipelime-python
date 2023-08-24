@@ -4,9 +4,8 @@ from enum import Enum
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel, Field, PositiveInt, PrivateAttr, create_model
+from pydantic import BaseModel, Field, PositiveInt, PrivateAttr, create_model, validator
 
-from pipelime.choixe.utils.io import PipelimeTemporaryDirectory
 from pipelime.piper import PipelimeCommand, PiperPortType
 
 if t.TYPE_CHECKING:
@@ -410,15 +409,18 @@ class DagBaseCommand(RunCommandBase):
         ),
     )
 
-    _temp_folder: PipelimeTemporaryDirectory = PrivateAttr(None)
     _nodes: T_NODES = PrivateAttr(None)
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    @validator("folder_debug", always=True)
+    def _validate_folder_debug(cls, v):
+        import uuid
 
-        if not self.folder_debug:
-            self._temp_folder = PipelimeTemporaryDirectory()
-            self.folder_debug = self._temp_folder.name
+        from pipelime.choixe.utils.io import PipelimeTmp
+
+        if not v:
+            v = PipelimeTmp.make_subdir()
+        logger.debug(f"DAG debug folder: {v}")
+        return v
 
     def _validate_graph(self):
         """Validates the graph before executing it.
@@ -546,7 +548,10 @@ def piper_dag(cls: t.Type[PiperDAG]):
     """A decorator to create a full-fledged command class from a PiperDAG class."""
 
     class _PiperDagCommandHelper(DagBaseCommand):
-        properties: cls = Field(..., alias="p")
+        class PropertyModel(cls):
+            pass
+
+        properties: PropertyModel = Field(..., alias="p")
 
         @property
         def input_mapping(self) -> t.Optional[t.Mapping[str, str]]:
@@ -568,4 +573,11 @@ def piper_dag(cls: t.Type[PiperDAG]):
         __cls_kwargs__={"title": cls.schema()["title"]},
     )
     dag_command.__doc__ = cls.__doc__
+
+    # give the inner class a more meaningful name
+    dag_command.PropertyModel.__qualname__ = (
+        f"{cls.__qualname__}.{dag_command.PropertyModel.__name__}"
+    )
+    dag_command.PropertyModel.__module__ = cls.__module__
+
     return dag_command
