@@ -75,8 +75,8 @@ class PiperGraphCommandBase(PipelimeCommand):
             inc_n = [self.include] if isinstance(self.include, str) else self.include
             exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
 
-            self.checkpoint.write_data("include", inc_n)
-            self.checkpoint.write_data("exclude", exc_n)
+            self.command_checkpoint.write_data("include", inc_n)
+            self.command_checkpoint.write_data("exclude", exc_n)
 
             def _node_to_run(node: str) -> bool:
                 return (inc_n is None or node in inc_n) and (
@@ -89,7 +89,7 @@ class PiperGraphCommandBase(PipelimeCommand):
                 if _node_to_run(name)
             }
             dag = DAGModel(
-                nodes=NodesDefinition.create(nodes, checkpoint=self.checkpoint)
+                nodes=NodesDefinition.create(nodes, checkpoint=self.command_checkpoint)
             )
             self._piper_graph = DAGNodesGraph.build_nodes_graph(
                 dag, **self._nodes_graph_building_kwargs()
@@ -222,12 +222,12 @@ class RunCommandBase(GraphPortForwardingCommand):
 
     def _update_completed_commands(self, name: str, command: PipelimeCommand):
         """Updates the exclude lists after a command has been executed."""
-        with self.checkpoint.create_lock() as lock:
-            exc = self.checkpoint.read_data("exclude", None, lock)
+        with self.command_checkpoint.create_lock() as lock:
+            exc = self.command_checkpoint.read_data("exclude", None, lock)
             if exc is None:
                 exc = []
             exc.append(name)
-            self.checkpoint.write_data("exclude", exc, lock)
+            self.command_checkpoint.write_data("exclude", exc, lock)
 
 
 class ClassicPiperGraphCommand(BaseModel):
@@ -530,7 +530,7 @@ class DagBaseCommand(RunCommandBase):
         return self._nodes
 
     def run(self) -> None:
-        self.checkpoint.write_data("folder_debug", self.folder_debug.as_posix())
+        self.command_checkpoint.write_data("folder_debug", self.folder_debug.as_posix())
 
         self._validate_graph()
         if self.draw:

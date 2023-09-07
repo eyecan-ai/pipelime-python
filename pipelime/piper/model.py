@@ -370,7 +370,7 @@ class PipelimeCommand(
         return cls(**data)
 
     @property
-    def checkpoint(self) -> CheckpointNamespace:
+    def command_checkpoint(self) -> CheckpointNamespace:
         return self._checkpoint
 
     @abstractmethod
