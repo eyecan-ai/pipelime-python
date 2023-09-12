@@ -2,7 +2,9 @@
 
 Though the default behavior of Pipelime is to delete any temporary data, sometimes
 the folders may not be deleted and accumulate. For instance, you may have used the `-t` flag
-or directly called some Choixe utilities (see the step about [custom commands](./custom_commands.md) for more details). In such cases, you can use the `tmp` command to show and delete the temporary data created by Pipelime.
+or directly called some Choixe utilities (see the step about
+[custom commands](./custom_commands.md#temporary-folders-persistency) for more details).
+In such cases, you can use the `tmp` command to show and delete the temporary data created by Pipelime.
 
 ## Show Temporary Data
 

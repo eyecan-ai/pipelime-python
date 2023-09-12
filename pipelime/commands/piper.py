@@ -41,23 +41,29 @@ class PiperGraphCommandBase(PipelimeCommand):
     @classmethod
     def init_from_checkpoint(cls, checkpoint: "CheckpointNamespace", /, **data):
         """Derived classes may override to support command resuming."""
-        ckpt_data = checkpoint.read_data("include", False)
-        if ckpt_data is not False:
-            name = "i" if "i" in data else "include"
-            data[name] = ckpt_data
-            logger.debug(
-                f"[{checkpoint.namespace}] Restoring included nodes "
-                f"from checkpoint: {ckpt_data}"
-            )
 
-        ckpt_data = checkpoint.read_data("exclude", False)
-        if ckpt_data is not False:
-            name = "e" if "e" in data else "exclude"
-            data[name] = ckpt_data
-            logger.debug(
-                f"[{checkpoint.namespace}] Restoring excluded nodes "
-                f"from checkpoint: {ckpt_data}"
-            )
+        # user may override the include/exclude lists when resuming
+        if (
+            "include" not in data
+            and "i" not in data
+            and "exclude" not in data
+            and "e" not in data
+        ):
+            ckpt_data = checkpoint.read_data("include", False)
+            if ckpt_data is not False:
+                data["include"] = ckpt_data
+                logger.debug(
+                    f"[{checkpoint.namespace}] Restoring included nodes "
+                    f"from checkpoint: {ckpt_data}"
+                )
+
+            ckpt_data = checkpoint.read_data("exclude", False)
+            if ckpt_data is not False:
+                data["exclude"] = ckpt_data
+                logger.debug(
+                    f"[{checkpoint.namespace}] Restoring excluded nodes "
+                    f"from checkpoint: {ckpt_data}"
+                )
 
         return cls(**data)
 
@@ -451,6 +457,7 @@ class DagBaseCommand(RunCommandBase):
 
         if not v:
             v = PipelimeTmp.make_subdir()
+        v = v.resolve().absolute()
         logger.debug(f"DAG debug folder: {v}")
         return v
 
