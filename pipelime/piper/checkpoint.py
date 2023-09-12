@@ -137,7 +137,7 @@ class LocalCheckpoint(Checkpoint, pyd.BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         self._temp_folder = PipelimeTmp.make_subdir()
-        logger.debug(f"Saving checkpoint to {self.folder}")
+        logger.debug(f"Checkpoint folder: {self.folder}")
 
     def create_lock(self, namespace: str) -> t.ContextManager:
         """Return a context manager that locks the given namespace
