@@ -6,12 +6,13 @@ from urllib.parse import ParseResult
 import pydantic as pyd
 
 from pipelime.utils.pydantic_types import SampleValidationInterface, ItemType
-
+from pipelime.piper import PiperPortType
 
 class PydanticFieldMixinBase:
     # override in derived clasess
     _default_type_description: t.ClassVar[t.Optional[str]] = None
     _compact_form: t.ClassVar[t.Optional[str]] = None
+    _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.PARAMETER
 
     @classmethod
     def _description(cls, user_desc: t.Optional[str]) -> t.Optional[str]:
@@ -31,10 +32,11 @@ class PydanticFieldMixinBase:
 
 class PydanticFieldWithDefaultMixin(PydanticFieldMixinBase):
     @classmethod
-    def pyd_field(cls, *, description: t.Optional[str] = None, **kwargs):
+    def pyd_field(cls, *, description: t.Optional[str] = None, piper_port: t.Optional[PiperPortType] = None, **kwargs):
         return pyd.Field(
             default_factory=cls,  # type: ignore
             description=cls._description(description),  # type: ignore
+            piper_port=piper_port or cls._default_port_type,
             **kwargs,
         )
 
@@ -42,11 +44,12 @@ class PydanticFieldWithDefaultMixin(PydanticFieldMixinBase):
 class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
     @classmethod
     def pyd_field(
-        cls, *, is_required: bool = True, description: t.Optional[str] = None, **kwargs
+        cls, *, is_required: bool = True, description: t.Optional[str] = None, piper_port: t.Optional[PiperPortType] = None, **kwargs
     ):
         return pyd.Field(
             ... if is_required else None,
             description=cls._description(description),  # type: ignore
+            piper_port=piper_port or cls._default_port_type,
             **kwargs,
         )
 
@@ -58,15 +61,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         How to use it in your command::
 
             class EasyCommand(PipelimeCommand, title="easy"):
-                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
-                    alias="i", piper_port=PiperPortType.INPUT
-                )
-                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
-                        alias="o", piper_port=PiperPortType.OUTPUT
-                )
-                grabber: GrabberInterface = GrabberInterface.pyd_field(
-                    alias="g"
-                )
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(alias="i")
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(alias="o")
+                grabber: GrabberInterface = GrabberInterface.pyd_field(alias="g")
 
                 def run(self):
                     seq = self.input.create_reader()
@@ -247,15 +244,9 @@ class InputDatasetInterface(
         How to use it in your command::
 
             class EasyCommand(PipelimeCommand, title="easy"):
-                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
-                    alias="i", piper_port=PiperPortType.INPUT
-                )
-                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
-                        alias="o", piper_port=PiperPortType.OUTPUT
-                )
-                grabber: GrabberInterface = GrabberInterface.pyd_field(
-                    alias="g"
-                )
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(alias="i")
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(alias="o")
+                grabber: GrabberInterface = GrabberInterface.pyd_field(alias="g")
 
                 def run(self):
                     seq = self.input.create_reader()
@@ -271,6 +262,7 @@ class InputDatasetInterface(
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "The input dataset."
     _compact_form: t.ClassVar[t.Optional[str]] = "<folder>[,<skip_empty>]"
+    _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.INPUT
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
     merge_root_items: bool = pyd.Field(
@@ -339,7 +331,7 @@ class InputDatasetInterface(
         return self.folder.as_posix()
 
 
-InputDataset = InputDatasetInterface
+IDataset = InputDatasetInterface
 
 
 any_serialization_t = t.Literal[
@@ -430,15 +422,9 @@ class OutputDatasetInterface(
         How to use it in your command::
 
             class EasyCommand(PipelimeCommand, title="easy"):
-                input: InputDatasetInterface = InputDatasetInterface.pyd_field(
-                    alias="i", piper_port=PiperPortType.INPUT
-                )
-                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(
-                        alias="o", piper_port=PiperPortType.OUTPUT
-                )
-                grabber: GrabberInterface = GrabberInterface.pyd_field(
-                    alias="g"
-                )
+                input: InputDatasetInterface = InputDatasetInterface.pyd_field(alias="i")
+                output: OutputDatasetInterface = OutputDatasetInterface.pyd_field(alias="o")
+                grabber: GrabberInterface = GrabberInterface.pyd_field(alias="g")
 
                 def run(self):
                     seq = self.input.create_reader()
@@ -456,6 +442,7 @@ class OutputDatasetInterface(
     _compact_form: t.ClassVar[
         t.Optional[str]
     ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
+    _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.OUTPUT
 
     folder: Path = pyd.Field(..., description="Dataset root folder.")
     zfill: t.Optional[pyd.NonNegativeInt] = pyd.Field(
@@ -556,7 +543,7 @@ class OutputDatasetInterface(
         return self.folder.as_posix()
 
 
-OutputDataset = OutputDatasetInterface
+ODataset = OutputDatasetInterface
 
 
 class UrlDataModel(
@@ -606,6 +593,7 @@ class RemoteInterface(
         t.Optional[str]
     ] = "Remote data lakes addresses."
     _compact_form: t.ClassVar[t.Optional[str]] = "<url>"
+    _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.INPUT
 
     url: t.Union[str, UrlDataModel] = pyd.Field(
         ...,
