@@ -49,7 +49,9 @@ class TxtNumpyItem(NumpyRawItem):
 
     @classmethod
     def encode(cls, value: np.ndarray, fp: t.BinaryIO):
-        np.savetxt(fp, value)
+        np.savetxt(
+            fp, value, fmt="%.18e" if np.issubdtype(value.dtype, np.floating) else "%d"
+        )
 
     @classmethod
     def validate(cls, raw_data: t.Any) -> np.ndarray:

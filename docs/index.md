@@ -46,7 +46,7 @@ tutorials/ml_tutorial/toc.md
 
 ```{toctree}
 :maxdepth: 4
-:caption: "Command Line Usage"
+:caption: "Command Line & Graph Execution"
 
 cli/overview.md
 cli/piper.md

@@ -6,15 +6,11 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel, Field, PositiveInt, PrivateAttr, create_model, validator
 
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper.model import T_NODES, LazyCommand, PipelimeCommand, PiperPortType
 
 if t.TYPE_CHECKING:
+    from pipelime.piper.checkpoint import CheckpointNamespace
     from pipelime.piper.graph import DAGNodesGraph
-
-T_NODES = t.Mapping[
-    str,
-    t.Union[PipelimeCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]],
-]
 
 
 class WatcherBackend(Enum):
@@ -42,6 +38,35 @@ class PiperGraphCommandBase(PipelimeCommand):
 
     _piper_graph: t.Optional["DAGNodesGraph"] = PrivateAttr(None)
 
+    @classmethod
+    def init_from_checkpoint(cls, checkpoint: "CheckpointNamespace", /, **data):
+        """Derived classes may override to support command resuming."""
+
+        # user may override the include/exclude lists when resuming
+        if (
+            "include" not in data
+            and "i" not in data
+            and "exclude" not in data
+            and "e" not in data
+        ):
+            ckpt_data = checkpoint.read_data("include", False)
+            if ckpt_data is not False:
+                data["include"] = ckpt_data
+                logger.debug(
+                    f"[{checkpoint.namespace}] Restoring included nodes "
+                    f"from checkpoint: {ckpt_data}"
+                )
+
+            ckpt_data = checkpoint.read_data("exclude", False)
+            if ckpt_data is not False:
+                data["exclude"] = ckpt_data
+                logger.debug(
+                    f"[{checkpoint.namespace}] Restoring excluded nodes "
+                    f"from checkpoint: {ckpt_data}"
+                )
+
+        return cls(**data)
+
     @property
     @abstractmethod
     def nodes_graph(self) -> T_NODES:
@@ -56,6 +81,9 @@ class PiperGraphCommandBase(PipelimeCommand):
             inc_n = [self.include] if isinstance(self.include, str) else self.include
             exc_n = [self.exclude] if isinstance(self.exclude, str) else self.exclude
 
+            self.command_checkpoint.write_data("include", inc_n)
+            self.command_checkpoint.write_data("exclude", exc_n)
+
             def _node_to_run(node: str) -> bool:
                 return (inc_n is None or node in inc_n) and (
                     exc_n is None or node not in exc_n
@@ -66,7 +94,9 @@ class PiperGraphCommandBase(PipelimeCommand):
                 for name, cmd in self.nodes_graph.items()
                 if _node_to_run(name)
             }
-            dag = DAGModel(nodes=NodesDefinition.create(nodes))
+            dag = DAGModel(
+                nodes=NodesDefinition.create(nodes, checkpoint=self.command_checkpoint)
+            )
             self._piper_graph = DAGNodesGraph.build_nodes_graph(
                 dag, **self._nodes_graph_building_kwargs()
             )
@@ -191,9 +221,19 @@ class RunCommandBase(GraphPortForwardingCommand):
                     total=self.piper_graph.num_operation_nodes, message=message
                 ),
             )
+            executor.add_post_callback(self._update_completed_commands)
 
             if not executor(self.piper_graph, token=token, force_gc=self.force_gc):
                 raise RuntimeError("Piper execution failed")
+
+    def _update_completed_commands(self, name: str, command: PipelimeCommand):
+        """Updates the exclude lists after a command has been executed."""
+        with self.command_checkpoint.create_lock() as lock:
+            exc = self.command_checkpoint.read_data("exclude", None, lock)
+            if exc is None:
+                exc = []
+            exc.append(name)
+            self.command_checkpoint.write_data("exclude", exc, lock)
 
 
 class ClassicPiperGraphCommand(BaseModel):
@@ -413,14 +453,25 @@ class DagBaseCommand(RunCommandBase):
 
     @validator("folder_debug", always=True)
     def _validate_folder_debug(cls, v):
-        import uuid
-
         from pipelime.choixe.utils.io import PipelimeTmp
 
         if not v:
             v = PipelimeTmp.make_subdir()
+        v = v.resolve().absolute()
         logger.debug(f"DAG debug folder: {v}")
         return v
+
+    @classmethod
+    def init_from_checkpoint(cls, checkpoint: "CheckpointNamespace", /, **data):
+        """Derived classes may override to support command resuming."""
+        dbg_folder = checkpoint.read_data("folder_debug", None)
+        if dbg_folder is not None:
+            data["folder_debug"] = dbg_folder
+            logger.debug(
+                f"[{checkpoint.namespace}] Restoring debug folder "
+                f"from checkpoint: {dbg_folder}"
+            )
+        return super().init_from_checkpoint(checkpoint, **data)
 
     def _validate_graph(self):
         """Validates the graph before executing it.
@@ -438,11 +489,13 @@ class DagBaseCommand(RunCommandBase):
 
         raise RuntimeError(f"Cycle found {edges_cycles}")  # type: ignore
 
-    def _auto_name_commands(self, nodes: t.Sequence[PipelimeCommand]) -> T_NODES:
+    def _auto_name_commands(
+        self, nodes: t.Sequence[t.Union[PipelimeCommand, LazyCommand]]
+    ) -> T_NODES:
         name_counter = {}
         node_map = {}
         for node in nodes:
-            name = node.command_name
+            name = node.command_title()
             value = name_counter.setdefault(name, 0)
             name_counter[name] = value + 1
             node_map[name + f"-{value}"] = node
@@ -459,7 +512,9 @@ class DagBaseCommand(RunCommandBase):
         nodes = self.nodes_graph
         if "o" not in kwargs and "output" not in kwargs:
             kwargs["output"] = output
-        drawer = DrawCommand(nodes=nodes, **kwargs)  # type: ignore
+        drawer = DrawCommand(
+            nodes=nodes, include=self.include, exclude=self.exclude, **kwargs  # type: ignore
+        )
         drawer.run()
 
     @abstractmethod
@@ -482,6 +537,8 @@ class DagBaseCommand(RunCommandBase):
         return self._nodes
 
     def run(self) -> None:
+        self.command_checkpoint.write_data("folder_debug", self.folder_debug.as_posix())
+
         self._validate_graph()
         if self.draw:
             output = self.draw if isinstance(self.draw, Path) else None

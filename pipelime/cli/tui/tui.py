@@ -315,7 +315,7 @@ class TuiApp(App[Mapping]):
                 replace_whitespace=False,
                 tabsize=4,
             )
-            sub = sub.replace("[", "\[")
+            sub = sub.replace("[", "\[")  # noqa: W605
             preprocessed += sub + "\n"
 
         preprocessed = preprocessed[:-1]

@@ -1,7 +1,7 @@
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Union, List, Callable
 
 from loguru import logger
 
@@ -13,6 +13,7 @@ from pipelime.piper.progress.listener.factory import (
     ProgressReceiverFactory,
 )
 from pipelime.piper.progress.tracker.base import TrackedTask
+from pipelime.piper import PipelimeCommand
 
 
 class NodesGraphExecutor(ABC):
@@ -25,6 +26,8 @@ class NodesGraphExecutor(ABC):
         self._node_prefix = node_prefix
         self._task = None
         self._timers = {}
+        self._pre_callbacks: List[Callable[[str, PipelimeCommand], None]] = []
+        self._post_callbacks: List[Callable[[str, PipelimeCommand], None]] = []
 
     @property
     def task(self) -> Optional[TrackedTask]:
@@ -33,6 +36,18 @@ class NodesGraphExecutor(ABC):
     @task.setter
     def task(self, task: Optional[TrackedTask]):
         self._task = task
+
+    def add_pre_callback(self, callback: Callable[[str, PipelimeCommand], None]):
+        """Add a callback to be called before each node execution.
+        The expected signature is `callback(node_name: str, command: PipelimeCommand)`.
+        """
+        self._pre_callbacks.append(callback)
+
+    def add_post_callback(self, callback: Callable[[str, PipelimeCommand], None]):
+        """Add a callback to be called after each node execution.
+        The expected signature is `callback(node_name: str, command: PipelimeCommand)`.
+        """
+        self._post_callbacks.append(callback)
 
     def _set_piper_info(self, node: GraphNodeOperation, token: str):
         node.command.set_piper_info(token=token, node=self._node_prefix + node.name)
@@ -51,9 +66,9 @@ class NodesGraphExecutor(ABC):
         force_gc: Union[bool, str, Sequence[str]],
     ):
         self._set_piper_info(node=node, token=token)
-        self._log_message(
-            f"[{self._original_node_name(node)}] Execution started", token=token
-        )
+        self._log_message(f"[{node.name}] Execution started", token=token)
+        for c in self._pre_callbacks:
+            c(node.name, node.command)
         self._timers[node.command._piper.node] = time.perf_counter_ns()
 
     def postproc_node(
@@ -84,6 +99,9 @@ class NodesGraphExecutor(ABC):
                 token=token,
             )
             gc.collect()
+
+        for c in self._post_callbacks:
+            c(node.name, node.command)
 
         if self.task:
             self.task.advance()

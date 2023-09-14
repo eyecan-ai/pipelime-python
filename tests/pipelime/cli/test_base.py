@@ -2,16 +2,25 @@ import pytest
 
 
 class TestCliBase:
-    def _base_launch(self, args: list):
+    def _base_launch(self, args: list, exit_code=0, exc=None):
         from typer.testing import CliRunner
 
         from pipelime.cli.main import _create_typer_app
 
         runner = CliRunner()
         result = runner.invoke(_create_typer_app(), args)
-        print(result.output)
-        assert result.exit_code == 0
-        assert result.exception is None
+
+        print("*** CLI COMMAND OUTPUT ***", result.output, sep="\n")
+        print("EXCEPTION:", type(result.exception))
+        print(result.exception)
+        print("EXIT CODE:", result.exit_code)
+
+        assert result.exit_code == exit_code
+        assert (
+            result.exception is None
+            if exc is None
+            else isinstance(result.exception, exc)
+        )
         return result
 
     def test_help(self, extra_modules):
@@ -204,7 +213,7 @@ class TestCliBase:
         ],
     )
     def test_cli_parser(self, cmd_line, parsed_cfg, parsed_ctx, should_fail):
-        from pipelime.cli.parser import parse_pipelime_cli, CLIParsingError
+        from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 
         try:
             cmdline_cfg, cmdline_ctx = parse_pipelime_cli(cmd_line)
@@ -244,3 +253,44 @@ class TestCliBase:
             out1.resolve().absolute().as_posix(),
             out2.resolve().absolute().as_posix(),
         ]
+
+    def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path):
+        from pipelime.sequences import SamplesSequence
+        from pydantic import ValidationError
+
+        outpath = tmp_path / "final_output"
+        args = [
+            "-m",
+            ckpt_dag,
+            "--checkpoint",
+            str(tmp_path / "ckpt"),
+            "cat-and-split",
+            "+properties.do_shuffle",
+            "+properties.slices",
+            "30",
+            "+properties.main_data",
+            str(minimnist_dataset["path"]),
+            "+properties.datalist[0]",
+            str(minimnist_dataset["path"]),
+            "+properties.output",
+            str(outpath),
+        ]
+
+        # the first time this DAG will stop
+        self._base_launch(args, exit_code=1, exc=RuntimeError)
+        assert not outpath.exists()
+
+        # now resume from checkpoint and override the slice size (invalid value)
+        self._base_launch(
+            ["resume", "+ckpt", str(tmp_path / "ckpt"), "+properties.slices", "-1"],
+            exit_code=1,
+            exc=ValidationError,
+        )
+        assert not outpath.exists()
+
+        # now resume from checkpoint and override the slice size (valid value)
+        self._base_launch(
+            ["resume", "+ckpt", str(tmp_path / "ckpt"), "+properties.slices", "5"]
+        )
+        assert outpath.is_dir()
+        assert len(SamplesSequence.from_underfolder(outpath)) == 5
