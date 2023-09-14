@@ -8,6 +8,7 @@ from pipelime.commands.general import (
     RemoveRemoteCommand,
     ValidateCommand,
     MapCommand,
+    MapIfCommand,
     SortCommand,
     FilterCommand,
     SliceCommand,
