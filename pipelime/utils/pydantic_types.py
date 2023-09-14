@@ -441,7 +441,7 @@ class CallableDef(
         Everything still works::
 
             mm = MyModel()
-            mm = MyModel.parse_obj({"fn": (a.class.path.to.callable})
+            mm = MyModel.parse_obj({"fn": a.class.path.to.callable})
             mm = MyModel.parse_obj({"fn": "CallableInMain"})
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
