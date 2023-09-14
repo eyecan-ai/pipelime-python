@@ -46,7 +46,7 @@ class UnderfolderWriter(
 
     _data_folder: Path
     _effective_zfill: int
-    _temp_folder: t.Any
+    _temp_folder: Path
 
     @pyd.validator("exists_ok", always=True)
     def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
@@ -58,7 +58,7 @@ class UnderfolderWriter(
         return v
 
     def __init__(self, folder: Path, **data):
-        from pipelime.choixe.utils.io import PipelimeTemporaryDirectory
+        from pipelime.choixe.utils.io import PipelimeTmp
 
         super().__init__(folder=folder, **data)  # type: ignore
 
@@ -72,7 +72,7 @@ class UnderfolderWriter(
         self._data_folder.mkdir(parents=True, exist_ok=True)
 
         # will be automatically deleted
-        self._temp_folder = PipelimeTemporaryDirectory()
+        self._temp_folder = PipelimeTmp.make_subdir()
 
     def get_sample(self, idx: int) -> pls.Sample:
         sample = self.source[idx]
@@ -87,9 +87,7 @@ class UnderfolderWriter(
                 if v.is_shared:
                     filepath = self.folder / k
                     if not any(f.exists() for f in v.get_all_names(filepath)):
-                        lock = FileLock(
-                            str(Path(self._temp_folder.name) / (k + ".~lock"))
-                        )
+                        lock = FileLock(str(Path(self._temp_folder / (k + ".~lock"))))
                         try:
                             with lock.acquire(timeout=1):
                                 # check again to avoid races

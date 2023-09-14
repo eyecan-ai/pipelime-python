@@ -327,7 +327,7 @@ class Processor(ast.NodeVisitor):
         paths = []
         branches = node.name.accept(self) if node.name else [""]
         for branch in branches:
-            path = PipelimeTmp.make_subdir(str(branch))
+            path = PipelimeTmp.make_subdir(f"choixe_tmp/{branch}")
             paths.append(path.resolve().absolute().as_posix())
         return paths
 

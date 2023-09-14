@@ -1,9 +1,11 @@
 import typing as t
 from types import ModuleType
+
 from pydantic import BaseModel, ValidationError
 
 if t.TYPE_CHECKING:
-    from pipelime.piper.model import PipelimeCommand
+    from pipelime.piper import T_DAG_NODE, PipelimeCommand
+    from pipelime.piper.checkpoint import CheckpointNamespace
     from pipelime.stages import SampleStage
 
 
@@ -83,9 +85,9 @@ class PipelimeSymbolsHelper:
     @classmethod
     def _warn_double_def(cls, type_, name, first, second):
         from pipelime.cli.pretty_print import (
+            get_model_classpath,
             print_error,
             print_warning,
-            get_model_classpath,
         )
 
         print_error(f"Found duplicate {type_} `{name}`")
@@ -143,8 +145,8 @@ class PipelimeSymbolsHelper:
         if not cls.is_cache_valid():
             for module_name in cls.std_modules + cls.extra_modules:
                 if module_name not in cls.cached_modules:
-                    cls.cached_modules[module_name] = (
-                        pl_imports.import_module(module_name)
+                    cls.cached_modules[module_name] = pl_imports.import_module(
+                        module_name
                     )
 
             cls.cached_seq_ops = {
@@ -257,8 +259,9 @@ class PipelimeSymbolsHelper:
     def show_error_and_help(
         cls, name: str, should_be_cmd: bool, should_be_op: bool, should_be_stage: bool
     ):
-        from pipelime.cli.pretty_print import print_error, print_warning, print_info
         from difflib import get_close_matches
+
+        from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
         names_list = []
         if should_be_cmd:
@@ -288,7 +291,7 @@ def _print_info(
     show_description=True,
     recursive=True,
 ):
-    from pipelime.cli.pretty_print import print_info, print_model_info, _short_line
+    from pipelime.cli.pretty_print import _short_line, print_info, print_model_info
 
     if info_cls is not None:
         print_info(f"\n{_short_line()} {info_cls[0][0]}")
@@ -302,8 +305,9 @@ def _print_info(
 
 
 def _unwrap_generic_type(symbol, verbose: bool):
-    from pipelime.cli.pretty_print import print_debug
     from rich.markup import escape
+
+    from pipelime.cli.pretty_print import print_debug
 
     if verbose:
         symstr = escape(repr(symbol))
@@ -341,8 +345,8 @@ def print_command_op_stage_info(
       show_description: bool:  (Default value = True)
       recursive: bool:  (Default value = True)
     """
-    from pipelime.cli.pretty_print import print_info
     from pipelime.choixe.utils.imports import import_symbol
+    from pipelime.cli.pretty_print import print_info
 
     available_defs = []
 
@@ -407,8 +411,8 @@ def print_command_op_stage_info(
         )
 
     if len(available_defs) > 1:
-        from rich.prompt import Prompt
         from rich.markup import escape
+        from rich.prompt import Prompt
 
         print_info("Multiple definitions found!")
         idx = Prompt.ask(
@@ -473,10 +477,10 @@ def print_commands_ops_stages_list(
     """Print a list of all available sequence operators and pipelime commands."""
 
     from pipelime.cli.pretty_print import (
-        get_model_classpath,
-        print_info,
-        print_actions_short_help,
         _short_line,
+        get_model_classpath,
+        print_actions_short_help,
+        print_info,
     )
 
     def _filter_symbols(smbls):
@@ -574,11 +578,13 @@ def pl_print(
       flush: bool:  (Default value = False)
     """
     import inspect
-    from rich import print as rprint
+
     from pydantic import BaseModel
+    from rich import print as rprint
+
     from pipelime.cli.pretty_print import print_model_info
-    from pipelime.sequences import SamplesSequence
     from pipelime.piper import PipelimeCommand
+    from pipelime.sequences import SamplesSequence
 
     for obj in objects:
         if isinstance(obj, (str, bytes)):
@@ -663,16 +669,32 @@ def get_pipelime_command_cls(
 
 
 def get_pipelime_command(
-    cmd: t.Union[t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]], "PipelimeCommand"]
+    cmd: "T_DAG_NODE", checkpoint: t.Optional["CheckpointNamespace"] = None
 ) -> "PipelimeCommand":
-    from pipelime.piper.model import PipelimeCommand
+    from pipelime.piper.model import LazyCommand, PipelimeCommand
 
-    if isinstance(cmd, PipelimeCommand):
-        return cmd
+    cmd_cls, cmd_args = None, {}
+    if isinstance(cmd, t.Mapping):
+        cmd_name, _cmd_args = next(iter(cmd.items()))
+        cmd_cls = get_pipelime_command_cls(cmd_name)
+        if _cmd_args and isinstance(_cmd_args, t.Mapping):
+            cmd_args = _cmd_args
+    elif isinstance(cmd, LazyCommand):
+        cmd_cls = cmd
 
-    cmd_name, cmd_args = next(iter(cmd.items()))
-    cmd_cls = get_pipelime_command_cls(cmd_name)
-    return cmd_cls() if cmd_args is None else cmd_cls(**cmd_args)
+    if cmd_cls is not None:
+        cmd = (
+            cmd_cls(**cmd_args)
+            if checkpoint is None
+            else cmd_cls.init_from_checkpoint(checkpoint, **cmd_args)
+        )
+
+    if not isinstance(cmd, PipelimeCommand):
+        raise ValueError(f"{cmd} is not a pipelime command.")
+
+    if checkpoint is not None:
+        cmd._checkpoint = checkpoint
+    return cmd
 
 
 def time_to_str(nanosec: int) -> str:

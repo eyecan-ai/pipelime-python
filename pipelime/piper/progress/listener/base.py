@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from threading import Thread
 import time
-from typing import Optional, Tuple
+from typing import Optional
 
 from loguru import logger
 

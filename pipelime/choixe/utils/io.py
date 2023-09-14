@@ -96,9 +96,8 @@ class PipelimeTmp:
             Path: Path to the temporary subdirectory.
         """
         path = PipelimeTmp.make_session_dir()
-        if subdir:
-            path /= subdir
-            path.mkdir(parents=True, exist_ok=True)
+        path /= (subdir or uuid.uuid1().hex)
+        path.mkdir(parents=True, exist_ok=True)
         return path
 
     @staticmethod
@@ -123,7 +122,7 @@ class PipelimeTemporaryDirectory:
     """A context manager creating a subfolder within the session temporary directory."""
 
     def __init__(self, name: Optional[str] = None):
-        self.name = PipelimeTmp.make_subdir(name or uuid.uuid1().hex)
+        self.name = PipelimeTmp.make_subdir(name)
         self._finalizer = weakref.finalize(
             self,
             self._cleanup,  # type: ignore

@@ -272,16 +272,18 @@ class TestDAG:
         decorated: bool,
         tmp_path: Path,
     ):
+        from pipelime.commands import TempCommand
+        from pipelime.choixe.utils.io import PipelimeTmp
+
         dag = _create_dag(
             minimnist_dataset, decorated=decorated, slice=1, output=tmp_path
         )
         dag.run()
+        assert dag.folder_debug.exists()
 
-        dir_debug = dag.folder_debug
+        TempCommand(name=PipelimeTmp.SESSION_TMP_DIR.stem, force=True)()  # type: ignore
 
-        del dag
-
-        assert not dir_debug.exists()
+        assert not dag.folder_debug.exists()
 
     @pytest.mark.parametrize("decorated", [True, False])
     def test_not_cleanup_folder_debug(
@@ -299,6 +301,8 @@ class TestDAG:
             debug_folder=debug_dir,
         )
         dag.run()
+        assert dag.folder_debug == debug_dir
+        assert dag.folder_debug.exists()
 
         del dag
 
