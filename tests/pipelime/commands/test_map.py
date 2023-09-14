@@ -26,4 +26,6 @@ class TestMap(TestGeneralCommandsBase):
         for o, s in zip(outseq, srcseq):
             assert set(o.keys()) == set(minimnist_dataset["image_keys"])
             for k, v in o.items():
-                assert TestUtils.numpy_eq(v(), s[k]())
+                sv = s[k]
+                assert v.__class__ == sv.__class__
+                assert TestUtils.numpy_eq(v(), sv())

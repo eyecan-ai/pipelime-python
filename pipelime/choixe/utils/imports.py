@@ -48,7 +48,9 @@ class add_to_sys_module(ContextDecorator):
 
 
 def import_module_from_file(
-    module_file_path: Union[str, Path], cwd: Optional[Path] = None
+    module_file_path: Union[str, Path],
+    cwd: Optional[Path] = None,
+    register_pl_module: bool = True,
 ) -> ModuleType:
     """Import a python module from a file.
 
@@ -63,29 +65,47 @@ def import_module_from_file(
     Returns:
         ModuleType: _description_
     """
+    from pipelime.cli.utils import PipelimeSymbolsHelper
+
     module_path = Path(module_file_path)
     if not module_path.is_absolute() and cwd is not None:
         module_path = cwd / module_path
 
     with add_to_sys_path(str(module_path.parent)):
-        return import_module_from_class_path(module_path.stem)
+        m = import_module_from_class_path(module_path.stem, False)
+        if register_pl_module:
+            PipelimeSymbolsHelper.register_extra_module(module_path.as_posix())
+        return m
 
 
-def import_module_from_class_path(module_class_path: str) -> ModuleType:
-    return importlib.import_module(module_class_path)
+def import_module_from_class_path(
+    module_class_path: str, register_pl_module: bool = True
+) -> ModuleType:
+    from pipelime.cli.utils import PipelimeSymbolsHelper
+
+    m = importlib.import_module(module_class_path)
+    if register_pl_module:
+        PipelimeSymbolsHelper.register_extra_module(module_class_path)
+    return m
 
 
 def import_module(
-    module_file_or_class_path: str, cwd: Optional[Path] = None
+    module_file_or_class_path: str,
+    cwd: Optional[Path] = None,
+    register_pl_module: bool = True,
 ) -> ModuleType:
     return (
-        import_module_from_file(module_file_or_class_path, cwd)
+        import_module_from_file(module_file_or_class_path, cwd, register_pl_module)
         if module_file_or_class_path.endswith(".py")
-        else import_module_from_class_path(module_file_or_class_path)
+        else import_module_from_class_path(
+            module_file_or_class_path, register_pl_module
+        )
     )
 
 
-def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
+def import_symbol(
+    symbol_path: str, cwd: Optional[Path] = None, register_pl_module: bool = True
+) -> Any:
     """Dynamically imports a given symbol. A symbol can be either:
 
     - A filesystem path followed by the name of an object to import, like:
@@ -111,7 +131,7 @@ def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
         if ":" in symbol_path:
             # path/to/my_file.py:MyClass
             module_path, _, symbol_name = symbol_path.rpartition(":")
-            module_ = import_module_from_file(module_path, cwd)
+            module_ = import_module_from_file(module_path, cwd, register_pl_module)
             symbol_name = symbol_name.split(".")
         else:
             # package.module.MyClass.MyNestedClass
@@ -120,7 +140,9 @@ def import_symbol(symbol_path: str, cwd: Optional[Path] = None) -> Any:
             module_ = None
             while module_path:
                 try:
-                    module_ = import_module_from_class_path(module_path)
+                    module_ = import_module_from_class_path(
+                        module_path, register_pl_module
+                    )
                     module_path = None
                 except ModuleNotFoundError:
                     # the symbol is nested, so we need to import the parent class path
