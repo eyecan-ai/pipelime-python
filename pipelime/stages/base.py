@@ -109,3 +109,53 @@ class StageCompose(SampleStage, title="compose"):
         for s in self.stages:
             x = s(x)  # type: ignore
         return x
+
+
+class StageTimer(SampleStage, title="timer"):
+    """Times the stage execution and writes the nanoseconds to the sample metadata."""
+
+    stage: StageInput = pyd.Field(
+        ..., description="The stage to time. " + str(inspect.getdoc(StageInput))
+    )
+    time_key_path: str = pyd.Field(
+        "timings.*",
+        description=(
+            "The item metadata key path where the time will be written to. "
+            "Any `*` will be replaced with the name of the stage."
+        ),
+    )
+    process: bool = pyd.Field(
+        False,
+        description=(
+            "Measure process time instead of using a performance counter clock."
+        ),
+    )
+
+    def __init__(
+        self,
+        stage: t.Union[SampleStage, str, t.Mapping[str, t.Mapping[str, t.Any]]],
+        **data,
+    ):
+        super().__init__(stage=stage, **data)  # type: ignore
+
+    def __call__(self, x: "Sample") -> "Sample":
+        import time
+
+        clock_fn = time.process_time_ns if self.process else time.perf_counter_ns
+        stg = self.stage.__root__
+
+        start_time = clock_fn()
+        x = stg(x)
+        end_time = clock_fn()
+
+        stage_cls = self.stage.__root__.__class__
+        stage_name = (
+            stage_cls.__config__.title
+            if stage_cls.__config__.title
+            else stage_cls.__name__
+        )
+
+        x = x.deep_set(
+            self.time_key_path.replace("*", stage_name), end_time - start_time
+        )
+        return x

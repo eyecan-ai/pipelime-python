@@ -8,19 +8,34 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 from pipelime.stages import StageInput
 
 
+class OutputTime(pyd.BaseModel):
+    nanosec: int
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        from pipelime.cli.utils import time_to_str
+
+        return time_to_str(self.nanosec)
+
+
+class OutputStageTime(pyd.BaseModel):
+    stages: t.Mapping[str, OutputTime]
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        return (
+            "{\n  "
+            + "\n  ".join(f"{k}: {repr(v)}" for k, v in self.stages.items())
+            + "\n}"
+        )
+
+
 class TimeItCommand(PipelimeCommand, title="timeit"):
     """Measures the average time to get a sample from a sequence."""
-
-    class OutputTime(pyd.BaseModel):
-        nanosec: int
-
-        def __repr__(self) -> str:
-            return self.__piper_repr__()
-
-        def __piper_repr__(self) -> str:
-            from pipelime.cli.utils import time_to_str
-
-            return time_to_str(self.nanosec)
 
     input: t.Optional[
         pl_interfaces.InputDatasetInterface
@@ -129,9 +144,113 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
             num_samples += available_samples
             elapsed_times.append(end - start)
 
-        self.average_time = TimeItCommand.OutputTime(
-            nanosec=int(sum(elapsed_times) // num_samples)
+        self.average_time = OutputTime(nanosec=int(sum(elapsed_times) // num_samples))
+
+
+class StageTimingCommand(PipelimeCommand, title="stage-time"):
+    """Measures the average time to get a sample through some stages."""
+
+    stages: t.Union[StageInput, t.Sequence[StageInput]] = pyd.Field(
+        ...,
+        alias="s",
+        description=(
+            "One or more stages to apply. Can be a stage name/class_path "
+            "(with no arguments) or a dictionary with the stage name/class_path as key "
+            "and the arguments passed by keywords."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
         )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    repeat: pyd.PositiveInt = pyd.Field(
+        1, alias="r", description="Repeat the measurement `repeat` times."
+    )
+
+    process: bool = pyd.Field(
+        False,
+        alias="p",
+        description=(
+            "Measure process time instead of using a performance counter clock."
+        ),
+    )
+
+    average_time: t.Optional[OutputStageTime] = pyd.Field(
+        None,
+        description="The average time to get a sample through the stages.",
+        exclude=True,
+        repr=False,
+        piper_port=PiperPortType.OUTPUT,
+    )
+
+    def run(self):
+        from pipelime.stages import StageTimer, StageCompose
+
+        # create unique names
+        stages = self.stages if isinstance(self.stages, t.Sequence) else [self.stages]
+        names = []
+        for st in stages:
+            stage_cls = st.__root__.__class__
+            stage_name = (
+                stage_cls.__config__.title
+                if stage_cls.__config__.title
+                else stage_cls.__name__
+            )
+            names.append(stage_name)
+        for i, n in enumerate(names[::-1]):
+            names[-i - 1] = f"{n}-{names.count(n)}"
+
+        class _AverageTime:
+            def __init__(self):
+                self.timings = {}
+                self.timings_key = "~timings"
+
+            def __call__(self, x):
+                tt = x[self.timings_key]()
+                for k, v in tt.items():
+                    ctime, celem = self.timings.setdefault(k, (0, 0))
+                    self.timings[k] = (ctime + v, celem + 1)
+
+            def to_output(self):
+                return OutputStageTime(
+                    stages={
+                        k: OutputTime(nanosec=int(tt // n))
+                        for k, (tt, n) in self.timings.items()
+                    }
+                )
+
+        avg_time = _AverageTime()
+
+        for r in range(self.repeat):
+            seq = self.input.create_reader()
+            seq = seq.map(
+                stage=StageCompose(
+                    stages=[
+                        StageTimer(
+                            stage=st,  # type: ignore
+                            time_key_path=f"{avg_time.timings_key}.{n}",
+                            process=self.process,
+                        )
+                        for st, n in zip(stages, names)
+                    ]
+                )
+            )
+            self.grabber.grab_all(
+                seq,
+                keep_order=False,
+                parent_cmd=self,
+                sample_fn=avg_time,
+                track_message=f"Timing data ({len(seq)} samples)",
+            )
+
+        self.average_time = avg_time.to_output()
 
 
 class PipeCommand(PipelimeCommand, title="pipe"):
