@@ -3,7 +3,7 @@ from pathlib import Path
 from enum import Enum
 from loguru import logger
 from pipelime.piper.progress.listener.base import ListenerCallback
-from pipelime.piper.progress.model import OperationInfo, ProgressUpdate
+from pipelime.piper.progress.model import ProgressUpdate
 
 
 class FileListenerCallback(ListenerCallback):
@@ -44,9 +44,7 @@ class FileListenerCallback(ListenerCallback):
             self._dump = json.dump
             self._load = json.load
 
-        self._data = {}
-        with self._filename.open("w") as f:
-            pass
+        self._filename.touch()
 
         logger.info(f"Writing progress to {filename}")
 
