@@ -170,10 +170,19 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
         alias="g"
     )
 
+    skip_first: pyd.NonNegativeInt = pyd.Field(
+        1,
+        alias="s",
+        description="Skip the first n samples in EACH EXECUTION PROCESS, then start the timer.",
+    )
+    max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
+        None,
+        alias="m",
+        description="Grab at most `max_samples` from THE WHOLE SEQUENCE and take the average time.",
+    )
     repeat: pyd.PositiveInt = pyd.Field(
         1, alias="r", description="Repeat the measurement `repeat` times."
     )
-
     process: bool = pyd.Field(
         False,
         alias="p",
@@ -213,10 +222,11 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
                 self.timings_key = "~timings"
 
             def __call__(self, x):
-                tt = x[self.timings_key]()
-                for k, v in tt.items():
-                    ctime, celem = self.timings.setdefault(k, (0, 0))
-                    self.timings[k] = (ctime + v, celem + 1)
+                if self.timings_key in x:
+                    tt = x[self.timings_key]()
+                    for k, v in tt.items():
+                        ctime, celem = self.timings.setdefault(k, (0, 0))
+                        self.timings[k] = (ctime + v, celem + 1)
 
             def to_output(self):
                 return OutputStageTime(
@@ -230,11 +240,14 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
 
         for r in range(self.repeat):
             seq = self.input.create_reader()
+            if self.max_samples:
+                seq = seq[: self.max_samples]
             seq = seq.map(
                 stage=StageCompose(
                     stages=[
                         StageTimer(
                             stage=st,  # type: ignore
+                            skip_first=self.skip_first,
                             time_key_path=f"{avg_time.timings_key}.{n}",
                             process=self.process,
                         )

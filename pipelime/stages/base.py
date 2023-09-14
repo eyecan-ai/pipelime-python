@@ -117,6 +117,9 @@ class StageTimer(SampleStage, title="timer"):
     stage: StageInput = pyd.Field(
         ..., description="The stage to time. " + str(inspect.getdoc(StageInput))
     )
+    skip_first: pyd.NonNegativeInt = pyd.Field(
+        1, description="Skip the first n samples, then start the timer."
+    )
     time_key_path: str = pyd.Field(
         "timings.*",
         description=(
@@ -131,6 +134,8 @@ class StageTimer(SampleStage, title="timer"):
         ),
     )
 
+    _skipped: int = pyd.PrivateAttr(0)
+
     def __init__(
         self,
         stage: t.Union[SampleStage, str, t.Mapping[str, t.Mapping[str, t.Any]]],
@@ -141,8 +146,13 @@ class StageTimer(SampleStage, title="timer"):
     def __call__(self, x: "Sample") -> "Sample":
         import time
 
-        clock_fn = time.process_time_ns if self.process else time.perf_counter_ns
         stg = self.stage.__root__
+
+        if self._skipped < self.skip_first:
+            self._skipped += 1
+            return stg(x)
+
+        clock_fn = time.process_time_ns if self.process else time.perf_counter_ns
 
         start_time = clock_fn()
         x = stg(x)
