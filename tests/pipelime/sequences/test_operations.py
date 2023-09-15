@@ -1,13 +1,14 @@
-import pytest
 import typing as t
 from pathlib import Path
+
+import pytest
 
 import pipelime.sequences as pls
 
 
 class TestSamplesSequenceOperations:
     def test_base(self):
-        from pipelime.sequences import SamplesSequence, Sample
+        from pipelime.sequences import Sample, SamplesSequence
         from pipelime.sequences.pipes import PipedSequenceBase
 
         src = SamplesSequence.from_list([Sample({}) for _ in range(10)])
@@ -170,25 +171,33 @@ class TestSamplesSequenceOperations:
             assert int(e_sample["custom_id"]()) == idx  # type: ignore
             assert all(v == e_sample[k] for k, v in s_sample.items())
 
-    @pytest.mark.parametrize("n", [1, 4, 10])
+    @pytest.mark.parametrize("n", [1, 4, 10, 3.8, 4.2, 3.89])
     @pytest.mark.parametrize("interleave", [True, False])
     def test_repeat(self, minimnist_dataset: dict, n: int, interleave: bool):
+        import math
+
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
         repeat_seq = source.repeat(n, interleave=interleave)
 
-        assert len(repeat_seq) == n * len(source)
+        assert len(repeat_seq) == round(n * len(source))
 
         riter = iter(repeat_seq)
         if interleave:
-            for s in source:
-                for i in range(n):
+            frac_size = len(repeat_seq) - len(source) * int(n)
+            for sidx, s in enumerate(source):
+                for i in range(math.ceil(n)) if sidx < frac_size else range(int(n)):
                     assert next(riter) is s
         else:
-            for i in range(n):
+            for i in range(int(n)):
                 for s in source:
                     assert next(riter) is s
+            for s in source[: len(repeat_seq) - int(n) * len(source)]:
+                assert next(riter) is s
+
+        with pytest.raises(StopIteration):
+            next(riter)
 
         with pytest.raises(IndexError):
             repeat_seq[len(repeat_seq)]
@@ -222,6 +231,7 @@ class TestSamplesSequenceOperations:
         reuse_cache: bool = False,
     ):
         import numpy as np
+
         from pipelime.stages import SampleStage
 
         class StageCounter(SampleStage):
