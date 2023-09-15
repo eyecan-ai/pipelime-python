@@ -38,6 +38,21 @@ class PlCliOptions(BaseModel):
     command_args: t.List[str]
     pipelime_tmp: t.Optional[str]
 
+    def purged_dict(self):
+        return self._purge(self.dict())
+
+    def _purge(self, data):
+        if isinstance(data, Path):
+            data = data.as_posix()
+        elif isinstance(data, bytes):
+            data = data.decode()
+
+        if isinstance(data, t.Mapping):
+            return {k: self._purge(v) for k, v in data.items()}
+        if not isinstance(data, str) and isinstance(data, t.Sequence):
+            return [self._purge(v) for v in data]
+        return data
+
 
 def _complete_yaml(incomplete: str):
     for v in Path(".").glob(f"{incomplete}*.yaml"):
@@ -501,7 +516,7 @@ def pl_main(
                     raise ValueError(f"Checkpoint folder `{checkpoint}` is not empty.")
             plopts.pipelime_tmp = PipelimeTmp.make_session_dir().as_posix()
             ckpt = LocalCheckpoint(folder=checkpoint)
-            ckpt.write_data(PlCliOptions._namespace, "", plopts.dict())
+            ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
         else:
             ckpt = None
 
