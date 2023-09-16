@@ -285,26 +285,39 @@ class EnumeratedSequence(
 class RepeatedSequence(PipedSequenceBase, title="repeat"):
     """Repeats this sequence so each sample is seen multiple times."""
 
-    count_: pyd.NonNegativeInt = pyd.Field(
+    count_: pyd.NonNegativeFloat = pyd.Field(
         ..., alias="count", description="The number of repetition."
     )
     interleave: bool = pyd.Field(
         False, description="If TRUE, interleaves samples from this sequence."
     )
 
-    def __init__(self, count: pyd.NonNegativeInt, **data):
+    def __init__(self, count: pyd.NonNegativeFloat, **data):
         super().__init__(count=count, **data)  # type: ignore
 
+    def _fractional_size(self) -> int:
+        return len(self) - len(self.source) * int(self.count_)
+
     def size(self) -> int:
-        return len(self.source) * self.count_
+        return round(len(self.source) * self.count_)
 
     def get_sample(self, idx: int) -> pls.Sample:
-        if idx < 0 or idx >= len(self):
-            raise IndexError(f"Sample index `{idx}` is out of range.")
+        import math
 
-        final_idx = (
-            (idx // self.count_) if self.interleave else (idx % len(self.source))
-        )
+        if idx < 0 or idx >= len(self):
+            raise IndexError(
+                f"Sample index `{idx}` is out of range [0, {len(self)-1}]."
+            )
+
+        if self.interleave:
+            ceil_count = math.ceil(self.count_)
+            more_repeated = self._fractional_size() * ceil_count
+            idx0 = min(idx, more_repeated) // ceil_count
+            idx1 = max(idx - more_repeated, 0) // int(self.count_)
+            final_idx = idx0 + idx1
+        else:
+            final_idx = idx % len(self.source)
+
         return self.source[final_idx]
 
 
