@@ -31,6 +31,29 @@ def test_import_symbol_path(choixe_folder: Path):
     assert res(10) == 20
 
 
+def test_import_symbol_anonymous():
+    import inspect
+
+    code = """
+def add_ten(a: int):
+    return a + 10
+"""
+    res = import_symbol(f"add_ten:::{code}")
+    assert res.__name__ == "add_ten"
+    assert inspect.isfunction(res)
+    assert res(10) == 20
+
+
+def test_import_symbol_lambda():
+    import inspect
+
+    code = "lambda a: a + 10"
+    res = import_symbol(code)
+    assert res.__name__ != (lambda a: a + 10).__name__
+    assert inspect.isfunction(res)
+    assert res(10) == 20
+
+
 def test_import_symbol_raise():
     # Non existing module
     with pytest.raises(ImportError):

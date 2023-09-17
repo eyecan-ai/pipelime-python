@@ -789,7 +789,8 @@ class MapIfCommand(PipelimeCommand, title="map-if"):
         ...,
         alias="c",
         description=(
-            "A callable that returns True if the sample should be mapped through "
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable that returns True if the sample should be mapped through "
             "the stage. Accepted signatures:\n"
             "  `() -> bool`\n"
             "  `(index: int) -> bool`\n"
@@ -826,7 +827,8 @@ class SortCommand(PipelimeCommand, title="sort"):
         None,
         alias="f",
         description=(
-            "A class path to a callable `(Sample) -> Any` to be used as key-function. "
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable `(Sample) -> Any` to be used as key-function. "
             "Use `functools.cmp_to_key` to convert a compare function, "
             "ie, accepting two arguments, to a key function."
         ),
@@ -884,8 +886,8 @@ class FilterCommand(PipelimeCommand, title="filter"):
         None,
         alias="f",
         description=(
-            "A `class.path.to.func` (or `file.py:func`) to "
-            "a callable `(Sample) -> bool` returning True for any valid sample."
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable `(Sample) -> bool` returning True for any valid sample."
         ),
     )
 
@@ -1011,8 +1013,8 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
         None,
         alias="f",
         description=(
-            "A `class.path.to.func` (or `file.py:func`) to "
-            "a callable returning True for any valid sample.\n"
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable returning True for any valid sample.\n"
             "Accepted signatures:\n"
             "  `() -> bool`\n"
             "  `(index: int) -> bool`\n"
