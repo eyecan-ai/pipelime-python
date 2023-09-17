@@ -787,6 +787,7 @@ class MapIfCommand(PipelimeCommand, title="map-if"):
 
     condition: pl_types.CallableDef = pyd.Field(
         ...,
+        alias="c",
         description=(
             "A callable that returns True if the sample should be mapped through "
             "the stage. Accepted signatures:\n"

@@ -63,10 +63,10 @@ class PipelimeSymbolsHelper:
     @classmethod
     def register_extra_module(cls, module: str):
         """Register an extra module to be loaded when importing everything.
-        Useful for commands and stages to ensure user modules are available
-        when grabbing from multiple processes.
+        Mainly used for dynamically imported symbols.
         """
-        cls.extra_modules.append(module)
+        if module not in cls.extra_modules:
+            cls.extra_modules.append(module)
 
     @classmethod
     def is_cache_valid(cls) -> bool:

@@ -510,10 +510,17 @@ class CallableDef(
     @classmethod
     def _string_to_callable(cls, clb_str: str) -> t.Callable:
         from pipelime.choixe.utils.imports import import_symbol
+        import ast
 
         clb_str = clb_str.strip("\"'")
-        if "." not in clb_str:
-            clb_str = cls.default_class_path() + clb_str
+
+        try:
+            parsed = ast.parse(clb_str, mode="eval")
+            if isinstance(parsed.body, ast.Name):
+                clb_str = cls.default_class_path() + clb_str
+        except Exception:
+            pass
+
         return import_symbol(clb_str)
 
     def __call__(self, *args, **kwargs):
