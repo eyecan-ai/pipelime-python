@@ -2,7 +2,7 @@ import typing as t
 from pathlib import Path
 
 import pytest
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.commands.piper import T_NODES, DagBaseCommand, PiperDAG, piper_dag
@@ -173,31 +173,105 @@ def _create_dag(
     minimnist_dataset: dict,
     decorated: bool,
     slice: int,
-    output: Path,
+    output: t.Optional[Path],
     debug_folder: t.Optional[Path] = None,
+    include: t.Optional[t.Sequence[str]] = None,
+    exclude: t.Optional[t.Sequence[str]] = None,
+    skip_on_error: bool = False,
 ):
     if decorated:
         return DecoratedDAG(  # type: ignore
             folder_debug=debug_folder,  # type: ignore
             properties={  # type: ignore
                 "input": minimnist_dataset["path"],
-                "output": output / "dag_output",
+                "output": Path(__file__) if output is None else output / "dag_output",
                 "key_image_item": minimnist_dataset["image_keys"][0],
                 "subsample": slice,
             },
+            include=include,  # type: ignore
+            exclude=exclude,  # type: ignore
+            skip_on_error=skip_on_error,  # type: ignore
         )
 
     dag = DAG(
         input=minimnist_dataset["path"],
-        output=output / "dag_output",
+        output=Path(__file__) if output is None else output / "dag_output",
         key_image_item=minimnist_dataset["image_keys"][0],
         subsample=slice,
         folder_debug=debug_folder,
+        include=include,  # type: ignore
+        exclude=exclude,  # type: ignore
+        skip_on_error=skip_on_error,  # type: ignore
     )  # type: ignore
     return dag
 
 
 class TestDAG:
+    @pytest.mark.parametrize("decorated", [True, False])
+    @pytest.mark.parametrize(
+        ["include", "exclude", "effective_nodes"],
+        [
+            (None, None, {"slice", "copy", "remap", "cat"}),
+            ([], [], set()),
+            (["slice"], None, {"slice"}),
+            (None, ["slice"], {"copy", "remap", "cat"}),
+            ([], ["slice"], set()),
+            (["slice", "copy"], ["slice"], {"copy"}),
+            (["c*"], [], {"copy", "cat"}),
+            (None, ["?a*"], {"slice", "copy", "remap"}),
+            (["*e*"], ["*map"], {"slice"}),
+        ],
+    )
+    def test_include_exclude(
+        self,
+        minimnist_dataset: dict,
+        decorated: bool,
+        include: t.Optional[t.List[str]],
+        exclude: t.Optional[t.List[str]],
+        effective_nodes: t.Set[str],
+        tmp_path: Path,
+    ):
+        dag = _create_dag(
+            minimnist_dataset,
+            decorated=decorated,
+            slice=4,
+            output=tmp_path,
+            debug_folder=None,
+            include=include.copy() if include is not None else None,
+            exclude=exclude.copy() if exclude is not None else None,
+        )
+
+        assert dag.piper_graph.num_operation_nodes == len(effective_nodes)
+
+        nodes = {node.name for node in dag.piper_graph.operations_graph.raw_graph.nodes}
+        assert nodes == effective_nodes
+
+    @pytest.mark.parametrize("decorated", [True, False])
+    def test_skip_on_error(self, minimnist_dataset: dict, decorated: bool):
+        dag = _create_dag(
+            minimnist_dataset,
+            decorated=decorated,
+            slice=4,
+            output=None,
+            debug_folder=None,
+            skip_on_error=True,
+        )
+        assert dag.piper_graph.num_operation_nodes == 3
+
+        nodes = {node.name for node in dag.piper_graph.operations_graph.raw_graph.nodes}
+        assert nodes == {"slice", "copy", "remap"}
+
+        dag = _create_dag(
+            minimnist_dataset,
+            decorated=decorated,
+            slice=4,
+            output=None,
+            debug_folder=None,
+            skip_on_error=False,
+        )
+        with pytest.raises(ValidationError):
+            _ = dag.piper_graph
+
     @pytest.mark.parametrize("decorated", [True, False])
     @pytest.mark.parametrize("slice", [2, 4, 8])
     def test_run(
