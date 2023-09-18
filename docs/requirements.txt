@@ -11,3 +11,6 @@ myst-parser==0.18.0
 
 # Mermaid extention for Sphinx - Needed to render graphs in markdown
 sphinxcontrib-mermaid==0.7.1
+
+# sphinx-immaterial 0.11.3 wants pydantic 1.10.8
+pydantic==1.10.8
