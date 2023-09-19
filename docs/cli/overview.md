@@ -180,10 +180,14 @@ Whereas on the command line you can adopt a
 - `.<key>` to access a mapped field.
 - `[<idx>]` to index a list entry.
 
+Also, list of values are automatically assigned to the last option.
+
 For example:
 
 ```bash
 $ pipelime clone +input.folder path/to/dataset +input.skip_empty +output.folder path/to/output +output.zfill 6 +output.exists_ok
+
+$ pipelime cat +i data_0 data_1 data_2 +o output_folder
 ```
 
 Note how we are using the `+` operator to specify command arguments.
