@@ -34,13 +34,13 @@ class DAG(DagBaseCommand):
         )
     )
 
-    output: pl_interfaces.OutputDatasetInterface = (
-        pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o",
-            description="The output of the DAG",
-            piper_port=PiperPortType.OUTPUT,
-        )
+    output: Path = Field(
+        ...,
+        alias="o",
+        description="The output of the DAG",
+        piper_port=PiperPortType.OUTPUT,
     )
+
     subsample: int = Field(..., description="Number of samples to take.")
 
     key_image_item: str = Field(..., description="Key for image item.")
@@ -60,26 +60,26 @@ class DAG(DagBaseCommand):
             MapCommand,
             SliceCommand,
         )
+        from pipelime.stages import StageRemap
 
         dir_out_split = self.folder_debug / "out_split"
-        cmd_split = SliceCommand(
+        cmd_split = SliceCommand.lazy()(
             input=self.input, output=dir_out_split, slice=self.subsample
         )  # type: ignore
 
         dir_out_copy = self.folder_debug / "out_copy"
-        cmd_copy = CloneCommand(
+        cmd_copy = CloneCommand.lazy()(
             input=dir_out_split, output=dir_out_copy  # type: ignore
         )
 
         dir_out_remap = self.folder_debug / "out_remap"
-        params = {
-            "input": dir_out_copy.as_posix(),
-            "output": dir_out_remap.as_posix(),
-            "stage": {"remap-key": {"remap": {self.key_image_item: "image_new"}}},
-        }
-        cmd_map = MapCommand.parse_obj(params)
+        cmd_map = MapCommand.lazy()(
+            input=dir_out_copy,
+            output=dir_out_remap,
+            stage=StageRemap(remap={self.key_image_item: "image_new"}),  # type: ignore
+        )
 
-        cmd_cat = ConcatCommand(
+        cmd_cat = ConcatCommand.lazy()(
             inputs=[dir_out_remap, dir_out_split], output=self.output  # type: ignore
         )
 
@@ -110,12 +110,11 @@ class DecoratedDAG(PiperDAG, title="deco-dag"):
         )
     )
 
-    output: pl_interfaces.OutputDatasetInterface = (
-        pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o",
-            description="The output of the DAG",
-            piper_port=PiperPortType.OUTPUT,
-        )
+    output: Path = Field(
+        ...,
+        alias="o",
+        description="The output of the DAG",
+        piper_port=PiperPortType.OUTPUT,
     )
     subsample: int = Field(..., description="Number of samples to take.")
 
@@ -136,26 +135,27 @@ class DecoratedDAG(PiperDAG, title="deco-dag"):
             MapCommand,
             SliceCommand,
         )
+        from pipelime.stages import StageRemap
 
         dir_out_split = folder_debug / "out_split"
-        cmd_split = SliceCommand(
+        cmd_split = SliceCommand.lazy()(
             input=self.input, output=dir_out_split, slice=self.subsample
         )  # type: ignore
 
         dir_out_copy = folder_debug / "out_copy"
-        cmd_copy = CloneCommand(
+        cmd_copy = CloneCommand.lazy()(
             input=dir_out_split, output=dir_out_copy  # type: ignore
         )
 
         dir_out_remap = folder_debug / "out_remap"
-        params = {
-            "input": dir_out_copy.as_posix(),
-            "output": dir_out_remap.as_posix(),
-            "stage": {"remap-key": {"remap": {self.key_image_item: "image_new"}}},
-        }
-        cmd_map = MapCommand.parse_obj(params)
 
-        cmd_cat = ConcatCommand(
+        cmd_map = MapCommand.lazy()(
+            input=dir_out_copy,
+            output=dir_out_remap,
+            stage=StageRemap(remap={self.key_image_item: "image_new"}),  # type: ignore
+        )
+
+        cmd_cat = ConcatCommand.lazy()(
             inputs=[dir_out_remap, dir_out_split], output=self.output  # type: ignore
         )
 
