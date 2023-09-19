@@ -402,9 +402,17 @@ class CallableDef(
     You may derive from this class to re-implement the `default_class_path` class method
     (NB: it must end with `.`).
 
-    Can be created from a symbol, an instance, a class/file path to a function or
-    a mapping where the key is the class/file path to a class and the value is the
-    list of __init__ arguments (mapping, sequence or single value).
+    Can be created from:
+
+        * an existing function, class or callable instance
+        * <module classpath>:<symbol> -> "my.module.path:my_callable"
+        * <module file path>:<symbol> -> "path/to/module.py:MyCallable"
+        * lambda expression -> "lambda x: x + 1"
+        * <symbol>:::<code> -> "my_callable:::def my_callable(x):\\nreturn x + 1"
+
+    Also, the last four options can be keys of a mapping where the value is the
+    list of __init__ arguments (mapping, sequence or single value), eg:
+    {"path/to/module.py:MyCallable": [1, 2, 3]}
 
     To ease the inspection of the callable, the methods `full_signature`, `args_type`,
     `return_type`, `has_var_positional` and `has_var_keyword` are provided.
@@ -510,10 +518,17 @@ class CallableDef(
     @classmethod
     def _string_to_callable(cls, clb_str: str) -> t.Callable:
         from pipelime.choixe.utils.imports import import_symbol
+        import ast
 
         clb_str = clb_str.strip("\"'")
-        if "." not in clb_str:
-            clb_str = cls.default_class_path() + clb_str
+
+        try:
+            parsed = ast.parse(clb_str, mode="eval")
+            if isinstance(parsed.body, ast.Name):
+                clb_str = cls.default_class_path() + clb_str
+        except Exception:
+            pass
+
         return import_symbol(clb_str)
 
     def __call__(self, *args, **kwargs):

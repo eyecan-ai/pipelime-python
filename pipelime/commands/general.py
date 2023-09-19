@@ -756,6 +756,61 @@ class MapCommand(PipelimeCommand, title="map"):
         )
 
 
+class MapIfCommand(PipelimeCommand, title="map-if"):
+    """Apply a stage on a dataset if a condition is met."""
+
+    stage: StageInput = pyd.Field(
+        ...,
+        alias="s",
+        description=(
+            "A stage to apply. Can be a stage name/class_path (with no arguments) or "
+            "a dictionary with the stage name/class_path as key and the arguments "
+            "passed by keywords."
+        ),
+    )
+
+    input: pl_interfaces.InputDatasetInterface = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i", piper_port=PiperPortType.INPUT
+        )
+    )
+
+    output: pl_interfaces.OutputDatasetInterface = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", piper_port=PiperPortType.OUTPUT
+        )
+    )
+
+    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
+        alias="g"
+    )
+
+    condition: pl_types.CallableDef = pyd.Field(
+        ...,
+        alias="c",
+        description=(
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable that returns True if the sample should be mapped through "
+            "the stage. Accepted signatures:\n"
+            "  `() -> bool`\n"
+            "  `(index: int) -> bool`\n"
+            "  `(index: int, sample: Sample) -> bool`\n"
+            "  `(index: int, sample: Sample, source: SamplesSequence) -> bool`."
+        ),
+    )
+
+    def run(self):
+        seq = self.input.create_reader()
+        seq = seq.map_if(stage=self.stage, condition=self.condition)
+        self.grabber.grab_all(
+            self.output.append_writer(seq),
+            grab_context_manager=self.output.serialization_cm(),
+            keep_order=False,
+            parent_cmd=self,
+            track_message=f"Mapping data ({len(seq)} samples)",
+        )
+
+
 class SortCommand(PipelimeCommand, title="sort"):
     """Sort a dataset by metadata values or according to a custom sorting function."""
 
@@ -772,7 +827,8 @@ class SortCommand(PipelimeCommand, title="sort"):
         None,
         alias="f",
         description=(
-            "A class path to a callable `(Sample) -> Any` to be used as key-function. "
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable `(Sample) -> Any` to be used as key-function. "
             "Use `functools.cmp_to_key` to convert a compare function, "
             "ie, accepting two arguments, to a key function."
         ),
@@ -830,8 +886,8 @@ class FilterCommand(PipelimeCommand, title="filter"):
         None,
         alias="f",
         description=(
-            "A `class.path.to.func` (or `file.py:func`) to "
-            "a callable `(Sample) -> bool` returning True for any valid sample."
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable `(Sample) -> bool` returning True for any valid sample."
         ),
     )
 
@@ -957,8 +1013,8 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
         None,
         alias="f",
         description=(
-            "A `class.path.to.func` (or `file.py:func`) to "
-            "a callable returning True for any valid sample.\n"
+            "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
+            "of a callable returning True for any valid sample.\n"
             "Accepted signatures:\n"
             "  `() -> bool`\n"
             "  `(index: int) -> bool`\n"
