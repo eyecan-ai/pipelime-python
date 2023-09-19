@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 
 import pydantic as pyd
 
+import pipelime.utils.pydantic_types as pl_types
+
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
@@ -36,7 +38,7 @@ class StageIdentity(SampleStage, title="identity"):
 class StageLambda(SampleStage, title="lambda"):
     """Applies a callable to the sample."""
 
-    func: t.Callable = pyd.Field(
+    func: pl_types.CallableDef = pyd.Field(
         ...,
         description="The callable to apply, accepting a Sample and returning a Sample.",
     )

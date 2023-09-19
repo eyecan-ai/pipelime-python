@@ -5,7 +5,7 @@ from enum import Enum
 import typing_extensions as te
 from pydantic import BaseModel, Field, PrivateAttr
 from pydantic.generics import GenericModel
-
+from loguru import logger
 from pipelime.piper.checkpoint import CheckpointNamespace
 from pipelime.piper.progress.tracker.base import TrackCallback, TrackedTask, Tracker
 
@@ -498,6 +498,7 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
         value: t.Union["NodesDefinition", T_NODES],
         *,
         checkpoint: t.Optional[CheckpointNamespace] = None,
+        skip_on_error: bool = False,
     ):
         from pydantic import ValidationError
 
@@ -506,19 +507,27 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
         if isinstance(value, NodesDefinition):
             return value
         try:
-            return cls(
-                __root__={
-                    name: get_pipelime_command(
-                        cmd,
-                        checkpoint.get_namespace(
-                            name.replace(".", "_").replace("[", "_").replace("]", "_")
-                        )
-                        if checkpoint
-                        else None,
+            plnodes = {}
+            for name, cmd in value.items():
+                if checkpoint:
+                    ckpt = checkpoint.get_namespace(
+                        name.replace(".", "_").replace("[", "_").replace("]", "_")
                     )
-                    for name, cmd in value.items()
-                }
-            )
+                else:
+                    ckpt = None
+
+                try:
+                    plcmd = get_pipelime_command(cmd, ckpt)
+                except ValidationError:
+                    if skip_on_error:
+                        logger.warning(
+                            f"Skipping node `{name}` due to validation error."
+                        )
+                    else:
+                        raise
+                else:
+                    plnodes[name] = plcmd
+            return cls(__root__=plnodes)
         except ValidationError as e:
             show_field_alias_valerr(e)
             raise e

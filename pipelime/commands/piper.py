@@ -30,10 +30,25 @@ class PiperGraphCommandBase(PipelimeCommand):
     """Base class for piper-aware commands."""
 
     include: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="i", description="Nodes not in this list are not run."
+        None, alias="i", description="Nodes not in this list are not created."
     )
     exclude: t.Union[str, t.Sequence[str], None] = Field(
-        None, alias="e", description="Nodes in this list are not run."
+        None, alias="e", description="Nodes in this list are not created."
+    )
+    skip_on_error: bool = Field(
+        False, alias="se", description="Skip commands on validation errors."
+    )
+    start_from: t.Union[str, t.Sequence[str], None] = Field(
+        None,
+        alias="sf",
+        description=(
+            "Create the graph, then take only these nodes and their descendants."
+        ),
+    )
+    stop_at: t.Union[str, t.Sequence[str], None] = Field(
+        None,
+        alias="sa",
+        description="Create the graph, then take only these nodes and their ancestors.",
     )
 
     _piper_graph: t.Optional["DAGNodesGraph"] = PrivateAttr(None)
@@ -76,6 +91,7 @@ class PiperGraphCommandBase(PipelimeCommand):
     def piper_graph(self) -> "DAGNodesGraph":
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel, NodesDefinition
+        import fnmatch
 
         if not self._piper_graph:
             inc_n = [self.include] if isinstance(self.include, str) else self.include
@@ -84,9 +100,15 @@ class PiperGraphCommandBase(PipelimeCommand):
             self.command_checkpoint.write_data("include", inc_n)
             self.command_checkpoint.write_data("exclude", exc_n)
 
+            def _list_match(node: str, patterns: t.Sequence[str]) -> bool:
+                for pattern in patterns:
+                    if fnmatch.fnmatchcase(node, pattern):
+                        return True
+                return False
+
             def _node_to_run(node: str) -> bool:
-                return (inc_n is None or node in inc_n) and (
-                    exc_n is None or node not in exc_n
+                return (inc_n is None or _list_match(node, inc_n)) and (
+                    exc_n is None or not _list_match(node, exc_n)
                 )
 
             nodes = {
@@ -95,11 +117,27 @@ class PiperGraphCommandBase(PipelimeCommand):
                 if _node_to_run(name)
             }
             dag = DAGModel(
-                nodes=NodesDefinition.create(nodes, checkpoint=self.command_checkpoint)
+                nodes=NodesDefinition.create(
+                    nodes,
+                    checkpoint=self.command_checkpoint,
+                    skip_on_error=self.skip_on_error,
+                )
             )
             self._piper_graph = DAGNodesGraph.build_nodes_graph(
                 dag, **self._nodes_graph_building_kwargs()
             )
+
+            if self.start_from is not None:
+                self._piper_graph = self._piper_graph.start_from_nodes(
+                    [self.start_from]
+                    if isinstance(self.start_from, str)
+                    else self.start_from
+                )
+            if self.stop_at is not None:
+                self._piper_graph = self._piper_graph.stop_at_nodes(
+                    [self.stop_at] if isinstance(self.stop_at, str) else self.stop_at
+                )
+
         return self._piper_graph
 
     def _nodes_graph_building_kwargs(self) -> t.Mapping[str, t.Any]:

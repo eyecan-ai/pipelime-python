@@ -99,9 +99,22 @@ class CLIParserState(ABC):
 
 
 class CLIParserHoldState(CLIParserState):
+    def __init__(
+        self,
+        last_key_name_iscfg: t.Optional[t.Tuple[str, bool]] = None,
+        cfg_opts: t.Optional[t.Dict[str, t.Any]] = None,
+        ctx_opts: t.Optional[t.Dict[str, t.Any]] = None,
+        ctx_started: bool = False,
+    ):
+        super().__init__(cfg_opts, ctx_opts, ctx_started)
+        self.last_key_name_iscfg = last_key_name_iscfg
+
     def process_token(self, token: str) -> CLIParserState:
+        # context starts
         if token in CLISpecialChars.ctx_start():
-            return CLIParserHoldState(self.cfg_opts, self.ctx_opts, True)
+            return CLIParserHoldState(None, self.cfg_opts, self.ctx_opts, True)
+
+        # config option
         if not self.ctx_started and token.startswith(CLISpecialChars.config()):
             opt, val = self._process_key_arg(token)
             cli_state = CLIParserExpectingCfgValue(
@@ -110,6 +123,8 @@ class CLIParserHoldState(CLIParserState):
             if val is not None:
                 return cli_state.process_token(val)
             return cli_state
+
+        # context option
         if (
             self.ctx_started and token.startswith(CLISpecialChars.config())
         ) or token.startswith(CLISpecialChars.context()):
@@ -120,6 +135,24 @@ class CLIParserHoldState(CLIParserState):
             if val is not None:
                 return cli_state.process_token(val)
             return cli_state
+
+        # value
+        if self.last_key_name_iscfg:
+            if self.last_key_name_iscfg[1]:
+                cli_state = CLIParserExpectingCfgValue(
+                    self.last_key_name_iscfg[0],
+                    self.cfg_opts,
+                    self.ctx_opts,
+                    self.ctx_started,
+                )
+            else:
+                cli_state = CLIParserExpectingCtxValue(
+                    self.last_key_name_iscfg[0],
+                    self.cfg_opts,
+                    self.ctx_opts,
+                    self.ctx_started,
+                )
+            return cli_state.process_token(token)
 
         raise CLIParsingError(f"Unexpected token: `{token}`")
 
@@ -166,6 +199,7 @@ class CLIParserExpectingValue(CLIParserState):
         super().__init__(cfg_opts, ctx_opts, ctx_started)
         self.key_name = key_name
 
+    @property
     @abstractmethod
     def target_cfg(self) -> t.Dict[str, t.Any]:
         pass
@@ -173,22 +207,28 @@ class CLIParserExpectingValue(CLIParserState):
     def process_token(self, token: str) -> CLIParserState:
         from pipelime.choixe.utils.common import deep_set_
 
+        # the value is indeed a new key, so the previous key is a boolean flag
         if token in CLISpecialChars.ctx_start() or token.startswith(
             CLISpecialChars.config() + CLISpecialChars.context()
         ):
             self._set_boolean_flag()
             cli_state = CLIParserHoldState(
-                self.cfg_opts, self.ctx_opts, self.ctx_started
+                None, self.cfg_opts, self.ctx_opts, self.ctx_started
             )
             return cli_state.process_token(token)
 
         deep_set_(
-            self.target_cfg(),
+            self.target_cfg,
             key_path=self.key_name,
             value=self._convert_val(token),
             append=True,
         )
-        return CLIParserHoldState(self.cfg_opts, self.ctx_opts, self.ctx_started)
+        return CLIParserHoldState(
+            (self.key_name, self.target_cfg is self.cfg_opts),
+            self.cfg_opts,
+            self.ctx_opts,
+            self.ctx_started,
+        )
 
     def close(self):
         self._set_boolean_flag()
@@ -197,7 +237,7 @@ class CLIParserExpectingValue(CLIParserState):
         from pipelime.choixe.utils.common import deep_set_
 
         deep_set_(
-            self.target_cfg(),
+            self.target_cfg,
             key_path=self.key_name,
             value=True,
             append=True,
@@ -228,10 +268,12 @@ class CLIParserExpectingValue(CLIParserState):
 
 
 class CLIParserExpectingCfgValue(CLIParserExpectingValue):
+    @property
     def target_cfg(self) -> t.Dict[str, t.Any]:
         return self.cfg_opts
 
 
 class CLIParserExpectingCtxValue(CLIParserExpectingValue):
+    @property
     def target_cfg(self) -> t.Dict[str, t.Any]:
         return self.ctx_opts

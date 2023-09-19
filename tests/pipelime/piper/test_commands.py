@@ -1,6 +1,26 @@
 import pytest
 import typing as t
 from pathlib import Path
+from pydantic import BaseModel
+import yaml
+import io
+
+
+class _GraphArgs(BaseModel):
+    include: t.Union[str, t.Sequence[str], None]
+    exclude: t.Union[str, t.Sequence[str], None]
+    skip_on_error: bool
+    start_from: t.Union[str, t.Sequence[str], None]
+    stop_at: t.Union[str, t.Sequence[str], None]
+
+
+class _DotOpts(BaseModel):
+    args: _GraphArgs
+    dot: str
+
+
+class _DotsTestData(BaseModel):
+    __root__: t.Sequence[_DotOpts]
 
 
 def _try_import_graphviz():
@@ -41,32 +61,42 @@ class TestCommands:
 
         for dag in all_dags:
             if "dot" in dag:
-                target_dot: Path = dag["dot"]
-                outdot = tmp_path / target_dot.parent.name / target_dot.name
-                outdot.parent.mkdir(parents=True, exist_ok=True)
+                with open(dag["dot"]) as f:
+                    dots_test_data = _DotsTestData.parse_obj(yaml.safe_load(f))
+                for idx, test_data in enumerate(dots_test_data.__root__):
+                    target_dot = test_data.dot
+                    outdot = tmp_path / str(idx) / "out.dot"
+                    outdot.parent.mkdir(parents=True, exist_ok=True)
 
-                cmd = DrawCommand(
-                    **(dag["config"]),  # type: ignore
-                    output=outdot,  # type: ignore
-                    backend=DrawCommand.DrawBackendChoice.GRAPHVIZ,  # type: ignore
-                    data_max_width="/",  # type: ignore
-                    ellipsis_position=DrawCommand.EllipsesChoice.START,  # type: ignore
-                    show_command_names=True,  # type: ignore
-                )
-                cmd()
+                    cmd = DrawCommand(
+                        **(dag["config"]),  # type: ignore
+                        output=outdot,  # type: ignore
+                        backend=DrawCommand.DrawBackendChoice.GRAPHVIZ,  # type: ignore
+                        data_max_width="/",  # type: ignore
+                        ellipsis_position=DrawCommand.EllipsesChoice.START,  # type: ignore
+                        show_command_names=True,  # type: ignore
+                        **test_data.args.dict(),
+                    )
+                    cmd()
 
-                # NOTE: output dots have different node names due to the use of
-                # absolute paths, so we create here the images and compare them.
-                # We do not save a reference image since graphviz may change the
-                # layout in the future. Also, we do not compare SVGs, since graphviz
-                # writes as comments the names of the nodes.
-                import pygraphviz as pgv
+                    # NOTE: output dots have different node names due to the use of
+                    # absolute paths, so we create here the images and compare them.
+                    # We do not save a reference image since graphviz may change the
+                    # layout in the future. Also, we do not compare SVGs, since graphviz
+                    # writes as comments the names of the nodes.
+                    import pygraphviz as pgv
 
-                g_ref = pgv.AGraph(str(target_dot)).draw(format="bmp", prog="dot")
-                g_out = pgv.AGraph(str(outdot)).draw(format="bmp", prog="dot")
-                assert g_ref is not None
-                assert g_out is not None
-                assert g_ref == g_out
+                    # reading from string does not work, so we write to a file
+                    with open(tmp_path / str(idx) / "target.dot", "w") as f:
+                        f.write(target_dot)
+
+                    g_ref = pgv.AGraph(str(tmp_path / str(idx) / "target.dot")).draw(
+                        format="bmp", prog="dot"
+                    )
+                    g_out = pgv.AGraph(str(outdot)).draw(format="bmp", prog="dot")
+                    assert g_ref is not None
+                    assert g_out is not None
+                    assert g_ref == g_out
 
     def test_run_dag(self, all_dags: t.Sequence[t.Mapping[str, t.Any]]):
         from pipelime.commands.piper import RunCommand

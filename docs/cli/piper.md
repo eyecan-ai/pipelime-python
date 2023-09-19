@@ -248,3 +248,29 @@ $ rm -rf dbg/good dbg/bad
 # re-run a couple of nodes
 $ pipelime resume --ckpt ckpt +i split-query-0 +i split-query-1
 ```
+
+## Running A Subset Of Nodes
+
+When you run any DAG, either yaml or python, you can always select just a subset of nodes
+to run. The relevant options here are:
+- `include`
+- `exclude`
+- `skip_on_error`
+- `start_from`
+- `stop_at`
+
+To fully understand how they work, we need to break down the DAG creation process:
+
+1. the nodes are created, either from yaml or as python _lazy_ commands
+1. only the nodes which ARE in the `include` list and NOT in the `exclude` list are transformed to full-fledged pipelime commands
+1. when creating a node, if `skip_on_error` is `True`, in case of a validation error the node is simply skipped, eg, if the output folder already exists
+1. all the nodes which do NOT descends from the nodes in the `start_from` list are removed
+1. **then**, all the nodes which are NOT ancestors of the nodes in the `stop_at` list are removed
+
+```{warning}
+If `stop_at` is a node which do not descends from any node in `start_from`, the DAG will be empty!
+```
+
+```{tip}
+Before running a subgraph, you can draw it to check that everything is ok.
+```

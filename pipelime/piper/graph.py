@@ -248,6 +248,44 @@ class DAGNodesGraph:
             if isinstance(x, GraphNodeData):
                 yield x
 
+    def start_from_nodes(self, node_names: Sequence[str]) -> "DAGNodesGraph":
+        """Returns a new DAGNodesGraph starting from the given nodes.
+        All necessary I/O data nodes are always included.
+
+        Args:
+            node_names (Sequence[str]): The name of the nodes to start from.
+
+        Returns:
+            DAGNodesGraph: The new DAGNodesGraph starting from the given nodes.
+        """
+        nodes = {node for node in self.raw_graph.nodes if node.name in node_names}
+        for n in nodes:
+            nodes = nodes | nx.descendants(self._raw_graph, n)
+        for n in nodes:
+            if n.type == GraphNode.GRAPH_NODE_TYPE_OPERATION:
+                nodes = nodes | set(self.raw_graph.predecessors(n))
+
+        return DAGNodesGraph(raw_graph=self._raw_graph.subgraph(nodes))
+
+    def stop_at_nodes(self, node_names: Sequence[str]) -> "DAGNodesGraph":
+        """Returns a new DAGNodesGraph stopping at the given nodes.
+        All necessary I/O data nodes are always included.
+
+        Args:
+            node_names (Sequence[str]): The name of the nodes to stop at.
+
+        Returns:
+            DAGNodesGraph: The new DAGNodesGraph stopping at the given nodes.
+        """
+        nodes = {node for node in self.raw_graph.nodes if node.name in node_names}
+        for n in nodes:
+            nodes = nodes | nx.ancestors(self._raw_graph, n)
+        for n in nodes:
+            if n.type == GraphNode.GRAPH_NODE_TYPE_OPERATION:
+                nodes = nodes | set(self.raw_graph.successors(n))
+
+        return DAGNodesGraph(raw_graph=self._raw_graph.subgraph(nodes))
+
     def get_input_port_name(self, data_node: GraphNodeData) -> str:
         """Returns the name of the input port a data node is connected to."""
         ports = nx.get_edge_attributes(self.raw_graph, self.GraphAttrs.INPUT_PORT)

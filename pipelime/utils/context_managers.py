@@ -17,7 +17,10 @@ class ContextManagerList:
 class CatchSignals:
     def __init__(self, signals=None):
         import signal
-        self._signals = signals if signals is not None else [signal.SIGINT, signal.SIGTERM]
+
+        self._signals = (
+            signals if signals is not None else [signal.SIGINT, signal.SIGTERM]
+        )
         self._original_handlers = {}
         self._interrupted = False
         self._released = False
@@ -28,6 +31,7 @@ class CatchSignals:
 
     def __enter__(self):
         import signal
+
         self._original_handlers = {}
         self._interrupted = False
         self._released = False
@@ -47,6 +51,7 @@ class CatchSignals:
 
     def release(self):
         import signal
+
         if self._released:
             return False
 

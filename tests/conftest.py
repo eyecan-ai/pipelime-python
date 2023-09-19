@@ -126,7 +126,7 @@ def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
                 dag["cfg_path"] = cfg_path
                 dag["ctx_path"] = ctx_path
                 dag["config"] = TestUtils.choixe_process(cfg_path, ctx_path)
-                _add_if_exists(dag, Path(entry.path) / "dag.dot", "dot")
+                _add_if_exists(dag, Path(entry.path) / "dot.yml", "dot")
 
                 all_dags.append(dag)
     return all_dags

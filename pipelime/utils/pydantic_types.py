@@ -1,24 +1,31 @@
 from __future__ import annotations
-import typing as t
+
 import inspect
+import typing as t
 from pathlib import Path
+
+import numpy as np
 import pydantic as pyd
 import pydantic.generics as pydg
-import numpy as np
 
 from pipelime.items import Item
 
 if t.TYPE_CHECKING:
-    from pipelime.sequences import SamplesSequence
     from numpy.typing import ArrayLike
+
+    from pipelime.sequences import SamplesSequence
 
 
 class NewPath(Path):
     """A path that does not exist yet."""
 
+    extension: t.Optional[str] = None
+
     @classmethod
     def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
-        field_schema.update(format="new-path")
+        field_schema.update(exists=False)
+        if cls.extension is not None:
+            field_schema.update(extension=cls.extension)
 
     @classmethod
     def __get_validators__(cls):
@@ -30,8 +37,31 @@ class NewPath(Path):
     @classmethod
     def validate(cls, value: Path) -> Path:
         if value.exists():
-            raise ValueError(f"Path {value} already exists")
+            raise ValueError(f"Path `{value}` already exists")
+
+        if cls.extension is not None:
+            vsuffix = value.suffix
+            if not vsuffix and value.name.endswith("."):
+                vsuffix = "."
+
+            if not vsuffix:
+                value = value.with_name(value.name + cls.extension)
+            elif vsuffix != cls.extension:
+                raise ValueError(f"Path `{value}` must have suffix `{cls.extension}`")
         return value
+
+
+def new_file_path(extension: t.Optional[str] = None) -> t.Type[NewPath]:
+    import re
+
+    # use kwargs then define conf in a dict to aid with IDE type hinting
+    if extension is None:
+        return NewPath
+    if extension and extension[0] != ".":
+        extension = "." + extension
+    namespace = dict(extension=extension)
+    clsname = "NewPath_" + re.sub("[^a-zA-Z0-9_]", "_", extension)
+    return type(clsname, (NewPath,), namespace)
 
 
 class NumpyType(
@@ -230,8 +260,8 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             filepath, _, root_key = pval.name.partition(":")
             filepath = Path(pval.parent / filepath)
             if filepath.exists():
-                import yaml
                 import pydash as py_
+                import yaml
 
                 with filepath.open() as f:
                     value = yaml.safe_load(f)
@@ -449,7 +479,7 @@ class CallableDef(
         Everything still works::
 
             mm = MyModel()
-            mm = MyModel.parse_obj({"fn": (a.class.path.to.callable})
+            mm = MyModel.parse_obj({"fn": a.class.path.to.callable})
             mm = MyModel.parse_obj({"fn": "CallableInMain"})
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
