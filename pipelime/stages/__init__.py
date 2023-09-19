@@ -4,6 +4,7 @@ from pipelime.stages.base import (
     StageIdentity,
     StageLambda,
     StageInput,
+    StageTimer,
 )
 from pipelime.stages.augmentations import (
     StageAlbumentations,

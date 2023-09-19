@@ -309,7 +309,13 @@ def pl_main(
         ),
     ),
     extra_modules: t.List[str] = typer.Option(
-        [], "--module", "-m", help="Additional modules to import."
+        [],
+        "--module",
+        "-m",
+        help=(
+            "Additional modules to import: `class.path.to.module`, "
+            "`path/to/module.py` or `<code>`"
+        ),
     ),
     run_all: t.Optional[bool] = typer.Option(
         None,
@@ -363,8 +369,9 @@ def pl_main(
         help=(
             (
                 "A command, ie, a `command-name`, "
-                "a `package.module.ClassName` class path or "
-                "a `path/to/module.py:ClassName` uri (use with care).\n\n"
+                "a `package.module.ClassName` class path, "
+                "a `path/to/module.py:ClassName` uri (use with care) or"
+                "a `ClassName:::<code>` for anonymous imports.\n\n"
             )
             + subc.get_help()
         ),

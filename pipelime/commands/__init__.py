@@ -1,5 +1,6 @@
 from pipelime.commands.general import (
     TimeItCommand,
+    StageTimingCommand,
     PipeCommand,
     CloneCommand,
     ConcatCommand,
@@ -8,6 +9,7 @@ from pipelime.commands.general import (
     RemoveRemoteCommand,
     ValidateCommand,
     MapCommand,
+    MapIfCommand,
     SortCommand,
     FilterCommand,
     SliceCommand,
