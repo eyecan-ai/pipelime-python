@@ -57,6 +57,11 @@ def extra_modules(data_folder: Path) -> t.List[t.Dict[str, t.Any]]:
 
 
 @pytest.fixture(scope="session")
+def ckpt_dag(data_folder: Path) -> Path:
+    return data_folder / "cli" / "ckpt_dag.py"
+
+
+@pytest.fixture(scope="session")
 def minimnist_dataset(datasets_folder: Path) -> dict:
     return {
         "path": datasets_folder / "underfolder_minimnist",
@@ -121,7 +126,7 @@ def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
                 dag["cfg_path"] = cfg_path
                 dag["ctx_path"] = ctx_path
                 dag["config"] = TestUtils.choixe_process(cfg_path, ctx_path)
-                _add_if_exists(dag, Path(entry.path) / "dag.dot", "dot")
+                _add_if_exists(dag, Path(entry.path) / "dot.yml", "dot")
 
                 all_dags.append(dag)
     return all_dags

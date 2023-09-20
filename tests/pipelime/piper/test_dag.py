@@ -2,7 +2,7 @@ import typing as t
 from pathlib import Path
 
 import pytest
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.commands.piper import T_NODES, DagBaseCommand, PiperDAG, piper_dag
@@ -34,13 +34,13 @@ class DAG(DagBaseCommand):
         )
     )
 
-    output: pl_interfaces.OutputDatasetInterface = (
-        pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o",
-            description="The output of the DAG",
-            piper_port=PiperPortType.OUTPUT,
-        )
+    output: Path = Field(
+        ...,
+        alias="o",
+        description="The output of the DAG",
+        piper_port=PiperPortType.OUTPUT,
     )
+
     subsample: int = Field(..., description="Number of samples to take.")
 
     key_image_item: str = Field(..., description="Key for image item.")
@@ -60,26 +60,26 @@ class DAG(DagBaseCommand):
             MapCommand,
             SliceCommand,
         )
+        from pipelime.stages import StageRemap
 
         dir_out_split = self.folder_debug / "out_split"
-        cmd_split = SliceCommand(
+        cmd_split = SliceCommand.lazy()(
             input=self.input, output=dir_out_split, slice=self.subsample
         )  # type: ignore
 
         dir_out_copy = self.folder_debug / "out_copy"
-        cmd_copy = CloneCommand(
+        cmd_copy = CloneCommand.lazy()(
             input=dir_out_split, output=dir_out_copy  # type: ignore
         )
 
         dir_out_remap = self.folder_debug / "out_remap"
-        params = {
-            "input": dir_out_copy.as_posix(),
-            "output": dir_out_remap.as_posix(),
-            "stage": {"remap-key": {"remap": {self.key_image_item: "image_new"}}},
-        }
-        cmd_map = MapCommand.parse_obj(params)
+        cmd_map = MapCommand.lazy()(
+            input=dir_out_copy,
+            output=dir_out_remap,
+            stage=StageRemap(remap={self.key_image_item: "image_new"}),  # type: ignore
+        )
 
-        cmd_cat = ConcatCommand(
+        cmd_cat = ConcatCommand.lazy()(
             inputs=[dir_out_remap, dir_out_split], output=self.output  # type: ignore
         )
 
@@ -110,12 +110,11 @@ class DecoratedDAG(PiperDAG, title="deco-dag"):
         )
     )
 
-    output: pl_interfaces.OutputDatasetInterface = (
-        pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o",
-            description="The output of the DAG",
-            piper_port=PiperPortType.OUTPUT,
-        )
+    output: Path = Field(
+        ...,
+        alias="o",
+        description="The output of the DAG",
+        piper_port=PiperPortType.OUTPUT,
     )
     subsample: int = Field(..., description="Number of samples to take.")
 
@@ -136,26 +135,27 @@ class DecoratedDAG(PiperDAG, title="deco-dag"):
             MapCommand,
             SliceCommand,
         )
+        from pipelime.stages import StageRemap
 
         dir_out_split = folder_debug / "out_split"
-        cmd_split = SliceCommand(
+        cmd_split = SliceCommand.lazy()(
             input=self.input, output=dir_out_split, slice=self.subsample
         )  # type: ignore
 
         dir_out_copy = folder_debug / "out_copy"
-        cmd_copy = CloneCommand(
+        cmd_copy = CloneCommand.lazy()(
             input=dir_out_split, output=dir_out_copy  # type: ignore
         )
 
         dir_out_remap = folder_debug / "out_remap"
-        params = {
-            "input": dir_out_copy.as_posix(),
-            "output": dir_out_remap.as_posix(),
-            "stage": {"remap-key": {"remap": {self.key_image_item: "image_new"}}},
-        }
-        cmd_map = MapCommand.parse_obj(params)
 
-        cmd_cat = ConcatCommand(
+        cmd_map = MapCommand.lazy()(
+            input=dir_out_copy,
+            output=dir_out_remap,
+            stage=StageRemap(remap={self.key_image_item: "image_new"}),  # type: ignore
+        )
+
+        cmd_cat = ConcatCommand.lazy()(
             inputs=[dir_out_remap, dir_out_split], output=self.output  # type: ignore
         )
 
@@ -173,31 +173,105 @@ def _create_dag(
     minimnist_dataset: dict,
     decorated: bool,
     slice: int,
-    output: Path,
+    output: t.Optional[Path],
     debug_folder: t.Optional[Path] = None,
+    include: t.Optional[t.Sequence[str]] = None,
+    exclude: t.Optional[t.Sequence[str]] = None,
+    skip_on_error: bool = False,
 ):
     if decorated:
         return DecoratedDAG(  # type: ignore
             folder_debug=debug_folder,  # type: ignore
             properties={  # type: ignore
                 "input": minimnist_dataset["path"],
-                "output": output / "dag_output",
+                "output": Path(__file__) if output is None else output / "dag_output",
                 "key_image_item": minimnist_dataset["image_keys"][0],
                 "subsample": slice,
             },
+            include=include,  # type: ignore
+            exclude=exclude,  # type: ignore
+            skip_on_error=skip_on_error,  # type: ignore
         )
 
     dag = DAG(
         input=minimnist_dataset["path"],
-        output=output / "dag_output",
+        output=Path(__file__) if output is None else output / "dag_output",
         key_image_item=minimnist_dataset["image_keys"][0],
         subsample=slice,
         folder_debug=debug_folder,
+        include=include,  # type: ignore
+        exclude=exclude,  # type: ignore
+        skip_on_error=skip_on_error,  # type: ignore
     )  # type: ignore
     return dag
 
 
 class TestDAG:
+    @pytest.mark.parametrize("decorated", [True, False])
+    @pytest.mark.parametrize(
+        ["include", "exclude", "effective_nodes"],
+        [
+            (None, None, {"slice", "copy", "remap", "cat"}),
+            ([], [], set()),
+            (["slice"], None, {"slice"}),
+            (None, ["slice"], {"copy", "remap", "cat"}),
+            ([], ["slice"], set()),
+            (["slice", "copy"], ["slice"], {"copy"}),
+            (["c*"], [], {"copy", "cat"}),
+            (None, ["?a*"], {"slice", "copy", "remap"}),
+            (["*e*"], ["*map"], {"slice"}),
+        ],
+    )
+    def test_include_exclude(
+        self,
+        minimnist_dataset: dict,
+        decorated: bool,
+        include: t.Optional[t.List[str]],
+        exclude: t.Optional[t.List[str]],
+        effective_nodes: t.Set[str],
+        tmp_path: Path,
+    ):
+        dag = _create_dag(
+            minimnist_dataset,
+            decorated=decorated,
+            slice=4,
+            output=tmp_path,
+            debug_folder=None,
+            include=include.copy() if include is not None else None,
+            exclude=exclude.copy() if exclude is not None else None,
+        )
+
+        assert dag.piper_graph.num_operation_nodes == len(effective_nodes)
+
+        nodes = {node.name for node in dag.piper_graph.operations_graph.raw_graph.nodes}
+        assert nodes == effective_nodes
+
+    @pytest.mark.parametrize("decorated", [True, False])
+    def test_skip_on_error(self, minimnist_dataset: dict, decorated: bool):
+        dag = _create_dag(
+            minimnist_dataset,
+            decorated=decorated,
+            slice=4,
+            output=None,
+            debug_folder=None,
+            skip_on_error=True,
+        )
+        assert dag.piper_graph.num_operation_nodes == 3
+
+        nodes = {node.name for node in dag.piper_graph.operations_graph.raw_graph.nodes}
+        assert nodes == {"slice", "copy", "remap"}
+
+        dag = _create_dag(
+            minimnist_dataset,
+            decorated=decorated,
+            slice=4,
+            output=None,
+            debug_folder=None,
+            skip_on_error=False,
+        )
+        with pytest.raises(ValidationError):
+            _ = dag.piper_graph
+
     @pytest.mark.parametrize("decorated", [True, False])
     @pytest.mark.parametrize("slice", [2, 4, 8])
     def test_run(
@@ -272,16 +346,18 @@ class TestDAG:
         decorated: bool,
         tmp_path: Path,
     ):
+        from pipelime.commands import TempCommand
+        from pipelime.choixe.utils.io import PipelimeTmp
+
         dag = _create_dag(
             minimnist_dataset, decorated=decorated, slice=1, output=tmp_path
         )
         dag.run()
+        assert dag.folder_debug.exists()
 
-        dir_debug = dag.folder_debug
+        TempCommand(name=PipelimeTmp.SESSION_TMP_DIR.stem, force=True)()  # type: ignore
 
-        del dag
-
-        assert not dir_debug.exists()
+        assert not dag.folder_debug.exists()
 
     @pytest.mark.parametrize("decorated", [True, False])
     def test_not_cleanup_folder_debug(
@@ -299,6 +375,8 @@ class TestDAG:
             debug_folder=debug_dir,
         )
         dag.run()
+        assert dag.folder_debug == debug_dir
+        assert dag.folder_debug.exists()
 
         del dag
 

@@ -289,9 +289,9 @@ class BaseEntity(
 class ActionDef(CallableDef):
     """Action definition, can be a registered action title, a callable
     (cfr. Choixe `$call`/`$symbol`), a `class.path.to.a.function`,
-    a `path/to/a/file.py:function` or a mapping where the key is like above,
-    while the value is the list of `__init__` arguments
-    (mapping, sequence or single value).
+    a `path/to/a/file.py:function`, a `function:::<code>`
+    or a mapping where the key is like above, while the value is
+    the list of `__init__` arguments (mapping, sequence or single value).
     """
 
     @classmethod

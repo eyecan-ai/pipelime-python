@@ -33,7 +33,7 @@ $ pipelime split +i input_data +s 0.5,train +s '0.3,$tmp()/null' +s 0.2,test -t
 or directly use the `PipelimeTmp` class instead of `PipelimeTemporaryDirectory`:
 
 ```python
-tmp_dir = PipelimeTmp.make_subdir('my_tmp_dir')
+tmp_dir = PipelimeTmp.make_subdir()
 ... # do something with tmp_dir
 
 # tmp_dir is never deleted

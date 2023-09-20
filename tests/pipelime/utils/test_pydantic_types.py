@@ -1,8 +1,58 @@
-import pytest
-import pydantic
+from pathlib import Path
+
 import numpy as np
+import pydantic
+import pytest
+
 import pipelime.utils.pydantic_types as plt
+
 from ... import TestUtils
+
+
+class TestNewPath:
+    @pytest.mark.parametrize(
+        ["path", "ext", "should_fail", "result"],
+        [
+            ("abc", None, False, "abc"),
+            ("abc.", None, False, "abc."),
+            ("abc.def", None, False, "abc.def"),
+            (".abc", None, False, ".abc"),
+            ("abc", "", False, "abc"),
+            ("abc.", "", True, None),
+            ("abc.def", "", True, None),
+            (".abc", "", False, ".abc"),
+            ("abc", ".", False, "abc."),
+            ("abc.", ".", False, "abc."),
+            ("abc.def", ".", True, None),
+            (".abc", ".", False, ".abc."),
+            ("abc", ".def", False, "abc.def"),
+            ("abc.", ".def", True, None),
+            ("abc.def", ".def", False, "abc.def"),
+            (".abc", ".def", False, ".abc.def"),
+            ("abc", "def", False, "abc.def"),
+            ("abc.", "def", True, None),
+            ("abc.def", "def", False, "abc.def"),
+            (".abc", "def", False, ".abc.def"),
+        ],
+    )
+    def test_create(self, path, ext, should_fail, result):
+        class FooModel(pydantic.BaseModel):
+            i1: plt.NewPath
+            i2: plt.new_file_path(ext)  # type: ignore
+
+        if should_fail:
+            with pytest.raises(pydantic.ValidationError, match="i2"):
+                _ = FooModel(i1=path, i2=path)
+        else:
+            foo = FooModel(i1=path, i2=path)
+            assert str(foo.i1) == path
+            assert str(foo.i2) == result
+
+    def test_exists(self):
+        with pytest.raises(ValueError):
+            plt.NewPath.validate(Path(""))
+        with pytest.raises(ValueError):
+            plt.NewPath.validate(Path(__file__))
 
 
 class TestNumpyType:
@@ -147,6 +197,7 @@ class TestItemType:
 def a_callable(a: int, b="c", **kwargs) -> str:
     return f"{a}{b}{kwargs}"
 
+
 def b_callable(a: int, b="c", *args) -> str:
     return f"{a}{b}{args}"
 
@@ -184,7 +235,6 @@ class TestCallableDef:
         assert cd.has_var_positional
         assert not cd.has_var_keyword
         assert cd.return_type is str
-
 
     def test_call(self):
         cd = plt.CallableDef(__root__=a_callable)

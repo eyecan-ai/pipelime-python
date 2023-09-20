@@ -1,5 +1,6 @@
 from pipelime.commands.general import (
     TimeItCommand,
+    StageTimingCommand,
     PipeCommand,
     CloneCommand,
     ConcatCommand,
@@ -8,6 +9,7 @@ from pipelime.commands.general import (
     RemoveRemoteCommand,
     ValidateCommand,
     MapCommand,
+    MapIfCommand,
     SortCommand,
     FilterCommand,
     SliceCommand,
@@ -24,3 +26,4 @@ from pipelime.commands.split_ops import (
 from pipelime.commands.toy_dataset import ToyDatasetCommand
 from pipelime.commands.piper import RunCommand, DrawCommand, WatchCommand
 from pipelime.commands.tempman import TempCommand
+from pipelime.commands.resume import ResumeCommand

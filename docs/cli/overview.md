@@ -6,16 +6,22 @@ So, just run `pipelime` in your shell and dive into the documentation!
 
 ## Basic Usage
 
-The following options applies to main `pipelime` command. You recognize them because they start with `--` or `-`:
-- `--help`, `-h`: show the help message and exit.
-- `--version`: show pipelime version number and exit.
-- `--dry-run`, `-d`: load the configuration, create the command object, but skip the actual execution.
-- `--verbose`, `-v`: increase verbosity level, really useful for **debugging**, especially when used in combination with `--dry-run`. Can be specified multiple times.
-- `--output`, `-o`: output file path (yaml/json) where to save the effective configuration.
-- `--run-all`, `--no-run-all`: in case of multiple configurations, e.g., when a `$sweep` is present, run them all; otherwise, run only the first one. If not specified, user will be notified if multiple configurations are found.
-- `--module`, `-m`: additional module and packages where user-defined commands, sequence generators, piped operations and stages are defined. This option can be specified multiple times.
-- `--config`, `-c`: path to a yaml/json file with all the parameters required by the command.
-- `--context`: path to a yaml/json file with the context needed by Choixe to resolve variables, for loops etc. It can be automatically loaded if named `context*.[yaml|yml|json]` and placed in the same folder of the configuration file.
+The following options applies to main `pipelime` command. You recognize them because they start with `--` or `-`. They can be grouped in the following categories:
+- **general options**:
+  - `--help`, `-h`: show the help message and exit.
+  - `--version`: show pipelime version number and exit.
+  - `--run-all`, `--no-run-all`: in case of multiple configurations, e.g., when a `$sweep` is present, run them all; otherwise, run only the first one. If not specified, user will be notified if multiple configurations are found.
+  - `--checkpoint`, `--ckpt`, `-k`: path to the optional checkpoint folder where to save the execution state. If not specified, no checkpoint is saved. Look [here](./piper.md#resuming-a-dag-from-a-checkpoint) for more details.
+- **debugging and automation**:
+  - `--dry-run`, `-d`: load the configuration, create the command object, but skip the actual execution.
+  - `--verbose`, `-v`: increase verbosity level, really useful for **debugging**, especially when used in combination with `--dry-run`. Can be specified multiple times.
+  - `--keep-tmp`, `-t`: keep temporary folders created by Pipelime. See [this example](../tutorials/temp_data/tmp_command.md) for more details.
+  - `--output`, `-o`: output file path (yaml/json) where to save the effective configuration.
+  - `--output-ctx`: output file path (yaml/json) where to save the effective context.
+- **configuration**:
+  - `--module`, `-m`: additional module and packages where user-defined commands, sequence generators, piped operations and stages are defined. This option can be specified multiple times.
+  - `--config`, `-c`: path to a yaml/json file with all the parameters required by the command.
+  - `--context`: path to a yaml/json file with the context needed by Choixe to resolve variables, for loops etc. It can be automatically loaded if named `context*.[yaml|yml|json]` and placed in the same folder of the configuration file.
 
 As we will see in a moment, the configuration file is in fact merged with command line arguments
 starting with `++` or `+`. Likewise, context file is merged with command line arguments starting with `@@` or `@`.
@@ -88,6 +94,17 @@ $ pipelime help pipe
 You can autogenerate similar help messages for **any** class derived from `pydantic.BaseModel`!
 
 Just try `$ pipelime help class.path.to.Model` or `$ pipelime help path/to/module.py:Model`.
+```
+
+### Interactive Mode
+
+If you run a command without specifying all the required arguments, an interactive
+text user interface is started to help you fill the missing values. Any value is accepted,
+you can even input complex data structures, e.g., lists and mappings, as JSON, YAML or
+python literals. Try for yourself:
+
+```bash
+$ pipelime clone
 ```
 
 ### (Experimental) Create A New Configuration
@@ -163,10 +180,14 @@ Whereas on the command line you can adopt a
 - `.<key>` to access a mapped field.
 - `[<idx>]` to index a list entry.
 
+Also, list of values are automatically assigned to the last option.
+
 For example:
 
 ```bash
 $ pipelime clone +input.folder path/to/dataset +input.skip_empty +output.folder path/to/output +output.zfill 6 +output.exists_ok
+
+$ pipelime cat +i data_0 data_1 data_2 +o output_folder
 ```
 
 Note how we are using the `+` operator to specify command arguments.

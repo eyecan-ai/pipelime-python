@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from pipelime.sequences import Sample, SamplesSequence
 
+if t.TYPE_CHECKING:
+    from pipelime.commands.interfaces import OutputDatasetInterface
+
 
 class PipeBuildingError(Exception):
     @classmethod
@@ -132,6 +135,29 @@ class DataStream(
             SamplesSequence.from_callable(  # type: ignore
                 generator_fn=self._sample_gen, length=1
             ),
+        )
+
+    @classmethod
+    def from_output_dataset(
+        cls,
+        output_interface: "OutputDatasetInterface",
+        bidirectional: bool = False,
+    ) -> DataStream:
+        """Creates a DataStream from an input and an output interface.
+
+        Args:
+            output_interface (OutputDatasetInterface): The output interface to use.
+            bidirectional (bool, optional): Whether the stream should be readable too.
+                Defaults to False.
+
+        Returns:
+            DataStream: The created DataStream.
+        """
+        return cls(
+            input_sequence=output_interface.as_input().create_reader()
+            if bidirectional
+            else None,
+            output_pipe=output_interface.as_pipe(),
         )
 
     @classmethod

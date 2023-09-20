@@ -1,24 +1,31 @@
 from __future__ import annotations
-import typing as t
+
 import inspect
+import typing as t
 from pathlib import Path
+
+import numpy as np
 import pydantic as pyd
 import pydantic.generics as pydg
-import numpy as np
 
 from pipelime.items import Item
 
 if t.TYPE_CHECKING:
-    from pipelime.sequences import SamplesSequence
     from numpy.typing import ArrayLike
+
+    from pipelime.sequences import SamplesSequence
 
 
 class NewPath(Path):
     """A path that does not exist yet."""
 
+    extension: t.Optional[str] = None
+
     @classmethod
     def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
-        field_schema.update(format="new-path")
+        field_schema.update(exists=False)
+        if cls.extension is not None:
+            field_schema.update(extension=cls.extension)
 
     @classmethod
     def __get_validators__(cls):
@@ -30,8 +37,31 @@ class NewPath(Path):
     @classmethod
     def validate(cls, value: Path) -> Path:
         if value.exists():
-            raise ValueError(f"Path {value} already exists")
+            raise ValueError(f"Path `{value}` already exists")
+
+        if cls.extension is not None:
+            vsuffix = value.suffix
+            if not vsuffix and value.name.endswith("."):
+                vsuffix = "."
+
+            if not vsuffix:
+                value = value.with_name(value.name + cls.extension)
+            elif vsuffix != cls.extension:
+                raise ValueError(f"Path `{value}` must have suffix `{cls.extension}`")
         return value
+
+
+def new_file_path(extension: t.Optional[str] = None) -> t.Type[NewPath]:
+    import re
+
+    # use kwargs then define conf in a dict to aid with IDE type hinting
+    if extension is None:
+        return NewPath
+    if extension and extension[0] != ".":
+        extension = "." + extension
+    namespace = dict(extension=extension)
+    clsname = "NewPath_" + re.sub("[^a-zA-Z0-9_]", "_", extension)
+    return type(clsname, (NewPath,), namespace)
 
 
 class NumpyType(
@@ -230,8 +260,8 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             filepath, _, root_key = pval.name.partition(":")
             filepath = Path(pval.parent / filepath)
             if filepath.exists():
-                import yaml
                 import pydash as py_
+                import yaml
 
                 with filepath.open() as f:
                     value = yaml.safe_load(f)
@@ -402,9 +432,17 @@ class CallableDef(
     You may derive from this class to re-implement the `default_class_path` class method
     (NB: it must end with `.`).
 
-    Can be created from a symbol, an instance, a class/file path to a function or
-    a mapping where the key is the class/file path to a class and the value is the
-    list of __init__ arguments (mapping, sequence or single value).
+    Can be created from:
+
+        * an existing function, class or callable instance
+        * <module classpath>:<symbol> -> "my.module.path:my_callable"
+        * <module file path>:<symbol> -> "path/to/module.py:MyCallable"
+        * lambda expression -> "lambda x: x + 1"
+        * <symbol>:::<code> -> "my_callable:::def my_callable(x):\\nreturn x + 1"
+
+    Also, the last four options can be keys of a mapping where the value is the
+    list of __init__ arguments (mapping, sequence or single value), eg:
+    {"path/to/module.py:MyCallable": [1, 2, 3]}
 
     To ease the inspection of the callable, the methods `full_signature`, `args_type`,
     `return_type`, `has_var_positional` and `has_var_keyword` are provided.
@@ -441,7 +479,7 @@ class CallableDef(
         Everything still works::
 
             mm = MyModel()
-            mm = MyModel.parse_obj({"fn": (a.class.path.to.callable})
+            mm = MyModel.parse_obj({"fn": a.class.path.to.callable})
             mm = MyModel.parse_obj({"fn": "CallableInMain"})
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
@@ -510,10 +548,17 @@ class CallableDef(
     @classmethod
     def _string_to_callable(cls, clb_str: str) -> t.Callable:
         from pipelime.choixe.utils.imports import import_symbol
+        import ast
 
         clb_str = clb_str.strip("\"'")
-        if "." not in clb_str:
-            clb_str = cls.default_class_path() + clb_str
+
+        try:
+            parsed = ast.parse(clb_str, mode="eval")
+            if isinstance(parsed.body, ast.Name):
+                clb_str = cls.default_class_path() + clb_str
+        except Exception:
+            pass
+
         return import_symbol(clb_str)
 
     def __call__(self, *args, **kwargs):

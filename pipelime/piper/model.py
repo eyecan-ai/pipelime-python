@@ -1,11 +1,13 @@
+import typing as t
 from abc import ABC, abstractmethod
 from enum import Enum
-import typing as t
 
+import typing_extensions as te
 from pydantic import BaseModel, Field, PrivateAttr
-
-from pipelime.piper.progress.tracker.base import Tracker, TrackedTask, TqdmTask
-from pipelime.piper.progress.tracker.base import TrackCallback
+from pydantic.generics import GenericModel
+from loguru import logger
+from pipelime.piper.checkpoint import CheckpointNamespace
+from pipelime.piper.progress.tracker.base import TrackCallback, TrackedTask, Tracker
 
 
 # The return type is a hack to fool the type checker
@@ -131,6 +133,7 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
 
     def _make_cmd(func):
         import inspect
+
         from pydantic.fields import FieldInfo, Undefined
 
         def _make_field(p: inspect.Parameter):
@@ -237,19 +240,18 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
 
             def run(self):
                 # get all arguments in the right order
-                if is_bound:
-                    func(
-                        self,
-                        *[getattr(self, n) for n in posonly_names + poskw_names],
-                        *getattr(self, varpos_name, tuple()),
-                        **self.dict(include=set(kwonly_names + [varkw_name])),
-                    )
-                else:
-                    func(
-                        *[getattr(self, n) for n in posonly_names + poskw_names],
-                        *getattr(self, varpos_name, tuple()),
-                        **self.dict(include=set(kwonly_names + [varkw_name])),
-                    )
+                # NB: do not use self.dict(), it returns sub-models as dict!
+                fargs = (
+                    (self,) if is_bound else tuple(),
+                    [getattr(self, n) for n in posonly_names + poskw_names],
+                    getattr(self, varpos_name, tuple()),
+                    {
+                        n: getattr(self, n)
+                        for n in set(kwonly_names + [varkw_name])
+                        if hasattr(self, n)
+                    },
+                )
+                func(*fargs[0], *fargs[1], *fargs[2], **fargs[3])
 
         # override base docstring with a custom description
         _FnModel.__doc__ = (
@@ -344,10 +346,32 @@ class PipelimeCommand(
 
     _piper: PiperInfo = PrivateAttr(default_factory=PiperInfo)  # type: ignore
     _tracker: t.Optional["Tracker"] = PrivateAttr(None)
+    _checkpoint: CheckpointNamespace = PrivateAttr(default_factory=CheckpointNamespace)
+
+    @classmethod
+    def lazy(cls) -> t.Type[te.Self]:
+        outer_cls = cls
+
+        class _LazyCommand(outer_cls):
+            def __new__(cls, *args, **kwargs) -> LazyCommand[outer_cls]:
+                lc = LazyCommand[outer_cls].__new__(LazyCommand)
+                lc.__init__(command_class=outer_cls, data=kwargs)  # type: ignore
+                return lc
+
+        return _LazyCommand
 
     @classmethod
     def __init_subclass__(cls, force_gc: bool = False, **kwargs):
         cls._force_gc = force_gc
+
+    @classmethod
+    def init_from_checkpoint(cls, checkpoint: CheckpointNamespace, /, **data):
+        """Derived classes may override to support command resuming."""
+        return cls(**data)
+
+    @property
+    def command_checkpoint(self) -> CheckpointNamespace:
+        return self._checkpoint
 
     @abstractmethod
     def run(self) -> None:
@@ -370,6 +394,7 @@ class PipelimeCommand(
 
     def _get_piper_tracker(self) -> "Tracker":
         if self._tracker is None:  # pragma: no branch
+            from pipelime.piper.progress.tracker.base import Tracker
             from pipelime.piper.progress.tracker.factory import TrackCallbackFactory
 
             cb = self._track_callback or TrackCallbackFactory.get_callback()
@@ -413,6 +438,8 @@ class PipelimeCommand(
 
     def create_task(self, total: int, message: str = "") -> "TrackedTask":
         """Explicit piper task creation."""
+        from pipelime.piper.progress.tracker.base import TqdmTask
+
         if self._piper.active:
             return self._get_piper_tracker().create_task(total, message)
         return TqdmTask(total, message)
@@ -426,6 +453,40 @@ class PipelimeCommand(
             gc.collect()
 
 
+CmdTp = t.TypeVar("CmdTp", bound=PipelimeCommand)
+
+
+class LazyCommand(
+    GenericModel, t.Generic[CmdTp], extra="forbid", copy_on_model_validation="none"
+):
+    command_class: t.Type[CmdTp]
+    data: t.Dict[str, t.Any] = Field(default_factory=dict)
+
+    def __call__(self) -> CmdTp:
+        return self.command_class(**self.data)
+
+    def init_from_checkpoint(self, checkpoint: CheckpointNamespace):
+        return self.command_class.init_from_checkpoint(checkpoint, **self.data)
+
+    def __setattr__(self, name, value):
+        self.data[name] = value
+
+    def __getattr__(self, name):
+        if name in self.data:
+            return self.data[name]
+        if name in self.command_class.__fields__:
+            return self.command_class.__fields__[name].get_default()
+        if hasattr(self.command_class, name):
+            return getattr(self.command_class, name)
+        raise AttributeError(f"{self.command_class.__name__} has no attribute '{name}'")
+
+
+T_DAG_NODE = t.Union[
+    PipelimeCommand, LazyCommand, t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]]
+]
+T_NODES = t.Mapping[str, T_DAG_NODE]
+
+
 class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"):
     """A simple interface to parse a DAG node configuration."""
 
@@ -434,17 +495,42 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
     @classmethod
     def create(
         cls,
-        value: t.Union[
-            "NodesDefinition",
-            t.Mapping[
-                str,
-                t.Union[
-                    t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]], "PipelimeCommand"
-                ],
-            ],
-        ],
+        value: t.Union["NodesDefinition", T_NODES],
+        *,
+        checkpoint: t.Optional[CheckpointNamespace] = None,
+        skip_on_error: bool = False,
     ):
-        return cls.validate(value)
+        from pydantic import ValidationError
+
+        from pipelime.cli.utils import get_pipelime_command, show_field_alias_valerr
+
+        if isinstance(value, NodesDefinition):
+            return value
+        try:
+            plnodes = {}
+            for name, cmd in value.items():
+                if checkpoint:
+                    ckpt = checkpoint.get_namespace(
+                        name.replace(".", "_").replace("[", "_").replace("]", "_")
+                    )
+                else:
+                    ckpt = None
+
+                try:
+                    plcmd = get_pipelime_command(cmd, ckpt)
+                except ValidationError:
+                    if skip_on_error:
+                        logger.warning(
+                            f"Skipping node `{name}` due to validation error."
+                        )
+                    else:
+                        raise
+                else:
+                    plnodes[name] = plcmd
+            return cls(__root__=plnodes)
+        except ValidationError as e:
+            show_field_alias_valerr(e)
+            raise e
 
     @property
     def value(self):
@@ -465,32 +551,8 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
         yield cls.validate
 
     @classmethod
-    def validate(
-        cls,
-        value: t.Union[
-            "NodesDefinition",
-            t.Mapping[
-                str,
-                t.Union[
-                    t.Mapping[str, t.Optional[t.Mapping[str, t.Any]]], "PipelimeCommand"
-                ],
-            ],
-        ],
-    ):
-        from pydantic import ValidationError
-        from pipelime.cli.utils import get_pipelime_command, show_field_alias_valerr
-
-        if isinstance(value, NodesDefinition):
-            return value
-        try:
-            return cls(
-                __root__={
-                    name: get_pipelime_command(cmd) for name, cmd in value.items()
-                }
-            )
-        except ValidationError as e:
-            show_field_alias_valerr(e)
-            raise e
+    def validate(cls, value: t.Union["NodesDefinition", T_NODES]):
+        return cls.create(value)
 
 
 class DAGModel(BaseModel, extra="forbid", copy_on_model_validation="none"):

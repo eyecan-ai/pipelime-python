@@ -101,7 +101,7 @@ def get_model_title(model_cls: t.Type[BaseModel]) -> str:
 def get_model_classpath(model_cls: t.Type[BaseModel]) -> str:
     if hasattr(model_cls, "_classpath") and model_cls._classpath:  # type: ignore
         return model_cls._classpath  # type: ignore
-    return f"{model_cls.__module__}.{model_cls.__name__}"
+    return f"{model_cls.__module__}.{model_cls.__qualname__}"
 
 
 def print_model_field_values(

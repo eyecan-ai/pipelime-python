@@ -6,6 +6,7 @@ import typing as t
 from pathlib import Path
 
 import typer
+from pydantic import BaseModel
 
 from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 from pipelime.cli.subcommands import SubCommands as subc
@@ -17,6 +18,40 @@ from pipelime.cli.utils import (
 
 if t.TYPE_CHECKING:
     from pipelime.choixe import XConfig
+    from pipelime.piper.checkpoint import Checkpoint
+
+
+class PlCliOptions(BaseModel):
+    _namespace: t.ClassVar[str] = "__plmain"
+
+    config: t.List[Path]
+    context: t.List[Path]
+    keep_tmp: bool
+    extra_modules: t.List[str]
+    run_all: t.Optional[bool]
+    output: t.Optional[Path]
+    output_ctx: t.Optional[Path]
+    command_outputs: t.Optional[Path]
+    verbose: int
+    dry_run: bool
+    command: str
+    command_args: t.List[str]
+    pipelime_tmp: t.Optional[str]
+
+    def purged_dict(self):
+        return self._purge(self.dict())
+
+    def _purge(self, data):
+        if isinstance(data, Path):
+            data = data.as_posix()
+        elif isinstance(data, bytes):
+            data = data.decode()
+
+        if isinstance(data, t.Mapping):
+            return {k: self._purge(v) for k, v in data.items()}
+        if not isinstance(data, str) and isinstance(data, t.Sequence):
+            return [self._purge(v) for v in data]
+        return data
 
 
 def _complete_yaml(incomplete: str):
@@ -274,7 +309,13 @@ def pl_main(
         ),
     ),
     extra_modules: t.List[str] = typer.Option(
-        [], "--module", "-m", help="Additional modules to import."
+        [],
+        "--module",
+        "-m",
+        help=(
+            "Additional modules to import: `class.path.to.module`, "
+            "`path/to/module.py` or `<code>`"
+        ),
     ),
     run_all: t.Optional[bool] = typer.Option(
         None,
@@ -304,6 +345,16 @@ def pl_main(
         resolve_path=True,
         help="Save command outputs to json/yaml.",
     ),
+    checkpoint: t.Optional[Path] = typer.Option(
+        None,
+        "--checkpoint",
+        "--ckpt",
+        "-k",
+        writable=True,
+        file_okay=False,
+        resolve_path=True,
+        help="The checkpoint folder. If it already exists, it must be empty.",
+    ),
     verbose: int = typer.Option(
         0,
         "--verbose",
@@ -318,8 +369,9 @@ def pl_main(
         help=(
             (
                 "A command, ie, a `command-name`, "
-                "a `package.module.ClassName` class path or "
-                "a `path/to/module.py:ClassName` uri (use with care).\n\n"
+                "a `package.module.ClassName` class path, "
+                "a `path/to/module.py:ClassName` uri (use with care) or"
+                "a `ClassName:::<code>` for anonymous imports.\n\n"
             )
             + subc.get_help()
         ),
@@ -367,7 +419,6 @@ def pl_main(
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
     and `none`/`null`/`nul` to enforce `None`.
     """
-
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 
     if command_args is None:
@@ -434,10 +485,10 @@ def pl_main(
             recursive=verbose > 1,
         )
     elif command:
-        import pipelime.choixe.utils.io as choixe_io
-        from pipelime.choixe import XConfig
-        from pipelime.cli.pretty_print import print_error, print_info, print_warning
+        from pipelime.piper.checkpoint import LocalCheckpoint
+        from pipelime.choixe.utils.io import PipelimeTmp
 
+        # context auto-load
         if config and not context and ctx_autoload:
             context = []
             for c in config:
@@ -445,237 +496,307 @@ def pl_main(
                     if p.suffix in (".yaml", ".yml", ".json"):
                         context += [p]
 
-        if verbose > 0:
+        plopts = PlCliOptions(
+            config=config or [],
+            context=context or [],
+            keep_tmp=keep_tmp,
+            extra_modules=extra_modules,
+            run_all=run_all,
+            output=output,
+            output_ctx=output_ctx,
+            command_outputs=command_outputs,
+            verbose=verbose,
+            dry_run=dry_run,
+            command=command,
+            command_args=command_args,
+            pipelime_tmp=None,
+        )
 
-            def _print_file_list(files: t.Sequence[Path], name: str):
-                if files:
-                    flist = ", ".join(f'"{str(c)}"' for c in files)
-                    print_info(
-                        f"{name.capitalize()} file"
-                        + (f"s: [ {flist} ]" if len(files) > 1 else f": {files[0]}")
+        if checkpoint:
+            # create a new checkpoint
+            if checkpoint.exists():
+                if not checkpoint.is_dir():
+                    raise ValueError(
+                        f"Checkpoint folder `{checkpoint}` exists but is not a folder."
                     )
-                else:
-                    print_info(f"No {name} file")
-
-            _print_file_list(config, "configuration")
-            _print_file_list(context, "context")
-            print_info(
-                f"Other command and context arguments: {command_args}"
-                if command_args
-                else "No other command or context arguments"
-            )
-
-        base_cfg = [choixe_io.load(c) for c in config]
-        base_ctx = [choixe_io.load(c) for c in context]
-
-        # process extra args
-        try:
-            cmdline_cfg, cmdline_ctx = parse_pipelime_cli(command_args)
-        except CLIParsingError as e:
-            e.rich_print()
-            raise typer.Exit(1)
-
-        if verbose > 2:
-            _print_dict(
-                f"Loaded configuration file{'s' if len(config) > 1 else ''}", base_cfg
-            )
-            _print_dict(
-                f"Loaded context file{'s' if len(context) > 1 else ''}", base_ctx
-            )
-            _print_dict("Configuration options from command line", cmdline_cfg)
-            _print_dict("Context options from command line", cmdline_ctx)
-
-        # keep each config separated to get the right cwd
-        base_cfg = [XConfig(data=c, cwd=p.parent) for c, p in zip(base_cfg, config)]
-        base_cfg.append(XConfig(data=cmdline_cfg, cwd=Path.cwd()))
-
-        base_ctx = [XConfig(data=c, cwd=p.parent) for c, p in zip(base_ctx, context)]
-        base_ctx.append(XConfig(data=cmdline_ctx, cwd=Path.cwd()))
-
-        # process contexts to resolve imports and local loops
-        if verbose > 2:
-            print_info("\nProcessing context files:")
-
-        def _sum(a: XConfig, b: XConfig) -> XConfig:
-            a = XConfig(data=a.to_dict(), cwd=a.get_cwd(), schema=a.get_schema())
-            a.deep_update(b, full_merge=True)
-            return a
-
-        def _ctx_for_ctx_update(ctx_for_ctx: XConfig, new_ctxs: t.Sequence[XConfig]):
-            for newc in new_ctxs:
-                ctx_for_ctx = _sum(newc, ctx_for_ctx)
-            return ctx_for_ctx
-
-        # use the command line context to process the other contexts
-        effective_ctx = []
-        ctx_for_ctx = base_ctx[-1]
-        for idx, curr_ctx in enumerate(base_ctx):
-            if curr_ctx.to_dict():
-                # the context itself is a valid context
-                curr_ctx_for_ctx = _sum(curr_ctx, ctx_for_ctx)
-
-                if verbose > 3:
-                    print_info(f"[{idx}] context to process:")
-                    print_info(curr_ctx.to_dict(), pretty=True)
-                    print_info(f"[{idx}] context for context")
-                    print_info(curr_ctx_for_ctx.to_dict(), pretty=True)
-                if verbose > 2:
-                    print_info(f"[{idx}] preprocessing...")
-
-                new_ctxs = _process_cfg_or_die(
-                    curr_ctx,
-                    curr_ctx_for_ctx,
-                    "context",
-                    run_all,
-                    None,
-                    True,
-                    verbose > 2,
-                    verbose > 3,
-                )
-                partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
-
-                if verbose > 3:
-                    print_info(f"[{idx}] updated context for context")
-                    print_info(partial_ctx_for_ctx.to_dict(), pretty=True)
-                if verbose > 2:
-                    print_info(f"[{idx}] processing self-references...")
-
-                new_ctxs = _process_cfg_or_die(
-                    curr_ctx,
-                    partial_ctx_for_ctx,
-                    "context",
-                    run_all,
-                    None,
-                    True,
-                    verbose > 2,
-                    verbose > 3,
-                )
-                ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
-
-                if verbose > 3:
-                    print_info(f"[{idx}] final updated context for context")
-                    print_info(ctx_for_ctx.to_dict(), pretty=True)
-
-                effective_ctx.extend(new_ctxs)
-
-        if effective_ctx:
-            effective_ctx = functools.reduce(
-                lambda acc, curr: _deep_update_fn(acc, curr, verbose > 3), effective_ctx
-            )
-            if output_ctx:
-                effective_ctx.save_to(output_ctx)
+                if any(checkpoint.iterdir()):
+                    raise ValueError(f"Checkpoint folder `{checkpoint}` is not empty.")
+            plopts.pipelime_tmp = PipelimeTmp.make_session_dir().as_posix()
+            ckpt = LocalCheckpoint(folder=checkpoint)
+            ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
         else:
-            effective_ctx = XConfig()
+            ckpt = None
 
-        if verbose > 1:
-            print_info("\nFinal effective context:")
-            print_info(effective_ctx.to_dict(), pretty=True)
-
-        if command in subc.AUDIT[0]:
-            from dataclasses import fields
-
-            from pipelime.choixe.visitors.processor import ChoixeProcessingError
-
-            print_info("\n📄 CONFIGURATION AUDIT")
-            for idx, c in enumerate(base_cfg):
-                if len(base_cfg) > 1:
-                    name = str(config[idx]) if idx < len(config) else "command line"
-                    print_info(f"\n*** {name}")
-                inspect_info = c.inspect()
-                for field in fields(inspect_info):
-                    value = getattr(inspect_info, field.name)
-                    print_info(f"🔍 {field.name}:")
-                    if value or isinstance(value, bool):
-                        print_info(value, pretty=True, indent_guides=False)
-
-            print_info("\n📄 EFFECTIVE CONTEXT\n")
-            print_info(effective_ctx.to_dict(), pretty=True, indent_guides=False)
-            print_info("")
-
-            try:
-                effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, False, verbose > 2
-                )
-            except ChoixeProcessingError as e:
-                # from rich.prompt import Confirm, Prompt
-
-                # from pipelime.cli.wizard import Wizard
-
-                print_warning("Some variables are not defined in the context.")
-                print_error(f"Invalid configuration! {e}")
-                raise typer.Exit(1)
-
-                ### SKIP FOR NOW
-                # if not Confirm.ask(
-                #     "Do you want to create a new context?", default=True
-                # ):
-                #     print_error(f"Invalid configuration! {e}")
-                #     raise typer.Exit(1)
-            #
-            # print_info("\n📝 Please enter a value for each variable")
-            # new_ctx = Wizard.context_wizard(inspect_info.variables, effective_ctx)
-            #
-            # print_info("Processing configuration and context...", end="")
-            # effective_configs = _process_cfg_or_die(
-            #     base_cfg, new_ctx, run_all, output
-            # )
-            # print_info(" OK")
-            #
-            # outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
-            # if outfile:
-            #     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
-
-            cfg_size = len(effective_configs)
-            pls = "s" if cfg_size != 1 else ""
-            print_info(
-                f"🎉 Configuration successfully processed ({cfg_size} variant{pls})."
-            )
-
-            if verbose > 2:
-                print_info("\nFinal effective configurations:")
-                for idx, cfg in enumerate(effective_configs):
-                    print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
-                    print_info(cfg.to_dict(), pretty=True)
-
-            raise typer.Exit(0)
-        else:
-            from pipelime.cli.pretty_print import show_spinning_status
-
-            with show_spinning_status("Processing configuration and context..."):
-                effective_configs = _process_all(
-                    base_cfg, effective_ctx, output, run_all, True, verbose
-                )
-
-            cmd_name = command
-            cfg_size = len(effective_configs)
-            for idx, cfg in enumerate(effective_configs):
-                cfg_dict = cfg.to_dict()
-
-                if verbose > 1:
-                    print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
-                    print_info(cfg_dict, pretty=True)
-
-                if command in subc.EXEC[0]:
-                    if len(cfg_dict) == 0:
-                        print_error("No command specified.")
-                        raise typer.Exit(1)
-                    if len(cfg_dict) > 1:
-                        print_error("Multiple commands found.")
-                        print_warning(
-                            "You should use the `run` command to process a dag."
-                        )
-                        raise typer.Exit(1)
-                    cmd_name = next(iter(cfg_dict))
-                    cfg_dict = next(iter(cfg_dict.values()))
-
-                run_command(
-                    cmd_name, cfg_dict, verbose, dry_run, keep_tmp, command_outputs
-                )
+        run_with_checkpoint(cli_opts=plopts, checkpoint=ckpt)
     else:
         from pipelime.cli.pretty_print import print_error
 
         print_error("No command specified.")
         raise typer.Exit(1)
+
+
+def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoint"]):
+    import pipelime.choixe.utils.io as choixe_io
+    from pipelime.choixe import XConfig
+    from pipelime.cli.pretty_print import print_error, print_info, print_warning
+    from loguru import logger
+
+    PipelimeSymbolsHelper.set_extra_modules(cli_opts.extra_modules)
+
+    if cli_opts.pipelime_tmp:
+        pltmp = Path(cli_opts.pipelime_tmp)
+        if pltmp.is_dir():
+            logger.debug(f"Restoring pipelime temp folder to `{pltmp}`")
+            choixe_io.PipelimeTmp.SESSION_TMP_DIR = pltmp
+
+    if cli_opts.verbose > 0:
+
+        def _print_file_list(files: t.Sequence[Path], name: str):
+            if files:
+                flist = ", ".join(f'"{str(c)}"' for c in files)
+                print_info(
+                    f"{name.capitalize()} file"
+                    + (f"s: [ {flist} ]" if len(files) > 1 else f": {files[0]}")
+                )
+            else:
+                print_info(f"No {name} file")
+
+        _print_file_list(cli_opts.config, "configuration")
+        _print_file_list(cli_opts.context, "context")
+        print_info(
+            f"Other command and context arguments: {cli_opts.command_args}"
+            if cli_opts.command_args
+            else "No other command or context arguments"
+        )
+
+    base_cfg = [choixe_io.load(c) for c in cli_opts.config]
+    base_ctx = [choixe_io.load(c) for c in cli_opts.context]
+
+    # process extra args
+    try:
+        cmdline_cfg, cmdline_ctx = parse_pipelime_cli(cli_opts.command_args)
+    except CLIParsingError as e:
+        e.rich_print()
+        raise typer.Exit(1)
+
+    if cli_opts.verbose > 2:
+        _print_dict(
+            f"Loaded configuration file{'s' if len(cli_opts.config) > 1 else ''}",
+            base_cfg,
+        )
+        _print_dict(
+            f"Loaded context file{'s' if len(cli_opts.context) > 1 else ''}", base_ctx
+        )
+        _print_dict("Configuration options from command line", cmdline_cfg)
+        _print_dict("Context options from command line", cmdline_ctx)
+
+    # keep each config separated to get the right cwd
+    base_cfg = [
+        XConfig(data=c, cwd=p.parent) for c, p in zip(base_cfg, cli_opts.config)
+    ]
+    base_cfg.append(XConfig(data=cmdline_cfg, cwd=Path.cwd()))
+
+    base_ctx = [
+        XConfig(data=c, cwd=p.parent) for c, p in zip(base_ctx, cli_opts.context)
+    ]
+    base_ctx.append(XConfig(data=cmdline_ctx, cwd=Path.cwd()))
+
+    # process contexts to resolve imports and local loops
+    if cli_opts.verbose > 2:
+        print_info("\nProcessing context files:")
+
+    def _sum(a: XConfig, b: XConfig) -> XConfig:
+        a = XConfig(data=a.to_dict(), cwd=a.get_cwd(), schema=a.get_schema())
+        a.deep_update(b, full_merge=True)
+        return a
+
+    def _ctx_for_ctx_update(ctx_for_ctx: XConfig, new_ctxs: t.Sequence[XConfig]):
+        for newc in new_ctxs:
+            ctx_for_ctx = _sum(newc, ctx_for_ctx)
+        return ctx_for_ctx
+
+    # use the command line context to process the other contexts
+    effective_ctx = []
+    ctx_for_ctx = base_ctx[-1]
+    for idx, curr_ctx in enumerate(base_ctx):
+        if curr_ctx.to_dict():
+            # the context itself is a valid context
+            curr_ctx_for_ctx = _sum(curr_ctx, ctx_for_ctx)
+
+            if cli_opts.verbose > 3:
+                print_info(f"[{idx}] context to process:")
+                print_info(curr_ctx.to_dict(), pretty=True)
+                print_info(f"[{idx}] context for context")
+                print_info(curr_ctx_for_ctx.to_dict(), pretty=True)
+            if cli_opts.verbose > 2:
+                print_info(f"[{idx}] preprocessing...")
+
+            new_ctxs = _process_cfg_or_die(
+                curr_ctx,
+                curr_ctx_for_ctx,
+                "context",
+                cli_opts.run_all,
+                None,
+                True,
+                cli_opts.verbose > 2,
+                cli_opts.verbose > 3,
+            )
+            partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
+
+            if cli_opts.verbose > 3:
+                print_info(f"[{idx}] updated context for context")
+                print_info(partial_ctx_for_ctx.to_dict(), pretty=True)
+            if cli_opts.verbose > 2:
+                print_info(f"[{idx}] processing self-references...")
+
+            new_ctxs = _process_cfg_or_die(
+                curr_ctx,
+                partial_ctx_for_ctx,
+                "context",
+                cli_opts.run_all,
+                None,
+                True,
+                cli_opts.verbose > 2,
+                cli_opts.verbose > 3,
+            )
+            ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
+
+            if cli_opts.verbose > 3:
+                print_info(f"[{idx}] final updated context for context")
+                print_info(ctx_for_ctx.to_dict(), pretty=True)
+
+            effective_ctx.extend(new_ctxs)
+
+    if effective_ctx:
+        effective_ctx = functools.reduce(
+            lambda acc, curr: _deep_update_fn(acc, curr, cli_opts.verbose > 3),
+            effective_ctx,
+        )
+        if cli_opts.output_ctx:
+            effective_ctx.save_to(cli_opts.output_ctx)
+    else:
+        effective_ctx = XConfig()
+
+    if cli_opts.verbose > 1:
+        print_info("\nFinal effective context:")
+        print_info(effective_ctx.to_dict(), pretty=True)
+
+    if cli_opts.command in subc.AUDIT[0]:
+        from dataclasses import fields
+
+        from pipelime.choixe.visitors.processor import ChoixeProcessingError
+
+        print_info("\n📄 CONFIGURATION AUDIT")
+        for idx, c in enumerate(base_cfg):
+            if len(base_cfg) > 1:
+                name = (
+                    str(cli_opts.config[idx])
+                    if idx < len(cli_opts.config)
+                    else "command line"
+                )
+                print_info(f"\n*** {name}")
+            inspect_info = c.inspect()
+            for field in fields(inspect_info):
+                value = getattr(inspect_info, field.name)
+                print_info(f"🔍 {field.name}:")
+                if value or isinstance(value, bool):
+                    print_info(value, pretty=True, indent_guides=False)
+
+        print_info("\n📄 EFFECTIVE CONTEXT\n")
+        print_info(effective_ctx.to_dict(), pretty=True, indent_guides=False)
+        print_info("")
+
+        try:
+            effective_configs = _process_all(
+                base_cfg,
+                effective_ctx,
+                cli_opts.output,
+                cli_opts.run_all,
+                False,
+                cli_opts.verbose > 2,
+            )
+        except ChoixeProcessingError as e:
+            # from rich.prompt import Confirm, Prompt
+
+            # from pipelime.cli.wizard import Wizard
+
+            print_warning("Some variables are not defined in the context.")
+            print_error(f"Invalid configuration! {e}")
+            raise typer.Exit(1)
+
+            ### SKIP FOR NOW
+            # if not Confirm.ask(
+            #     "Do you want to create a new context?", default=True
+            # ):
+            #     print_error(f"Invalid configuration! {e}")
+            #     raise typer.Exit(1)
+        #
+        # print_info("\n📝 Please enter a value for each variable")
+        # new_ctx = Wizard.context_wizard(inspect_info.variables, effective_ctx)
+        #
+        # print_info("Processing configuration and context...", end="")
+        # effective_configs = _process_cfg_or_die(
+        #     base_cfg, new_ctx, run_all, output
+        # )
+        # print_info(" OK")
+        #
+        # outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
+        # if outfile:
+        #     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
+
+        cfg_size = len(effective_configs)
+        pls = "s" if cfg_size != 1 else ""
+        print_info(f"🎉 Configuration successfully processed ({cfg_size} variant{pls}).")
+
+        if cli_opts.verbose > 2:
+            print_info("\nFinal effective configurations:")
+            for idx, cfg in enumerate(effective_configs):
+                print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
+                print_info(cfg.to_dict(), pretty=True)
+
+        raise typer.Exit(0)
+    else:
+        from pipelime.cli.pretty_print import show_spinning_status
+
+        with show_spinning_status("Processing configuration and context..."):
+            effective_configs = _process_all(
+                base_cfg,
+                effective_ctx,
+                cli_opts.output,
+                cli_opts.run_all,
+                True,
+                cli_opts.verbose,
+            )
+
+        cmd_name = cli_opts.command
+        cfg_size = len(effective_configs)
+        for idx, cfg in enumerate(effective_configs):
+            cfg_dict = cfg.to_dict()
+
+            if cli_opts.verbose > 1:
+                print_info(f"\n*** CONFIGURATION {idx+1}/{cfg_size} ***\n")
+                print_info(cfg_dict, pretty=True)
+
+            if cli_opts.command in subc.EXEC[0]:
+                if len(cfg_dict) == 0:
+                    print_error("No command specified.")
+                    raise typer.Exit(1)
+                if len(cfg_dict) > 1:
+                    print_error("Multiple commands found.")
+                    print_warning("You should use the `run` command to process a dag.")
+                    raise typer.Exit(1)
+                cmd_name = next(iter(cfg_dict))
+                cfg_dict = next(iter(cfg_dict.values()))
+
+            run_command(
+                cmd_name,
+                cfg_dict,
+                cli_opts.verbose,
+                cli_opts.dry_run,
+                cli_opts.keep_tmp,
+                cli_opts.command_outputs,
+                checkpoint,
+            )
 
 
 def run_command(
@@ -685,6 +806,7 @@ def run_command(
     dry_run: bool,
     keep_tmp: bool,
     command_outputs: t.Optional[Path],
+    checkpoint: t.Optional["Checkpoint"],
 ):
     """
     Run a pipelime command.
@@ -718,7 +840,12 @@ def run_command(
         print_info(cmd_args, pretty=True)
 
     try:
-        cmd_obj = cmd_cls(**cmd_args)
+        if checkpoint is None:
+            cmd_obj = cmd_cls(**cmd_args)
+        else:
+            ckpt_ns = checkpoint.get_namespace(command)
+            cmd_obj = cmd_cls.init_from_checkpoint(ckpt_ns, **cmd_args)
+            cmd_obj._checkpoint = ckpt_ns
     except ValidationError as e:
         show_field_alias_valerr(e)
         raise e
