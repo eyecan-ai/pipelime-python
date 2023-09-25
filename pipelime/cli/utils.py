@@ -1,4 +1,5 @@
 import typing as t
+from pathlib import Path
 from types import ModuleType
 
 from pydantic import BaseModel, ValidationError
@@ -58,13 +59,14 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def set_extra_modules(cls, modules: t.Sequence[str]):
-        cls.extra_modules = list(modules)
+        cls.extra_modules = [cls._normalize_module_path(m) for m in modules]
 
     @classmethod
     def register_extra_module(cls, module: str):
         """Register an extra module to be loaded when importing everything.
         Mainly used for dynamically imported symbols.
         """
+        module = cls._normalize_module_path(module)
         if module not in cls.extra_modules:
             cls.extra_modules.append(module)
 
@@ -79,6 +81,12 @@ class PipelimeSymbolsHelper:
         if name in cls.registered_actions:
             raise ValueError(f"Action `{name}` already registered")
         cls.registered_actions[name] = info
+
+    @classmethod
+    def _normalize_module_path(cls, module: str):
+        if module.endswith(".py"):
+            return Path(module).resolve().absolute().as_posix()
+        return module
 
     @classmethod
     def _symbol_name(cls, symbol):
