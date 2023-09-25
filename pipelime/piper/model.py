@@ -506,31 +506,27 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
 
         if isinstance(value, NodesDefinition):
             return value
-        try:
-            plnodes = {}
-            for name, cmd in value.items():
-                if checkpoint:
-                    ckpt = checkpoint.get_namespace(
-                        name.replace(".", "_").replace("[", "_").replace("]", "_")
-                    )
-                else:
-                    ckpt = None
 
-                try:
-                    plcmd = get_pipelime_command(cmd, ckpt)
-                except ValidationError:
-                    if skip_on_error:
-                        logger.warning(
-                            f"Skipping node `{name}` due to validation error."
-                        )
-                    else:
-                        raise
+        plnodes = {}
+        for name, cmd in value.items():
+            if checkpoint:
+                ckpt = checkpoint.get_namespace(
+                    name.replace(".", "_").replace("[", "_").replace("]", "_")
+                )
+            else:
+                ckpt = None
+
+            try:
+                plcmd = get_pipelime_command(cmd, ckpt)
+            except ValidationError as e:
+                if skip_on_error:
+                    logger.warning(f"Skipping node `{name}` due to validation error.")
                 else:
-                    plnodes[name] = plcmd
-            return cls(__root__=plnodes)
-        except ValidationError as e:
-            show_field_alias_valerr(e)
-            raise e
+                    show_field_alias_valerr(e)
+                    raise ValueError(f"Invalid node definition `{name}`") from e
+            else:
+                plnodes[name] = plcmd
+        return cls(__root__=plnodes)
 
     @property
     def value(self):
