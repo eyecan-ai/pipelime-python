@@ -107,8 +107,6 @@ def choixe_plain_cfg(choixe_folder: Path) -> Path:
 
 @pytest.fixture(scope="function")
 def all_dags(piper_folder: Path) -> t.Sequence[t.Mapping[str, t.Any]]:
-    import pipelime.choixe.utils.io as choixe_io  # noqa: F401
-    from pipelime.choixe import XConfig  # noqa: F401
     from . import TestUtils
 
     def _add_if_exists(out, path, key):
