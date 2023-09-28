@@ -356,7 +356,7 @@ class SamplesSequence(
         *,
         must_exist: bool = True,
         image_key: str = "image",
-        sort_files: bool = True,
+        sort_files: bool = False,
         recursive: bool = True,
     ) -> SamplesSequence:
         """A SamplesSequence loading images from a folder.

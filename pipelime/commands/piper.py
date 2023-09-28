@@ -551,7 +551,13 @@ class DagBaseCommand(RunCommandBase):
         if "o" not in kwargs and "output" not in kwargs:
             kwargs["output"] = output
         drawer = DrawCommand(
-            nodes=nodes, include=self.include, exclude=self.exclude, **kwargs  # type: ignore
+            nodes=nodes,
+            include=self.include,
+            exclude=self.exclude,
+            skip_on_error=self.skip_on_error,
+            start_from=self.start_from,
+            stop_at=self.stop_at,
+            **kwargs,
         )
         drawer.run()
 

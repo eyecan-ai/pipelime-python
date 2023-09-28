@@ -44,6 +44,7 @@ class FileListenerCallback(ListenerCallback):
             self._dump = json.dump
             self._load = json.load
 
+        self._data = {}
         self._filename.touch()
 
         logger.info(f"Writing progress to {filename}")

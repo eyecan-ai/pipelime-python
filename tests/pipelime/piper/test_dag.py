@@ -269,7 +269,7 @@ class TestDAG:
             debug_folder=None,
             skip_on_error=False,
         )
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError):
             _ = dag.piper_graph
 
     @pytest.mark.parametrize("decorated", [True, False])
