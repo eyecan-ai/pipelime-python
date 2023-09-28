@@ -286,12 +286,14 @@ def import_symbol(
                         symbol_name.insert(0, cl_path)
 
                 if module_ is None:
-                    raise ModuleNotFoundError("Module not found")
+                    raise ModuleNotFoundError(
+                        f"Invalid symbol class path `{symbol_definition}`"
+                    )
             else:
-                raise ImportError("unknow definition")
+                raise ValueError(f"Unsupported symbol definition `{symbol_definition}`")
 
         if not symbol_name:
-            raise ImportError("No symbol name found")
+            raise ValueError(f"No symbol name found in `{symbol_definition}`")
 
         # import the symbol
         # if nested, we need to import the parent symbols first

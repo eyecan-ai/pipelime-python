@@ -31,7 +31,25 @@ class TestCliBase:
                 )
                 assert cmd in result.output
 
-    def test_list(self, extra_modules):
+    def test_list(self):
+        result = self._base_launch(["list"])
+        assert "Pipelime Commands" in result.output
+        assert "Sample Stages" in result.output
+        assert "Sequence Generators" in result.output
+        assert "Sequence Piped Operations" in result.output
+
+        # NB: the names are different
+        result = self._base_launch(["--verbose", "list"])
+        assert "Pipelime Command" in result.output
+        assert "Sample Stage" in result.output
+        assert "Sequence Generator" in result.output
+        assert "Sequence Piped Operation" in result.output
+        assert "Fields" in result.output
+        assert "Description" in result.output
+        assert "Type" in result.output
+        assert "Default" in result.output
+
+    def test_list_extra(self, extra_modules):
         def _check(result, *, in_modules=[], not_in_modules=[]):
             for v in in_modules:
                 assert v in result.output
