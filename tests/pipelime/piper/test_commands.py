@@ -98,18 +98,39 @@ class TestCommands:
                     assert g_out is not None
                     assert g_ref == g_out
 
-    def test_run_dag(self, all_dags: t.Sequence[t.Mapping[str, t.Any]]):
+    @pytest.mark.parametrize(
+        "watch", [True, False, "rich", "tqdm", Path("cmdout.json"), None]
+    )
+    def test_run_dag(
+        self,
+        all_dags: t.Sequence[t.Mapping[str, t.Any]],
+        watch: t.Union[bool, str, Path, None],
+        tmp_path: Path,
+    ):
         from pipelime.commands.piper import RunCommand
+        import shutil
+        from pipelime.choixe.utils.io import PipelimeTmp
+
+        if isinstance(watch, Path):
+            watch = tmp_path / watch
 
         for dag in all_dags:
-            cmd = RunCommand(**(dag["config"]))
+            cmd = RunCommand(watch=watch, **(dag["config"]))  # type: ignore
             cmd()
+
+            if isinstance(watch, Path):
+                assert watch.exists()
 
             # output folders now exist, so the commands should fail
             # when creating the output pipes
             cmd = RunCommand(**(dag["config"]))
             with pytest.raises(ValueError):
                 cmd()
+
+            if PipelimeTmp.SESSION_TMP_DIR is not None:
+                for path in PipelimeTmp.SESSION_TMP_DIR.iterdir():
+                    if path.is_dir():
+                        shutil.rmtree(path, ignore_errors=True)
 
     def test_port_forwarding(self, piper_folder: Path, tmp_path: Path):
         import pipelime.choixe.utils.io as choixe_io

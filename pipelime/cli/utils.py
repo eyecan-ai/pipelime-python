@@ -1,5 +1,7 @@
 import typing as t
+from pathlib import Path
 from types import ModuleType
+from loguru import logger
 
 from pydantic import BaseModel, ValidationError
 
@@ -58,14 +60,17 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def set_extra_modules(cls, modules: t.Sequence[str]):
-        cls.extra_modules = list(modules)
+        cls.extra_modules = [cls._normalize_module_path(m) for m in modules]
 
     @classmethod
     def register_extra_module(cls, module: str):
         """Register an extra module to be loaded when importing everything.
         Mainly used for dynamically imported symbols.
         """
-        if module not in cls.extra_modules:
+        module = cls._normalize_module_path(module)
+        if (
+            module.endswith(".py") or not module.startswith("pipelime")
+        ) and module not in cls.extra_modules:
             cls.extra_modules.append(module)
 
     @classmethod
@@ -79,6 +84,12 @@ class PipelimeSymbolsHelper:
         if name in cls.registered_actions:
             raise ValueError(f"Action `{name}` already registered")
         cls.registered_actions[name] = info
+
+    @classmethod
+    def _normalize_module_path(cls, module: str):
+        if module.endswith(".py"):
+            return Path(module).resolve().absolute().as_posix()
+        return module
 
     @classmethod
     def _symbol_name(cls, symbol):
@@ -205,6 +216,7 @@ class PipelimeSymbolsHelper:
         symbol_path: str,
         base_cls: t.Type,
         symbol_cache: t.Mapping[t.Tuple[str, str], t.Mapping],
+        raise_if_not_found: bool = False,
     ):
         import pipelime.choixe.utils.imports as pl_imports
 
@@ -220,24 +232,30 @@ class PipelimeSymbolsHelper:
                     imported_symbol._classpath = symbol_path
 
                 return imported_symbol
-            except (ImportError, TypeError):
+            except Exception as e:
+                if raise_if_not_found:
+                    raise e
+                logger.warning(f"Could not import {symbol_path}: {e}")
                 return None
 
         for sym_type, sym_dict in symbol_cache.items():
             if symbol_path in sym_dict:
                 return (sym_type, sym_dict[symbol_path])
+        if raise_if_not_found:
+            raise ValueError(f"{symbol_path} not found")
         return None
 
     @classmethod
-    def get_command(cls, command_name: str):
+    def get_command(cls, command_name: str, raise_if_not_found: bool = False):
         from pipelime.piper import PipelimeCommand
 
         sym_cls = cls.get_symbol(
-            command_name, PipelimeCommand, cls.get_pipelime_commands()
+            command_name,
+            PipelimeCommand,
+            cls.get_pipelime_commands(),
+            raise_if_not_found,
         )
-        if sym_cls is None:
-            return None
-        if not isinstance(sym_cls, tuple):
+        if sym_cls is not None and not isinstance(sym_cls, tuple):
             return (("Imported Command", "Imported Commands"), sym_cls)
         return sym_cls
 
@@ -249,13 +267,13 @@ class PipelimeSymbolsHelper:
         return None
 
     @classmethod
-    def get_stage(cls, stage_name: str):
+    def get_stage(cls, stage_name: str, raise_if_not_found: bool = False):
         from pipelime.stages import SampleStage
 
-        sym_cls = cls.get_symbol(stage_name, SampleStage, cls.get_sample_stages())
-        if sym_cls is None:
-            return None
-        if not isinstance(sym_cls, tuple):
+        sym_cls = cls.get_symbol(
+            stage_name, SampleStage, cls.get_sample_stages(), raise_if_not_found
+        )
+        if sym_cls is not None and not isinstance(sym_cls, tuple):
             return (("Imported Stage", "Imported Stages"), sym_cls)
         return sym_cls
 
