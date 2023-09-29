@@ -1,10 +1,12 @@
 import typing as t
+from itertools import chain, zip_longest
 
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 import pipelime.utils.pydantic_types as pl_types
 from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.sequences import SamplesSequence
 from pipelime.stages import StageInput
 
 
@@ -200,7 +202,7 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
     )
 
     def run(self):
-        from pipelime.stages import StageTimer, StageCompose
+        from pipelime.stages import StageCompose, StageTimer
 
         # create unique names
         stages = self.stages if isinstance(self.stages, t.Sequence) else [self.stages]
@@ -381,12 +383,19 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         alias="g"
     )
 
+    interleave: bool = pyd.Field(False, description="If TRUE, interleaves samples.")
+
     def run(self):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
-        input_it = iter(inputs)
-        seq = next(input_it).create_reader()
-        for input_ in input_it:
-            seq = seq.cat(input_.create_reader())
+        if self.interleave:
+            samples = chain(*zip_longest(*[i.create_reader() for i in inputs]))
+            samples = [s for s in samples if s is not None]
+            seq = SamplesSequence.from_list(samples)
+        else:
+            input_it = iter(inputs)
+            seq = next(input_it).create_reader()
+            for input_ in input_it:
+                seq = seq.cat(input_.create_reader())
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),
@@ -1090,8 +1099,8 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
     )
 
     def run(self):
-        from pipelime.stages import StageSampleHash
         from pipelime.sequences import DataStream
+        from pipelime.stages import StageSampleHash
 
         seq = self.input.create_reader()
         hash_key = self._get_hash_key(list(seq[0].keys()))
