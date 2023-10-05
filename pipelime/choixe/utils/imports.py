@@ -189,28 +189,25 @@ def import_module(
                 module_file_or_class_path_or_code, cwd, register_pl_module
             )
         except Exception as e:
-            err_msgs.append(str(e))
+            err_msgs.append(f"from file: {e}")
     try:
         return import_module_from_class_path(
             module_file_or_class_path_or_code, register_pl_module
         )
     except Exception as e:
-        err_msgs.append(str(e))
+        err_msgs.append(f"from classpath: {e}")
 
     try:
         return import_module_from_code(
             module_file_or_class_path_or_code, register_pl_module
         )
     except Exception as e:
-        err_msgs.append(str(e))
+        err_msgs.append(f"from code: {e}")
 
     raise ImportError(
         "Cannot import:\n"
         f"  `{module_file_or_class_path_or_code}`\n"
-        "Errors:\n"
-        f"  from file: {err_msgs[0]}\n"
-        f"  from classpath: {err_msgs[1]}\n"
-        f"  from code: {err_msgs[2]}"
+        "Errors:\n  " + "\n  ".join(err_msgs)
     )
 
 
