@@ -85,7 +85,7 @@ As you can see you don't have to specify the input and output entities: they are
 The next operation computes the average color value and adds a new item to the sample:
 
 ```python
-from pipelime.stages import BaseEntity
+from pipelime.stages.entities import BaseEntity
 import pipelime.items as pli
 import numpy as np
 
@@ -288,7 +288,7 @@ class SaturateDynamicInput(BaseEntity):
     _image = DynamicKey(pli.ImageItem)
 ```
 
-Note that the `_image` field will not considered when parsing and validating an input sample.
+Note that the `_image` field will not be considered when parsing and validating an input sample.
 
 Then, the new action expects the actual image key name as a parameter and explicitly calls a validation on it:
 
