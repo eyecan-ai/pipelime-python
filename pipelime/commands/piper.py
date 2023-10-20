@@ -652,7 +652,9 @@ def piper_dag(cls: t.Type[PiperDAG]):
         class PropertyModel(cls):
             pass
 
-        properties: PropertyModel = Field(..., alias="p")
+        properties: PropertyModel = Field(
+            ..., alias="p", description="DAG parameters", expand_help=True
+        )
 
         @property
         def input_mapping(self) -> t.Optional[t.Mapping[str, str]]:

@@ -228,6 +228,8 @@ def _field_row(
 ):
     from enum import Enum
 
+    expand_help = field.field_info.extra.get("expand_help", False)
+
     is_model = _is_model(field.outer_type_) and not inspect.isabstract(
         field.outer_type_
     )
@@ -284,7 +286,7 @@ def _field_row(
     # Type
     line.append(
         ""
-        if is_model and not has_root_item and recursive
+        if is_model and not has_root_item and (recursive or expand_help)
         else _human_readable_type(field_outer_type).replace("[", r"\[")  # noqa: W605
     )
 
@@ -300,7 +302,7 @@ def _field_row(
 
     grid.add_row(*line)
 
-    if recursive:
+    if recursive or expand_help:
         if is_model and not has_root_item:
             _iterate_model_fields(
                 model_cls=field_outer_type,
