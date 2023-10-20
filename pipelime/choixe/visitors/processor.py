@@ -12,7 +12,7 @@ import pydash as py_
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
-from pipelime.choixe.utils.io import load, PipelimeTmp
+from pipelime.choixe.utils.io import PipelimeTmp, load
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
@@ -35,6 +35,7 @@ class Processor(ast.NodeVisitor):
         context: Optional[Dict[str, Any]] = None,
         cwd: Optional[Path] = None,
         allow_branching: bool = True,
+        allow_missing_vars: bool = False,
     ) -> None:
         """Constructor for `Processor`
 
@@ -47,11 +48,15 @@ class Processor(ast.NodeVisitor):
             allow_branching (bool, optional): Set to False to disable processing on
                 branching nodes, like sweeps. All branching nodes will be simply
                 unparsed. Defaults to True.
+            allow_missing_vars (bool, optional): Set to True to allow missing variables
+                in the context. If False, the processor will raise an error if a
+                variable is not found in the context. Defaults to False.
         """
         super().__init__()
         self._context = context if context is not None else {}
         self._cwd = cwd if cwd is not None else Path(os.getcwd())
         self._allow_branching = allow_branching
+        self._allow_missing_vars = allow_missing_vars
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
@@ -134,7 +139,7 @@ class Processor(ast.NodeVisitor):
                 var_value = default
                 found = True
 
-            if not found:
+            if not found and not self._allow_missing_vars:
                 raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
             # Recursively process the variable value
@@ -200,12 +205,12 @@ class Processor(ast.NodeVisitor):
             iterable = list(range(iterable))
 
         if not isinstance(iterable, Iterable):
-            if isinstance(node.iterable.data, str) and not py_.has(
-                self._context, node.iterable.data
-            ):
-                raise ChoixeProcessingError(
-                    f"Loop variable `{node.iterable.data}` not found in context"
-                )
+            if isinstance(node.iterable.data, str):
+                not_found = not py_.has(self._context, node.iterable.data)
+                if not_found and not self._allow_missing_vars:
+                    raise ChoixeProcessingError(
+                        f"Loop variable `{node.iterable.data}` not found in context"
+                    )
             raise ChoixeProcessingError(
                 f"Loop variable `{node.iterable.data}` is not iterable"
             )
@@ -255,7 +260,7 @@ class Processor(ast.NodeVisitor):
             varname = branch[0]
 
             # If the variable is not in the context, raise an error
-            if not py_.has(self._context, varname):
+            if not py_.has(self._context, varname) and not self._allow_missing_vars:
                 msg = f"Switch variable `{varname}` not found in context"
                 raise ChoixeProcessingError(msg)
 
@@ -355,6 +360,7 @@ def process(
     context: Optional[Dict[str, Any]] = None,
     cwd: Optional[Path] = None,
     allow_branching: bool = True,
+    allow_missing_vars: bool = False,
 ) -> Any:
     """Processes a Choixe AST node into a list of all possible outcomes.
 
@@ -367,10 +373,18 @@ def process(
         allow_branching (bool, optional): Set to False to disable processing on
             branching nodes, like sweeps. All branching nodes will be simply unparsed.
             Defaults to True.
+        allow_missing_vars (bool, optional): Set to True to allow missing variables
+            in the context. If False, the processor will raise an error if a
+            variable is not found in the context. Defaults to False.
 
     Returns:
         Any: The list of all possible outcomes. If branching is disabled, the list will
             have length 1.
     """
-    processor = Processor(context=context, cwd=cwd, allow_branching=allow_branching)
+    processor = Processor(
+        context=context,
+        cwd=cwd,
+        allow_branching=allow_branching,
+        allow_missing_vars=allow_missing_vars,
+    )
     return node.accept(processor)

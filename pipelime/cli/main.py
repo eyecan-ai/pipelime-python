@@ -126,6 +126,7 @@ def _process_cfg_or_die(
     exit_on_error: bool,
     verbose: bool,
     print_all: bool,
+    allow_missing_vars: bool = False,
 ) -> t.List["XConfig"]:
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
     from pipelime.cli.pretty_print import print_error, print_info, print_warning
@@ -135,9 +136,9 @@ def _process_cfg_or_die(
 
     try:
         effective_configs = (
-            [cfg.process(ctx)]
+            [cfg.process(ctx, allow_missing_vars)]
             if run_all is not None and not run_all
-            else cfg.process_all(ctx)
+            else cfg.process_all(ctx, allow_missing_vars)
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
@@ -188,6 +189,7 @@ def _process_all(
     run_all: t.Optional[bool],
     exit_on_error: bool,
     verbose: int,
+    allow_missing_vars: bool = False,
 ):
     from pipelime.choixe import XConfig
     from pipelime.cli.pretty_print import print_info
@@ -206,6 +208,7 @@ def _process_all(
             exit_on_error,
             verbose > 1,
             verbose > 3,
+            allow_missing_vars,
         )
         for c in base_cfg
         if c.to_dict()
@@ -238,6 +241,7 @@ def _process_all(
         exit_on_error,
         verbose > 1,
         verbose > 3,
+        allow_missing_vars,
     )
 
 
@@ -485,8 +489,8 @@ def pl_main(
             recursive=verbose > 1,
         )
     elif command:
-        from pipelime.piper.checkpoint import LocalCheckpoint
         from pipelime.choixe.utils.io import PipelimeTmp
+        from pipelime.piper.checkpoint import LocalCheckpoint
 
         # context auto-load
         if config and not context and ctx_autoload:
@@ -536,10 +540,11 @@ def pl_main(
 
 
 def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoint"]):
+    from loguru import logger
+
     import pipelime.choixe.utils.io as choixe_io
     from pipelime.choixe import XConfig
     from pipelime.cli.pretty_print import print_error, print_info, print_warning
-    from loguru import logger
 
     PipelimeSymbolsHelper.set_extra_modules(cli_opts.extra_modules)
 
@@ -714,6 +719,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.run_all,
                 False,
                 cli_opts.verbose > 2,
+                allow_missing_vars=False,  # do not allow missing vars in audit
             )
         except ChoixeProcessingError as e:
             # from rich.prompt import Confirm, Prompt
@@ -766,6 +772,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.run_all,
                 True,
                 cli_opts.verbose,
+                allow_missing_vars=True,  # allow missing vars in run
             )
 
         cmd_name = cli_opts.command
