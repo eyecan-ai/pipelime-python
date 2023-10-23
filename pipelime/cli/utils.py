@@ -1,9 +1,14 @@
+import json
 import typing as t
+from ast import literal_eval
+from json import JSONDecodeError
 from pathlib import Path
 from types import ModuleType
-from loguru import logger
 
+import yaml
+from loguru import logger
 from pydantic import BaseModel, ValidationError
+from yaml.error import YAMLError
 
 if t.TYPE_CHECKING:
     from pipelime.piper import T_DAG_NODE, PipelimeCommand
@@ -750,3 +755,32 @@ def show_field_alias_valerr(e: ValidationError):
     for err in e.errors():
         if "loc" in err:
             err["loc"] = tuple(_replace_alias(pos) for pos in err["loc"])
+
+
+def parse_user_input(s: str) -> t.Any:
+    """Parse a string value.
+
+    The function tries to parse the value as YAML, JSON and Python literal,
+    returning the first successful parse.
+
+    Args:
+        s: The string value to parse.
+
+    Returns:
+        The parsed value.
+    """
+    value = s
+
+    if len(value) > 0:
+        if value.lower() in ["none", "null", "nul"]:
+            return None
+
+        parse_fns = [literal_eval, yaml.safe_load, json.loads]
+        while parse_fns:
+            try:
+                value = parse_fns.pop(0)(value)
+                break
+            except (YAMLError, JSONDecodeError, ValueError, SyntaxError):
+                pass
+
+    return value
