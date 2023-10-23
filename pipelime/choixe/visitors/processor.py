@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import pydash as py_
+from rich.prompt import Prompt
 
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
@@ -15,6 +16,7 @@ from pipelime.choixe.utils.imports import import_symbol
 from pipelime.choixe.utils.io import PipelimeTmp, load
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
+from pipelime.cli.utils import parse_user_input
 
 
 class ChoixeProcessingError(Exception):
@@ -35,7 +37,7 @@ class Processor(ast.NodeVisitor):
         context: Optional[Dict[str, Any]] = None,
         cwd: Optional[Path] = None,
         allow_branching: bool = True,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> None:
         """Constructor for `Processor`
 
@@ -48,15 +50,14 @@ class Processor(ast.NodeVisitor):
             allow_branching (bool, optional): Set to False to disable processing on
                 branching nodes, like sweeps. All branching nodes will be simply
                 unparsed. Defaults to True.
-            allow_missing_vars (bool, optional): Set to True to allow missing variables
-                in the context. If False, the processor will raise an error if a
-                variable is not found in the context. Defaults to False.
+            ask_missing_vars (bool, optional): Set to True to allow the user to fill
+                the variables missing in the context.
         """
         super().__init__()
         self._context = context if context is not None else {}
         self._cwd = cwd if cwd is not None else Path(os.getcwd())
         self._allow_branching = allow_branching
-        self._allow_missing_vars = allow_missing_vars
+        self._ask_missing_vars = ask_missing_vars
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
@@ -139,8 +140,12 @@ class Processor(ast.NodeVisitor):
                 var_value = default
                 found = True
 
-            if not found and not self._allow_missing_vars:
-                raise ChoixeProcessingError(f"Variable not found: `{id_}`")
+            if not found:
+                if self._ask_missing_vars:
+                    prompt = Prompt.ask(f"Enter value for [yellow]{id_}[/yellow]")
+                    var_value = parse_user_input(prompt)
+                else:
+                    raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
             # Recursively process the variable value
             re_parsed = parse(var_value)
@@ -197,7 +202,17 @@ class Processor(ast.NodeVisitor):
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
         if isinstance(node.iterable.data, str):
-            iterable = py_.get(self._context, node.iterable.data)
+            if not py_.has(self._context, node.iterable.data):
+                if self._ask_missing_vars:
+                    var_name = node.iterable.data
+                    prompt = Prompt.ask(f"Enter value for [yellow]{var_name}[/yellow]")
+                    iterable = parse_user_input(prompt)
+                else:
+                    raise ChoixeProcessingError(
+                        f"Loop variable `{node.iterable.data}` not found in context"
+                    )
+            else:
+                iterable = py_.get(self._context, node.iterable.data)
         else:
             iterable = node.iterable.data
 
@@ -205,15 +220,10 @@ class Processor(ast.NodeVisitor):
             iterable = list(range(iterable))
 
         if not isinstance(iterable, Iterable):
-            if isinstance(node.iterable.data, str):
-                not_found = not py_.has(self._context, node.iterable.data)
-                if not_found and not self._allow_missing_vars:
-                    raise ChoixeProcessingError(
-                        f"Loop variable `{node.iterable.data}` not found in context"
-                    )
             raise ChoixeProcessingError(
                 f"Loop variable `{node.iterable.data}` is not iterable"
             )
+
         id_ = uuid.uuid1().hex if node.identifier is None else str(node.identifier.data)
         prev_loop = self._current_loop
         self._current_loop = id_
@@ -259,13 +269,17 @@ class Processor(ast.NodeVisitor):
         for branch in all_branches:
             varname = branch[0]
 
-            # If the variable is not in the context, raise an error
-            if not py_.has(self._context, varname) and not self._allow_missing_vars:
-                msg = f"Switch variable `{varname}` not found in context"
-                raise ChoixeProcessingError(msg)
-
-            # Get the value of the variable
-            value = py_.get(self._context, varname)
+            # If the variable is not in the context, ask the user or raise an error
+            if not py_.has(self._context, varname):
+                if self._ask_missing_vars:
+                    prompt = Prompt.ask(f"Enter value for [yellow]{varname}[/yellow]")
+                    value = parse_user_input(prompt)
+                else:
+                    msg = f"Switch variable `{varname}` not found in context"
+                    raise ChoixeProcessingError(msg)
+            else:
+                # Get the value of the variable from the context
+                value = py_.get(self._context, varname)
 
             # Match the value to the correct case
             for i in range(len(node.cases)):
@@ -280,7 +294,8 @@ class Processor(ast.NodeVisitor):
                     branches.append(branch[i + 1 + len(node.cases)])
                     break
 
-            # If no case matched, use the default if available, otherwise raise an error
+            # If no case matched, use the default if available
+            # otherwise raise an error
             else:
                 if node.default is not None:
                     branches.append(branch[-1])
@@ -360,7 +375,7 @@ def process(
     context: Optional[Dict[str, Any]] = None,
     cwd: Optional[Path] = None,
     allow_branching: bool = True,
-    allow_missing_vars: bool = False,
+    ask_missing_vars: bool = False,
 ) -> Any:
     """Processes a Choixe AST node into a list of all possible outcomes.
 
@@ -373,9 +388,8 @@ def process(
         allow_branching (bool, optional): Set to False to disable processing on
             branching nodes, like sweeps. All branching nodes will be simply unparsed.
             Defaults to True.
-        allow_missing_vars (bool, optional): Set to True to allow missing variables
-            in the context. If False, the processor will raise an error if a
-            variable is not found in the context. Defaults to False.
+        ask_missing_vars (bool, optional): Set to True to allow the user to fill the
+            variables missing in the context. Defaults to False.
 
     Returns:
         Any: The list of all possible outcomes. If branching is disabled, the list will
@@ -385,6 +399,6 @@ def process(
         context=context,
         cwd=cwd,
         allow_branching=allow_branching,
-        allow_missing_vars=allow_missing_vars,
+        ask_missing_vars=ask_missing_vars,
     )
     return node.accept(processor)

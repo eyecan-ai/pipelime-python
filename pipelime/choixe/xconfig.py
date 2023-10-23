@@ -227,12 +227,12 @@ class XConfig(Box):
         self,
         context: Optional[Dict[str, Any]] = None,
         allow_branching: bool = True,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> List[XConfig]:
         data = self._unsafe_process(
             context=context,
             allow_branching=allow_branching,
-            allow_missing_vars=allow_missing_vars,
+            ask_missing_vars=ask_missing_vars,
         )
         return [
             XConfig(data=x, cwd=self.get_cwd(), schema=self.get_schema()) for x in data
@@ -242,27 +242,28 @@ class XConfig(Box):
         self,
         context: Optional[Dict[str, Any]] = None,
         allow_branching: bool = True,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> List[Any]:
         return process(
             self.parse(),
             context=context,
             cwd=self.get_cwd(),
             allow_branching=allow_branching,
-            allow_missing_vars=allow_missing_vars,
+            ask_missing_vars=ask_missing_vars,
         )
 
     def process(
         self,
         context: Optional[Dict[str, Any]] = None,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> XConfig:
         """Process this XConfig without branching.
 
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
                 containing all variables values. Defaults to None.
-            allow_missing_vars (bool, optional): True to allow missing variables.
+            ask_missing_vars (bool, optional): If True, ask the user to fill
+                missing vars.
 
         Returns:
             XConfig: The processed XConfig.
@@ -270,13 +271,13 @@ class XConfig(Box):
         return self._process(
             context=context,
             allow_branching=False,
-            allow_missing_vars=allow_missing_vars,
+            ask_missing_vars=ask_missing_vars,
         )[0]
 
     def unsafe_process(
         self,
         context: Optional[Dict[str, Any]] = None,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> Any:
         """Process this XConfig without branching and return the result, without
         wrapping it in an XConfig to allow for more flexibility in the result.
@@ -287,7 +288,8 @@ class XConfig(Box):
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
                 containing all variables values. Defaults to None.
-            allow_missing_vars (bool, optional): True to allow missing variables.
+            ask_missing_vars (bool, optional): If True, ask the user to fill
+                missing vars.
 
         Returns:
             Any: The processed result.
@@ -295,20 +297,21 @@ class XConfig(Box):
         return self._unsafe_process(
             context=context,
             allow_branching=False,
-            allow_missing_vars=allow_missing_vars,
+            ask_missing_vars=ask_missing_vars,
         )[0]
 
     def process_all(
         self,
         context: Optional[Dict[str, Any]] = None,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> List[XConfig]:
         """Process this XConfig with branching.
 
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
                 containing all variables values. Defaults to None.
-            allow_missing_vars (bool, optional): True to allow missing variables.
+            ask_missing_vars (bool, optional): If True, ask the user to fill
+                missing vars.
 
         Returns:
             List[XConfig]: A list of all processing outcomes.
@@ -316,13 +319,13 @@ class XConfig(Box):
         return self._process(
             context=context,
             allow_branching=True,
-            allow_missing_vars=allow_missing_vars,
+            ask_missing_vars=ask_missing_vars,
         )
 
     def unsafe_process_all(
         self,
         context: Optional[Dict[str, Any]] = None,
-        allow_missing_vars: bool = False,
+        ask_missing_vars: bool = False,
     ) -> List[Any]:
         """Process this XConfig with branching and return the results, without
         wrapping them in XConfigs to allow for more flexibility in the result.
@@ -333,7 +336,8 @@ class XConfig(Box):
         Args:
             context (Optional[Dict[str, Any]], optional): Optional data structure
                 containing all variables values. Defaults to None.
-            allow_missing_vars (bool, optional): True to allow missing variables.
+            ask_missing_vars (bool, optional): If True, ask the user to fill
+                missing vars.
 
         Returns:
             List[Any]: A list of all processing outcomes.
@@ -341,7 +345,7 @@ class XConfig(Box):
         return self._unsafe_process(
             context=context,
             allow_branching=True,
-            allow_missing_vars=allow_missing_vars,
+            ask_missing_vars=ask_missing_vars,
         )
 
     def inspect(self) -> Inspection:
