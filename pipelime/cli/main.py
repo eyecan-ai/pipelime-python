@@ -34,6 +34,7 @@ class PlCliOptions(BaseModel):
     command_outputs: t.Optional[Path]
     verbose: int
     dry_run: bool
+    no_ui: bool
     command: str
     command_args: t.List[str]
     pipelime_tmp: t.Optional[str]
@@ -367,6 +368,11 @@ def pl_main(
         count=True,
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
+    no_ui: bool = typer.Option(
+        False,
+        "--no-ui",
+        help="Disable user interactions.",
+    ),
     command: str = typer.Argument(
         "",
         show_default=False,
@@ -511,6 +517,7 @@ def pl_main(
             command_outputs=command_outputs,
             verbose=verbose,
             dry_run=dry_run,
+            no_ui=no_ui,
             command=command,
             command_args=command_args,
             pipelime_tmp=None,
@@ -645,7 +652,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 True,
                 cli_opts.verbose > 2,
                 cli_opts.verbose > 3,
-                ask_missing_vars=True,
+                ask_missing_vars=not cli_opts.no_ui,
             )
             partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -776,7 +783,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.run_all,
                 True,
                 cli_opts.verbose,
-                ask_missing_vars=True,
+                ask_missing_vars=not cli_opts.no_ui,
             )
 
         # remove keys not present in the input configs that were inserted
@@ -811,6 +818,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cfg_dict,
                 cli_opts.verbose,
                 cli_opts.dry_run,
+                cli_opts.no_ui,
                 cli_opts.keep_tmp,
                 cli_opts.command_outputs,
                 checkpoint,
@@ -822,6 +830,7 @@ def run_command(
     cmd_args: t.Mapping,
     verbose: int,
     dry_run: bool,
+    no_ui: bool,
     keep_tmp: bool,
     command_outputs: t.Optional[Path],
     checkpoint: t.Optional["Checkpoint"],
@@ -849,7 +858,7 @@ def run_command(
     except ValueError:
         raise typer.Exit(1)
 
-    if is_tui_needed(cmd_cls, cmd_args):
+    if is_tui_needed(cmd_cls, cmd_args) and not no_ui:
         app = TuiApp(cmd_cls, cmd_args)
         cmd_args = t.cast(t.Mapping, app.run())
 
