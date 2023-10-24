@@ -379,6 +379,7 @@ def process(
     cwd: Optional[Path] = None,
     allow_branching: bool = True,
     ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
 ) -> Any:
     """Processes a Choixe AST node into a list of all possible outcomes.
 
@@ -393,6 +394,8 @@ def process(
             Defaults to True.
         ask_missing_vars (bool, optional): Set to True to allow the user to fill the
             variables missing in the context. Defaults to False.
+        add_user_defined_vars (bool, optional): Set to True to add the variables
+            defined by the user to the result. Defaults to False.
 
     Returns:
         Any: The list of all possible outcomes. If branching is disabled, the list will
@@ -406,9 +409,10 @@ def process(
     )
     result = cast(List[Dict[str, Any]], node.accept(processor))
 
-    # add user defined variables to the result (it can be useful
-    # when we are processing the context multiple times)
-    for res in result:
-        res.update(processor._user_defined_vars)
+    if add_user_defined_vars:
+        # add user defined variables to the result (it can be useful
+        # when we are processing the context multiple times)
+        for res in result:
+            res.update(processor._user_defined_vars)
 
     return result

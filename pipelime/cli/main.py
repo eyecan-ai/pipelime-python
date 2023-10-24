@@ -128,6 +128,7 @@ def _process_cfg_or_die(
     verbose: bool,
     print_all: bool,
     ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
 ) -> t.List["XConfig"]:
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
     from pipelime.cli.pretty_print import print_error, print_info, print_warning
@@ -137,9 +138,9 @@ def _process_cfg_or_die(
 
     try:
         effective_configs = (
-            [cfg.process(ctx, ask_missing_vars)]
+            [cfg.process(ctx, ask_missing_vars, add_user_defined_vars)]
             if run_all is not None and not run_all
-            else cfg.process_all(ctx, ask_missing_vars)
+            else cfg.process_all(ctx, ask_missing_vars, add_user_defined_vars)
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
@@ -191,6 +192,7 @@ def _process_all(
     exit_on_error: bool,
     verbose: int,
     ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
 ):
     from pipelime.choixe import XConfig
     from pipelime.cli.pretty_print import print_info
@@ -210,6 +212,7 @@ def _process_all(
             verbose > 1,
             verbose > 3,
             ask_missing_vars,
+            add_user_defined_vars,
         )
         for c in base_cfg
         if c.to_dict()
@@ -243,6 +246,7 @@ def _process_all(
         verbose > 1,
         verbose > 3,
         ask_missing_vars,
+        add_user_defined_vars,
     )
 
 
@@ -653,6 +657,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.verbose > 2,
                 cli_opts.verbose > 3,
                 ask_missing_vars=not cli_opts.no_ui,
+                add_user_defined_vars=True,
             )
             partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -672,6 +677,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.verbose > 2,
                 cli_opts.verbose > 3,
                 ask_missing_vars=False,
+                add_user_defined_vars=False,
             )
             ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -729,6 +735,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 False,
                 cli_opts.verbose > 2,
                 ask_missing_vars=False,  # do not allow missing vars in audit
+                add_user_defined_vars=False,
             )
         except ChoixeProcessingError as e:
             # from rich.prompt import Confirm, Prompt
@@ -773,8 +780,6 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
     else:
         from pipelime.cli.pretty_print import show_spinning_status
 
-        input_cfg_keys = set([k for c in base_cfg for k in c.to_dict().keys()])
-
         with show_spinning_status("Processing configuration and context..."):
             effective_configs = _process_all(
                 base_cfg,
@@ -784,14 +789,8 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 True,
                 cli_opts.verbose,
                 ask_missing_vars=not cli_opts.no_ui,
+                add_user_defined_vars=False,
             )
-
-        # remove keys not present in the input configs that were inserted
-        # when asking the user for missing variables
-        for cfg in effective_configs:
-            for k in cfg.to_dict().keys():
-                if k not in input_cfg_keys:
-                    cfg.pop(k)
 
         cmd_name = cli_opts.command
         cfg_size = len(effective_configs)
