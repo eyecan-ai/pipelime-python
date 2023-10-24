@@ -1,14 +1,28 @@
+import os
+from typing import Any, List
+
 import pytest
+import yaml
+from pydantic import Field
+
+from pipelime.piper import PipelimeCommand
+
+
+class SimpleCommand(PipelimeCommand, title="simple-command"):
+    simple_list: List[Any] = Field(..., title="Simple list")
+
+    def run(self) -> None:
+        pass
 
 
 class TestCliBase:
-    def _base_launch(self, args: list, exit_code=0, exc=None):
+    def _base_launch(self, args: list, exit_code=0, exc=None, user_input: str = ""):
         from typer.testing import CliRunner
 
         from pipelime.cli.main import _create_typer_app
 
         runner = CliRunner()
-        result = runner.invoke(_create_typer_app(), args)
+        result = runner.invoke(_create_typer_app(), args, input=user_input)
 
         print("*** CLI COMMAND OUTPUT ***", result.output, sep="\n")
         print("EXCEPTION:", type(result.exception))
@@ -311,8 +325,9 @@ class TestCliBase:
         ]
 
     def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path):
-        from pipelime.sequences import SamplesSequence
         from pydantic import ValidationError
+
+        from pipelime.sequences import SamplesSequence
 
         outpath = tmp_path / "final_output"
         args = [
@@ -350,3 +365,308 @@ class TestCliBase:
         )
         assert outpath.is_dir()
         assert len(SamplesSequence.from_underfolder(outpath)) == 5
+
+    def test_missing_var_in_cfg(self, tmp_path) -> None:
+        cfg = {"simple_list": [1, "a", "$var(third_element)"]}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+        user_input = "16.12345\n"
+
+        self._base_launch(args, user_input=user_input)
+
+        with open(out_cfg_file, "r") as f:
+            out_cfg = yaml.safe_load(f)
+
+        assert list(out_cfg.keys()) == ["simple_list"]
+        assert out_cfg["simple_list"] == [1, "a", 16.12345]
+
+    def test_missing_var_in_ctx(self, tmp_path) -> None:
+        cfg = {"simple_list": [1, "a", "$var(third_element)"]}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        ctx = {"third_element": "$var(not_defined)"}
+        ctx_path = tmp_path / "ctx.yaml"
+        with open(ctx_path, "w") as f:
+            yaml.dump(ctx, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-x",
+            str(ctx_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+        user_input = "{'value': ['hello', 1.23, [7, 8, 9]]}\n"
+
+        self._base_launch(args, user_input=user_input)
+
+        with open(out_cfg_file, "r") as f:
+            out_cfg = yaml.safe_load(f)
+
+        assert list(out_cfg.keys()) == ["simple_list"]
+        assert out_cfg["simple_list"] == [1, "a", {"value": ["hello", 1.23, [7, 8, 9]]}]
+
+    def test_missing_for_in_cfg(self, tmp_path) -> None:
+        cfg = {"simple_list": {"$for(elements, x)": ["Element number $item(x.number)"]}}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+        user_input = "[{number: 10}, {number: 100}, {number: 1000}]\n"
+
+        self._base_launch(args, user_input=user_input)
+
+        with open(out_cfg_file, "r") as f:
+            out_cfg = yaml.safe_load(f)
+
+        assert list(out_cfg.keys()) == ["simple_list"]
+        assert out_cfg["simple_list"] == [
+            "Element number 10",
+            "Element number 100",
+            "Element number 1000",
+        ]
+
+    def test_missing_for_in_ctx(self, tmp_path) -> None:
+        cfg = {"simple_list": "$var(defined_in_ctx)"}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        ctx = {
+            "defined_in_ctx": {
+                "$for(X, x)": {"$for(Y, y)": ["Element number $item(x),$item(y)"]}
+            }
+        }
+        ctx_path = tmp_path / "ctx.yaml"
+        with open(ctx_path, "w") as f:
+            yaml.dump(ctx, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-x",
+            str(ctx_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+        user_input = "3\n4\n"
+
+        self._base_launch(args, user_input=user_input)
+
+        with open(out_cfg_file, "r") as f:
+            out_cfg = yaml.safe_load(f)
+
+        assert list(out_cfg.keys()) == ["simple_list"]
+        expected_list = [f"Element number {x},{y}" for x in range(3) for y in range(4)]
+        assert out_cfg["simple_list"] == expected_list
+
+    def test_missing_switch_in_cfg(self, tmp_path) -> None:
+        cfg = {
+            "simple_list": {
+                "$switch(option)": [
+                    {"$case": "a", "$then": [1, 2, 3]},
+                    {"$case": "b", "$then": ["a", "b", "c"]},
+                    {"$default": [1.2, 3.4, 5.6]},
+                ]
+            }
+        }
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+
+        inputs = ["a\n", "b\n", "c\n"]
+        expected = [[1, 2, 3], ["a", "b", "c"], [1.2, 3.4, 5.6]]
+
+        for i, e in zip(inputs, expected):
+            self._base_launch(args, user_input=i)
+
+            with open(out_cfg_file, "r") as f:
+                out_cfg = yaml.safe_load(f)
+
+            assert list(out_cfg.keys()) == ["simple_list"]
+            assert out_cfg["simple_list"] == e
+
+    def test_missing_switch_in_ctx(self, tmp_path) -> None:
+        cfg = {
+            "simple_list": "$var(defined_in_ctx)",
+        }
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        ctx = {
+            "defined_in_ctx": {
+                "$switch(option)": [
+                    {"$case": "op1", "$then": ["l", "i", "s", "t"]},
+                    {"$case": "op2", "$then": [{"v": 1}, {"v": 2}, {"v": 3}]},
+                    {"$default": [None, None, None]},
+                ]
+            }
+        }
+        ctx_path = tmp_path / "ctx.yaml"
+        with open(ctx_path, "w") as f:
+            yaml.dump(ctx, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-x",
+            str(ctx_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+
+        inputs = ["op1\n", "op2\n", "xyz\n"]
+        expected = [
+            ["l", "i", "s", "t"],
+            [{"v": 1}, {"v": 2}, {"v": 3}],
+            [None, None, None],
+        ]
+
+        for i, e in zip(inputs, expected):
+            self._base_launch(args, user_input=i)
+
+            with open(out_cfg_file, "r") as f:
+                out_cfg = yaml.safe_load(f)
+
+            assert list(out_cfg.keys()) == ["simple_list"]
+            assert out_cfg["simple_list"] == e
+
+    def test_missing_vars_in_cfg_and_ctx(self, tmp_path) -> None:
+        cfg = {"simple_list": ["$var(first_element)", "$var(second_element)"]}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        ctx = {"first_element": "$var(not_defined)"}
+        ctx_path = tmp_path / "ctx.yaml"
+        with open(ctx_path, "w") as f:
+            yaml.dump(ctx, f)
+
+        out_cfg_file = tmp_path / "out_cfg.yaml"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-x",
+            str(ctx_path),
+            "-o",
+            str(out_cfg_file),
+        ]
+        user_input = "123\nthe_second_element\n"
+
+        self._base_launch(args, user_input=user_input)
+
+        with open(out_cfg_file, "r") as f:
+            out_cfg = yaml.safe_load(f)
+
+        assert list(out_cfg.keys()) == ["simple_list"]
+        assert out_cfg["simple_list"] == [123, "the_second_element"]
+
+    def test_missing_var_in_cfg_no_ui(self, tmp_path) -> None:
+        cfg = {"simple_list": "$var(not_defined)"}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "--no-ui",
+        ]
+
+        result = self._base_launch(args, exit_code=1, exc=SystemExit)
+
+        assert (
+            "ERROR: Invalid configuration! Variable not found: `not_defined`"
+            in result.output
+        )
+
+    def test_missing_var_in_ctx_no_ui(self, tmp_path) -> None:
+        cfg = {"simple_list": [1, 2, 3]}
+        cfg_path = tmp_path / "cfg.yaml"
+        with open(cfg_path, "w") as f:
+            yaml.dump(cfg, f)
+
+        ctx = {"cool_name": "$var(gimme_a_cool_value)"}
+        ctx_path = tmp_path / "ctx.yaml"
+        with open(ctx_path, "w") as f:
+            yaml.dump(ctx, f)
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "-c",
+            str(cfg_path),
+            "-x",
+            str(ctx_path),
+            "--no-ui",
+        ]
+
+        result = self._base_launch(args, exit_code=1, exc=SystemExit)
+
+        assert (
+            "ERROR: Invalid context! Variable not found: `gimme_a_cool_value`"
+            in result.output
+        )
