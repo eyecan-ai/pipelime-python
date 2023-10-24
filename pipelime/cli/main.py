@@ -645,7 +645,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 True,
                 cli_opts.verbose > 2,
                 cli_opts.verbose > 3,
-                ask_missing_vars=False,
+                ask_missing_vars=True,
             )
             partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -766,6 +766,8 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
     else:
         from pipelime.cli.pretty_print import show_spinning_status
 
+        input_cfg_keys = set([k for c in base_cfg for k in c.to_dict().keys()])
+
         with show_spinning_status("Processing configuration and context..."):
             effective_configs = _process_all(
                 base_cfg,
@@ -776,6 +778,13 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.verbose,
                 ask_missing_vars=True,
             )
+
+        # remove keys not present in the input configs that were inserted
+        # when asking the user for missing variables
+        for cfg in effective_configs:
+            for k in cfg.to_dict().keys():
+                if k not in input_cfg_keys:
+                    cfg.pop(k)
 
         cmd_name = cli_opts.command
         cfg_size = len(effective_configs)

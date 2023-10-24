@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, cast
 
 import pydash as py_
 
@@ -60,6 +60,8 @@ class Processor(ast.NodeVisitor):
 
         self._loop_data: Dict[str, LoopInfo] = {}
         self._current_loop: Optional[str] = None
+
+        self._user_defined_vars: Dict[str, Any] = {}
 
     def _branches(self, *branches: List[Any]) -> List[Any]:
         if len(branches) == 1:
@@ -143,6 +145,7 @@ class Processor(ast.NodeVisitor):
                 if self._ask_missing_vars:
                     msg = f"Enter value for [yellow]{id_}[/yellow]"
                     var_value = get_user_input(msg)
+                    self._user_defined_vars[id_] = var_value
                 else:
                     raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
@@ -205,7 +208,7 @@ class Processor(ast.NodeVisitor):
                 if self._ask_missing_vars:
                     msg = f"Enter value for [yellow]{node.iterable.data}[/yellow]"
                     iterable = get_user_input(msg)
-                    iterable = parse_user_input(prompt)
+                    self._user_defined_vars[node.iterable.data] = iterable
                 else:
                     raise ChoixeProcessingError(
                         f"Loop variable `{node.iterable.data}` not found in context"
@@ -273,6 +276,7 @@ class Processor(ast.NodeVisitor):
                 if self._ask_missing_vars:
                     msg = f"Enter value for [yellow]{varname}[/yellow]"
                     value = get_user_input(msg)
+                    self._user_defined_vars[varname] = value
                 else:
                     msg = f"Switch variable `{varname}` not found in context"
                     raise ChoixeProcessingError(msg)
@@ -400,4 +404,11 @@ def process(
         allow_branching=allow_branching,
         ask_missing_vars=ask_missing_vars,
     )
-    return node.accept(processor)
+    result = cast(List[Dict[str, Any]], node.accept(processor))
+
+    # add user defined variables to the result (it can be useful
+    # when we are processing the context multiple times)
+    for res in result:
+        res.update(processor._user_defined_vars)
+
+    return result
