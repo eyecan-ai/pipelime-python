@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import pydash as py_
-from rich.prompt import Prompt
 
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
@@ -16,7 +15,7 @@ from pipelime.choixe.utils.imports import import_symbol
 from pipelime.choixe.utils.io import PipelimeTmp, load
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
-from pipelime.cli.utils import parse_user_input
+from pipelime.cli.utils import get_user_input
 
 
 class ChoixeProcessingError(Exception):
@@ -142,8 +141,8 @@ class Processor(ast.NodeVisitor):
 
             if not found:
                 if self._ask_missing_vars:
-                    prompt = Prompt.ask(f"Enter value for [yellow]{id_}[/yellow]")
-                    var_value = parse_user_input(prompt)
+                    msg = f"Enter value for [yellow]{id_}[/yellow]"
+                    var_value = get_user_input(msg)
                 else:
                     raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
@@ -204,8 +203,8 @@ class Processor(ast.NodeVisitor):
         if isinstance(node.iterable.data, str):
             if not py_.has(self._context, node.iterable.data):
                 if self._ask_missing_vars:
-                    var_name = node.iterable.data
-                    prompt = Prompt.ask(f"Enter value for [yellow]{var_name}[/yellow]")
+                    msg = f"Enter value for [yellow]{node.iterable.data}[/yellow]"
+                    iterable = get_user_input(msg)
                     iterable = parse_user_input(prompt)
                 else:
                     raise ChoixeProcessingError(
@@ -272,8 +271,8 @@ class Processor(ast.NodeVisitor):
             # If the variable is not in the context, ask the user or raise an error
             if not py_.has(self._context, varname):
                 if self._ask_missing_vars:
-                    prompt = Prompt.ask(f"Enter value for [yellow]{varname}[/yellow]")
-                    value = parse_user_input(prompt)
+                    msg = f"Enter value for [yellow]{varname}[/yellow]"
+                    value = get_user_input(msg)
                 else:
                     msg = f"Switch variable `{varname}` not found in context"
                     raise ChoixeProcessingError(msg)

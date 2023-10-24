@@ -8,6 +8,8 @@ from types import ModuleType
 import yaml
 from loguru import logger
 from pydantic import BaseModel, ValidationError
+from rich import get_console
+from rich.prompt import Prompt
 from yaml.error import YAMLError
 
 if t.TYPE_CHECKING:
@@ -783,4 +785,26 @@ def parse_user_input(s: str) -> t.Any:
             except (YAMLError, JSONDecodeError, ValueError, SyntaxError):
                 pass
 
+    return value
+
+
+def get_user_input(text: str) -> t.Any:
+    """Get user input from the console, pausing the current rich.live if needed.
+
+    Args:
+        text: The text to show to the user.
+
+    Returns:
+        The parsed user input.
+    """
+    live = get_console()._live
+    if live is not None:
+        live.stop()
+
+    prompt = Prompt.ask(text)
+
+    if live is not None:
+        live.start()
+
+    value = parse_user_input(prompt)
     return value
