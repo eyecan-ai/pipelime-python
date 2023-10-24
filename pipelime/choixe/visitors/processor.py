@@ -146,6 +146,7 @@ class Processor(ast.NodeVisitor):
                     msg = f"Enter value for [yellow]{id_}[/yellow]"
                     var_value = get_user_input(msg)
                     self._user_defined_vars[id_] = var_value
+                    self._context[id_] = var_value
                 else:
                     raise ChoixeProcessingError(f"Variable not found: `{id_}`")
 
@@ -209,6 +210,7 @@ class Processor(ast.NodeVisitor):
                     msg = f"Enter value for [yellow]{node.iterable.data}[/yellow]"
                     iterable = get_user_input(msg)
                     self._user_defined_vars[node.iterable.data] = iterable
+                    self._context[node.iterable.data] = iterable
                 else:
                     raise ChoixeProcessingError(
                         f"Loop variable `{node.iterable.data}` not found in context"
@@ -277,6 +279,7 @@ class Processor(ast.NodeVisitor):
                     msg = f"Enter value for [yellow]{varname}[/yellow]"
                     value = get_user_input(msg)
                     self._user_defined_vars[varname] = value
+                    self._context[varname] = value
                 else:
                     msg = f"Switch variable `{varname}` not found in context"
                     raise ChoixeProcessingError(msg)
