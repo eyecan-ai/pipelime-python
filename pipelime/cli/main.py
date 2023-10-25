@@ -8,6 +8,8 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 
+from pipelime.choixe import XConfig
+from pipelime.choixe.visitors.processor_ui import ProcessorUi
 from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 from pipelime.cli.subcommands import SubCommands as subc
 from pipelime.cli.utils import (
@@ -17,7 +19,6 @@ from pipelime.cli.utils import (
 )
 
 if t.TYPE_CHECKING:
-    from pipelime.choixe import XConfig
     from pipelime.piper.checkpoint import Checkpoint
 
 
@@ -118,6 +119,37 @@ def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig", verbose: bool):
     return to_be_updated
 
 
+def _process_cfg(
+    cfg: "XConfig",
+    ctx: t.Optional["XConfig"],
+    run_all: t.Optional[bool],
+    ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
+) -> t.List["XConfig"]:
+    processor = ProcessorUi(
+        context=ctx,
+        cwd=cfg.get_cwd(),
+        allow_branching=True if (run_all is not None and run_all) else False,
+        ask_missing_vars=ask_missing_vars,
+    )
+    result = cfg.parse().accept(processor)
+
+    for res in result:
+        assert isinstance(res, t.Dict)
+
+    result = t.cast(t.List[t.Dict[str, t.Any]], result)
+
+    if add_user_defined_vars:
+        # add user defined variables to the result (it can be useful
+        # when we are processing the context multiple times)
+        for res in result:
+            res.update(processor._user_defined_vars)
+
+    cfgs = [XConfig(data=x, cwd=cfg.get_cwd(), schema=cfg.get_schema()) for x in result]
+
+    return cfgs
+
+
 def _process_cfg_or_die(
     cfg: "XConfig",
     ctx: t.Optional["XConfig"],
@@ -137,10 +169,12 @@ def _process_cfg_or_die(
         print_info(f"> Processing {cfg_name}...")
 
     try:
-        effective_configs = (
-            [cfg.process(ctx, ask_missing_vars, add_user_defined_vars)]
-            if run_all is not None and not run_all
-            else cfg.process_all(ctx, ask_missing_vars, add_user_defined_vars)
+        effective_configs = _process_cfg(
+            cfg,
+            ctx,
+            run_all,
+            ask_missing_vars,
+            add_user_defined_vars,
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
