@@ -8,6 +8,8 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 
+from pipelime.choixe import XConfig
+from pipelime.choixe.visitors.processor_ui import ProcessorUi
 from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 from pipelime.cli.subcommands import SubCommands as subc
 from pipelime.cli.utils import (
@@ -17,7 +19,6 @@ from pipelime.cli.utils import (
 )
 
 if t.TYPE_CHECKING:
-    from pipelime.choixe import XConfig
     from pipelime.piper.checkpoint import Checkpoint
 
 
@@ -34,6 +35,7 @@ class PlCliOptions(BaseModel):
     command_outputs: t.Optional[Path]
     verbose: int
     dry_run: bool
+    no_ui: bool
     command: str
     command_args: t.List[str]
     pipelime_tmp: t.Optional[str]
@@ -117,6 +119,37 @@ def _deep_update_fn(to_be_updated: "XConfig", data: "XConfig", verbose: bool):
     return to_be_updated
 
 
+def _process_cfg(
+    cfg: "XConfig",
+    ctx: t.Optional["XConfig"],
+    run_all: t.Optional[bool],
+    ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
+) -> t.List["XConfig"]:
+    processor = ProcessorUi(
+        context=ctx,
+        cwd=cfg.get_cwd(),
+        allow_branching=True if (run_all is not None and run_all) else False,
+        ask_missing_vars=ask_missing_vars,
+    )
+    result = cfg.parse().accept(processor)
+
+    for res in result:
+        assert isinstance(res, t.Dict)
+
+    result = t.cast(t.List[t.Dict[str, t.Any]], result)
+
+    if add_user_defined_vars:
+        # add user defined variables to the result (it can be useful
+        # when we are processing the context multiple times)
+        for res in result:
+            res.update(processor._user_defined_vars)
+
+    cfgs = [XConfig(data=x, cwd=cfg.get_cwd(), schema=cfg.get_schema()) for x in result]
+
+    return cfgs
+
+
 def _process_cfg_or_die(
     cfg: "XConfig",
     ctx: t.Optional["XConfig"],
@@ -126,6 +159,8 @@ def _process_cfg_or_die(
     exit_on_error: bool,
     verbose: bool,
     print_all: bool,
+    ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
 ) -> t.List["XConfig"]:
     from pipelime.choixe.visitors.processor import ChoixeProcessingError
     from pipelime.cli.pretty_print import print_error, print_info, print_warning
@@ -134,10 +169,12 @@ def _process_cfg_or_die(
         print_info(f"> Processing {cfg_name}...")
 
     try:
-        effective_configs = (
-            [cfg.process(ctx)]
-            if run_all is not None and not run_all
-            else cfg.process_all(ctx)
+        effective_configs = _process_cfg(
+            cfg,
+            ctx,
+            run_all,
+            ask_missing_vars,
+            add_user_defined_vars,
         )
     except ChoixeProcessingError as e:
         if exit_on_error:
@@ -188,6 +225,8 @@ def _process_all(
     run_all: t.Optional[bool],
     exit_on_error: bool,
     verbose: int,
+    ask_missing_vars: bool = False,
+    add_user_defined_vars: bool = False,
 ):
     from pipelime.choixe import XConfig
     from pipelime.cli.pretty_print import print_info
@@ -206,6 +245,8 @@ def _process_all(
             exit_on_error,
             verbose > 1,
             verbose > 3,
+            ask_missing_vars,
+            add_user_defined_vars,
         )
         for c in base_cfg
         if c.to_dict()
@@ -238,6 +279,8 @@ def _process_all(
         exit_on_error,
         verbose > 1,
         verbose > 3,
+        ask_missing_vars,
+        add_user_defined_vars,
     )
 
 
@@ -363,6 +406,11 @@ def pl_main(
         count=True,
     ),
     dry_run: bool = typer.Option(False, "--dry-run", "-d", help="Dry run."),
+    no_ui: bool = typer.Option(
+        False,
+        "--no-ui",
+        help="Disable user interactions.",
+    ),
     command: str = typer.Argument(
         "",
         show_default=False,
@@ -485,8 +533,8 @@ def pl_main(
             recursive=verbose > 1,
         )
     elif command:
-        from pipelime.piper.checkpoint import LocalCheckpoint
         from pipelime.choixe.utils.io import PipelimeTmp
+        from pipelime.piper.checkpoint import LocalCheckpoint
 
         # context auto-load
         if config and not context and ctx_autoload:
@@ -507,6 +555,7 @@ def pl_main(
             command_outputs=command_outputs,
             verbose=verbose,
             dry_run=dry_run,
+            no_ui=no_ui,
             command=command,
             command_args=command_args,
             pipelime_tmp=None,
@@ -536,10 +585,11 @@ def pl_main(
 
 
 def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoint"]):
+    from loguru import logger
+
     import pipelime.choixe.utils.io as choixe_io
     from pipelime.choixe import XConfig
     from pipelime.cli.pretty_print import print_error, print_info, print_warning
-    from loguru import logger
 
     PipelimeSymbolsHelper.set_extra_modules(cli_opts.extra_modules)
 
@@ -640,6 +690,8 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 True,
                 cli_opts.verbose > 2,
                 cli_opts.verbose > 3,
+                ask_missing_vars=not cli_opts.no_ui,
+                add_user_defined_vars=True,
             )
             partial_ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -658,6 +710,8 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 True,
                 cli_opts.verbose > 2,
                 cli_opts.verbose > 3,
+                ask_missing_vars=False,
+                add_user_defined_vars=False,
             )
             ctx_for_ctx = _ctx_for_ctx_update(ctx_for_ctx, new_ctxs)
 
@@ -714,6 +768,8 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.run_all,
                 False,
                 cli_opts.verbose > 2,
+                ask_missing_vars=False,  # do not allow missing vars in audit
+                add_user_defined_vars=False,
             )
         except ChoixeProcessingError as e:
             # from rich.prompt import Confirm, Prompt
@@ -766,6 +822,8 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cli_opts.run_all,
                 True,
                 cli_opts.verbose,
+                ask_missing_vars=not cli_opts.no_ui,
+                add_user_defined_vars=False,
             )
 
         cmd_name = cli_opts.command
@@ -793,6 +851,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
                 cfg_dict,
                 cli_opts.verbose,
                 cli_opts.dry_run,
+                cli_opts.no_ui,
                 cli_opts.keep_tmp,
                 cli_opts.command_outputs,
                 checkpoint,
@@ -804,6 +863,7 @@ def run_command(
     cmd_args: t.Mapping,
     verbose: int,
     dry_run: bool,
+    no_ui: bool,
     keep_tmp: bool,
     command_outputs: t.Optional[Path],
     checkpoint: t.Optional["Checkpoint"],
@@ -831,7 +891,7 @@ def run_command(
     except ValueError:
         raise typer.Exit(1)
 
-    if is_tui_needed(cmd_cls, cmd_args):
+    if is_tui_needed(cmd_cls, cmd_args) and not no_ui:
         app = TuiApp(cmd_cls, cmd_args)
         cmd_args = t.cast(t.Mapping, app.run())
 

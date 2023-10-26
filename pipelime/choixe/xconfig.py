@@ -9,8 +9,8 @@ from schema import Schema
 
 from pipelime.choixe.ast.nodes import Node
 from pipelime.choixe.ast.parser import parse
-from pipelime.choixe.utils.io import dump, load
 from pipelime.choixe.utils.common import deep_set_
+from pipelime.choixe.utils.io import dump, load
 from pipelime.choixe.visitors import Inspection, decode, inspect, process, walk
 
 
@@ -224,15 +224,22 @@ class XConfig(Box):
         return walk(self.parse())
 
     def _process(
-        self, context: Optional[Dict[str, Any]] = None, allow_branching: bool = True
+        self,
+        context: Optional[Dict[str, Any]] = None,
+        allow_branching: bool = True,
     ) -> List[XConfig]:
-        data = self._unsafe_process(context=context, allow_branching=allow_branching)
+        data = self._unsafe_process(
+            context=context,
+            allow_branching=allow_branching,
+        )
         return [
             XConfig(data=x, cwd=self.get_cwd(), schema=self.get_schema()) for x in data
         ]
 
     def _unsafe_process(
-        self, context: Optional[Dict[str, Any]] = None, allow_branching: bool = True
+        self,
+        context: Optional[Dict[str, Any]] = None,
+        allow_branching: bool = True,
     ) -> List[Any]:
         return process(
             self.parse(),
@@ -251,7 +258,10 @@ class XConfig(Box):
         Returns:
             XConfig: The processed XConfig.
         """
-        return self._process(context=context, allow_branching=False)[0]
+        return self._process(
+            context=context,
+            allow_branching=False,
+        )[0]
 
     def unsafe_process(self, context: Optional[Dict[str, Any]] = None) -> Any:
         """Process this XConfig without branching and return the result, without
@@ -267,7 +277,10 @@ class XConfig(Box):
         Returns:
             Any: The processed result.
         """
-        return self._unsafe_process(context=context, allow_branching=False)[0]
+        return self._unsafe_process(
+            context=context,
+            allow_branching=False,
+        )[0]
 
     def process_all(self, context: Optional[Dict[str, Any]] = None) -> List[XConfig]:
         """Process this XConfig with branching.
@@ -279,7 +292,10 @@ class XConfig(Box):
         Returns:
             List[XConfig]: A list of all processing outcomes.
         """
-        return self._process(context=context, allow_branching=True)
+        return self._process(
+            context=context,
+            allow_branching=True,
+        )
 
     def unsafe_process_all(self, context: Optional[Dict[str, Any]] = None) -> List[Any]:
         """Process this XConfig with branching and return the results, without
@@ -295,7 +311,10 @@ class XConfig(Box):
         Returns:
             List[Any]: A list of all processing outcomes.
         """
-        return self._unsafe_process(context=context, allow_branching=True)
+        return self._unsafe_process(
+            context=context,
+            allow_branching=True,
+        )
 
     def inspect(self) -> Inspection:
         return inspect(self.parse(), cwd=self.get_cwd())

@@ -12,7 +12,13 @@ if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-class SampleStage(pyd.BaseModel, ABC, extra="forbid", copy_on_model_validation="none"):
+class SampleStage(
+    pyd.BaseModel,
+    ABC,
+    extra="forbid",
+    copy_on_model_validation="none",
+    allow_population_by_field_name=True,
+):
     """Base class for all sample stages."""
 
     @abstractmethod
