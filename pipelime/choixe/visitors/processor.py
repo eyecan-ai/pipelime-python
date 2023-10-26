@@ -62,6 +62,10 @@ class Processor(ast.NodeVisitor):
         return list(product(*branches))
 
     def _repeat(self, data: Any, n: int) -> List[Any]:
+        # Avoid repeating if n is 1, skipping all the copy/deepcopy logic
+        if n == 1:
+            return data
+
         new_data = []
         for _ in range(n):
             #! This used to work, but it fails when some data in the tree is not
