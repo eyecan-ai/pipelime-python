@@ -1,6 +1,6 @@
 import os
 import uuid
-from copy import deepcopy
+from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
@@ -64,7 +64,20 @@ class Processor(ast.NodeVisitor):
     def _repeat(self, data: Any, n: int) -> List[Any]:
         new_data = []
         for _ in range(n):
-            new_data.extend(deepcopy(data))
+            #! This used to work, but it fails when some data in the tree is not
+            #! serializable. The proposed workaround might break stuff in the future,
+            #! So I will leave this here for now.
+            # new_data.extend(deepcopy(data))
+
+            #! Simply copying the list e.g. `new_data.extend(copy(data))`
+            #! does not work because we need a true copy of the inner containers as
+            #! well, otherwise, any modification to the inner containers will be
+            #! reflected in all the branches.
+
+            #! The following code is a workaround that works for now, but it might
+            #! break in the future. It duplicates the data only for the first level,
+            #! switching to shallow copy for the inner containers.
+            new_data.extend([copy(x) for x in data])
         return new_data
 
     def _handle_missing_var(self, varname: str) -> Any:
