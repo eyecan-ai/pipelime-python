@@ -287,7 +287,7 @@ def _field_row(
     line.append(
         ""
         if is_model and not has_root_item and (recursive or expand_help)
-        else _human_readable_type(field_outer_type).replace("[", r"\[")  # noqa: W605
+        else escape(_human_readable_type(field_outer_type))
     )
 
     # Piper port
