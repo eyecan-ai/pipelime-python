@@ -57,13 +57,21 @@ class TestSplit(TestGeneralCommandsBase):
         for i, split in enumerate(splits):
             if split is None:
                 none_idx = i
-                continue
             elif isinstance(split, int):
-                excepted_len = split
+                expected_lens.append(split)
             else:
-                excepted_len = int(len(inseq) // subsample * split)
-            expected_lens.append(excepted_len)
+                expected_lens.append(int(len(inseq) // subsample * split))
         if none_idx is not None:
             expected_lens.insert(none_idx, total_len - sum(expected_lens))
-        for actual_len, expected_len in zip(actual_lens, expected_lens):
-            assert actual_len == expected_len
+
+        cumulative_idx = 0
+        for i in range(len(outputs)):
+            expected_len = expected_lens[i]
+            actual_len = actual_lens[i]
+            assert expected_len == actual_len
+            if not shuffle:
+                for idx in range(actual_len):
+                    in_sample = inseq[::subsample][cumulative_idx + idx]
+                    out_sample = outseqs[i][idx]
+                    TestAssert.samples_equal(in_sample, out_sample)
+                cumulative_idx += actual_len
