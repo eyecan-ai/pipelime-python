@@ -14,6 +14,7 @@ from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 from pipelime.cli.subcommands import SubCommands as subc
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
+    PipelimeUserAppDir,
     print_command_op_stage_info,
     print_commands_ops_stages_list,
 )
@@ -561,20 +562,20 @@ def pl_main(
             pipelime_tmp=None,
         )
 
-        if checkpoint:
-            # create a new checkpoint
-            if checkpoint.exists():
-                if not checkpoint.is_dir():
-                    raise ValueError(
-                        f"Checkpoint folder `{checkpoint}` exists but is not a folder."
-                    )
-                if any(checkpoint.iterdir()):
-                    raise ValueError(f"Checkpoint folder `{checkpoint}` is not empty.")
-            plopts.pipelime_tmp = PipelimeTmp.make_session_dir().as_posix()
-            ckpt = LocalCheckpoint(folder=checkpoint)
-            ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
-        else:
-            ckpt = None
+        if checkpoint is None:
+            checkpoint = PipelimeUserAppDir.default_checkpoint_path()
+
+        # create a new checkpoint
+        if checkpoint.exists():
+            if not checkpoint.is_dir():
+                raise ValueError(
+                    f"Checkpoint folder `{checkpoint}` exists but is not a folder."
+                )
+            if any(checkpoint.iterdir()):
+                raise ValueError(f"Checkpoint folder `{checkpoint}` is not empty.")
+        plopts.pipelime_tmp = PipelimeTmp.make_session_dir().as_posix()
+        ckpt = LocalCheckpoint(folder=checkpoint)
+        ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
 
         run_with_checkpoint(cli_opts=plopts, checkpoint=ckpt)
     else:
@@ -596,7 +597,7 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
     if cli_opts.pipelime_tmp:
         pltmp = Path(cli_opts.pipelime_tmp)
         if pltmp.is_dir():
-            logger.debug(f"Restoring pipelime temp folder to `{pltmp}`")
+            logger.debug(f"Pipelime temp folder to `{pltmp}`")
             choixe_io.PipelimeTmp.SESSION_TMP_DIR = pltmp
 
     if cli_opts.verbose > 0:

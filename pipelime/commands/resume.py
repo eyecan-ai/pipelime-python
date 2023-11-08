@@ -1,7 +1,10 @@
-from pipelime.piper import PipelimeCommand
-from pydantic import DirectoryPath, Field, ValidationError
 import typing as t
 from pathlib import Path
+
+from pydantic import DirectoryPath, Field, ValidationError, conint, validator
+
+from pipelime.cli.utils import PipelimeUserAppDir
+from pipelime.piper import PipelimeCommand
 
 
 class ResumeCommand(PipelimeCommand, title="resume", extra="allow"):
@@ -9,7 +12,41 @@ class ResumeCommand(PipelimeCommand, title="resume", extra="allow"):
     Any extra field is forwarded to the original command line as '+' option.
     """
 
-    ckpt: DirectoryPath = Field(..., alias="c", description="The checkpoint folder")
+    ckpt: t.Union[
+        DirectoryPath, conint(ge=1, le=PipelimeUserAppDir.MAX_CHECKPOINTS - 1)  # type: ignore
+    ] = Field(
+        None,
+        alias="c",
+        description=(
+            "The checkpoint folder, or the nth-last default checkpoint "
+            f"(up to {PipelimeUserAppDir.MAX_CHECKPOINTS-1}). "
+            "If None it loads the last default checkpoint."
+        ),
+    )
+
+    @validator("ckpt", always=True)
+    def _validate_ckpt(cls, v):
+        if v is None:
+            return PipelimeUserAppDir.last_checkpoint_path()
+        if isinstance(v, int):
+            return PipelimeUserAppDir.last_checkpoint_path(v)
+        return v
+
+    @classmethod
+    def init_from_checkpoint(cls, checkpoint, /, **data):
+        from pipelime.piper.checkpoint import LocalCheckpoint
+
+        # do not save resume command in default checkpoint
+        try:
+            if isinstance(checkpoint.checkpoint, LocalCheckpoint) and (
+                checkpoint.checkpoint.folder
+                == PipelimeUserAppDir.last_checkpoint_path(1)
+            ):
+                PipelimeUserAppDir.undo_last_checkpoint()
+        except FileNotFoundError:
+            pass
+
+        return cls(**data)
 
     def run(self):
         import pipelime.cli.main as cli
