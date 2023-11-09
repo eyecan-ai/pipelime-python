@@ -17,9 +17,8 @@ from pipelime.cli.tui.utils import (
     get_field_type,
     init_stageinput_tui_field,
     init_tui_field,
-    parse_value,
 )
-from pipelime.cli.utils import PipelimeSymbolsHelper
+from pipelime.cli.utils import PipelimeSymbolsHelper, parse_user_input
 from pipelime.commands.interfaces import (
     GrabberInterface,
     InputDatasetInterface,
@@ -314,30 +313,30 @@ def test_init_tui_stageinput_field() -> None:
     assert init_stageinput_tui_field(field, args) == expected_field
 
 
-def test_parse_value() -> None:
-    assert parse_value("") == ""
+def test_parse_user_input() -> None:
+    assert parse_user_input("") == ""
 
-    assert parse_value("foo") == "foo"
-    assert parse_value("1") == 1
-    assert parse_value("16.0") == 16.0
-    assert parse_value("True") is True
-    assert parse_value("true") is True
-    assert parse_value("False") is False
-    assert parse_value("false") is False
+    assert parse_user_input("foo") == "foo"
+    assert parse_user_input("1") == 1
+    assert parse_user_input("16.0") == 16.0
+    assert parse_user_input("True") is True
+    assert parse_user_input("true") is True
+    assert parse_user_input("False") is False
+    assert parse_user_input("false") is False
 
-    assert parse_value("None") is None
-    assert parse_value("none") is None
-    assert parse_value("Null") is None
-    assert parse_value("null") is None
-    assert parse_value("Nul") is None
-    assert parse_value("nul") is None
+    assert parse_user_input("None") is None
+    assert parse_user_input("none") is None
+    assert parse_user_input("Null") is None
+    assert parse_user_input("null") is None
+    assert parse_user_input("Nul") is None
+    assert parse_user_input("nul") is None
 
-    assert parse_value("[1, 2, 3]") == [1, 2, 3]
-    assert parse_value("(1, 2, 3)") == (1, 2, 3)
-    assert parse_value("{1, 2, 3}") == {1, 2, 3}
-    assert parse_value("{1: 2, 3: 4}") == {1: 2, 3: 4}
-    assert parse_value("{'foo': 'bar'}") == {"foo": "bar"}
-    assert parse_value("{foo: bar}") == {"foo": "bar"}
+    assert parse_user_input("[1, 2, 3]") == [1, 2, 3]
+    assert parse_user_input("(1, 2, 3)") == (1, 2, 3)
+    assert parse_user_input("{1, 2, 3}") == {1, 2, 3}
+    assert parse_user_input("{1: 2, 3: 4}") == {1: 2, 3: 4}
+    assert parse_user_input("{'foo': 'bar'}") == {"foo": "bar"}
+    assert parse_user_input("{foo: bar}") == {"foo": "bar"}
 
 
 def test_get_field_type() -> None:
@@ -643,7 +642,7 @@ def test_preprocess_string() -> None:
 
     assert splits[0] == first_line
     assert " ".join(splits[1:-1]) == second_line
-    assert splits[-1] == third_line.replace("[", "\[")
+    assert splits[-1] == third_line.replace("[", r"\[")
 
 
 def test_save_screen_ctrl_c() -> None:

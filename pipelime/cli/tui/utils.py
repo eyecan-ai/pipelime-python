@@ -1,13 +1,8 @@
-import json
-from ast import literal_eval
 from enum import Enum
-from json import JSONDecodeError
-from typing import Any, List, Mapping, Tuple, Type, cast
+from typing import List, Mapping, Tuple, Type, cast
 
-import yaml
 from pydantic import BaseModel
 from pydantic.fields import ModelField
-from yaml.error import YAMLError
 
 from pipelime.cli.utils import PipelimeSymbolsHelper
 from pipelime.piper import PipelimeCommand
@@ -185,35 +180,6 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
         values=tui_fields,
     )
     return tui_field
-
-
-def parse_value(s: str) -> Any:
-    """Parse a string value.
-
-    The function tries to parse the value as YAML, JSON and Python literal,
-    returning the first successful parse.
-
-    Args:
-        s: The string value to parse.
-
-    Returns:
-        The parsed value.
-    """
-    value = s
-
-    if len(value) > 0:
-        if value.lower() in ["none", "null", "nul"]:
-            return None
-
-        parse_fns = [literal_eval, yaml.safe_load, json.loads]
-        while parse_fns:
-            try:
-                value = parse_fns.pop(0)(value)
-                break
-            except (YAMLError, JSONDecodeError, ValueError, SyntaxError):
-                pass
-
-    return value
 
 
 def get_field_type(field: ModelField) -> str:
