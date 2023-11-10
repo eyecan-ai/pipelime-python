@@ -432,7 +432,7 @@ class SamplesSequence(
         ...
 
     @samples_sequence_stub
-    def cat(self, *seqs: SamplesSequence) -> SamplesSequence:
+    def cat(self, *seqs: SamplesSequence, interleave: bool = False) -> SamplesSequence:
         """Concatenates two or more SamplesSequences.
         Run `pipelime help cat` to read the complete documentation.
         """

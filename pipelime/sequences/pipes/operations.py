@@ -52,6 +52,9 @@ class ConcatSequences(PipedSequenceBase, title="cat"):
     to_cat: t.Sequence[pls.SamplesSequence] = pyd.Field(
         ..., description="The samples sequence(s) to concatenate."
     )
+    interleave: bool = pyd.Field(False, description="If TRUE, samples are interleaved.")
+
+    _index_refs: t.Sequence[t.Tuple[int, t.Sequence[int]]] = pyd.PrivateAttr()
 
     def __init__(self, *seqs: pls.SamplesSequence, **data):
         if seqs:
@@ -61,22 +64,52 @@ class ConcatSequences(PipedSequenceBase, title="cat"):
             )
         super().__init__(**data)
 
+        if self.interleave:
+            lengths = [
+                (idx, len(seq)) for idx, seq in enumerate((self.source, *self.to_cat))
+            ]
+            lengths.sort(key=lambda x: x[1])
+
+            offs, total = 0, 0
+            self._index_refs = []
+            for idx, l in enumerate(lengths):
+                active_seqs = sorted([ll[0] for ll in lengths[idx:]])
+                final_idx = total + (l[1] - offs) * len(active_seqs)
+                self._index_refs.append((final_idx, active_seqs))
+                offs = l[1]
+                total = final_idx
+
     def size(self) -> int:
+        if self.interleave:
+            return self._index_refs[-1][0]
         return len(self.source) + sum(len(s) for s in self.to_cat)
 
     def get_sample(self, idx: int) -> pls.Sample:
-        if idx < len(self.source):
-            return self.source[idx]
+        if self.interleave:
+            seqs = (self.source, *self.to_cat)
+            global_offs, seq_offs = 0, 0
+            for final_idx, active_seqs in self._index_refs:
+                if idx < final_idx:
+                    # get the index relative to the current block
+                    idx -= global_offs
+                    # get the index relative to the current sequence
+                    sample_idx = seq_offs + idx // len(active_seqs)
+                    # get the sequence index among the active ones
+                    seq_idx = idx % len(active_seqs)
+                    return seqs[active_seqs[seq_idx]][sample_idx]
+                global_offs = final_idx
+                seq_offs = min(len(seqs[i]) for i in active_seqs)
+        else:
+            if idx < len(self.source):
+                return self.source[idx]
 
-        offidx = idx - len(self.source)
-        for x in self.to_cat:
-            if offidx < len(x):
-                return x[offidx]
-            offidx -= len(x)
+            offidx = idx - len(self.source)
+            for x in self.to_cat:
+                if offidx < len(x):
+                    return x[offidx]
+                offidx -= len(x)
 
-        raise IndexError(
-            f"Sample index `{idx}` is out of range [0, {len(self)-1}]."
-        )
+        raise IndexError(f"Sample index `{idx}` is out of range [0, {len(self)-1}].")
 
 
 @pls.piped_sequence
@@ -384,8 +417,9 @@ class CachedSequence(PipedSequenceBase, title="cache"):
         return x
 
     def _cache_sample(self, x: pls.Sample, filename: Path):
-        from filelock import FileLock, Timeout
         import pickle
+
+        from filelock import FileLock, Timeout
 
         lock = FileLock(str(filename.with_suffix(filename.suffix + ".~lock")))
         try:

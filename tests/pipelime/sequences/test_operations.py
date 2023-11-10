@@ -60,37 +60,53 @@ class TestSamplesSequenceOperations:
                 v is sample_s[k.replace(fixstr, "")] for k, v in sample_m.items()
             )
 
-    def _cat_test(self, minimnist_dataset: dict, fn: t.Callable):
+    def _cat_test(self, minimnist_dataset: dict, fn: t.Callable, interleave: bool):
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        third, two_third = len(source) // 3, 2 * len(source) // 3
+        eq_range = 5
+        other_range = 4
 
-        x = pls.SamplesSequence.from_list([s for s in source[:third]])
-        y = pls.SamplesSequence.from_list([s for s in source[third:two_third]])
-        z = pls.SamplesSequence.from_list([s for s in source[two_third:]])
+        wr = eq_range
+        xr = eq_range + other_range
+        yr = len(source) - eq_range
 
-        double_source = fn(source, x, y, z)
+        w = pls.SamplesSequence.from_list([s for s in source[:wr]])
+        x = pls.SamplesSequence.from_list([s for s in source[wr:xr]])
+        y = pls.SamplesSequence.from_list([s for s in source[xr:yr]])
+        z = pls.SamplesSequence.from_list([s for s in source[yr:]])
 
-        length = len(source)
-        assert 2 * length == len(double_source)
-        for src_idx in range(length):
-            assert source[src_idx] is double_source[src_idx]
-            assert source[src_idx] is double_source[src_idx + length]
+        allcat = fn(w, x, y, z)
+
+        assert len(source) == len(allcat)
+        if interleave:
+            from itertools import zip_longest
+
+            samples = [
+                s for smpls in zip_longest(w, x, y, z) for s in smpls if s is not None
+            ]
+            gtseq = pls.SamplesSequence.from_list(samples)
+            assert len(gtseq) == len(allcat)
+        else:
+            gtseq = source
+
+        for s1, s2 in zip(gtseq, allcat):
+            assert s1 is s2
 
     @pytest.mark.parametrize(
         "fn",
         [
-            lambda a, x, y, z: a.cat(x).cat(y).cat(z),
-            lambda a, x, y, z: a.cat(x, y).cat(z),
-            lambda a, x, y, z: a.cat(x, y, z),
-            lambda a, x, y, z: a.cat(to_cat=[x, y, z]),
-            lambda a, x, y, z: a.cat(x, to_cat=[y, z]),
-            lambda a, x, y, z: a.cat(x, y, to_cat=z),
+            lambda i, w, x, y, z: w.cat(x, y, z, interleave=i),
+            lambda i, w, x, y, z: w.cat(to_cat=[x, y, z], interleave=i),
+            lambda i, w, x, y, z: w.cat(x, to_cat=[y, z], interleave=i),
+            lambda i, w, x, y, z: w.cat(x, y, to_cat=z, interleave=i),
         ],
     )
-    def test_cat(self, minimnist_dataset: dict, fn):
-        self._cat_test(minimnist_dataset, fn)
+    @pytest.mark.parametrize("interleave", [False, True])
+    def test_cat(self, minimnist_dataset: dict, fn: t.Callable, interleave: bool):
+        from functools import partial
+
+        self._cat_test(minimnist_dataset, partial(fn, interleave), interleave)
 
     @pytest.mark.parametrize(
         "fn",
@@ -102,7 +118,7 @@ class TestSamplesSequenceOperations:
         ],
     )
     def test_add(self, minimnist_dataset: dict, fn):
-        self._cat_test(minimnist_dataset, fn)
+        self._cat_test(minimnist_dataset, fn, False)
 
     @pytest.mark.parametrize("lazy", [True, False])
     @pytest.mark.parametrize("empty_smpls", [True, False])
