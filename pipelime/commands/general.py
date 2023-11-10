@@ -1,12 +1,10 @@
 import typing as t
-from itertools import chain, zip_longest
 
 import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 import pipelime.utils.pydantic_types as pl_types
 from pipelime.piper import PipelimeCommand, PiperPortType
-from pipelime.sequences import SamplesSequence
 from pipelime.stages import StageInput
 
 
@@ -175,12 +173,17 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
     skip_first: pyd.NonNegativeInt = pyd.Field(
         1,
         alias="s",
-        description="Skip the first n samples in EACH EXECUTION PROCESS, then start the timer.",
+        description=(
+            "Skip the first n samples in EACH EXECUTION PROCESS, then start the timer."
+        ),
     )
     max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
         None,
         alias="m",
-        description="Grab at most `max_samples` from THE WHOLE SEQUENCE and take the average time.",
+        description=(
+            "Grab at most `max_samples` from THE WHOLE SEQUENCE "
+            "and take the average time."
+        ),
     )
     repeat: pyd.PositiveInt = pyd.Field(
         1, alias="r", description="Repeat the measurement `repeat` times."
@@ -387,15 +390,19 @@ class ConcatCommand(PipelimeCommand, title="cat"):
 
     def run(self):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
-        if self.interleave:
-            samples = chain(*zip_longest(*[i.create_reader() for i in inputs]))
-            samples = [s for s in samples if s is not None]
-            seq = SamplesSequence.from_list(samples)
+        if len(inputs) == 0:
+            raise ValueError("At least one input dataset is required.")
+        if len(inputs) == 1:
+            seq = inputs[0].create_reader()
         else:
-            input_it = iter(inputs)
-            seq = next(input_it).create_reader()
-            for input_ in input_it:
-                seq = seq.cat(input_.create_reader())
+            seq = (
+                inputs[0]
+                .create_reader()
+                .cat(
+                    *[i.create_reader() for i in inputs[1:]], interleave=self.interleave
+                )
+            )
+
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),

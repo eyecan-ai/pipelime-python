@@ -16,8 +16,8 @@ class TestConcat(TestGeneralCommandsBase):
         src1p, src2p, src3p = tmp_path / "seq1", tmp_path / "seq2", tmp_path / "seq3"
         seq = SamplesSequence.from_underfolder(minimnist_dataset["path"])
         slice_len = len(seq) // 3
-        seq[:slice_len].to_underfolder(src1p).run()
-        seq[slice_len : 2 * slice_len].to_underfolder(src2p).run()
+        seq[: slice_len - 1].to_underfolder(src1p).run()
+        seq[slice_len : 2 * slice_len - 1].to_underfolder(src2p).run()
         seq[2 * slice_len :].to_underfolder(src3p).run()
 
         params = {
@@ -38,7 +38,9 @@ class TestConcat(TestGeneralCommandsBase):
         src3 = SamplesSequence.from_underfolder(src3p)
         dest = SamplesSequence.from_underfolder(tmp_path / "output")
         assert (
-            len(src1) + len(src2) + len(src3) == len(dest) == minimnist_dataset["len"]
+            len(src1) + len(src2) + len(src3)
+            == len(dest)
+            == minimnist_dataset["len"] - 2
         )
         if interleave:
             global_index = 0
