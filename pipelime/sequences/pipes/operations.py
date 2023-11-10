@@ -47,22 +47,36 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
 
 @pls.piped_sequence
 class ConcatSequences(PipedSequenceBase, title="cat"):
-    """Concatenates two SamplesSequences."""
+    """Concatenates two or more SamplesSequences."""
 
-    to_cat: pls.SamplesSequence = pyd.Field(
-        ..., description="The samples to concatenate."
+    to_cat: t.Sequence[pls.SamplesSequence] = pyd.Field(
+        ..., description="The samples sequence(s) to concatenate."
     )
 
-    def __init__(self, to_cat: pls.SamplesSequence, **data):
-        super().__init__(to_cat=to_cat, **data)  # type: ignore
+    def __init__(self, *seqs: pls.SamplesSequence, **data):
+        if seqs:
+            to_cat = data.setdefault("to_cat", list())
+            data["to_cat"] = list(seqs) + (
+                [to_cat] if isinstance(to_cat, pls.SamplesSequence) else to_cat
+            )
+        super().__init__(**data)
 
     def size(self) -> int:
-        return len(self.source) + len(self.to_cat)
+        return len(self.source) + sum(len(s) for s in self.to_cat)
 
     def get_sample(self, idx: int) -> pls.Sample:
         if idx < len(self.source):
             return self.source[idx]
-        return self.to_cat[idx - len(self.source)]
+
+        offidx = idx - len(self.source)
+        for x in self.to_cat:
+            if offidx < len(x):
+                return x[offidx]
+            offidx -= len(x)
+
+        raise IndexError(
+            f"Sample index `{idx}` is out of range [0, {len(self)-1}]."
+        )
 
 
 @pls.piped_sequence

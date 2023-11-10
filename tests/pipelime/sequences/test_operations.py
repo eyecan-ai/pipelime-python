@@ -60,11 +60,17 @@ class TestSamplesSequenceOperations:
                 v is sample_s[k.replace(fixstr, "")] for k, v in sample_m.items()
             )
 
-    def _cat_test(self, minimnist_dataset: dict, fn):
+    def _cat_test(self, minimnist_dataset: dict, fn: t.Callable):
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False
         )
-        double_source = fn(source)
+        third, two_third = len(source) // 3, 2 * len(source) // 3
+
+        x = pls.SamplesSequence.from_list([s for s in source[:third]])
+        y = pls.SamplesSequence.from_list([s for s in source[third:two_third]])
+        z = pls.SamplesSequence.from_list([s for s in source[two_third:]])
+
+        double_source = fn(source, x, y, z)
 
         length = len(source)
         assert 2 * length == len(double_source)
@@ -72,11 +78,31 @@ class TestSamplesSequenceOperations:
             assert source[src_idx] is double_source[src_idx]
             assert source[src_idx] is double_source[src_idx + length]
 
-    def test_cat(self, minimnist_dataset: dict):
-        self._cat_test(minimnist_dataset, lambda x: x.cat(x))
+    @pytest.mark.parametrize(
+        "fn",
+        [
+            lambda a, x, y, z: a.cat(x).cat(y).cat(z),
+            lambda a, x, y, z: a.cat(x, y).cat(z),
+            lambda a, x, y, z: a.cat(x, y, z),
+            lambda a, x, y, z: a.cat(to_cat=[x, y, z]),
+            lambda a, x, y, z: a.cat(x, to_cat=[y, z]),
+            lambda a, x, y, z: a.cat(x, y, to_cat=z),
+        ],
+    )
+    def test_cat(self, minimnist_dataset: dict, fn):
+        self._cat_test(minimnist_dataset, fn)
 
-    def test_add(self, minimnist_dataset: dict):
-        self._cat_test(minimnist_dataset, lambda x: x + x)
+    @pytest.mark.parametrize(
+        "fn",
+        [
+            lambda a, x, y, z: a + x + y + z,
+            lambda a, x, y, z: (a + x) + (y + z),
+            lambda a, x, y, z: a + (x + y + z),
+            lambda a, x, y, z: a + (x + y) + z,
+        ],
+    )
+    def test_add(self, minimnist_dataset: dict, fn):
+        self._cat_test(minimnist_dataset, fn)
 
     @pytest.mark.parametrize("lazy", [True, False])
     @pytest.mark.parametrize("empty_smpls", [True, False])
