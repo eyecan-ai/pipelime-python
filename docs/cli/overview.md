@@ -37,7 +37,6 @@ Beside this bunch of options, there is also a list of CLI subcommands:
 | `list-operators` | Same as `list`, but prints only sequence generators and piped operators. | `list-ops`, `list-op`, `lo`, `ls-ops`, `ls-op`, `lso` |
 | `list-stages` | Same as `list`, but prints only stages. | `list-stgs`, `list-stg`, `lst`, `ls-stgs`, `ls-stg`, `lss` |
 | `audit` | Inspect the given configuration and context, if any, printing the effective configuration and missing definitions. | `a` |
-| `wizard` | (Experimental) Start a wizard to write a configuration file for a given pipelime command. | `w` |
 | `exec` | Execute a configuration where the command is the top-level key, useful when you want to ship a configuration for a single command to run. | `exe`, `x`, `e` |
 
 Now we are ready to explore some common scenarios.
@@ -105,36 +104,6 @@ python literals. Try for yourself:
 
 ```bash
 $ pipelime clone
-```
-
-### (Experimental) Create A New Configuration
-
-To create a new configuration file, just run `pipelime wizard [command]` and follow the instructions:
-
-```bash
-$ pipelime wizard clone
-```
-
-First, an help message is printed:
-- enclose values in `"` or `'` quotes to enforce string values.
-- use `[` to start a sequence, then `]` to end it.
-- likewise, `{` to start a mapping and `}` to end it. Each key-value pair must be separated by a colon `:`.
-- `< [model.class.path]` to insert a pydantic model (should be explicitly listed in the type list).
-- `? [class.path]` to begin a wizard configuration for a Choixe `$call` directive, e.g., an object to be instantiated.
-- `! [class.path]` to add a Choixe `$symbol` directive.
-- `# [name]` to begin a wizard configuration for a pipelime command, stage or operation.
-- `c# [name]`, `s# [name]`, `o# [name]` as above, but specifying the type.
-
-```{warning}
-Since you may use Choixe directives and other fancy stuffs,
-**no validation nor parsing is performed on the data you provide!**
-
-See next section to see how to do it.
-```
-
-```{tip}
-Anytime you have to insert a class path, you can either use the usual python dot notation,
-or provide a **path to a python file**, e.g., `path/to/mymodule.py:MyClass`. Though, the latter should be use with **caution**, since multiprocessing execution may not work.
 ```
 
 ### Validate A Configuration And Write A Context
