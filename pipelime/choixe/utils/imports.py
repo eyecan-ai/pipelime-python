@@ -207,7 +207,7 @@ def import_module(
     raise ImportError(
         "Cannot import:\n"
         f"  `{module_file_or_class_path_or_code}`\n"
-        "Errors:\n  " + "\n  ".join(err_msgs)
+        "Possible causes:\n  " + "\n  ".join(err_msgs)
     )
 
 
