@@ -268,6 +268,34 @@ class SamplesSequence(
                 a SamplesSequence.
 
         """
+
+        def _maybe_go_deeper(field_value):
+            if isinstance(field_value, SamplesSequence):
+                if recursive:
+                    field_value = field_value.to_pipe(
+                        recursive=recursive, objs_to_str=objs_to_str
+                    )
+            elif isinstance(field_value, pyd.BaseModel):
+                if recursive:
+                    # NB: do not unfold sub-pydantic models, since it may not be
+                    # straightforward to de-serialize them when subclasses are used
+                    field_value = field_value.dict()
+            elif isinstance(field_value, t.Sequence):
+                field_value = [_maybe_go_deeper(x) for x in field_value]
+            elif isinstance(field_value, t.Mapping):
+                field_value = {k: _maybe_go_deeper(v) for k, v in field_value.items()}
+
+            if (
+                not objs_to_str
+                or isinstance(
+                    field_value,
+                    (str, bytes, int, float, bool, t.Mapping, t.Sequence),
+                )
+                or field_value is None
+            ):
+                return field_value
+            return str(field_value)
+
         source_list = []
         arg_dict = {}
         for field_name, model_field in self.__fields__.items():
@@ -283,29 +311,8 @@ class SamplesSequence(
                     recursive=recursive, objs_to_str=objs_to_str
                 )
             else:
-                # NB: do not unfold sub-pydantic models, since it may not be
-                # straightforward to de-serialize them when subclasses are used
-                if recursive:
-                    if isinstance(field_value, SamplesSequence):
-                        field_value = field_value.to_pipe(
-                            recursive=recursive, objs_to_str=objs_to_str
-                        )
-                    elif isinstance(field_value, pyd.BaseModel):
-                        field_value = field_value.dict()
-                arg_dict[field_alias] = (
-                    (
-                        list(field_value)
-                        if isinstance(field_value, tuple)
-                        else field_value
-                    )
-                    if not objs_to_str
-                    or isinstance(
-                        field_value,
-                        (str, bytes, int, float, bool, t.Mapping, t.Sequence),
-                    )
-                    or field_value is None
-                    else str(field_value)
-                )
+                arg_dict[field_alias] = _maybe_go_deeper(field_value)
+
         return source_list + [{self._operator_path: arg_dict}]
 
     def __str__(self) -> str:
@@ -432,8 +439,8 @@ class SamplesSequence(
         ...
 
     @samples_sequence_stub
-    def cat(self, to_cat: SamplesSequence) -> SamplesSequence:
-        """Concatenates two SamplesSequences.
+    def cat(self, *seqs: SamplesSequence, interleave: bool = False) -> SamplesSequence:
+        """Concatenates two or more SamplesSequences.
         Run `pipelime help cat` to read the complete documentation.
         """
         ...

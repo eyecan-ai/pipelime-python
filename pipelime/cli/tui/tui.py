@@ -16,8 +16,8 @@ from pipelime.cli.tui.utils import (
     TuiField,
     init_stageinput_tui_field,
     init_tui_field,
-    parse_value,
 )
+from pipelime.cli.utils import parse_user_input
 from pipelime.piper import PipelimeCommand
 from pipelime.stages import StageInput
 
@@ -252,12 +252,12 @@ class TuiApp(App[Mapping]):
 
         for f, field in self.fields.items():
             if field.simple:
-                value = parse_value(self.inputs[field.name].value)
+                value = parse_user_input(self.inputs[field.name].value)
                 cmd_args[f] = value
             else:
                 cmd_args[f] = {field.name: {}}
                 for sub_f in field.values:
-                    value = parse_value(self.inputs[sub_f.name].value)
+                    value = parse_user_input(self.inputs[sub_f.name].value)
                     cmd_args[f][field.name][sub_f.name] = value
 
         return cmd_args
