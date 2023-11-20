@@ -563,7 +563,10 @@ def pl_main(
         )
 
         if checkpoint is None:
-            checkpoint = PipelimeUserAppDir.default_checkpoint_path()
+            checkpoint = PipelimeUserAppDir.temporary_checkpoint_path()
+            is_temp_checkpoint = True
+        else:
+            is_temp_checkpoint = False
 
         # create a new checkpoint
         if checkpoint.exists():
@@ -577,7 +580,9 @@ def pl_main(
         ckpt = LocalCheckpoint(folder=checkpoint)
         ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
 
-        run_with_checkpoint(cli_opts=plopts, checkpoint=ckpt)
+        run_with_checkpoint(
+            cli_opts=plopts, checkpoint=ckpt, is_temp_checkpoint=is_temp_checkpoint
+        )
     else:
         from pipelime.cli.pretty_print import print_error
 
@@ -585,7 +590,9 @@ def pl_main(
         raise typer.Exit(1)
 
 
-def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoint"]):
+def run_with_checkpoint(
+    cli_opts: PlCliOptions, checkpoint: "Checkpoint", is_temp_checkpoint: bool = False
+):
     from loguru import logger
 
     import pipelime.choixe.utils.io as choixe_io
@@ -850,12 +857,13 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
             run_command(
                 cmd_name,
                 cfg_dict,
-                cli_opts.verbose,
-                cli_opts.dry_run,
-                cli_opts.no_ui,
-                cli_opts.keep_tmp,
-                cli_opts.command_outputs,
-                checkpoint,
+                verbose=cli_opts.verbose,
+                dry_run=cli_opts.dry_run,
+                no_ui=cli_opts.no_ui,
+                keep_tmp=cli_opts.keep_tmp,
+                command_outputs=cli_opts.command_outputs,
+                checkpoint=checkpoint,
+                is_temp_checkpoint=is_temp_checkpoint,
             )
 
 
@@ -867,7 +875,8 @@ def run_command(
     no_ui: bool,
     keep_tmp: bool,
     command_outputs: t.Optional[Path],
-    checkpoint: t.Optional["Checkpoint"],
+    checkpoint: "Checkpoint",
+    is_temp_checkpoint: bool = False,
 ):
     """
     Run a pipelime command.
@@ -886,11 +895,17 @@ def run_command(
         time_to_str,
     )
     from pipelime.commands import TempCommand
+    from pipelime.piper.checkpoint import LocalCheckpoint
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
     except ValueError:
         raise typer.Exit(1)
+
+    if is_temp_checkpoint and cmd_cls.save_to_default_checkpoint():
+        checkpoint = LocalCheckpoint(
+            folder=PipelimeUserAppDir.store_temporary_checkpoint()
+        )
 
     if is_tui_needed(cmd_cls, cmd_args) and not no_ui:
         app = TuiApp(cmd_cls, cmd_args)

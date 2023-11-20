@@ -7,7 +7,9 @@ from pipelime.cli.utils import PipelimeUserAppDir
 from pipelime.piper import PipelimeCommand
 
 
-class ResumeCommand(PipelimeCommand, title="resume", extra="allow"):
+class ResumeCommand(
+    PipelimeCommand, title="resume", extra="allow", no_default_checkpoint=True
+):
     """Resume a command from a checkpoint.
     Any extra field is forwarded to the original command line as '+' option.
     """
@@ -31,22 +33,6 @@ class ResumeCommand(PipelimeCommand, title="resume", extra="allow"):
         if isinstance(v, int):
             return PipelimeUserAppDir.last_checkpoint_path(v)
         return v
-
-    @classmethod
-    def init_from_checkpoint(cls, checkpoint, /, **data):
-        from pipelime.piper.checkpoint import LocalCheckpoint
-
-        # do not save resume command in default checkpoint
-        try:
-            if isinstance(checkpoint.checkpoint, LocalCheckpoint) and (
-                checkpoint.checkpoint.folder
-                == PipelimeUserAppDir.last_checkpoint_path(1)
-            ):
-                PipelimeUserAppDir.undo_last_checkpoint()
-        except FileNotFoundError:
-            pass
-
-        return cls(**data)
 
     def run(self):
         import pipelime.cli.main as cli
