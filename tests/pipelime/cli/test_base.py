@@ -379,6 +379,9 @@ class TestCliBase:
 
         def tui_mock_fail(app: TuiApp, *, headless=False, size=None, auto_pilot=None):
             async def autopilot(pilot: Pilot):
+                # wait for the tui to be ready
+                await pilot.pause()
+                # insert value in field "input"
                 for c in str(minimnist_dataset["path"]):
                     await pilot.press(c)
                 # move to next field
@@ -404,6 +407,8 @@ class TestCliBase:
 
         def tui_mock_pass(app: TuiApp, *, headless=False, size=None, auto_pilot=None):
             async def autopilot(pilot: Pilot):
+                # wait for the tui to be ready
+                await pilot.pause()
                 # move to field "output"
                 await pilot.press(Keys.Tab)
                 # delete previously inserted value
