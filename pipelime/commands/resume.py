@@ -50,7 +50,7 @@ class ResumeCommand(
             cli_opts.command_args.extend(
                 x for k, v in flattened_extra.items() for x in [f"+{k}", v]
             )
-        except ValidationError:
+        except ValidationError:  # pragma: no cover
             raise RuntimeError("Invalid checkpoint")
 
         cli.run_with_checkpoint(cli_opts, ckpt)
