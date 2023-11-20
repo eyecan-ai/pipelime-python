@@ -68,21 +68,23 @@ class TestSamplesSequences:
                 }
             },
             {"slice": {"start": 10, "stop": None, "step": None}},
-            {"cat": {"to_cat": b}},
+            {"cat": {"to_cat": [b], "interleave": False}},
         ]
 
         assert a.to_pipe(recursive=False, objs_to_str=False) == expected_pipe
 
         expected_pipe[2]["cat"]["to_cat"] = [
-            {
-                "from_underfolder": {
-                    "folder": Path("no-path-2"),
-                    "merge_root_items": True,
-                    "must_exist": False,
-                    "watch": False,
-                }
-            },
-            {"shuffle": {"seed": None}},
+            [
+                {
+                    "from_underfolder": {
+                        "folder": Path("no-path-2"),
+                        "merge_root_items": True,
+                        "must_exist": False,
+                        "watch": False,
+                    }
+                },
+                {"shuffle": {"seed": None}},
+            ]
         ]
 
         assert a.to_pipe(recursive=True, objs_to_str=False) == expected_pipe

@@ -173,12 +173,17 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
     skip_first: pyd.NonNegativeInt = pyd.Field(
         1,
         alias="s",
-        description="Skip the first n samples in EACH EXECUTION PROCESS, then start the timer.",
+        description=(
+            "Skip the first n samples in EACH EXECUTION PROCESS, then start the timer."
+        ),
     )
     max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
         None,
         alias="m",
-        description="Grab at most `max_samples` from THE WHOLE SEQUENCE and take the average time.",
+        description=(
+            "Grab at most `max_samples` from THE WHOLE SEQUENCE "
+            "and take the average time."
+        ),
     )
     repeat: pyd.PositiveInt = pyd.Field(
         1, alias="r", description="Repeat the measurement `repeat` times."
@@ -200,7 +205,7 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
     )
 
     def run(self):
-        from pipelime.stages import StageTimer, StageCompose
+        from pipelime.stages import StageCompose, StageTimer
 
         # create unique names
         stages = self.stages if isinstance(self.stages, t.Sequence) else [self.stages]
@@ -381,12 +386,23 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         alias="g"
     )
 
+    interleave: bool = pyd.Field(False, description="If TRUE, interleaves samples.")
+
     def run(self):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
-        input_it = iter(inputs)
-        seq = next(input_it).create_reader()
-        for input_ in input_it:
-            seq = seq.cat(input_.create_reader())
+        if len(inputs) == 0:
+            raise ValueError("At least one input dataset is required.")
+        if len(inputs) == 1:
+            seq = inputs[0].create_reader()
+        else:
+            seq = (
+                inputs[0]
+                .create_reader()
+                .cat(
+                    *[i.create_reader() for i in inputs[1:]], interleave=self.interleave
+                )
+            )
+
         self.grabber.grab_all(
             self.output.append_writer(seq),
             grab_context_manager=self.output.serialization_cm(),
@@ -1090,8 +1106,8 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
     )
 
     def run(self):
-        from pipelime.stages import StageSampleHash
         from pipelime.sequences import DataStream
+        from pipelime.stages import StageSampleHash
 
         seq = self.input.create_reader()
         hash_key = self._get_hash_key(list(seq[0].keys()))

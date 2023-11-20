@@ -604,7 +604,7 @@ def run_with_checkpoint(
     if cli_opts.pipelime_tmp:
         pltmp = Path(cli_opts.pipelime_tmp)
         if pltmp.is_dir():
-            logger.debug(f"Pipelime temp folder to `{pltmp}`")
+            logger.debug(f"Pipelime temp folder: `{pltmp}`")
             choixe_io.PipelimeTmp.SESSION_TMP_DIR = pltmp
 
     if cli_opts.verbose > 0:
@@ -897,6 +897,8 @@ def run_command(
     from pipelime.commands import TempCommand
     from pipelime.piper.checkpoint import LocalCheckpoint
 
+    tui_ckpt_ns = checkpoint.get_namespace("__tui_data__")
+
     try:
         cmd_cls = get_pipelime_command_cls(command)
     except ValueError:
@@ -907,9 +909,16 @@ def run_command(
             folder=PipelimeUserAppDir.store_temporary_checkpoint()
         )
 
-    if is_tui_needed(cmd_cls, cmd_args) and not no_ui:
-        app = TuiApp(cmd_cls, cmd_args)
+    # if we are resuming, check if we need to show the tui
+    show_tui = tui_ckpt_ns.read_data("show", None)
+    if show_tui is None:
+        show_tui = is_tui_needed(cmd_cls, cmd_args)
+        tui_ckpt_ns.write_data("show", show_tui)
+
+    if show_tui and not no_ui:
+        app = TuiApp(cmd_cls, tui_ckpt_ns.read_data("cmd_args", cmd_args))
         cmd_args = t.cast(t.Mapping, app.run())
+        tui_ckpt_ns.write_data("cmd_args", cmd_args)
 
     if verbose > 2:
         print_info(f"\nCreating command `{command}` with options:")
@@ -922,6 +931,11 @@ def run_command(
             ckpt_ns = checkpoint.get_namespace(command)
             cmd_obj = cmd_cls.init_from_checkpoint(ckpt_ns, **cmd_args)
             cmd_obj._checkpoint = ckpt_ns
+            # NB: you may tempted to do now:
+            #     tui_ckpt_ns.write_data("show", False)
+            # however, the run may fail due to incorrect arguments
+            # so let's show the tui again if it was needed in the first place
+
     except ValidationError as e:
         show_field_alias_valerr(e)
         raise e

@@ -103,13 +103,15 @@ def import_module_from_file(
     Args:
         module_file_path (Union[str, Path]): the path to the `.py` module file.
         cwd (Optional[Path], optional): the folder to use for relative module import.
-            If None, the file parent folder will be used. Defaults to None.
+            Defaults to None.
+        register_pl_module (bool, optional): whether to register the module with
+            PipelimeSymbolsHelper. Defaults to True.
 
     Raises:
-        ImportError: _description_
+        ImportError: if the module cannot be imported.
 
     Returns:
-        ModuleType: _description_
+        ModuleType: the imported module.
     """
     from pipelime.cli.utils import PipelimeSymbolsHelper
 
@@ -130,6 +132,16 @@ def import_module_from_file(
 def import_module_from_class_path(
     module_class_path: str, register_pl_module: bool = True
 ) -> ModuleType:
+    """Import a python module from a python class path.
+
+    Args:
+        module_class_path (str): the dot-separated path to the module class.
+        register_pl_module (bool, optional): whether to register the module with
+            PipelimeSymbolsHelper. Defaults to True.
+
+    Returns:
+        ModuleType: the imported module.
+    """
     from pipelime.cli.utils import PipelimeSymbolsHelper
 
     m = importlib.import_module(module_class_path)
@@ -141,6 +153,19 @@ def import_module_from_class_path(
 def import_module_from_code(
     module_code: str, register_pl_module: bool = True
 ) -> ModuleType:
+    """Dynamically imports a Python module from its source code.
+
+    Args:
+        module_code (str): the python source code of the module to import.
+        register_pl_module (bool, optional): whether to register the module with
+            PipelimeSymbolsHelper. Defaults to True.
+
+    Raises:
+        ImportError: if the module cannot be imported.
+
+    Returns:
+        ModuleType: the imported module.
+    """
     import hashlib
 
     from pipelime.cli.utils import PipelimeSymbolsHelper
@@ -181,7 +206,23 @@ def import_module(
     cwd: Optional[Path] = None,
     register_pl_module: bool = True,
 ) -> ModuleType:
-    err_msgs = []
+    """Import a module from a file, a class path, or its source code.
+
+    Args:
+        module_file_or_class_path_or_code (str): the path to the module file, the
+            python class path, or its python code.
+        cwd (Optional[Path], optional): the current working directory for relative
+            imports. Defaults to None.
+        register_pl_module (bool, optional): whether to register the module with
+            PipelimeSymbolsHelper. Defaults to True.
+
+    Raises:
+        ImportError: If the module cannot be imported.
+
+    Returns:
+        ModuleType: The imported module.
+    """
+    err_msgs = [""]
 
     if module_file_or_class_path_or_code.endswith(".py"):
         try:
@@ -207,7 +248,7 @@ def import_module(
     raise ImportError(
         "Cannot import:\n"
         f"  `{module_file_or_class_path_or_code}`\n"
-        "Errors:\n  " + "\n  ".join(err_msgs)
+        "Possible causes:" + "\n  ".join(err_msgs)
     )
 
 
