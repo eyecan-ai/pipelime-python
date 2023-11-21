@@ -908,6 +908,7 @@ def run_command(
         checkpoint = LocalCheckpoint(
             folder=PipelimeUserAppDir.store_temporary_checkpoint()
         )
+        tui_ckpt_ns = checkpoint.get_namespace("__tui_data__")
 
     # if we are resuming, check if we need to show the tui
     show_tui = tui_ckpt_ns.read_data("show", None)
