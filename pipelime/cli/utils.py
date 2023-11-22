@@ -4,6 +4,7 @@ from ast import literal_eval
 from json import JSONDecodeError
 from pathlib import Path
 from types import ModuleType
+import shutil
 
 import yaml
 from loguru import logger
@@ -11,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from rich import get_console
 from rich.prompt import Prompt
 from yaml.error import YAMLError
+import os
 
 if t.TYPE_CHECKING:
     from pipelime.piper import T_DAG_NODE, PipelimeCommand
@@ -808,3 +810,67 @@ def get_user_input(text: str) -> t.Any:
 
     value = parse_user_input(prompt)
     return value
+
+
+class PipelimeUserAppDir:
+    BASE_CHECKPOINT_NAME = "default_checkpoint"
+    MAX_CHECKPOINTS = 3
+
+    @classmethod
+    def base_path(cls) -> Path:
+        """Returns the path to the pipelime data app directory for the current user.
+
+        Returns:
+            Path: The path to the pipelime data app directory for the current user.
+        """
+        import os.path
+
+        return Path(os.path.expanduser("~/.pipelime"))
+
+    @classmethod
+    def base_checkpoints_path(cls) -> Path:
+        return cls.base_path() / "ckpts"
+
+    @classmethod
+    def temporary_checkpoint_path(cls) -> Path:
+        ckpt = cls.base_checkpoints_path() / (cls.BASE_CHECKPOINT_NAME + "~")
+        if ckpt.exists():
+            shutil.rmtree(ckpt)
+        ckpt.mkdir(parents=True, exist_ok=False)
+        return ckpt
+
+    @classmethod
+    def store_temporary_checkpoint(cls) -> Path:
+        dst_ckpt = cls.default_checkpoint_path()
+
+        src_ckpt = cls.base_checkpoints_path() / (cls.BASE_CHECKPOINT_NAME + "~")
+        if src_ckpt.exists():
+            with os.scandir(str(src_ckpt)) as it:
+                for entry in it:
+                    shutil.move(entry.path, dst_ckpt)
+        return dst_ckpt
+
+    @classmethod
+    def default_checkpoint_path(cls) -> Path:
+        base_ckpt = cls.base_checkpoints_path() / cls.BASE_CHECKPOINT_NAME
+
+        ckpt = base_ckpt.with_name(base_ckpt.name + f"-{cls.MAX_CHECKPOINTS}")
+        if ckpt.exists():
+            shutil.rmtree(ckpt)
+
+        for i in reversed(range(1, cls.MAX_CHECKPOINTS)):
+            ckpt = base_ckpt.with_name(base_ckpt.name + f"-{i}")
+            if ckpt.exists():
+                ckpt.rename(base_ckpt.with_name(base_ckpt.name + f"-{i+1}"))
+
+        ckpt = base_ckpt.with_name(base_ckpt.name + "-1")
+        ckpt.mkdir(parents=True, exist_ok=False)
+        return ckpt
+
+    @classmethod
+    def last_checkpoint_path(cls, index: int = 1) -> Path:
+        base_ckpt = cls.base_checkpoints_path() / cls.BASE_CHECKPOINT_NAME
+        ckpt = base_ckpt.with_name(base_ckpt.name + f"-{index}")
+        if not ckpt.exists():
+            raise FileNotFoundError(f"Checkpoint {index} not found")
+        return ckpt

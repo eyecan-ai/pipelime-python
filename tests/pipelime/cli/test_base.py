@@ -324,17 +324,25 @@ class TestCliBase:
             out2.resolve().absolute().as_posix(),
         ]
 
-    def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path):
+    @pytest.mark.parametrize("with_default_ckpt", [False, True, 2])
+    def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path, with_default_ckpt):
         from pydantic import ValidationError
 
         from pipelime.sequences import SamplesSequence
+
+        if with_default_ckpt is False:
+            ckpt_args = ["--checkpoint", str(tmp_path / "ckpt")]
+            ckpt_resume = ["+ckpt", str(tmp_path / "ckpt")]
+        else:
+            ckpt_args = []
+            ckpt_resume = (
+                [] if with_default_ckpt is True else ["+ckpt", str(with_default_ckpt)]
+            )
 
         outpath = tmp_path / "final_output"
         args = [
             "-m",
             ckpt_dag,
-            "--checkpoint",
-            str(tmp_path / "ckpt"),
             "cat-and-split",
             "+properties.do_shuffle",
             "+properties.slices",
@@ -345,24 +353,27 @@ class TestCliBase:
             str(minimnist_dataset["path"]),
             "+properties.output",
             str(outpath),
-        ]
+        ] + ckpt_args
 
         # the first time this DAG will stop
         self._base_launch(args, exit_code=1, exc=RuntimeError)
         assert not outpath.exists()
 
+        if not isinstance(with_default_ckpt, bool):
+            # create fake command calls to fill the other default checkpoints
+            for _ in range(with_default_ckpt - 1):
+                self._base_launch(["clone"], exit_code=1, exc=TypeError)
+
         # now resume from checkpoint and override the slice size (invalid value)
         self._base_launch(
-            ["resume", "+ckpt", str(tmp_path / "ckpt"), "+properties.slices", "-1"],
+            ["resume", "+properties.slices", "-1"] + ckpt_resume,
             exit_code=1,
             exc=ValidationError,
         )
         assert not outpath.exists()
 
-        # now resume from checkpoint and override the slice size (valid value)
-        self._base_launch(
-            ["resume", "+ckpt", str(tmp_path / "ckpt"), "+properties.slices", "5"]
-        )
+        # now resume again from checkpoint and override the slice size (valid value)
+        self._base_launch(["resume", "+properties.slices", "5"] + ckpt_resume)
         assert outpath.is_dir()
         assert len(SamplesSequence.from_underfolder(outpath)) == 5
 

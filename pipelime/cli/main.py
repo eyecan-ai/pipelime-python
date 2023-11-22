@@ -14,6 +14,7 @@ from pipelime.cli.parser import CLIParsingError, parse_pipelime_cli
 from pipelime.cli.subcommands import SubCommands as subc
 from pipelime.cli.utils import (
     PipelimeSymbolsHelper,
+    PipelimeUserAppDir,
     print_command_op_stage_info,
     print_commands_ops_stages_list,
 )
@@ -561,22 +562,27 @@ def pl_main(
             pipelime_tmp=None,
         )
 
-        if checkpoint:
-            # create a new checkpoint
-            if checkpoint.exists():
-                if not checkpoint.is_dir():
-                    raise ValueError(
-                        f"Checkpoint folder `{checkpoint}` exists but is not a folder."
-                    )
-                if any(checkpoint.iterdir()):
-                    raise ValueError(f"Checkpoint folder `{checkpoint}` is not empty.")
-            plopts.pipelime_tmp = PipelimeTmp.make_session_dir().as_posix()
-            ckpt = LocalCheckpoint(folder=checkpoint)
-            ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
+        if checkpoint is None:
+            checkpoint = PipelimeUserAppDir.temporary_checkpoint_path()
+            is_temp_checkpoint = True
         else:
-            ckpt = None
+            is_temp_checkpoint = False
 
-        run_with_checkpoint(cli_opts=plopts, checkpoint=ckpt)
+        # create a new checkpoint
+        if checkpoint.exists():
+            if not checkpoint.is_dir():
+                raise ValueError(
+                    f"Checkpoint folder `{checkpoint}` exists but is not a folder."
+                )
+            if any(checkpoint.iterdir()):
+                raise ValueError(f"Checkpoint folder `{checkpoint}` is not empty.")
+        plopts.pipelime_tmp = PipelimeTmp.make_session_dir().as_posix()
+        ckpt = LocalCheckpoint(folder=checkpoint)
+        ckpt.write_data(PlCliOptions._namespace, "", plopts.purged_dict())
+
+        run_with_checkpoint(
+            cli_opts=plopts, checkpoint=ckpt, is_temp_checkpoint=is_temp_checkpoint
+        )
     else:
         from pipelime.cli.pretty_print import print_error
 
@@ -584,7 +590,9 @@ def pl_main(
         raise typer.Exit(1)
 
 
-def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoint"]):
+def run_with_checkpoint(
+    cli_opts: PlCliOptions, checkpoint: "Checkpoint", is_temp_checkpoint: bool = False
+):
     from loguru import logger
 
     import pipelime.choixe.utils.io as choixe_io
@@ -849,12 +857,13 @@ def run_with_checkpoint(cli_opts: PlCliOptions, checkpoint: t.Optional["Checkpoi
             run_command(
                 cmd_name,
                 cfg_dict,
-                cli_opts.verbose,
-                cli_opts.dry_run,
-                cli_opts.no_ui,
-                cli_opts.keep_tmp,
-                cli_opts.command_outputs,
-                checkpoint,
+                verbose=cli_opts.verbose,
+                dry_run=cli_opts.dry_run,
+                no_ui=cli_opts.no_ui,
+                keep_tmp=cli_opts.keep_tmp,
+                command_outputs=cli_opts.command_outputs,
+                checkpoint=checkpoint,
+                is_temp_checkpoint=is_temp_checkpoint,
             )
 
 
@@ -866,7 +875,8 @@ def run_command(
     no_ui: bool,
     keep_tmp: bool,
     command_outputs: t.Optional[Path],
-    checkpoint: t.Optional["Checkpoint"],
+    checkpoint: "Checkpoint",
+    is_temp_checkpoint: bool = False,
 ):
     """
     Run a pipelime command.
@@ -885,17 +895,20 @@ def run_command(
         time_to_str,
     )
     from pipelime.commands import TempCommand
-    from pipelime.piper.checkpoint import Checkpoint, CheckpointNamespace
+    from pipelime.piper.checkpoint import LocalCheckpoint
 
-    tui_ckpt_ns = CheckpointNamespace(
-        checkpoint=checkpoint if checkpoint is not None else Checkpoint(),
-        namespace="__tui_data__",
-    )
+    tui_ckpt_ns = checkpoint.get_namespace("__tui_data__")
 
     try:
         cmd_cls = get_pipelime_command_cls(command)
     except ValueError:
         raise typer.Exit(1)
+
+    if is_temp_checkpoint and cmd_cls.save_to_default_checkpoint():
+        checkpoint = LocalCheckpoint(
+            folder=PipelimeUserAppDir.store_temporary_checkpoint()
+        )
+        tui_ckpt_ns = checkpoint.get_namespace("__tui_data__")
 
     # if we are resuming, check if we need to show the tui
     show_tui = tui_ckpt_ns.read_data("show", None)
