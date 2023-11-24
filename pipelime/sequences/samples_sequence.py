@@ -122,7 +122,7 @@ class SamplesSequence(
 
         return DirectAccessSequence(self)
 
-    def torch_dataset(self) -> "torch.utils.data.Dataset":  # type: ignore # noqa: E602,F821
+    def torch_dataset(self) -> "torch.utils.data.Dataset":  # pragma: no cover  # type: ignore # noqa: E602,F821
         """Returns a torch.utils.data.Dataset interface of this samples sequence.
 
         Returns:
