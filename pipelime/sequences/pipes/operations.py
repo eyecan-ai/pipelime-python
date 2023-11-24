@@ -599,8 +599,8 @@ class BatchedSequences(PipedSequenceBase, title="batched"):
 
     def size(self) -> int:
         # possibly including last incomplete batch
-        return len(self.source) // self.batch_size + int(
-            len(self.source) % self.batch_size != 0
+        return len(self.source) // self.batch_size + min(
+            1, len(self.source) % self.batch_size
         )
 
     def get_sample(self, idx: int) -> pls.Sample:
