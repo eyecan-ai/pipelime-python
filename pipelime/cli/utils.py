@@ -1,14 +1,24 @@
+import json
 import typing as t
+from ast import literal_eval
+from json import JSONDecodeError
 from pathlib import Path
 from types import ModuleType
-from loguru import logger
+import shutil
 
+import yaml
+from loguru import logger
 from pydantic import BaseModel, ValidationError
+from rich import get_console
+from rich.prompt import Prompt
+from yaml.error import YAMLError
+import os
 
 if t.TYPE_CHECKING:
     from pipelime.piper import T_DAG_NODE, PipelimeCommand
     from pipelime.piper.checkpoint import CheckpointNamespace
     from pipelime.stages import SampleStage
+    from pipelime.sequences import SamplesSequence
 
 
 class ActionInfo(BaseModel):
@@ -18,14 +28,19 @@ class ActionInfo(BaseModel):
     classpath: str
 
 
+symbol_base_t = t.TypeVar("symbol_base_t")
+
+
 class PipelimeSymbolsHelper:
     std_modules = ["pipelime.commands", "pipelime.stages"]
     extra_modules: t.List[str] = []
 
     cached_modules: t.Dict[str, ModuleType] = {}
-    cached_cmds: t.Dict[t.Tuple[str, str], t.Dict] = {}
-    cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
-    cached_stages: t.Dict[t.Tuple[str, str], t.Dict] = {}
+    cached_cmds: t.Dict[t.Tuple[str, str], t.Dict[str, t.Type["PipelimeCommand"]]] = {}
+    cached_seq_ops: t.Dict[
+        t.Tuple[str, str], t.Dict[str, t.Type["SamplesSequence"]]
+    ] = {}
+    cached_stages: t.Dict[t.Tuple[str, str], t.Dict[str, t.Type["SampleStage"]]] = {}
 
     registered_actions: t.Dict[str, ActionInfo] = {}
 
@@ -115,10 +130,12 @@ class PipelimeSymbolsHelper:
         raise ValueError(f"Duplicate {type_} `{name}`")
 
     @classmethod
-    def _load_symbols(cls, base_cls: t.Type, symbol_type: str):
+    def _load_symbols(
+        cls, base_cls: t.Type[symbol_base_t], symbol_type: str
+    ) -> t.Dict[str, t.Type[symbol_base_t]]:
         import inspect
 
-        all_syms = {}
+        all_syms: t.Dict[str, t.Type[symbol_base_t]] = {}
         for module_name, module_ in cls.cached_modules.items():
             module_symbols = tuple(
                 (cls._symbol_name(sym_cls), sym_cls)
@@ -160,6 +177,7 @@ class PipelimeSymbolsHelper:
         import pipelime.sequences as pl_seq
         from pipelime.piper import PipelimeCommand
         from pipelime.stages import SampleStage
+        from pipelime.commands.piper import DagBaseCommand
 
         if not cls.is_cache_valid():
             for module_name in cls.std_modules + cls.extra_modules:
@@ -179,10 +197,18 @@ class PipelimeSymbolsHelper:
                 ): pl_seq.SamplesSequence._pipes,
             }
 
+            loaded_commands = cls._load_symbols(PipelimeCommand, "command")
             cls.cached_cmds = {
-                ("Pipelime Command", "Pipelime Commands"): cls._load_symbols(
-                    PipelimeCommand, "command"
-                )
+                ("Pipelime Command", "Pipelime Commands"): {
+                    k: v
+                    for k, v in loaded_commands.items()
+                    if not issubclass(v, DagBaseCommand)
+                },
+                ("Pipelime DAG", "Pipelime DAGs"): {
+                    k: v
+                    for k, v in loaded_commands.items()
+                    if issubclass(v, DagBaseCommand)
+                },
             }
 
             cls.cached_stages = {
@@ -750,3 +776,118 @@ def show_field_alias_valerr(e: ValidationError):
     for err in e.errors():
         if "loc" in err:
             err["loc"] = tuple(_replace_alias(pos) for pos in err["loc"])
+
+
+def parse_user_input(s: str) -> t.Any:
+    """Parse a string value.
+
+    The function tries to parse the value as YAML, JSON and Python literal,
+    returning the first successful parse.
+
+    Args:
+        s: The string value to parse.
+
+    Returns:
+        The parsed value.
+    """
+    value = s
+
+    if len(value) > 0:
+        if value.lower() in ["none", "null", "nul"]:
+            return None
+
+        parse_fns = [literal_eval, yaml.safe_load, json.loads]
+        while parse_fns:
+            try:
+                value = parse_fns.pop(0)(value)
+                break
+            except (YAMLError, JSONDecodeError, ValueError, SyntaxError):
+                pass
+
+    return value
+
+
+def get_user_input(text: str) -> t.Any:
+    """Get user input from the console, pausing the current rich.live if needed.
+
+    Args:
+        text: The text to show to the user.
+
+    Returns:
+        The parsed user input.
+    """
+    live = get_console()._live
+    if live is not None:
+        live.stop()
+
+    prompt = Prompt.ask(text)
+
+    if live is not None:
+        live.start()
+
+    value = parse_user_input(prompt)
+    return value
+
+
+class PipelimeUserAppDir:
+    BASE_CHECKPOINT_NAME = "default_checkpoint"
+    MAX_CHECKPOINTS = 3
+
+    @classmethod
+    def base_path(cls) -> Path:
+        """Returns the path to the pipelime data app directory for the current user.
+
+        Returns:
+            Path: The path to the pipelime data app directory for the current user.
+        """
+        import os.path
+
+        return Path(os.path.expanduser("~/.pipelime"))
+
+    @classmethod
+    def base_checkpoints_path(cls) -> Path:
+        return cls.base_path() / "ckpts"
+
+    @classmethod
+    def temporary_checkpoint_path(cls) -> Path:
+        ckpt = cls.base_checkpoints_path() / (cls.BASE_CHECKPOINT_NAME + "~")
+        if ckpt.exists():
+            shutil.rmtree(ckpt)
+        ckpt.mkdir(parents=True, exist_ok=False)
+        return ckpt
+
+    @classmethod
+    def store_temporary_checkpoint(cls) -> Path:
+        dst_ckpt = cls.default_checkpoint_path()
+
+        src_ckpt = cls.base_checkpoints_path() / (cls.BASE_CHECKPOINT_NAME + "~")
+        if src_ckpt.exists():
+            with os.scandir(str(src_ckpt)) as it:
+                for entry in it:
+                    shutil.move(entry.path, dst_ckpt)
+        return dst_ckpt
+
+    @classmethod
+    def default_checkpoint_path(cls) -> Path:
+        base_ckpt = cls.base_checkpoints_path() / cls.BASE_CHECKPOINT_NAME
+
+        ckpt = base_ckpt.with_name(base_ckpt.name + f"-{cls.MAX_CHECKPOINTS}")
+        if ckpt.exists():
+            shutil.rmtree(ckpt)
+
+        for i in reversed(range(1, cls.MAX_CHECKPOINTS)):
+            ckpt = base_ckpt.with_name(base_ckpt.name + f"-{i}")
+            if ckpt.exists():
+                ckpt.rename(base_ckpt.with_name(base_ckpt.name + f"-{i+1}"))
+
+        ckpt = base_ckpt.with_name(base_ckpt.name + "-1")
+        ckpt.mkdir(parents=True, exist_ok=False)
+        return ckpt
+
+    @classmethod
+    def last_checkpoint_path(cls, index: int = 1) -> Path:
+        base_ckpt = cls.base_checkpoints_path() / cls.BASE_CHECKPOINT_NAME
+        ckpt = base_ckpt.with_name(base_ckpt.name + f"-{index}")
+        if not ckpt.exists():
+            raise FileNotFoundError(f"Checkpoint {index} not found")
+        return ckpt

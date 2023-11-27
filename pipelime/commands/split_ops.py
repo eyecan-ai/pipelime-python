@@ -132,7 +132,7 @@ class Splits(pl_interfaces.PydanticFieldNoDefaultMixin):
     _compact_form: t.ClassVar[t.Optional[str]] = "<fraction|length>[,<folder>]"
 
     any_split_t = t.Union[
-        PercSplit, AbsoluteSplit, t.Sequence[t.Union[PercSplit, AbsoluteSplit]]
+        AbsoluteSplit, PercSplit, t.Sequence[t.Union[AbsoluteSplit, PercSplit]]
     ]
 
 

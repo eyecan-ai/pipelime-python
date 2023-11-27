@@ -1,17 +1,20 @@
 from __future__ import annotations
-from abc import abstractmethod
+
 import itertools
 import typing as t
+from abc import abstractmethod
+
 import pydantic as pyd
 from loguru import logger
 
 from pipelime.sequences.sample import Sample
 
 if t.TYPE_CHECKING:
-    from pipelime.utils.pydantic_types import SampleValidationInterface
+    from pathlib import Path
+
     from pipelime.sequences.direct_access import DirectAccessSequence
     from pipelime.stages import SampleStage, StageInput
-    from pathlib import Path
+    from pipelime.utils.pydantic_types import SampleValidationInterface
 
 
 def _sseq_stub_dummy(*args, **kwargs):
@@ -122,7 +125,7 @@ class SamplesSequence(
 
         return DirectAccessSequence(self)
 
-    def torch_dataset(self) -> "torch.utils.data.Dataset":  # type: ignore # noqa: E602,F821
+    def torch_dataset(self) -> "torch.utils.data.Dataset":  # pragma: no cover  # type: ignore # noqa: E602,F821
         """Returns a torch.utils.data.Dataset interface of this samples sequence.
 
         Returns:
@@ -268,6 +271,34 @@ class SamplesSequence(
                 a SamplesSequence.
 
         """
+
+        def _maybe_go_deeper(field_value):
+            if isinstance(field_value, SamplesSequence):
+                if recursive:
+                    field_value = field_value.to_pipe(
+                        recursive=recursive, objs_to_str=objs_to_str
+                    )
+            elif isinstance(field_value, pyd.BaseModel):
+                if recursive:
+                    # NB: do not unfold sub-pydantic models, since it may not be
+                    # straightforward to de-serialize them when subclasses are used
+                    field_value = field_value.dict()
+            elif isinstance(field_value, t.Sequence):
+                field_value = [_maybe_go_deeper(x) for x in field_value]
+            elif isinstance(field_value, t.Mapping):
+                field_value = {k: _maybe_go_deeper(v) for k, v in field_value.items()}
+
+            if (
+                not objs_to_str
+                or isinstance(
+                    field_value,
+                    (str, bytes, int, float, bool, t.Mapping, t.Sequence),
+                )
+                or field_value is None
+            ):
+                return field_value
+            return str(field_value)
+
         source_list = []
         arg_dict = {}
         for field_name, model_field in self.__fields__.items():
@@ -283,29 +314,8 @@ class SamplesSequence(
                     recursive=recursive, objs_to_str=objs_to_str
                 )
             else:
-                # NB: do not unfold sub-pydantic models, since it may not be
-                # straightforward to de-serialize them when subclasses are used
-                if recursive:
-                    if isinstance(field_value, SamplesSequence):
-                        field_value = field_value.to_pipe(
-                            recursive=recursive, objs_to_str=objs_to_str
-                        )
-                    elif isinstance(field_value, pyd.BaseModel):
-                        field_value = field_value.dict()
-                arg_dict[field_alias] = (
-                    (
-                        list(field_value)
-                        if isinstance(field_value, tuple)
-                        else field_value
-                    )
-                    if not objs_to_str
-                    or isinstance(
-                        field_value,
-                        (str, bytes, int, float, bool, t.Mapping, t.Sequence),
-                    )
-                    or field_value is None
-                    else str(field_value)
-                )
+                arg_dict[field_alias] = _maybe_go_deeper(field_value)
+
         return source_list + [{self._operator_path: arg_dict}]
 
     def __str__(self) -> str:
@@ -325,7 +335,6 @@ class SamplesSequence(
         """A SamplesSequence calling a user-defined generator to get the samples.
         Run `pipelime help from_callable` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     @staticmethod
@@ -333,7 +342,6 @@ class SamplesSequence(
         """A SamplesSequence from a list of Samples.
         Run `pipelime help from_list` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     @staticmethod
@@ -347,7 +355,6 @@ class SamplesSequence(
         """A SamplesSequence loading data from an Underfolder dataset.
         Run `pipelime help from_underfolder` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     @staticmethod
@@ -362,7 +369,6 @@ class SamplesSequence(
         """A SamplesSequence loading images from a folder.
         Run `pipelime help from_images` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     @staticmethod
@@ -384,7 +390,6 @@ class SamplesSequence(
         """A fake sequence of generated samples.
         Run `pipelime help toy_dataset` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def map(
@@ -400,7 +405,6 @@ class SamplesSequence(
         """Applies a stage on all samples.
         Run `pipelime help map` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def map_if(
@@ -422,21 +426,18 @@ class SamplesSequence(
         """Applies a stage on all samples if a condition returns True.
         Run `pipelime help map_if` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def zip(self, to_zip: SamplesSequence, *, key_format: str = "*") -> SamplesSequence:
         """Zips two Sequences by merging each Sample.
         Run `pipelime help zip` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
-    def cat(self, to_cat: SamplesSequence) -> SamplesSequence:
-        """Concatenates two SamplesSequences.
+    def cat(self, *seqs: SamplesSequence, interleave: bool = False) -> SamplesSequence:
+        """Concatenates two or more SamplesSequences.
         Run `pipelime help cat` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def filter(
@@ -448,7 +449,6 @@ class SamplesSequence(
         """A filtered view of a SamplesSequence.
         Run `pipelime help filter` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def sort(
@@ -457,7 +457,6 @@ class SamplesSequence(
         """A sorted view of an input SamplesSequence.
         Run `pipelime help sort` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def slice(
@@ -470,7 +469,6 @@ class SamplesSequence(
         """Functional version of the slice operator `self[start_idx:end_idx:step]`.
         Run `pipelime help slice` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def select(
@@ -480,14 +478,12 @@ class SamplesSequence(
         from the input SamplesSequence. The index sequence is not automatically sorted.
         Run `pipelime help select` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def shuffle(self, *, seed: t.Optional[int] = None) -> SamplesSequence:
         """Shuffles samples in the input SamplesSequence.
         Run `pipelime help shuffle` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def enumerate(
@@ -499,14 +495,12 @@ class SamplesSequence(
         """Add a new index item to each Sample in the input SamplesSequence.
         Run `pipelime help enumerate` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def repeat(self, count: int, interleave: bool = False) -> SamplesSequence:
         """Repeat this sequence so each sample is seen multiple times.
         Run `pipelime help repeat` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def cache(
@@ -518,7 +512,6 @@ class SamplesSequence(
         """Cache the input Samples the first time they are accessed.
         Run `pipelime help cache` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def data_cache(
@@ -527,7 +520,6 @@ class SamplesSequence(
         """Enables item data caching on previous pipeline steps.
         Run `pipelime help data_cache` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def no_data_cache(
@@ -536,7 +528,6 @@ class SamplesSequence(
         """Disables item data caching on previous pipeline steps.
         Run `pipelime help no_data_cache` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def to_underfolder(
@@ -554,7 +545,6 @@ class SamplesSequence(
         """Writes samples to an underfolder dataset while iterating over them.
         Run `pipelime help to_underfolder` to read the complete documentation.
         """
-        ...
 
     @samples_sequence_stub
     def validate_samples(
@@ -563,7 +553,29 @@ class SamplesSequence(
         """Validates the source sequence against a schema.
         Run `pipelime help validate_samples` to read the complete documentation.
         """
-        ...
+
+    @samples_sequence_stub
+    def unbatched(
+        self,
+        *,
+        batch_size: t.Union[int, t.Literal["fixed", "variable"]] = "fixed",
+        key_list: t.Optional[t.Sequence[str]] = None,
+    ) -> SamplesSequence:
+        """Un-batch items by un-stacking along the first dimension.
+        Shared items are not touched.
+        """
+
+    @samples_sequence_stub
+    def batched(
+        self,
+        *,
+        batch_size: int,
+        drop_last: bool = False,
+        key_list: t.Optional[t.Sequence[str]] = None,
+    ) -> SamplesSequence:
+        """Batch items by stacking them along a new dimension.
+        Shared items are not touched.
+        """
 
     ###########################################################################
     # STUBS END
@@ -571,8 +583,8 @@ class SamplesSequence(
 
 
 def _add_operator_path(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
-    from pathlib import Path
     import inspect
+    from pathlib import Path
 
     if cls.__module__.startswith("pipelime"):
         cls._operator_path = cls.name()

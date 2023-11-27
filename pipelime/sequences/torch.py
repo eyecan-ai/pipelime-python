@@ -3,7 +3,7 @@ import typing as t
 from torch.utils.data import Dataset  # type: ignore
 
 
-class TorchDataset(Dataset[t.Mapping[str, t.Any]]):
+class TorchDataset(Dataset[t.Mapping[str, t.Any]]):  # pragma: no cover
     def __init__(self, sequence: SamplesSequence):
         self._sequence = sequence
 

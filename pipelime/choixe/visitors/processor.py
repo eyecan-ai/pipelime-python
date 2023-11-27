@@ -1,6 +1,6 @@
 import os
 import uuid
-from copy import deepcopy
+from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import product
@@ -12,7 +12,7 @@ import pydash as py_
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
 from pipelime.choixe.utils.imports import import_symbol
-from pipelime.choixe.utils.io import load, PipelimeTmp
+from pipelime.choixe.utils.io import PipelimeTmp, load
 from pipelime.choixe.utils.rand import rand
 from pipelime.choixe.visitors.unparser import unparse
 
@@ -62,10 +62,36 @@ class Processor(ast.NodeVisitor):
         return list(product(*branches))
 
     def _repeat(self, data: Any, n: int) -> List[Any]:
+        # Avoid repeating if n is 1, skipping all the copy/deepcopy logic
+        if n == 1:
+            return data
+
         new_data = []
         for _ in range(n):
-            new_data.extend(deepcopy(data))
+            #! This used to work, but it fails when some data in the tree is not
+            #! serializable. The proposed workaround might break stuff in the future,
+            #! So I will leave this here for now.
+            # new_data.extend(deepcopy(data))
+
+            #! Simply copying the list e.g. `new_data.extend(copy(data))`
+            #! does not work because we need a true copy of the inner containers as
+            #! well, otherwise, any modification to the inner containers will be
+            #! reflected in all the branches.
+
+            #! The following code is a workaround that works for now, but it might
+            #! break in the future. It duplicates the data only for the first level,
+            #! switching to shallow copy for the inner containers.
+            new_data.extend([copy(x) for x in data])
         return new_data
+
+    def _handle_missing_var(self, varname: str) -> Any:
+        raise ChoixeProcessingError(f"Variable `{varname}` not found")
+
+    def _handle_missing_for(self, varname: str) -> Any:
+        raise ChoixeProcessingError(f"Loop variable `{varname}` not found")
+
+    def _handle_missing_switch(self, varname: str) -> Any:
+        raise ChoixeProcessingError(f"Switch variable `{varname}` not found")
 
     def visit_dict(self, node: ast.DictNode) -> List[Dict]:
         data = [{}]
@@ -135,7 +161,7 @@ class Processor(ast.NodeVisitor):
                 found = True
 
             if not found:
-                raise ChoixeProcessingError(f"Variable not found: `{id_}`")
+                var_value = self._handle_missing_var(id_)
 
             # Recursively process the variable value
             re_parsed = parse(var_value)
@@ -192,7 +218,10 @@ class Processor(ast.NodeVisitor):
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
         if isinstance(node.iterable.data, str):
-            iterable = py_.get(self._context, node.iterable.data)
+            if not py_.has(self._context, node.iterable.data):
+                iterable = self._handle_missing_for(node.iterable.data)
+            else:
+                iterable = py_.get(self._context, node.iterable.data)
         else:
             iterable = node.iterable.data
 
@@ -200,15 +229,10 @@ class Processor(ast.NodeVisitor):
             iterable = list(range(iterable))
 
         if not isinstance(iterable, Iterable):
-            if isinstance(node.iterable.data, str) and not py_.has(
-                self._context, node.iterable.data
-            ):
-                raise ChoixeProcessingError(
-                    f"Loop variable `{node.iterable.data}` not found in context"
-                )
             raise ChoixeProcessingError(
                 f"Loop variable `{node.iterable.data}` is not iterable"
             )
+
         id_ = uuid.uuid1().hex if node.identifier is None else str(node.identifier.data)
         prev_loop = self._current_loop
         self._current_loop = id_
@@ -254,13 +278,10 @@ class Processor(ast.NodeVisitor):
         for branch in all_branches:
             varname = branch[0]
 
-            # If the variable is not in the context, raise an error
             if not py_.has(self._context, varname):
-                msg = f"Switch variable `{varname}` not found in context"
-                raise ChoixeProcessingError(msg)
-
-            # Get the value of the variable
-            value = py_.get(self._context, varname)
+                value = self._handle_missing_switch(varname)
+            else:
+                value = py_.get(self._context, varname)
 
             # Match the value to the correct case
             for i in range(len(node.cases)):
@@ -275,7 +296,8 @@ class Processor(ast.NodeVisitor):
                     branches.append(branch[i + 1 + len(node.cases)])
                     break
 
-            # If no case matched, use the default if available, otherwise raise an error
+            # If no case matched, use the default if available
+            # otherwise raise an error
             else:
                 if node.default is not None:
                     branches.append(branch[-1])
@@ -372,5 +394,9 @@ def process(
         Any: The list of all possible outcomes. If branching is disabled, the list will
             have length 1.
     """
-    processor = Processor(context=context, cwd=cwd, allow_branching=allow_branching)
+    processor = Processor(
+        context=context,
+        cwd=cwd,
+        allow_branching=allow_branching,
+    )
     return node.accept(processor)
