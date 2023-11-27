@@ -1,12 +1,15 @@
 from __future__ import annotations
+
 import typing as t
 from pathlib import Path
 from urllib.parse import ParseResult
+import uuid
 
 import pydantic as pyd
 
-from pipelime.utils.pydantic_types import SampleValidationInterface, ItemType
 from pipelime.piper import PiperPortType
+from pipelime.utils.pydantic_types import ItemType, SampleValidationInterface, YamlInput
+
 
 class PydanticFieldMixinBase:
     # override in derived clasess
@@ -32,7 +35,13 @@ class PydanticFieldMixinBase:
 
 class PydanticFieldWithDefaultMixin(PydanticFieldMixinBase):
     @classmethod
-    def pyd_field(cls, *, description: t.Optional[str] = None, piper_port: t.Optional[PiperPortType] = None, **kwargs):
+    def pyd_field(
+        cls,
+        *,
+        description: t.Optional[str] = None,
+        piper_port: t.Optional[PiperPortType] = None,
+        **kwargs,
+    ):
         return pyd.Field(
             default_factory=cls,  # type: ignore
             description=cls._description(description),  # type: ignore
@@ -44,7 +53,12 @@ class PydanticFieldWithDefaultMixin(PydanticFieldMixinBase):
 class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
     @classmethod
     def pyd_field(
-        cls, *, is_required: bool = True, description: t.Optional[str] = None, piper_port: t.Optional[PiperPortType] = None, **kwargs
+        cls,
+        *,
+        is_required: bool = True,
+        description: t.Optional[str] = None,
+        piper_port: t.Optional[PiperPortType] = None,
+        **kwargs,
     ):
         return pyd.Field(
             ... if is_required else None,
@@ -264,7 +278,13 @@ class InputDatasetInterface(
     _compact_form: t.ClassVar[t.Optional[str]] = "<folder>[,<skip_empty>]"
     _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.INPUT
 
-    folder: Path = pyd.Field(..., description="Dataset root folder.")
+    folder: t.Optional[Path] = pyd.Field(
+        None,
+        description=(
+            "Dataset root folder. Either `folder` is not `None` or the "
+            "`pipe` starts with a generator sequence."
+        ),
+    )
     merge_root_items: bool = pyd.Field(
         True,
         description=(
@@ -273,14 +293,41 @@ class InputDatasetInterface(
         ),
     )
     skip_empty: bool = pyd.Field(False, description="Filter out empty samples.")
+    pipe: t.Optional[YamlInput] = pyd.Field(
+        None,
+        description=(
+            "The pipeline to run or a path to a yaml/json file as "
+            "<filepath>[:<key-path>]. Either `folder` is not `None` or the "
+            "`pipe` starts with a generator sequence.\n"
+            "The pipeline is defined as a mapping or a sequence of mappings where "
+            "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
+            "while the value gathers the arguments, ie, a single value, a sequence of "
+            "values or a keyword mapping."
+        ),
+    )
     schema_: t.Optional[SampleValidationInterface] = pyd.Field(
-        None, alias="schema", description="Sample schema validation."
+        None,
+        alias="schema",
+        description="Sample schema validation, verified after all operations.",
     )
 
     @pyd.validator("folder")
-    def resolve_folder(cls, v: Path):
-        # see https://bugs.python.org/issue38671
-        return v.resolve().absolute()
+    def resolve_folder(cls, v: t.Optional[Path]):
+        if v:
+            # see https://bugs.python.org/issue38671
+            return v.resolve().absolute()
+        return v
+
+    @pyd.validator("pipe", always=True)
+    def check_pipe_and_folder(
+        cls, v: t.Optional[YamlInput], values: t.Mapping[str, t.Any]
+    ):
+        if v is None:
+            if values.get("folder", None) is None:
+                raise ValueError("Either `folder` or `pipe` (or both) must be defined.")
+        elif not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
+            raise ValueError(f"Invalid pipeline: {v.value}")
+        return v
 
     @classmethod
     def __get_validators__(cls):
@@ -313,13 +360,23 @@ class InputDatasetInterface(
         return not all(i.is_shared for i in x.values())
 
     def create_reader(self):
-        from pipelime.sequences import SamplesSequence
+        from pipelime.sequences import SamplesSequence, build_pipe
 
-        reader = SamplesSequence.from_underfolder(
-            folder=self.folder, merge_root_items=self.merge_root_items, must_exist=True
-        )
+        if self.folder is None:
+            reader = build_pipe(self.pipe.value, SamplesSequence)  # type: ignore
+        else:
+            reader = SamplesSequence.from_underfolder(
+                folder=self.folder,
+                merge_root_items=self.merge_root_items,
+                must_exist=True,
+            )
+
         if self.skip_empty:
-            reader = reader.filter(InputDatasetInterface.is_empty_fn)
+            reader = reader.filter(InputDatasetInterface.is_empty_fn)  # type: ignore
+
+        if self.pipe is not None and self.folder is not None:
+            reader = build_pipe(self.pipe.value, reader)  # type: ignore
+
         if self.schema_ is not None:
             reader = self.schema_.append_validator(reader)
         return reader
@@ -328,7 +385,9 @@ class InputDatasetInterface(
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return self.folder.as_posix()
+        return (
+            self.folder.as_posix() if self.folder else f"<generator-{uuid.uuid1().hex}>"
+        )
 
 
 IDataset = InputDatasetInterface
@@ -444,7 +503,10 @@ class OutputDatasetInterface(
     ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
     _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.OUTPUT
 
-    folder: Path = pyd.Field(..., description="Dataset root folder.")
+    folder: t.Optional[Path] = pyd.Field(
+        None,
+        description="Dataset root folder. Input `folder` and/or `pipe` must be set.",
+    )
     zfill: t.Optional[pyd.NonNegativeInt] = pyd.Field(
         None, description="Custom index zero-filling."
     )
@@ -455,22 +517,53 @@ class OutputDatasetInterface(
         default_factory=SerializationModeInterface,
         description="Serialization modes for items and keys.",
     )
+    pipe: t.Optional[YamlInput] = pyd.Field(
+        None,
+        description=(
+            "The pipeline to run or a path to a yaml/json file as "
+            "<filepath>[:<key-path>]. It cannot start with a generator sequence. "
+            "Input `folder` and/or `pipe` must be set.\n"
+            "The pipeline is defined as a mapping or a sequence of mappings where "
+            "each key is a samples sequence operator to run, eg, `map`, `sort`, etc., "
+            "while the value gathers the arguments, ie, a single value, a sequence of "
+            "values or a keyword mapping."
+        ),
+    )
     schema_: t.Optional[SampleValidationInterface] = pyd.Field(
-        None, alias="schema", description="Sample schema validation."
+        None,
+        alias="schema",
+        description="Sample schema validation, verified before any other operation.",
     )
 
     @pyd.validator("folder")
-    def resolve_folder(cls, v: Path):
-        # see https://bugs.python.org/issue38671
-        return v.resolve().absolute()
+    def resolve_folder(cls, v: t.Optional[Path]):
+        if v:
+            # see https://bugs.python.org/issue38671
+            return v.resolve().absolute()
+        return v
 
     @pyd.validator("exists_ok", always=True)
     def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
-        if not v and "folder" in values and values["folder"].exists():
+        if (
+            not v
+            and values.get("folder", None) is not None
+            and values["folder"].exists()
+        ):
             raise ValueError(
                 f"Trying to overwrite an existing dataset: `{values['folder']}`. "
                 "Please use `exists_ok=True` to overwrite."
             )
+        return v
+
+    @pyd.validator("pipe", always=True)
+    def check_pipe_and_folder(
+        cls, v: t.Optional[YamlInput], values: t.Mapping[str, t.Any]
+    ):
+        if v is None:
+            if values.get("folder", None) is None:
+                raise ValueError("Either `folder` or `pipe` (or both) must be defined.")
+        elif not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
+            raise ValueError(f"Invalid pipeline: {v.value}")
         return v
 
     @classmethod
@@ -509,26 +602,43 @@ class OutputDatasetInterface(
         return self.serialization.get_context_manager()
 
     def append_writer(self, sequence):
-        writer = sequence.to_underfolder(
-            folder=self.folder,
-            zfill=self.zfill,
-            exists_ok=self.exists_ok,
-            key_serialization_mode=self.serialization.keys,
-        )
+        from pipelime.sequences import build_pipe
+
         if self.schema_ is not None:
-            writer = self.schema_.append_validator(writer)
-        return writer
+            sequence = self.schema_.append_validator(sequence)
+        if self.pipe is not None:
+            sequence = build_pipe(self.pipe.value, sequence)  # type: ignore
+        if self.folder is not None:
+            sequence = sequence.to_underfolder(
+                folder=self.folder,
+                zfill=self.zfill,
+                exists_ok=self.exists_ok,
+                key_serialization_mode=self.serialization.keys,
+            )
+
+        return sequence
 
     def as_pipe(self):
-        return {
-            "to_underfolder": {
-                "folder": self.folder,
-                "zfill": self.zfill,
-                "exists_ok": self.exists_ok,
-                "key_serialization_mode": self.serialization.keys,
-            },
-            **({} if self.schema_ is None else self.schema_.as_pipe()),
-        }
+        pipe_list = []
+        if self.schema_ is not None:
+            pipe_list.append(self.schema_.as_pipe())
+        if self.pipe is not None:
+            if isinstance(self.pipe.value, t.Mapping):
+                pipe_list.append(self.pipe.value)
+            else:
+                pipe_list.extend(self.pipe.value)  # type: ignore
+        if self.folder is not None:
+            pipe_list.append(
+                {
+                    "to_underfolder": {
+                        "folder": self.folder,
+                        "zfill": self.zfill,
+                        "exists_ok": self.exists_ok,
+                        "key_serialization_mode": self.serialization.keys,
+                    }
+                }
+            )
+        return pipe_list
 
     def as_input(self, **kwargs):
         """Returns an input dataset interface reading the same folder.
@@ -540,7 +650,7 @@ class OutputDatasetInterface(
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return self.folder.as_posix()
+        return self.folder.as_posix() if self.folder else f"<pipe-{uuid.uuid1().hex}>"
 
 
 ODataset = OutputDatasetInterface

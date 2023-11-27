@@ -1,15 +1,38 @@
-from pipelime.piper import PipelimeCommand
-from pydantic import DirectoryPath, Field, ValidationError
 import typing as t
 from pathlib import Path
 
+from pydantic import DirectoryPath, Field, ValidationError, conint, validator
 
-class ResumeCommand(PipelimeCommand, title="resume", extra="allow"):
+from pipelime.cli.utils import PipelimeUserAppDir
+from pipelime.piper import PipelimeCommand
+
+
+class ResumeCommand(
+    PipelimeCommand, title="resume", extra="allow", no_default_checkpoint=True
+):
     """Resume a command from a checkpoint.
     Any extra field is forwarded to the original command line as '+' option.
     """
 
-    ckpt: DirectoryPath = Field(..., alias="c", description="The checkpoint folder")
+    ckpt: t.Union[
+        DirectoryPath, conint(ge=1, le=PipelimeUserAppDir.MAX_CHECKPOINTS - 1)  # type: ignore
+    ] = Field(
+        None,
+        alias="c",
+        description=(
+            "The checkpoint folder, or the nth-last default checkpoint "
+            f"(up to {PipelimeUserAppDir.MAX_CHECKPOINTS-1}). "
+            "If None it loads the last default checkpoint."
+        ),
+    )
+
+    @validator("ckpt", always=True)
+    def _validate_ckpt(cls, v):
+        if v is None:
+            return PipelimeUserAppDir.last_checkpoint_path()
+        if isinstance(v, int):
+            return PipelimeUserAppDir.last_checkpoint_path(v)
+        return v
 
     def run(self):
         import pipelime.cli.main as cli
@@ -27,7 +50,7 @@ class ResumeCommand(PipelimeCommand, title="resume", extra="allow"):
             cli_opts.command_args.extend(
                 x for k, v in flattened_extra.items() for x in [f"+{k}", v]
             )
-        except ValidationError:
+        except ValidationError:  # pragma: no cover
             raise RuntimeError("Invalid checkpoint")
 
         cli.run_with_checkpoint(cli_opts, ckpt)

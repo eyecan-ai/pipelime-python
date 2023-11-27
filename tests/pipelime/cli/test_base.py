@@ -324,17 +324,25 @@ class TestCliBase:
             out2.resolve().absolute().as_posix(),
         ]
 
-    def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path):
+    @pytest.mark.parametrize("with_default_ckpt", [False, True, 2])
+    def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path, with_default_ckpt):
         from pydantic import ValidationError
 
         from pipelime.sequences import SamplesSequence
+
+        if with_default_ckpt is False:
+            ckpt_args = ["--checkpoint", str(tmp_path / "ckpt")]
+            ckpt_resume = ["+ckpt", str(tmp_path / "ckpt")]
+        else:
+            ckpt_args = []
+            ckpt_resume = (
+                [] if with_default_ckpt is True else ["+ckpt", str(with_default_ckpt)]
+            )
 
         outpath = tmp_path / "final_output"
         args = [
             "-m",
             ckpt_dag,
-            "--checkpoint",
-            str(tmp_path / "ckpt"),
             "cat-and-split",
             "+properties.do_shuffle",
             "+properties.slices",
@@ -345,26 +353,94 @@ class TestCliBase:
             str(minimnist_dataset["path"]),
             "+properties.output",
             str(outpath),
-        ]
+        ] + ckpt_args
 
         # the first time this DAG will stop
         self._base_launch(args, exit_code=1, exc=RuntimeError)
         assert not outpath.exists()
 
+        if not isinstance(with_default_ckpt, bool):
+            # create fake command calls to fill the other default checkpoints
+            for _ in range(with_default_ckpt - 1):
+                self._base_launch(["clone"], exit_code=1, exc=TypeError)
+
         # now resume from checkpoint and override the slice size (invalid value)
         self._base_launch(
-            ["resume", "+ckpt", str(tmp_path / "ckpt"), "+properties.slices", "-1"],
+            ["resume", "+properties.slices", "-1"] + ckpt_resume,
             exit_code=1,
             exc=ValidationError,
         )
         assert not outpath.exists()
 
-        # now resume from checkpoint and override the slice size (valid value)
-        self._base_launch(
-            ["resume", "+ckpt", str(tmp_path / "ckpt"), "+properties.slices", "5"]
-        )
+        # now resume again from checkpoint and override the slice size (valid value)
+        self._base_launch(["resume", "+properties.slices", "5"] + ckpt_resume)
         assert outpath.is_dir()
         assert len(SamplesSequence.from_underfolder(outpath)) == 5
+
+    def test_resume_with_tui(self, minimnist_dataset, tmp_path, monkeypatch):
+        from pydantic import ValidationError
+        from textual.keys import Keys
+        from textual.pilot import Pilot
+
+        from pipelime.cli.tui import TuiApp
+        from pipelime.cli.tui.tui import Constants
+        from pipelime.sequences import SamplesSequence
+
+        tui_run = TuiApp.run
+
+        def tui_mock_fail(app: TuiApp, *, headless=False, size=None, auto_pilot=None):
+            async def autopilot(pilot: Pilot):
+                # wait for the tui to be ready
+                await pilot.pause()
+                # insert value in field "input"
+                for c in str(minimnist_dataset["path"]):
+                    await pilot.press(c)
+                # move to next field
+                await pilot.press(Keys.Tab)
+                # insert wrong value in field "output" (i.e., the same as input)
+                for c in str(minimnist_dataset["path"]):
+                    await pilot.press(c)
+                # exit from the tui
+                await pilot.press(Constants.TUI_KEY_CONFIRM)
+
+            return tui_run(app, headless=True, auto_pilot=autopilot)
+
+        monkeypatch.setattr(TuiApp, "run", tui_mock_fail)
+
+        # the clone command should fail because of the wrong output path
+        self._base_launch(
+            ["clone", "--checkpoint", str(tmp_path / "ckpt")],
+            exit_code=1,
+            exc=ValidationError,
+        )
+
+        outpath = tmp_path / "clone_output"
+
+        def tui_mock_pass(app: TuiApp, *, headless=False, size=None, auto_pilot=None):
+            async def autopilot(pilot: Pilot):
+                # wait for the tui to be ready
+                await pilot.pause()
+                # move to field "output"
+                await pilot.press(Keys.Tab)
+                # delete previously inserted value
+                for _ in str(minimnist_dataset["path"]):
+                    await pilot.press(Keys.Backspace)
+                # insert correct value in field "output"
+                for c in str(outpath):
+                    await pilot.press(c)
+                # exit from the tui
+                await pilot.press(Constants.TUI_KEY_CONFIRM)
+
+            return tui_run(app, headless=True, auto_pilot=autopilot)
+
+        monkeypatch.setattr(TuiApp, "run", tui_mock_pass)
+
+        # now the clone command should pass
+        self._base_launch(["resume", "+ckpt", str(tmp_path / "ckpt")])
+
+        assert outpath.is_dir()
+        ss = SamplesSequence.from_underfolder(outpath)
+        assert len(ss) == minimnist_dataset["len"]
 
     def test_missing_var_in_cfg(self, tmp_path) -> None:
         cfg = {"simple_list": [1, "a", "$var(third_element)"]}

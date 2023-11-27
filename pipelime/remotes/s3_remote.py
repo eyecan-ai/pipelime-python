@@ -6,7 +6,7 @@ from loguru import logger
 from pipelime.remotes.base import BaseRemote, NetlocData
 
 
-class S3Remote(BaseRemote):
+class S3Remote(BaseRemote):  # pragma: no cover
     _HASH_FN_KEY_ = "__HASH_FN__"
     _DEFAULT_HASH_FN_ = "blake2b"
 

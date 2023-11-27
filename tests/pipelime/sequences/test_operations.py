@@ -341,3 +341,112 @@ class TestSamplesSequenceOperations:
             assert "metadata" in sample
             assert sample["label"]._data_cache is not None
             assert sample["metadata"]._data_cache is None
+
+    @pytest.mark.parametrize("bsize,should_fail", [(3, False), (5, False), (0, True)])
+    @pytest.mark.parametrize("drop_last", [True, False])
+    @pytest.mark.parametrize("key_list", [None, ["image", "metadata"]])
+    def test_batched(
+        self, bsize, drop_last, should_fail, key_list, minimnist_dataset: dict
+    ):
+        from pydantic import ValidationError
+
+        from pipelime.items import NumpyItem
+
+        from ... import TestUtils
+
+        source = pls.SamplesSequence.from_underfolder(folder=minimnist_dataset["path"])
+
+        try:
+            batched = source.batched(
+                batch_size=bsize, drop_last=drop_last, key_list=key_list
+            )
+            assert not should_fail
+        except ValidationError:
+            assert should_fail
+            return
+
+        assert len(batched) == len(source) // bsize + min(
+            int(not drop_last), len(source) % bsize
+        )
+
+        sidx = 0
+        for batch in batched:
+            sb = source[sidx : sidx + bsize]
+            for k in sb[0].keys():
+                if not key_list or k in key_list:
+                    assert k in batch
+
+            for k, v in batch.items():
+                assert k in sb[0]
+                if v.is_shared:
+                    assert v is sb[0][k]
+                else:
+                    x = v()
+                    assert len(x) == len(sb)
+                    for i, y in enumerate(x):
+                        if isinstance(v, NumpyItem):
+                            TestUtils.numpy_eq(y, sb[i][k]())
+                        else:
+                            assert y == sb[i][k]()
+
+            sidx += bsize
+
+    @pytest.mark.parametrize("key_list", [None, ["image", "metadata"]])
+    @pytest.mark.parametrize(
+        "ubsize,drop_last,should_fail",
+        [
+            (4, True, False),
+            ("fixed", True, False),
+            ("variable", True, False),
+            (4, False, True),
+            ("fixed", False, True),
+            ("variable", False, False),
+        ],
+    )
+    def test_unbatched(self, key_list, ubsize, drop_last, should_fail):
+        from pipelime.items import NumpyItem
+
+        from ... import TestUtils
+
+        SOURCE_LENGTH = 15
+        SOURCE_BSIZE = 4
+
+        toy = pls.SamplesSequence.toy_dataset(
+            length=SOURCE_LENGTH,
+            with_images=True,
+            with_masks=False,
+            with_instances=False,
+            with_objects=False,
+            with_bboxes=False,
+            with_kpts=False,
+        )
+        btoy = toy.batched(batch_size=SOURCE_BSIZE, drop_last=drop_last)
+        ub = btoy.unbatched(batch_size=ubsize, key_list=key_list)
+
+        if ubsize != "variable":
+            assert len(ub) == len(btoy) * SOURCE_BSIZE
+        elif drop_last:
+            assert len(ub) == SOURCE_BSIZE * (len(toy) // SOURCE_BSIZE)
+        else:
+            assert len(ub) == len(toy)
+
+        try:
+            _ = ub[-1]
+            assert not should_fail
+        except Exception:
+            assert should_fail
+            ub = ub[:-1]
+
+        for x, y in zip(ub, toy):
+            if key_list:
+                assert set(x.keys()) == set(key_list)
+                y = y.extract_keys(*key_list)
+
+            assert x.keys() == y.keys()
+
+            for k, v1 in x.items():
+                v2 = y[k]
+                if isinstance(v1, NumpyItem):
+                    assert TestUtils.numpy_eq(v1(), v2())
+                else:
+                    assert v1() == v2()
