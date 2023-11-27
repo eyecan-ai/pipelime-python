@@ -484,3 +484,148 @@ class DisableItemDataCache(PipedSequenceBase, title="no_data_cache"):
 
         with no_data_cache(*self._item_cls):  # type: ignore
             return super().get_sample(idx)
+
+
+class _BatchedIndex:
+    def __init__(self, batch_size: int, source_length: int):
+        self._batch_size = batch_size
+        self._length = batch_size * source_length
+
+    def __getitem__(self, index: int) -> t.Tuple[int, int]:
+        return index // self._batch_size, index % self._batch_size
+
+    def __len__(self):
+        return self._length
+
+
+@pls.piped_sequence
+class UnbatchedSequences(PipedSequenceBase, title="unbatched"):
+    """Un-batch items by un-stacking along the first dimension.
+    Shared items are not touched.
+    """
+
+    batch_size: t.Union[pyd.PositiveInt, t.Literal["fixed", "variable"]] = pyd.Field(
+        "fixed",
+        description=(
+            "The original batch size. If known, just use that. Otherwise, use `fixed` "
+            "to get it from the first sample or `variable` to read all the samples."
+        ),
+    )
+    key_list: t.Optional[t.Sequence[str]] = pyd.Field(
+        None,
+        description="Item keys to extract from the input sample before unbatching.",
+    )
+
+    _index_mapper: t.Union[
+        _BatchedIndex, t.Sequence[t.Tuple[int, int]]
+    ] = pyd.PrivateAttr()
+
+    def __init__(self, **data):
+        import pipelime.items as pli
+
+        super().__init__(**data)
+
+        if len(self.source) == 0:
+            self._index_mapper = []
+            return
+
+        if isinstance(self.batch_size, int):
+            self._index_mapper = _BatchedIndex(self.batch_size, len(self.source))
+        else:
+            with pli.no_data_cache():
+                if self.batch_size == "fixed":
+                    bsize = self.infer_batch_size(self.source[0], self.key_list)
+                    if bsize == 0:
+                        raise ValueError(
+                            "Could not infer batch size from the first sample "
+                            '(found 0). Try with `batch_size="variable"`.'
+                        )
+                    self._index_mapper = _BatchedIndex(bsize, len(self.source))
+                else:
+                    self._index_mapper = [
+                        (i, j)
+                        for i, x in enumerate(self.source)
+                        for j in range(max(self.infer_batch_size(x, self.key_list), 1))
+                    ]
+
+    @classmethod
+    def infer_batch_size(
+        cls, sample: pls.Sample, key_list: t.Optional[t.Sequence[str]]
+    ) -> int:
+        for k in key_list or sample.keys():
+            if k in sample and not sample[k].is_shared:
+                return len(sample[k]())  # type: ignore
+        return 0
+
+    def size(self) -> int:
+        return len(self._index_mapper)
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        sample_index, batch_index = self._index_mapper[idx]
+        x = self.source[sample_index]
+        return pls.Sample(
+            {
+                key: (
+                    x[key]
+                    if x[key].is_shared
+                    else x[key].make_new(x[key]()[batch_index], shared=False)  # type: ignore
+                )
+                for key in self.key_list or x.keys()
+                if key in x
+            }
+        )
+
+
+@pls.piped_sequence
+class BatchedSequences(PipedSequenceBase, title="batched"):
+    """Batch items by stacking them along a new dimension.
+    Shared items are not touched.
+    """
+
+    batch_size: pyd.PositiveInt = pyd.Field(..., description="The batch size.")
+    drop_last: bool = pyd.Field(
+        False, description="Drop the last incomplete batch, if any."
+    )
+    key_list: t.Optional[t.Sequence[str]] = pyd.Field(
+        None, description="Item keys to extract from the input sample before batching."
+    )
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        if self.drop_last and len(self.source) % self.batch_size != 0:
+            new_size = self.batch_size * (len(self.source) // self.batch_size)
+            self.source = self.source[:new_size]
+
+    def size(self) -> int:
+        # possibly including last incomplete batch
+        return len(self.source) // self.batch_size + min(
+            1, len(self.source) % self.batch_size
+        )
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        import numpy as np
+        import pipelime.items as pli
+
+        start_idx = idx * self.batch_size
+        end_idx = min(start_idx + self.batch_size, len(self.source))
+
+        batched_data = {}
+        shared_data = {}
+        for x in self.source[start_idx:end_idx]:
+            for k in self.key_list or x.keys():
+                if k in x:
+                    if x[k].is_shared:
+                        shared_data[k] = x[k]
+                    else:
+                        batched_data.setdefault(k, list()).append(x[k])
+
+        for k, v in batched_data.items():
+            if isinstance(v[0], pli.NumpyItem):
+                # both images and raw arrays
+                item_cls = pli.TiffImageItem if v[0]().ndim > 1 else pli.TxtNumpyItem
+                batched_data[k] = item_cls(np.stack([x() for x in v], axis=0))
+            else:
+                batched_data[k] = v[0].__class__.make_new([x() for x in v])
+
+        return pls.Sample({**batched_data, **shared_data})
