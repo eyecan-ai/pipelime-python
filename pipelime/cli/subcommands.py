@@ -47,16 +47,12 @@ class SubCommands:
         "list all stages",
     )
     AUDIT = (("audit", "a"), "inspects configuration and context")
-    WIZARD = (
-        ("wizard", "wiz", "w"),
-        "interactive wizard to fill command and general model configurations",
-    )
     EXEC = (
         ("exec", "exe", "x", "e"),
         "execute a configuration where the command is the top-level key",
     )
 
-    ALL_SUBC = [HELP, LIST, LIST_CMDS, LIST_OPS, LIST_STGS, AUDIT, WIZARD, EXEC]
+    ALL_SUBC = [HELP, LIST, LIST_CMDS, LIST_OPS, LIST_STGS, AUDIT, EXEC]
 
     @classmethod
     def get_help(cls) -> str:

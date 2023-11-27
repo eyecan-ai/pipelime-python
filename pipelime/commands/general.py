@@ -1160,8 +1160,8 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
 
 
 class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
-    """Copy shared items from a source dataset to a destination dataset. Datasets may
-    not have the same length."""
+    """Copy shared items from a source dataset to a destination dataset, then write
+    the result to the output folder. Datasets might not have the same length."""
 
     source: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
@@ -1188,7 +1188,7 @@ class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
         pl_interfaces.OutputDatasetInterface.pyd_field(
             alias="o",
             piper_port=PiperPortType.OUTPUT,
-            description=("Where the resulting dataset is written to."),
+            description="Where the resulting dataset is written to.",
         )
     )
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
@@ -1197,12 +1197,12 @@ class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
     key_list: t.Sequence[str] = pyd.Field(
         ...,
         alias="k",
-        description=("The keys to copy. Must be present in source dataset."),
+        description="The keys to copy. Must be present in source dataset.",
     )
     force_shared: bool = pyd.Field(
         False,
         alias="f",
-        description=("If True, the items will be copied as shared items"),
+        description="If True, the items will be copied as shared items",
     )
 
     def run(self):

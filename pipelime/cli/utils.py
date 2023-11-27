@@ -18,6 +18,7 @@ if t.TYPE_CHECKING:
     from pipelime.piper import T_DAG_NODE, PipelimeCommand
     from pipelime.piper.checkpoint import CheckpointNamespace
     from pipelime.stages import SampleStage
+    from pipelime.sequences import SamplesSequence
 
 
 class ActionInfo(BaseModel):
@@ -27,14 +28,19 @@ class ActionInfo(BaseModel):
     classpath: str
 
 
+symbol_base_t = t.TypeVar("symbol_base_t")
+
+
 class PipelimeSymbolsHelper:
     std_modules = ["pipelime.commands", "pipelime.stages"]
     extra_modules: t.List[str] = []
 
     cached_modules: t.Dict[str, ModuleType] = {}
-    cached_cmds: t.Dict[t.Tuple[str, str], t.Dict] = {}
-    cached_seq_ops: t.Dict[t.Tuple[str, str], t.Dict] = {}
-    cached_stages: t.Dict[t.Tuple[str, str], t.Dict] = {}
+    cached_cmds: t.Dict[t.Tuple[str, str], t.Dict[str, t.Type["PipelimeCommand"]]] = {}
+    cached_seq_ops: t.Dict[
+        t.Tuple[str, str], t.Dict[str, t.Type["SamplesSequence"]]
+    ] = {}
+    cached_stages: t.Dict[t.Tuple[str, str], t.Dict[str, t.Type["SampleStage"]]] = {}
 
     registered_actions: t.Dict[str, ActionInfo] = {}
 
@@ -124,10 +130,12 @@ class PipelimeSymbolsHelper:
         raise ValueError(f"Duplicate {type_} `{name}`")
 
     @classmethod
-    def _load_symbols(cls, base_cls: t.Type, symbol_type: str):
+    def _load_symbols(
+        cls, base_cls: t.Type[symbol_base_t], symbol_type: str
+    ) -> t.Dict[str, t.Type[symbol_base_t]]:
         import inspect
 
-        all_syms = {}
+        all_syms: t.Dict[str, t.Type[symbol_base_t]] = {}
         for module_name, module_ in cls.cached_modules.items():
             module_symbols = tuple(
                 (cls._symbol_name(sym_cls), sym_cls)
@@ -169,6 +177,7 @@ class PipelimeSymbolsHelper:
         import pipelime.sequences as pl_seq
         from pipelime.piper import PipelimeCommand
         from pipelime.stages import SampleStage
+        from pipelime.commands.piper import DagBaseCommand
 
         if not cls.is_cache_valid():
             for module_name in cls.std_modules + cls.extra_modules:
@@ -188,10 +197,18 @@ class PipelimeSymbolsHelper:
                 ): pl_seq.SamplesSequence._pipes,
             }
 
+            loaded_commands = cls._load_symbols(PipelimeCommand, "command")
             cls.cached_cmds = {
-                ("Pipelime Command", "Pipelime Commands"): cls._load_symbols(
-                    PipelimeCommand, "command"
-                )
+                ("Pipelime Command", "Pipelime Commands"): {
+                    k: v
+                    for k, v in loaded_commands.items()
+                    if not issubclass(v, DagBaseCommand)
+                },
+                ("Pipelime DAG", "Pipelime DAGs"): {
+                    k: v
+                    for k, v in loaded_commands.items()
+                    if issubclass(v, DagBaseCommand)
+                },
             }
 
             cls.cached_stages = {

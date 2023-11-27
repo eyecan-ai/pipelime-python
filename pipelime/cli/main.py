@@ -491,12 +491,6 @@ def pl_main(
                 print(ctx.get_help())
         except ValueError:
             pass
-    elif command in subc.WIZARD[0] or any([w in command_args for w in subc.WIZARD[0]]):
-        from pipelime.cli.wizard import Wizard
-
-        if command and command not in subc.WIZARD[0]:
-            Wizard.model_cfg_wizard(command)
-        Wizard.model_cfg_wizard(command_args[0])
     elif command in subc.LIST[0]:
         print_commands_ops_stages_list(
             verbose > 0,
@@ -780,33 +774,9 @@ def run_with_checkpoint(
                 add_user_defined_vars=False,
             )
         except ChoixeProcessingError as e:
-            # from rich.prompt import Confirm, Prompt
-
-            # from pipelime.cli.wizard import Wizard
-
             print_warning("Some variables are not defined in the context.")
             print_error(f"Invalid configuration! {e}")
             raise typer.Exit(1)
-
-            ### SKIP FOR NOW
-            # if not Confirm.ask(
-            #     "Do you want to create a new context?", default=True
-            # ):
-            #     print_error(f"Invalid configuration! {e}")
-            #     raise typer.Exit(1)
-        #
-        # print_info("\n📝 Please enter a value for each variable")
-        # new_ctx = Wizard.context_wizard(inspect_info.variables, effective_ctx)
-        #
-        # print_info("Processing configuration and context...", end="")
-        # effective_configs = _process_cfg_or_die(
-        #     base_cfg, new_ctx, run_all, output
-        # )
-        # print_info(" OK")
-        #
-        # outfile = Prompt.ask("\n💾 Write to (leave empty to skip)")
-        # if outfile:
-        #     new_ctx.save_to(Path(outfile).with_suffix(".yaml"))
 
         cfg_size = len(effective_configs)
         pls = "s" if cfg_size != 1 else ""

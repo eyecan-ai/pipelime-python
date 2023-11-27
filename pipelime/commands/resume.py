@@ -15,13 +15,13 @@ class ResumeCommand(
     """
 
     ckpt: t.Union[
-        DirectoryPath, conint(ge=1, le=PipelimeUserAppDir.MAX_CHECKPOINTS - 1)  # type: ignore
+        DirectoryPath, conint(ge=1, le=PipelimeUserAppDir.MAX_CHECKPOINTS)  # type: ignore
     ] = Field(
         None,
         alias="c",
         description=(
             "The checkpoint folder, or the nth-last default checkpoint "
-            f"(up to {PipelimeUserAppDir.MAX_CHECKPOINTS-1}). "
+            f"(up to {PipelimeUserAppDir.MAX_CHECKPOINTS}). "
             "If None it loads the last default checkpoint."
         ),
     )
