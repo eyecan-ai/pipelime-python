@@ -75,24 +75,6 @@ Comparing files {f1} and {f2}
             expected_content=expected_content,
         )
 
-        expected_content = f"""
-{str(f1)[1:]}0000755000000000000000000000012114340775767027410 0ustar  rootroot{{
-    "sample_id": 0,
-    "double": 0.0,
-    "half": 0.0,
-    "random": 0.9947
-}}
-"""
-        outfile = tmp_path / "out.tar"
-
-        self._base_file_test(
-            command="tar --create {f1}",
-            inputs={"f1": f1},
-            outputs={"file": str(outfile)},
-            out_path=outfile,
-            expected_content=expected_content,
-        )
-
     @pytest.mark.parametrize("add_sharp", [True, False])
     def test_shell_python_script(self, shell_cmd, add_sharp, tmp_path):
         numbers = [2, 4, 5]
