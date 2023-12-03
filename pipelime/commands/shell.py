@@ -50,8 +50,9 @@ class ShellCommand(PipelimeCommand, title="shell"):
 
     def _to_command_chunk(self, key: str, value: Any) -> str:
         cmd = ""
-        if isinstance(value, Sequence):
-            cmd += f" --{key} {value[0]} {self._to_command_chunk(key, value[1:])}"
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            if value:
+                cmd += f" --{key} {value[0]} {self._to_command_chunk(key, value[1:])}"
         elif isinstance(value, Mapping):
             raise NotImplementedError("Mapping values are not supported")
         elif isinstance(value, bool):
@@ -68,8 +69,7 @@ class ShellCommand(PipelimeCommand, title="shell"):
         cmd = cmd.format(**args)
 
         for key in set(args.keys()).difference(fields):
-            value = args[key]
-            cmd += self._to_command_chunk(key, value)
+            cmd += self._to_command_chunk(key, args[key])
 
         with self.create_task(1, "Executing") as t:
             subprocess.run(cmd, shell=True)

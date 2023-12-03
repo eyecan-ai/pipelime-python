@@ -62,6 +62,11 @@ def ckpt_dag(data_folder: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
+def shell_cmd(data_folder: Path) -> Path:
+    return data_folder / "cli" / "shell_cmd.py"
+
+
+@pytest.fixture(scope="session")
 def minimnist_dataset(datasets_folder: Path) -> dict:
     return {
         "path": datasets_folder / "underfolder_minimnist",
