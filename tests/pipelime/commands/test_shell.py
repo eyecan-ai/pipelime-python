@@ -11,6 +11,13 @@ class TestShell:
         with open(out_path) as f:
             assert expected_content.strip().lower() == f.read().strip().lower()
 
+        assert (
+            cmd.command_name
+            == f"{ShellCommand.command_title()}:{command.partition(' ')[0]}"
+        )
+        assert cmd.get_inputs() == inputs
+        assert cmd.get_outputs() == outputs
+
     @pytest.mark.skipif(platform.system() != "Windows", reason="Windows only")
     def test_shell_on_win(self, minimnist_dataset, tmp_path, capfd):
         from pipelime.sequences import SamplesSequence
