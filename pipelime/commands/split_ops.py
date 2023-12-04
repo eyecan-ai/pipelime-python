@@ -202,7 +202,7 @@ class SplitCommand(PipelimeCommand, title="split"):
             range(len(split_sizes)), split_sizes, splits
         ):
             split_stop = split_start + split_length  # type: ignore
-            if split.output is not None:
+            if split.output is not None:  # pragma: no branch
                 seq = reader[split_start:split_stop]
                 seq = split.output.append_writer(seq)
                 self.grabber.grab_all(

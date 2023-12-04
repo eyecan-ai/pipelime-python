@@ -1,10 +1,106 @@
 import pytest
 from .test_general_base import TestGeneralCommandsBase
+from pathlib import Path
+from pydantic import parse_obj_as, ValidationError
 
 from ... import TestAssert
 
 
 class TestSplit(TestGeneralCommandsBase):
+    @pytest.mark.parametrize("fraction", [0.1, 0.8, 1.0, None])
+    @pytest.mark.parametrize("folder", [None, "outf"])
+    def test_perc_split(self, fraction, folder):
+        from pipelime.commands.split_ops import PercSplit
+
+        def _parse_and_check(data):
+            parsed = parse_obj_as(PercSplit, data)
+            if fraction is not None:
+                assert parsed.fraction == fraction
+                assert parsed.split_size(100) == fraction * 100
+            else:
+                assert parsed.fraction is None
+
+            if folder is not None:
+                assert parsed.output is not None
+                assert parsed.output.folder == Path(folder).absolute()
+            else:
+                assert parsed.output is None
+
+        _parse_and_check(PercSplit(fraction=fraction, output=folder))
+        _parse_and_check(
+            {
+                "fraction": fraction,
+                **({} if folder is None else {"output": folder}),
+            }
+        )
+
+        if folder is None and fraction is not None:
+            _parse_and_check(fraction)
+
+        folder_str = "" if folder is None else f",{folder}"
+        if fraction is None:
+            _parse_and_check("nOnE" + folder_str)
+            _parse_and_check("NulL" + folder_str)
+            _parse_and_check("nUl" + folder_str)
+        else:
+            _parse_and_check(str(fraction) + folder_str)
+
+    def test_invalid_perc_split(self):
+        from pipelime.commands.split_ops import PercSplit
+
+        with pytest.raises(ValidationError):
+            parse_obj_as(PercSplit, 0.0)
+
+        with pytest.raises(ValidationError):
+            parse_obj_as(PercSplit, 2)
+
+    @pytest.mark.parametrize("length", [1, 8, 10, None])
+    @pytest.mark.parametrize("folder", [None, "outf"])
+    def test_abs_split(self, length, folder):
+        from pipelime.commands.split_ops import AbsoluteSplit
+
+        def _parse_and_check(data):
+            parsed = parse_obj_as(AbsoluteSplit, data)
+            if length is not None:
+                assert parsed.length == length
+                assert parsed.split_size(100) == length
+            else:
+                assert parsed.length is None
+
+            if folder is not None:
+                assert parsed.output is not None
+                assert parsed.output.folder == Path(folder).absolute()
+            else:
+                assert parsed.output is None
+
+        _parse_and_check(AbsoluteSplit(length=length, output=folder))
+        _parse_and_check(
+            {
+                "length": length,
+                **({} if folder is None else {"output": folder}),
+            }
+        )
+
+        if folder is None and length is not None:
+            _parse_and_check(length)
+
+        folder_str = "" if folder is None else f",{folder}"
+        if length is None:
+            _parse_and_check("nOnE" + folder_str)
+            _parse_and_check("NulL" + folder_str)
+            _parse_and_check("nUl" + folder_str)
+        else:
+            _parse_and_check(str(length) + folder_str)
+
+    def test_invalid_abs_split(self):
+        from pipelime.commands.split_ops import AbsoluteSplit
+
+        with pytest.raises(ValidationError):
+            parse_obj_as(AbsoluteSplit, 0)
+
+        with pytest.raises(ValidationError):
+            parse_obj_as(AbsoluteSplit, 2.3)
+
     @pytest.mark.parametrize("shuffle", [False, True, 1])
     @pytest.mark.parametrize(
         "splits",
@@ -75,3 +171,45 @@ class TestSplit(TestGeneralCommandsBase):
                     out_sample = outseqs[i][idx]
                     TestAssert.samples_equal(in_sample, out_sample)
                 cumulative_idx += actual_len
+
+    @pytest.mark.parametrize("output_selected", [None, "out_selected"])
+    @pytest.mark.parametrize("output_discarded", [None, "out_discarded"])
+    @pytest.mark.parametrize("nproc", [0, 2])
+    @pytest.mark.parametrize("prefetch", [2, 4])
+    def test_split_query(
+        self,
+        minimnist_dataset,
+        output_selected,
+        output_discarded,
+        nproc,
+        prefetch,
+        tmp_path,
+    ):
+        from pipelime.commands import SplitByQueryCommand
+        from pipelime.sequences import SamplesSequence
+
+        if output_selected is not None:
+            output_selected = tmp_path / output_selected
+
+        if output_discarded is not None:
+            output_discarded = tmp_path / output_discarded
+
+        params = {
+            "input": minimnist_dataset["path"].as_posix(),
+            "query": "`metadata.sample_id` < 12",
+            "output_selected": output_selected,
+            "output_discarded": output_discarded,
+            "grabber": f"{nproc},{prefetch}",
+        }
+        cmd = SplitByQueryCommand.parse_obj(params)
+        cmd()
+
+        inseq = SamplesSequence.from_underfolder(params["input"])
+
+        if output_selected is not None:
+            outseq_selected = SamplesSequence.from_underfolder(output_selected)
+            TestAssert.sequences_equal(inseq[:12], outseq_selected)
+
+        if output_discarded is not None:
+            outseq_discarded = SamplesSequence.from_underfolder(output_discarded)
+            TestAssert.sequences_equal(inseq[12:], outseq_discarded)
