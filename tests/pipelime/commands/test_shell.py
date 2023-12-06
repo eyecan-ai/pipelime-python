@@ -19,7 +19,7 @@ class TestShell:
         assert cmd.get_outputs() == outputs
 
     @pytest.mark.skipif(platform.system() != "Windows", reason="Windows only")
-    def test_shell_on_win(self, minimnist_dataset, tmp_path, capfd):
+    def test_shell_on_win(self, minimnist_dataset, tmp_path):
         from pipelime.sequences import SamplesSequence
 
         seq = SamplesSequence.from_underfolder(minimnist_dataset["path"])
