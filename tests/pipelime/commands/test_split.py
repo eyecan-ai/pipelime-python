@@ -214,11 +214,14 @@ class TestSplit(TestGeneralCommandsBase):
             outseq_discarded = SamplesSequence.from_underfolder(output_discarded)
             TestAssert.sequences_equal(inseq[12:], outseq_discarded)
 
+    @pytest.mark.parametrize(("key", "nsplits"), [("label", 10), ("values.data", 4)])
     @pytest.mark.parametrize("nproc", [0, 2])
     @pytest.mark.parametrize("prefetch", [2, 4])
     def test_split_value(
         self,
         minimnist_dataset,
+        key,
+        nsplits,
         nproc,
         prefetch,
         tmp_path,
@@ -229,7 +232,7 @@ class TestSplit(TestGeneralCommandsBase):
         base_out = tmp_path / "outvals"
         params = {
             "input": minimnist_dataset["path"].as_posix(),
-            "key": "values.data",
+            "key": key,
             "output": base_out,
             "grabber": f"{nproc},{prefetch}",
         }
@@ -237,12 +240,17 @@ class TestSplit(TestGeneralCommandsBase):
         cmd()
 
         subpaths = list(Path(base_out).glob("*"))
-        assert len(subpaths) == 4
+        assert len(subpaths) == nsplits
 
         inseq = SamplesSequence.from_underfolder(params["input"])
-        for i in range(4):
-            name = base_out / f"values.data={i}"
-            assert name in subpaths
+        split_size = len(inseq) // nsplits
+        for i in range(nsplits):
+            name = base_out / f"{key}={i}"
+            if name not in subpaths:
+                name = base_out / f"{key}={i}.0"  # for float values
+                assert name in subpaths
 
             outseq = SamplesSequence.from_underfolder(name)
-            TestAssert.sequences_equal(inseq[5 * i : 5 * i + 5], outseq)
+            TestAssert.sequences_equal(
+                inseq[split_size * i : split_size * (i + 1)], outseq
+            )

@@ -376,7 +376,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
 
             def __call__(self, x: Sample):
                 value = x.deep_get(self._value_key)
-                if value is not None:
+                if value is not None:  # pragma: no branch
                     value = self._value_to_str(value)
                     self._groups.setdefault(value, []).append(
                         int(x[self._idx_key]())  # type: ignore
