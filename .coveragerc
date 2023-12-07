@@ -28,3 +28,6 @@ exclude_lines =
 
     # SamplesSequence stubs are not run
     @samples_sequence_stub
+
+    # Deprecated classes or functions are not run
+    @deprecated
