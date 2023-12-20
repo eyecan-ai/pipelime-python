@@ -27,7 +27,7 @@ class NodesGraphExecutorFactory:
         )
         executor.task = task
 
-        if watch:
+        if watch:  # pragma: no cover
             executor = WatcherNodesGraphExecutor(
                 executor, watch if isinstance(watch, (str, Path)) else None
             )

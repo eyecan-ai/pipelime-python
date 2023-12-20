@@ -16,7 +16,7 @@ from pipelime.piper.graph import (
 )
 
 
-class MermaidNodesGraphDrawer(NodesGraphDrawer):
+class MermaidNodesGraphDrawer(NodesGraphDrawer):  # pragma: no cover
     PRIVATE_CHARS = ["@"]
     SUBSTITUTION_CHAR = "_"
     OPERATION_NAME = "operation"

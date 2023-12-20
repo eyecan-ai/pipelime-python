@@ -102,7 +102,7 @@ class TempCommand(PipelimeCommand, title="tmp"):
 
         to_delete = self._folders_to_delete()
 
-        if not self.force and to_delete:
+        if not self.force and to_delete:  # pragma: no cover
             table, total_size = self._paths_table(to_delete)
             table.title = f"\nTotal clean up: {self._human_size(total_size)}"
             rprint(table)
@@ -251,7 +251,7 @@ class TempCommand(PipelimeCommand, title="tmp"):
                 fp = os.path.join(dirpath, f)
                 try:
                     stat = os.stat(fp)
-                except OSError:
+                except OSError:  # pragma: no cover
                     continue
 
                 if stat.st_ino in seen:

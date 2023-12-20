@@ -164,6 +164,7 @@ class LocalCheckpoint(Checkpoint, pyd.BaseModel):
 
             if self.try_link:
                 if source.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
                     for parent_dir, dirs, files in os.walk(source):
                         subdir = os.path.relpath(parent_dir, source)
                         trg_parent = os.path.join(target, subdir)
@@ -174,12 +175,12 @@ class LocalCheckpoint(Checkpoint, pyd.BaseModel):
                             trgf = os.path.join(trg_parent, f)
                             try:
                                 os.link(srcf, trgf)
-                            except Exception:
+                            except Exception:  # pragma: no cover
                                 shutil.copy2(srcf, trgf)
                 else:
                     try:
                         os.link(source, target)
-                    except Exception:
+                    except Exception:  # pragma: no cover
                         shutil.copy2(source, target)
             elif source.is_dir():
                 shutil.copytree(source, target)

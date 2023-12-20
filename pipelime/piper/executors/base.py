@@ -14,6 +14,7 @@ from pipelime.piper.progress.listener.factory import (
 )
 from pipelime.piper.progress.tracker.base import TrackedTask
 from pipelime.piper import PipelimeCommand
+from pipelime.utils.deprecated import deprecated
 
 
 class NodesGraphExecutor(ABC):
@@ -155,6 +156,7 @@ class NodesGraphExecutor(ABC):
         """
 
 
+@deprecated("Use a DirectTrackCallback instead, see RunCommandBase")
 class WatcherNodesGraphExecutor(NodesGraphExecutor):
     """Decorator for `NodesGraphExecutor` that wraps an existing executor.
 

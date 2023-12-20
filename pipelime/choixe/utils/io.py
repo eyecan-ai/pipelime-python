@@ -111,9 +111,9 @@ class PipelimeTmp:
 
         user_dirs: Dict[str, List[str]] = {}
         for d in iglob(str(PipelimeTmp.base_dir() / (PipelimeTmp.prefix() + "*"))):
-            if os.path.isdir(d):
+            if os.path.isdir(d):  # pragma: no branch
                 names = os.path.basename(d).split("-")
-                if len(names) >= 3:
+                if len(names) >= 3:  # pragma: no branch
                     user_dirs.setdefault(names[2], []).append(d)
         return user_dirs
 
@@ -135,7 +135,8 @@ class PipelimeTemporaryDirectory:
         import shutil
 
         def onerror(func, path, exc_info):
-            if issubclass(exc_info[0], PermissionError):
+            # this code comes from TemporaryDirectory
+            if issubclass(exc_info[0], PermissionError):  # pragma: no cover
 
                 def resetperms(path):
                     try:

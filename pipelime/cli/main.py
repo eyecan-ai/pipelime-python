@@ -57,7 +57,30 @@ class PlCliOptions(BaseModel):
         return data
 
 
-def _complete_yaml(incomplete: str):
+def _set_logger_level(verbose: int):
+    """Set the logger level if not forced by the user."""
+    import os
+    import sys
+
+    from loguru import logger
+
+    if "LOGURU_LEVEL" not in os.environ:
+        if verbose == 0:
+            level = "WARNING"
+        elif verbose == 1:
+            level = "INFO"
+        elif verbose == 2:
+            level = "DEBUG"
+        else:
+            level = "TRACE"
+        logger.remove()
+        logger.add(sys.stderr, level=level)
+
+        # set the level in the environment so that it is inherited by subprocesses
+        os.environ["LOGURU_LEVEL"] = level
+
+
+def _complete_yaml(incomplete: str):  # pragma: no cover
     for v in Path(".").glob(f"{incomplete}*.yaml"):
         yield str(v)
 
@@ -468,6 +491,8 @@ def pl_main(
     TRUE boolean values. Use `false` or `true` to explicitly set a boolean
     and `none`/`null`/`nul` to enforce `None`.
     """
+    _set_logger_level(verbose)
+
     PipelimeSymbolsHelper.set_extra_modules(extra_modules)
 
     if command_args is None:

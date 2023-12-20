@@ -129,7 +129,7 @@ class TestInterface:
         )
 
 
-class TestGrabberInterfaces(TestInterface):
+class TestGrabberInterface(TestInterface):
     @pytest.mark.parametrize("nproc", [-10, -1, 0, 1, 10, None])
     @pytest.mark.parametrize("pref", [1, 2, 10, None])
     def test_valid(self, nproc: t.Optional[int], pref: t.Optional[int]):
@@ -410,3 +410,86 @@ class TestRemoteInterface(TestInterface):
         )
         with pytest.raises(ValueError):
             plint.RemoteInterface.validate([1, 2, 3])
+
+
+class TestInterval(TestInterface):
+    @pytest.mark.parametrize("start", [None, -11, 0, 7])
+    @pytest.mark.parametrize("stop", [None, -13, 5, 9])
+    def test_valid(self, start: t.Optional[int], stop: t.Optional[int]):
+        opt_str = ""
+        opt_int = None
+        if start is not None:
+            opt_str = f"{start}"
+        if stop is None:
+            opt_int = start
+        else:
+            opt_str += f":{stop}"
+        self._standard_checks(
+            interf_cls=plint.Interval,
+            interf_compact_list=[opt_str, opt_int],
+            out_of_compact=[],
+            should_fail=False,
+            start=start,
+            stop=stop,
+        )
+
+    def test_invalid(self):
+        self._standard_checks(
+            interf_cls=plint.Interval,
+            interf_compact_list=["asdf", "a:b", "1:2:3", "1.3:3.2", 12.5],
+            out_of_compact=[],
+            should_fail=True,
+            start="asdf",
+            stop=12.3,
+        )
+        with pytest.raises(ValueError):
+            plint.Interval.validate([1, 2, 3])
+        with pytest.raises(ValueError):
+            plint.Interval.validate(12.5)
+
+
+class TestExtendedInterval(TestInterface):
+    @pytest.mark.parametrize("start", [None, -11, 0, 7])
+    @pytest.mark.parametrize("stop", [None, -13, 5, 9])
+    @pytest.mark.parametrize("step", [None, -3, 0, 2])
+    def test_valid(
+        self, start: t.Optional[int], stop: t.Optional[int], step: t.Optional[int]
+    ):
+        opt_str = ""
+        opt_int = None
+        if start is not None:
+            opt_str = f"{start}"
+        if stop is None:
+            if step is None:
+                opt_int = start
+            else:
+                opt_str += f"::{step}"
+        else:
+            opt_str += f":{stop}"
+            if step is not None:
+                opt_str += f":{step}"
+
+        self._standard_checks(
+            interf_cls=plint.ExtendedInterval,
+            interf_compact_list=[opt_str, opt_int],
+            out_of_compact=[],
+            should_fail=False,
+            start=start,
+            stop=stop,
+            step=step,
+        )
+
+    def test_invalid(self):
+        self._standard_checks(
+            interf_cls=plint.Interval,
+            interf_compact_list=["asdf", "a:b", "1:2:3:4", "1.3:3.2", 12.5],
+            out_of_compact=[],
+            should_fail=True,
+            start="start",
+            stop=12.3,
+            step=False,
+        )
+        with pytest.raises(ValueError):
+            plint.Interval.validate([1, 2, 3, 4])
+        with pytest.raises(ValueError):
+            plint.Interval.validate(12.5)

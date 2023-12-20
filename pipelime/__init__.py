@@ -2,4 +2,4 @@
 
 __author__ = "Eyecan.ai"
 __email__ = "info@eyecan.ai"
-__version__ = "1.9.0"
+__version__ = "1.9.1"
