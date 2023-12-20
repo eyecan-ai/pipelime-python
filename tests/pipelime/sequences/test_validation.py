@@ -15,6 +15,7 @@ class TestValidation:
         label: pli.TxtNumpyItem
         mask: pli.PngImageItem
         metadata: pli.JsonMetadataItem
+        values: pli.YamlMetadataItem
         points: pli.TxtNumpyItem
         invalid_key: Optional[pli.TxtNumpyItem] = None
 

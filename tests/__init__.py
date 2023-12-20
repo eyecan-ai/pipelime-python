@@ -47,3 +47,9 @@ class TestAssert:
                 assert TestUtils.numpy_eq(v1(), v2())
             else:
                 assert v1() == v2()
+
+    @staticmethod
+    def sequences_equal(s1, s2):
+        assert len(s1) == len(s2)
+        for x1, x2 in zip(s1, s2):
+            TestAssert.samples_equal(x1, x2)

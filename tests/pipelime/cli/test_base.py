@@ -1,4 +1,5 @@
 import os
+import traceback
 from typing import Any, List
 
 import pytest
@@ -25,8 +26,15 @@ class TestCliBase:
         result = runner.invoke(_create_typer_app(), args, input=user_input)
 
         print("*** CLI COMMAND OUTPUT ***", result.output, sep="\n")
-        print("EXCEPTION:", type(result.exception))
-        print(result.exception)
+        if result.stderr_bytes is not None:
+            print("*** CLI COMMAND STDERR ***", result.stderr, sep="\n")
+        if result.exc_info is not None:
+            print("*** CLI COMMAND EXCEPTION ***")
+            traceback.print_exception(
+                result.exc_info[0],
+                value=result.exc_info[1],
+                tb=result.exc_info[2],
+            )
         print("EXIT CODE:", result.exit_code)
 
         assert result.exit_code == exit_code
@@ -92,7 +100,8 @@ class TestCliBase:
         assert "Type" in result.output
         assert "Default" in result.output
 
-    def test_run(self, minimnist_dataset, tmp_path):
+    @pytest.mark.parametrize("verbose", ["", "-v", "-vv", "-vvv", "-vvvv"])
+    def test_run(self, minimnist_dataset, verbose, tmp_path):
         from pathlib import Path
         from typing import Sequence
 
@@ -113,6 +122,9 @@ class TestCliBase:
             "+operations.slice.stop",
             "10",
         ]
+
+        if verbose:
+            args.append(verbose)
 
         self._base_launch(args)
 

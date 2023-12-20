@@ -62,11 +62,16 @@ def ckpt_dag(data_folder: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
+def shell_cmd(data_folder: Path) -> Path:
+    return data_folder / "cli" / "shell_cmd.py"
+
+
+@pytest.fixture(scope="session")
 def minimnist_dataset(datasets_folder: Path) -> dict:
     return {
         "path": datasets_folder / "underfolder_minimnist",
         "root_keys": ["cfg", "numbers", "pose"],
-        "item_keys": ["image", "label", "mask", "metadata", "points"],
+        "item_keys": ["image", "label", "mask", "metadata", "values", "points"],
         "item_types": {
             "cfg": "YamlMetadataItem",
             "numbers": "TxtNumpyItem",
@@ -75,6 +80,7 @@ def minimnist_dataset(datasets_folder: Path) -> dict:
             "label": "TxtNumpyItem",
             "mask": "PngImageItem",
             "metadata": "JsonMetadataItem",
+            "values": "YamlMetadataItem",
             "points": "TxtNumpyItem",
         },
         "image_keys": ["image", "mask"],

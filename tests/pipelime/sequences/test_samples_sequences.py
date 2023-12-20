@@ -1,6 +1,7 @@
 import pytest
 import pipelime.sequences as pls
 from ... import TestUtils, TestAssert
+import tqdm
 
 
 class TestSamplesSequences:
@@ -47,12 +48,20 @@ class TestSamplesSequences:
         assert seq.best_zfill() == zfill
 
     def test_to_pipe(self):
-        from pipelime.stages import StageIdentity
+        from pipelime.stages import StageCompose, StageIdentity, StageInput
         from pathlib import Path
 
-        a = pls.SamplesSequence.from_underfolder(
-            folder="no-path", must_exist=False
-        ).slice(start=10)
+        stg = StageInput(
+            __root__=StageCompose([StageIdentity(), StageIdentity(), StageIdentity()])
+        )
+
+        a = (
+            pls.SamplesSequence.from_underfolder(folder="no-path", must_exist=False)
+            .slice(start=10)
+            .map(stage=stg)
+        )
+        stg = a.stage
+
         b = pls.SamplesSequence.from_underfolder(
             folder="no-path-2", must_exist=False
         ).shuffle()
@@ -68,12 +77,18 @@ class TestSamplesSequences:
                 }
             },
             {"slice": {"start": 10, "stop": None, "step": None}},
+            {"map": {"stage": stg}},
             {"cat": {"to_cat": [b], "interleave": False}},
         ]
 
         assert a.to_pipe(recursive=False, objs_to_str=False) == expected_pipe
 
-        expected_pipe[2]["cat"]["to_cat"] = [
+        expected_pipe[2]["map"]["stage"] = {
+            "compose": {
+                "stages": [{"identity": {}}, {"identity": {}}, {"identity": {}}]
+            }
+        }
+        expected_pipe[3]["cat"]["to_cat"] = [
             [
                 {
                     "from_underfolder": {
@@ -90,7 +105,6 @@ class TestSamplesSequences:
         assert a.to_pipe(recursive=True, objs_to_str=False) == expected_pipe
 
     def test_build_pipe(self):
-        from pydantic import ValidationError
         from pipelime.stages import StageIdentity, StageCompose
 
         input_pipe = [
@@ -210,7 +224,8 @@ class TestSamplesSequences:
         for s1, s2 in zip(sseq, out_seq):
             TestAssert.samples_equal(s1, s2)
 
-    def test_run(self, minimnist_dataset: dict):
+    @pytest.mark.parametrize("track_fn", [None, True, False, "", "message", tqdm.tqdm])
+    def test_run(self, minimnist_dataset: dict, track_fn):
         from pipelime.stages import StageLambda
 
         sseq = (
@@ -219,7 +234,8 @@ class TestSamplesSequences:
             .map(StageLambda(lambda x: x.extract_keys(minimnist_dataset["image_keys"])))
         )
         out_seq = sseq.run(
-            sample_fn=lambda x, idx: TestAssert.samples_equal(x, sseq[idx])
+            sample_fn=lambda x, idx: TestAssert.samples_equal(x, sseq[idx]),
+            track_fn=track_fn,
         )
 
     @pytest.mark.skipif(not TestUtils.has_torch(), reason="PyTorch not installed")

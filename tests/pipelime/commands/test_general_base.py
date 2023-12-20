@@ -47,6 +47,11 @@ class TestGeneralCommandsBase:
             "is_optional": False,
             "is_shared": False,
         },
+        "values": {
+            "class_path": "YamlMetadataItem",
+            "is_optional": False,
+            "is_shared": False,
+        },
         "points": {
             "class_path": "TxtNumpyItem",
             "is_optional": False,

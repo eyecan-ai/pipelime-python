@@ -819,7 +819,7 @@ class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
     """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "An interval of indexes."
-    _compact_form: t.ClassVar[t.Optional[str]] = "<start>[:<stop>]"
+    _compact_form: t.ClassVar[t.Optional[str]] = "[<start>][:<stop>]"
 
     start: t.Optional[int] = pyd.Field(
         None,
@@ -872,7 +872,7 @@ class ExtendedInterval(Interval):
     ``step`` indices or a string ``start:stop:step``.
     """
 
-    _compact_form: t.ClassVar[t.Optional[str]] = "<start>[:<stop>[:<step>]]"
+    _compact_form: t.ClassVar[t.Optional[str]] = "[<start>][:<stop>][:<step>]"
 
     step: t.Optional[int] = pyd.Field(
         None, description="The slice step, defaults to 1 (can be negative)."
