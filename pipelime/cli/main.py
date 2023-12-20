@@ -80,7 +80,7 @@ def _set_logger_level(verbose: int):
         os.environ["LOGURU_LEVEL"] = level
 
 
-def _complete_yaml(incomplete: str):
+def _complete_yaml(incomplete: str):  # pragma: no cover
     for v in Path(".").glob(f"{incomplete}*.yaml"):
         yield str(v)
 

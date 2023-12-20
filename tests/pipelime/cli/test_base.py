@@ -100,7 +100,8 @@ class TestCliBase:
         assert "Type" in result.output
         assert "Default" in result.output
 
-    def test_run(self, minimnist_dataset, tmp_path):
+    @pytest.mark.parametrize("verbose", ["", "-v", "-vv", "-vvv", "-vvvv"])
+    def test_run(self, minimnist_dataset, verbose, tmp_path):
         from pathlib import Path
         from typing import Sequence
 
@@ -121,6 +122,9 @@ class TestCliBase:
             "+operations.slice.stop",
             "10",
         ]
+
+        if verbose:
+            args.append(verbose)
 
         self._base_launch(args)
 
