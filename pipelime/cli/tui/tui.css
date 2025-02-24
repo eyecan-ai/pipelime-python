@@ -19,7 +19,7 @@
 }
 
 .description {
-    height: 0;
+    height: auto;
     opacity: 0.5;
 }
 

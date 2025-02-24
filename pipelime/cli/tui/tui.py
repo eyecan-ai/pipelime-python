@@ -30,18 +30,16 @@ class Constants:
     SUB_FIELD_MARGIN = (0, 0, 0, 4)
     TUI_KEY_CONFIRM = Keys.ControlN
     TUI_KEY_SAVE = Keys.ControlS
-    TUI_KEY_ABORT = Keys.ControlC
+    TUI_KEY_ABORT = Keys.ControlB
     TUI_KEY_TOGGLE_DESCRIPTIONS = Keys.ControlJ
     SAVE_KEY_CONFIRM = Keys.ControlS
     SAVE_KEY_CANCEL = Keys.Escape
-    SAVE_KEY_ABORT = Keys.ControlC
 
 
 class SaveScreen(ModalScreen):
     BINDINGS = [
         (Constants.SAVE_KEY_CONFIRM, "confirm", "Confirm"),
         (Constants.SAVE_KEY_CANCEL, "cancel", "Cancel"),
-        (Constants.SAVE_KEY_ABORT, "ctrl_c", "Abort"),
     ]
     HELP = "CTRL+S to confirm, ESC to cancel"
 
@@ -55,11 +53,14 @@ class SaveScreen(ModalScreen):
         self.config = config
 
     def compose(self) -> ComposeResult:
+        """Compose the save screen."""
+        error_label = Label("", classes="error-label")
+        error_label.display = False
         yield Container(
             Label("Save path", classes="field-label"),
             Input(""),
-            Label(SaveScreen.HELP),
-            Label("", classes="error-label"),
+            Label(str(SaveScreen.HELP)),
+            error_label,
             id="dialog",
         )
 
@@ -85,16 +86,15 @@ class SaveScreen(ModalScreen):
         except Exception as e:
             error_label = self.query_one(".error-label")
             error_label = cast(Label, error_label)
-            error_label.styles.height = "auto"
-            error_label.update(str(e))
+            error_label.display = True
+            error = str(e)
+            # escape the square brackets to avoid rich syntax
+            error = error.replace("[", "\[")  # noqa: W605
+            error_label.update(error)
 
     def action_cancel(self) -> None:
         """Cancel the save."""
         self.app.pop_screen()
-
-    def action_ctrl_c(self) -> None:
-        """Propagate the KeyboardInterrupt exception."""
-        raise KeyboardInterrupt
 
 
 class TuiApp(App[Mapping]):
@@ -104,7 +104,7 @@ class TuiApp(App[Mapping]):
     BINDINGS = [
         (Constants.TUI_KEY_CONFIRM, "confirm", "Confirm"),
         (Constants.TUI_KEY_SAVE, "save", "Save to file"),
-        (Constants.TUI_KEY_ABORT, "ctrl_c", "Abort"),
+        (Constants.TUI_KEY_ABORT, "abort", "Abort"),
         (
             Constants.TUI_KEY_TOGGLE_DESCRIPTIONS,
             "toggle_descriptions",
@@ -165,7 +165,9 @@ class TuiApp(App[Mapping]):
             labels.append(Label(title, classes="title-label"))
         if description:
             description = TuiApp.preprocess_string(description)
-            labels.append(Label(description, classes="title-label description"))
+            label = Label(description, classes="title-label description")
+            label.display = True if self.show_descriptions else False
+            labels.append(label)
         return labels
 
     def create_simple_field(self, field: TuiField) -> List[Widget]:
@@ -186,7 +188,9 @@ class TuiApp(App[Mapping]):
         description = field.description
         descr = f"({field.type_}) {description}" if description else f"({field.type_})"
         description = TuiApp.preprocess_string(descr)
-        widgets.append(Label(description, classes="description"))
+        label = Label(description, classes="description")
+        label.display = True if self.show_descriptions else False
+        widgets.append(label)
 
         inp = Input(value=field.value, placeholder=field.hint)
         widgets.append(inp)
@@ -275,8 +279,8 @@ class TuiApp(App[Mapping]):
         save_screen = SaveScreen(self.collect_cmd_args())
         self.push_screen(save_screen)
 
-    def action_ctrl_c(self) -> None:
-        """Propagate the KeyboardInterrupt exception."""
+    def action_abort(self) -> None:
+        """Raise KeyboardInterrupt exception."""
         raise KeyboardInterrupt
 
     def action_toggle_descriptions(self) -> None:
@@ -284,7 +288,7 @@ class TuiApp(App[Mapping]):
         self.show_descriptions = not self.show_descriptions
         query = self.query(".description")
         for widget in query:
-            widget.styles.height = "auto" if self.show_descriptions else 0
+            widget.display = True if self.show_descriptions else False
 
         query = self.query(Input)
         for widget in query:
