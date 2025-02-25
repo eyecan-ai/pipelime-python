@@ -89,7 +89,7 @@ class SaveScreen(ModalScreen):
             error_label.display = True
             error = str(e)
             # escape the square brackets to avoid rich syntax
-            error = error.replace("[", "\[")  # noqa: W605
+            error = error.replace("[", r"\[")  # noqa: W605
             error_label.update(error)
 
     def action_cancel(self) -> None:
@@ -319,7 +319,7 @@ class TuiApp(App[Mapping]):
                 replace_whitespace=False,
                 tabsize=4,
             )
-            sub = sub.replace("[", "\[")  # noqa: W605
+            sub = sub.replace("[", r"\[")  # noqa: W605
             preprocessed += sub + "\n"
 
         preprocessed = preprocessed[:-1]
