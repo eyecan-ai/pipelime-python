@@ -1,10 +1,11 @@
-import pytest
+import typing as t
 from pathlib import Path
 from urllib.parse import ParseResult
-import typing as t
 
-from pipelime.sequences import Sample, SamplesSequence
+import pytest
+
 from pipelime.remotes import make_remote_url
+from pipelime.sequences import Sample, SamplesSequence
 
 
 class TestRemotes:
@@ -30,9 +31,10 @@ class TestRemotes:
         keys_to_upload: t.Optional[t.Sequence[str]],
         check_data: bool,
     ):
-        from pipelime.stages import StageUploadToRemote
-        import pipelime.items as pli
         import numpy as np
+
+        import pipelime.items as pli
+        from pipelime.stages import StageUploadToRemote
 
         if isinstance(remote_urls, ParseResult):
             remote_urls = [remote_urls]
@@ -153,9 +155,11 @@ class TestRemotes:
     def test_incremental_file_upload(
         self, minimnist_private_dataset: dict, tmp_path: Path
     ):
-        import pipelime.items as pli
         from shutil import rmtree
+
         import numpy as np
+
+        import pipelime.items as pli
 
         # data lake
         remote_root = tmp_path / "file_remote"
@@ -170,7 +174,7 @@ class TestRemotes:
             minimnist_private_dataset["path"],
             even_output,
             remote_url,
-            lambda x: int(x["label"]()) % 2 == 0,  # type: ignore
+            lambda x: int(x["label"]()[0]) % 2 == 0,  # type: ignore
             minimnist_private_dataset["image_keys"],
             True,
         )
@@ -186,7 +190,7 @@ class TestRemotes:
             SamplesSequence.from_underfolder(
                 minimnist_private_dataset["path"], merge_root_items=False
             ).filter(
-                lambda x: int(x["label"]()) % 2 == 1  # type: ignore
+                lambda x: int(x["label"]()[0]) % 2 == 1  # type: ignore
             )  # type: ignore
         )
 
@@ -219,7 +223,7 @@ class TestRemotes:
         assert len(even_odd_reader) == minimnist_private_dataset["len"]
 
         for s1, s2 in zip(even_odd_reader, even_odd_partial_seq):
-            is_even = int(s1["label"]()) % 2 == 0  # type: ignore
+            is_even = int(s1["label"]()[0]) % 2 == 0  # type: ignore
             assert s1.keys() == s2.keys()
 
             for k, v1 in s1.items():
@@ -259,7 +263,9 @@ class TestRemotes:
         self, minimnist_private_dataset: dict, tmp_path: Path
     ):
         from shutil import rmtree
+
         import numpy as np
+
         import pipelime.items as pli
 
         # create two remotes
@@ -321,9 +327,10 @@ class TestRemotes:
         )
 
     def test_forget_source(self, minimnist_private_dataset: dict, tmp_path: Path):
-        from pipelime.stages import StageForgetSource
-        import pipelime.items as pli
         import numpy as np
+
+        import pipelime.items as pli
+        from pipelime.stages import StageForgetSource
 
         # create two remotes
         remote_a_root = tmp_path / "remote_a"
