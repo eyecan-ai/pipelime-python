@@ -30,7 +30,7 @@ class Constants:
     SUB_FIELD_MARGIN = (0, 0, 0, 4)
     TUI_KEY_CONFIRM = Keys.ControlN
     TUI_KEY_SAVE = Keys.ControlS
-    TUI_KEY_ABORT = Keys.ControlB
+    TUI_KEY_ABORT = Keys.ControlT
     TUI_KEY_TOGGLE_DESCRIPTIONS = Keys.ControlJ
     SAVE_KEY_CONFIRM = Keys.ControlS
     SAVE_KEY_CANCEL = Keys.Escape
