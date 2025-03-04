@@ -51,7 +51,6 @@ dependencies = [
     "dictquery",
     "minio",
     "requests",
-    "billiard",
     "textual>=0.26.0",
 ]
 dynamic = [ "version" ]
