@@ -126,10 +126,11 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             else:
                 raw_data = str(value).split(",")
                 try:
-                    data["num_workers"] = int(raw_data[0])
-                    if len(raw_data) > 1:
+                    if raw_data[0]:
+                        data["num_workers"] = int(raw_data[0])
+                    if len(raw_data) > 1 and raw_data[1]:
                         data["prefetch"] = int(raw_data[1])
-                    if len(raw_data) > 2:
+                    if len(raw_data) > 2 and raw_data[2]:
                         data["allow_nested_mp"] = raw_data[2].lower() == "true"
                 except ValueError:
                     raise ValueError("Invalid grabber definition.")
