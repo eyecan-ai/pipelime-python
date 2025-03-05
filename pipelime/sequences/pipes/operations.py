@@ -1,7 +1,7 @@
 import typing as t
 from pathlib import Path
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
@@ -516,9 +516,9 @@ class UnbatchedSequences(PipedSequenceBase, title="unbatched"):
         description="Item keys to extract from the input sample before unbatching.",
     )
 
-    _index_mapper: t.Union[
-        _BatchedIndex, t.Sequence[t.Tuple[int, int]]
-    ] = pyd.PrivateAttr()
+    _index_mapper: t.Union[_BatchedIndex, t.Sequence[t.Tuple[int, int]]] = (
+        pyd.PrivateAttr()
+    )
 
     def __init__(self, **data):
         import pipelime.items as pli
@@ -605,6 +605,7 @@ class BatchedSequences(PipedSequenceBase, title="batched"):
 
     def get_sample(self, idx: int) -> pls.Sample:
         import numpy as np
+
         import pipelime.items as pli
 
         start_idx = idx * self.batch_size

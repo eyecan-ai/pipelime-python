@@ -5,8 +5,8 @@ import typing as t
 from pathlib import Path
 
 import numpy as np
-import pydantic as pyd
-import pydantic.generics as pydg
+import pydantic.v1 as pyd
+import pydantic.v1.generics as pydg
 
 from pipelime.items import Item
 
@@ -29,7 +29,7 @@ class NewPath(Path):
 
     @classmethod
     def __get_validators__(cls):
-        from pydantic.validators import path_validator
+        from pydantic.v1.validators import path_validator
 
         yield path_validator
         yield cls.validate
@@ -547,8 +547,9 @@ class CallableDef(
 
     @classmethod
     def _string_to_callable(cls, clb_str: str) -> t.Callable:
-        from pipelime.choixe.utils.imports import import_symbol
         import ast
+
+        from pipelime.choixe.utils.imports import import_symbol
 
         clb_str = clb_str.strip("\"'")
 
@@ -661,9 +662,11 @@ class ItemValidationModel(
     def make_field(self, key_name: str):
         return (
             self.class_path.value,
-            pyd.Field(default_factory=self.class_path.value, alias=key_name)
-            if self.is_optional
-            else pyd.Field(..., alias=key_name),
+            (
+                pyd.Field(default_factory=self.class_path.value, alias=key_name)
+                if self.is_optional
+                else pyd.Field(..., alias=key_name)
+            ),
         )
 
     def make_validator_method(self, field_name: str):

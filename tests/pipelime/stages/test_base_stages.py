@@ -1,6 +1,7 @@
 import pytest
-from pipelime.sequences import Sample
+
 from pipelime.items import UnknownItem
+from pipelime.sequences import Sample
 
 
 class TestBaseStages:
@@ -65,8 +66,9 @@ class TestBaseStages:
         )
 
     def test_stage_input(self):
-        from pydantic import BaseModel
-        from pipelime.stages import StageKeyFormat, StageInput
+        from pydantic.v1 import BaseModel
+
+        from pipelime.stages import StageInput, StageKeyFormat
 
         def _check_stage(stage_input):
             assert isinstance(stage_input.__root__, StageKeyFormat)

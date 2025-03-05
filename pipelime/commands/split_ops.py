@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType

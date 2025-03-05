@@ -4,7 +4,7 @@ import itertools
 import typing as t
 from abc import abstractmethod
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 from loguru import logger
 
 from pipelime.sequences.sample import Sample
@@ -85,12 +85,10 @@ class SamplesSequence(
     _operator_path: t.ClassVar[str] = ""
 
     @t.overload
-    def __getitem__(self, idx: int) -> Sample:
-        ...
+    def __getitem__(self, idx: int) -> Sample: ...
 
     @t.overload
-    def __getitem__(self, idx: slice) -> SamplesSequence:
-        ...
+    def __getitem__(self, idx: slice) -> SamplesSequence: ...
 
     def __getitem__(self, idx: t.Union[int, slice]) -> t.Union[Sample, SamplesSequence]:
         return (
@@ -125,7 +123,11 @@ class SamplesSequence(
 
         return DirectAccessSequence(self)
 
-    def torch_dataset(self) -> "torch.utils.data.Dataset":  # pragma: no cover  # type: ignore # noqa: E602,F821
+    def torch_dataset(
+        self,
+    ) -> (
+        "torch.utils.data.Dataset"
+    ):  # pragma: no cover  # type: ignore # noqa: E602,F821
         """Returns a torch.utils.data.Dataset interface of this samples sequence.
 
         Returns:

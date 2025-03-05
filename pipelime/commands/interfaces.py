@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import ParseResult
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 from pipelime.piper import PiperPortType
 from pipelime.utils.pydantic_types import ItemType, SampleValidationInterface, YamlInput

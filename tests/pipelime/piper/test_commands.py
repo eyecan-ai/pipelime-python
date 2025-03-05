@@ -1,9 +1,10 @@
-import pytest
+import io
 import typing as t
 from pathlib import Path
-from pydantic import BaseModel
+
+import pytest
 import yaml
-import io
+from pydantic.v1 import BaseModel
 
 
 class _GraphArgs(BaseModel):
@@ -107,9 +108,10 @@ class TestCommands:
         watch: t.Union[bool, str, Path, None],
         tmp_path: Path,
     ):
-        from pipelime.commands.piper import RunCommand
         import shutil
+
         from pipelime.choixe.utils.io import PipelimeTmp
+        from pipelime.commands.piper import RunCommand
 
         if isinstance(watch, Path):
             watch = tmp_path / watch
@@ -158,7 +160,8 @@ class TestCommands:
     def test_nested_dag(self, piper_folder: Path, tmp_path: Path):
         from pipelime.commands.piper import RunCommand
         from pipelime.sequences import SamplesSequence
-        from ... import TestUtils, TestAssert
+
+        from ... import TestAssert, TestUtils
 
         dag_path = piper_folder / "nested" / "nested.yml"
         cfg = TestUtils.choixe_process(dag_path, {"folder": tmp_path.as_posix()})
@@ -182,8 +185,9 @@ class TestCommands:
             TestAssert.samples_equal(gt, pred)
 
     def test_dag_gc(self, piper_folder: Path):
-        from pipelime.commands.piper import RunCommand
         from pipelime.choixe.utils.io import PipelimeTmp
+        from pipelime.commands.piper import RunCommand
+
         from ... import TestUtils
 
         PipelimeTmp.SESSION_TMP_DIR = None

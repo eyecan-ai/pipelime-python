@@ -1,13 +1,20 @@
-import pytest
-from typing import Optional
 from pathlib import Path
-from pydantic import BaseModel, ValidationError, parse_obj_as
+from typing import Optional
+
 import numpy as np
-from pipelime.stages import StageEntity
-from pipelime.stages.entities import BaseEntity, EntityAction
-from pipelime.sequences import Sample
-from pipelime.stages.entities import ParsedItem, ParsedData, DynamicKey
+import pytest
+from pydantic.v1 import BaseModel, ValidationError, parse_obj_as
+
 import pipelime.items as pli
+from pipelime.sequences import Sample
+from pipelime.stages import StageEntity
+from pipelime.stages.entities import (
+    BaseEntity,
+    DynamicKey,
+    EntityAction,
+    ParsedData,
+    ParsedItem,
+)
 
 
 class MyInput0(BaseEntity):
@@ -221,9 +228,11 @@ class TestEntities:
 
         se = parse_obj_as(
             StageEntity,
-            action_fn
-            if input_cls is None
-            else {"action": action_fn, "input_type": input_cls},
+            (
+                action_fn
+                if input_cls is None
+                else {"action": action_fn, "input_type": input_cls}
+            ),
         )
         self._make_stage_test(se, "allow", False)
 

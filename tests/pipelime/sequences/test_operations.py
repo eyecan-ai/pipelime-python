@@ -348,7 +348,7 @@ class TestSamplesSequenceOperations:
     def test_batched(
         self, bsize, drop_last, should_fail, key_list, minimnist_dataset: dict
     ):
-        from pydantic import ValidationError
+        from pydantic.v1 import ValidationError
 
         from pipelime.items import NumpyItem
 

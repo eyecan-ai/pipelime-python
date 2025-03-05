@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 import pytest
 from deepdiff import DeepDiff
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 from pipelime.choixe.ast.nodes import DictNode, ListNode, LiteralNode, Node
 from pipelime.choixe.visitors import decode

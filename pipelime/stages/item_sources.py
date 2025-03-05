@@ -2,7 +2,7 @@ import typing as t
 from pathlib import Path
 from urllib.parse import ParseResult
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 from pipelime.items import Item
 from pipelime.stages import SampleStage
@@ -48,7 +48,7 @@ class StageForgetSource(SampleStage, title="forget-source"):
         *always_remove: t.Union[Path, ParseResult],
         **remove_by_key: t.Union[
             t.Union[Path, ParseResult], t.Sequence[t.Union[Path, ParseResult]]
-        ]
+        ],
     ):
         remove_by_key = {
             k: (v,) if isinstance(v, (Path, ParseResult)) else tuple(v)

@@ -2,7 +2,7 @@ import typing as t
 from pathlib import Path
 
 import pytest
-from pydantic import Field, ValidationError
+from pydantic.v1 import Field, ValidationError
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.commands.piper import T_NODES, DagBaseCommand, PiperDAG, piper_dag
@@ -346,8 +346,8 @@ class TestDAG:
         decorated: bool,
         tmp_path: Path,
     ):
-        from pipelime.commands import TempCommand
         from pipelime.choixe.utils.io import PipelimeTmp
+        from pipelime.commands import TempCommand
 
         dag = _create_dag(
             minimnist_dataset, decorated=decorated, slice=1, output=tmp_path

@@ -5,7 +5,7 @@ import multiprocessing.pool as mp_pool
 import typing as t
 from enum import Enum, auto
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.sequences as pls
 

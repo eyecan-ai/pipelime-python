@@ -1,8 +1,8 @@
+import re
 import typing as t
 from pathlib import Path
-import re
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 from filelock import FileLock, Timeout
 
 import pipelime.sequences as pls

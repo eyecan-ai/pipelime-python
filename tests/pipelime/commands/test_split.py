@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError, parse_obj_as
+from pydantic.v1 import ValidationError, parse_obj_as
 
 from ... import TestAssert
 from .test_general_base import TestGeneralCommandsBase

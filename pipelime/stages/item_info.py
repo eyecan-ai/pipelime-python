@@ -1,9 +1,9 @@
 import typing as t
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
-from pipelime.stages import SampleStage
 from pipelime.items import Item
+from pipelime.stages import SampleStage
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample

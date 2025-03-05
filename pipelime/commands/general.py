@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 import pipelime.utils.pydantic_types as pl_types
@@ -37,22 +37,22 @@ class OutputStageTime(pyd.BaseModel):
 class TimeItCommand(PipelimeCommand, title="timeit"):
     """Measures the average time to get a sample from a sequence."""
 
-    input: t.Optional[
-        pl_interfaces.InputDatasetInterface
-    ] = pl_interfaces.InputDatasetInterface.pyd_field(
-        alias="i",
-        is_required=False,
-        description=(
-            "The input dataset. If None, the first operation "
-            "must be a sequence generator."
-        ),
-        piper_port=PiperPortType.INPUT,
+    input: t.Optional[pl_interfaces.InputDatasetInterface] = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i",
+            is_required=False,
+            description=(
+                "The input dataset. If None, the first operation "
+                "must be a sequence generator."
+            ),
+            piper_port=PiperPortType.INPUT,
+        )
     )
 
-    output: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
+    output: t.Optional[pl_interfaces.OutputDatasetInterface] = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
+        )
     )
 
     operations: t.Optional[pl_types.YamlInput] = pyd.Field(
@@ -287,16 +287,16 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         ),
     )
 
-    input: t.Optional[
-        pl_interfaces.InputDatasetInterface
-    ] = pl_interfaces.InputDatasetInterface.pyd_field(
-        alias="i",
-        is_required=False,
-        description=(
-            "The input dataset. If None, the first operation "
-            "must be a sequence generator."
-        ),
-        piper_port=PiperPortType.INPUT,
+    input: t.Optional[pl_interfaces.InputDatasetInterface] = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i",
+            is_required=False,
+            description=(
+                "The input dataset. If None, the first operation "
+                "must be a sequence generator."
+            ),
+            piper_port=PiperPortType.INPUT,
+        )
     )
 
     output: pl_interfaces.OutputDatasetInterface = (

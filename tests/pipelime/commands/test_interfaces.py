@@ -3,7 +3,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError, create_model
+from pydantic.v1 import ValidationError, create_model
 
 import pipelime.commands.interfaces as plint
 import pipelime.sequences.pipes.operations as plops

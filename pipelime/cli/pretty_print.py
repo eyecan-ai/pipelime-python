@@ -1,14 +1,13 @@
 import inspect
 import typing as t
 
-from pydantic import BaseModel
-from rich import box
-from rich.markup import escape
-from rich import get_console
+from pydantic.v1 import BaseModel
+from rich import box, get_console
 from rich import print as rprint
-from rich.pretty import Pretty
-from rich.table import Table, Column
+from rich.markup import escape
 from rich.panel import Panel
+from rich.pretty import Pretty
+from rich.table import Column, Table
 
 if t.TYPE_CHECKING:
     from pipelime.cli.utils import ActionInfo
@@ -421,12 +420,13 @@ def _is_model(type_):
 
 def _human_readable_type(field_outer_type):
     from enum import Enum
-    from pydantic.typing import (
-        typing_base,  # noqa: F401  # type: ignore
+
+    from pydantic.v1.typing import (
         WithArgsTypes,
-        is_union,
-        get_origin,
         get_args,
+        get_origin,
+        is_union,
+        typing_base,  # noqa: F401  # type: ignore
     )
 
     v = field_outer_type

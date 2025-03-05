@@ -6,7 +6,7 @@ import typing as t
 from pathlib import Path
 
 import typer
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 from pipelime.choixe import XConfig
 from pipelime.choixe.visitors.processor_ui import ProcessorUi
@@ -805,7 +805,9 @@ def run_with_checkpoint(
 
         cfg_size = len(effective_configs)
         pls = "s" if cfg_size != 1 else ""
-        print_info(f"🎉 Configuration successfully processed ({cfg_size} variant{pls}).")
+        print_info(
+            f"🎉 Configuration successfully processed ({cfg_size} variant{pls})."
+        )
 
         if cli_opts.verbose > 2:
             print_info("\nFinal effective configurations:")
@@ -879,7 +881,7 @@ def run_command(
 
     import time
 
-    from pydantic.error_wrappers import ValidationError
+    from pydantic.v1.error_wrappers import ValidationError
 
     from pipelime.choixe.utils.io import PipelimeTmp, dump
     from pipelime.cli.pretty_print import print_command_outputs, print_info

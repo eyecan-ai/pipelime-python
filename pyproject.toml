@@ -45,13 +45,14 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic>=1.10.8,<2",
+    "pydantic>=1.10.17,<3",  # this enables `import pydantic.v1`
     "schema",
     "pyzmq",
     "dictquery",
     "minio",
     "requests",
     "textual>=0.26.0",
+    "networkx"
 ]
 dynamic = [ "version" ]
 
