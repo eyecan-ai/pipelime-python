@@ -1,9 +1,11 @@
 from __future__ import annotations
-import billiard.context
-import billiard.pool
-import pydantic as pyd
+
+import multiprocessing.context as mp_context
+import multiprocessing.pool as mp_pool
 import typing as t
 from enum import Enum, auto
+
+import pydantic as pyd
 
 import pipelime.sequences as pls
 
@@ -28,6 +30,14 @@ class Grabber(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
     keep_order: bool = pyd.Field(
         False, description="Whether to retrieve the samples in the original order."
     )
+    allow_nested_mp: bool = pyd.Field(
+        False,
+        description=(
+            "Whether to allow nested multiprocessing. If True, the workers "
+            "will be spawned as non-daemon processes (which may lead to zombie "
+            "processes and not released resources)."
+        ),
+    )
 
     def __call__(
         self,
@@ -43,6 +53,7 @@ class Grabber(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return_type=return_type,
             size=size,
             worker_init_fn=worker_init_fn,
+            allow_nested_mp=self.allow_nested_mp,
         )
 
 
@@ -60,6 +71,20 @@ class _GrabWorker:
         return idx, self._sequence[idx]
 
 
+class _NoDaemonSpawnProcess(mp_context.SpawnProcess):
+    @property
+    def daemon(self):
+        return False
+
+    @daemon.setter
+    def daemon(self, value):
+        pass
+
+
+class _NoDaemonSpawnContext(mp_context.SpawnContext):
+    Process = _NoDaemonSpawnProcess
+
+
 class _GrabContext:
     def __init__(
         self,
@@ -68,6 +93,7 @@ class _GrabContext:
         return_type: ReturnType,
         size: t.Optional[int],
         worker_init_fn: t.Optional[t.Tuple[t.Callable, t.Sequence]],
+        allow_nested_mp: bool = False,
     ):
         self._grabber = grabber
         self._sequence = sequence
@@ -75,6 +101,7 @@ class _GrabContext:
         self._size = size
         self._pool = None
         self._worker_init_fn = (None, ()) if worker_init_fn is None else worker_init_fn
+        self._allow_nested_mp = allow_nested_mp
 
     @staticmethod
     def wrk_init(extra_modules, session_temp_dir, user_init_fn):
@@ -104,7 +131,20 @@ class _GrabContext:
             return it
 
         # MULTIPLE PROCESSES
-        self._pool = billiard.pool.Pool(
+
+        if self._allow_nested_mp:
+            # Spawn processes as non-daemon processes, to allow nested multiprocessing.
+            # This is because (from the Python documentation):
+            # "...a daemonic process is not allowed to create child processes. Otherwise
+            # a daemonic process would leave its children orphaned if it gets terminated
+            # when its parent process exits."
+            # Thus, this option should be used with caution, as it may lead to zombie
+            # processes and not released resources.
+            context_cls = _NoDaemonSpawnContext
+        else:
+            context_cls = mp_context.SpawnContext
+
+        self._pool = mp_pool.Pool(
             self._grabber.num_workers if self._grabber.num_workers > 0 else None,
             initializer=_GrabContext.wrk_init,
             initargs=(
@@ -112,7 +152,7 @@ class _GrabContext:
                 PipelimeTmp.SESSION_TMP_DIR,
                 self._worker_init_fn,
             ),
-            context=billiard.context.SpawnContext(),
+            context=context_cls(),
         )
         runner = self._pool.__enter__()
 
@@ -153,8 +193,8 @@ def grab_all(
     grab_context_manager: t.Optional[t.ContextManager] = None,
     worker_init_fn: t.Union[t.Callable, t.Tuple[t.Callable, t.Sequence], None] = None,
 ):
-    from inspect import signature, Parameter
     import contextlib
+    from inspect import Parameter, signature
 
     if track_fn is None:
         track_fn = lambda x: x  # noqa: E731

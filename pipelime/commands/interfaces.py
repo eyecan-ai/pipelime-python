@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import typing as t
+import uuid
 from pathlib import Path
 from urllib.parse import ParseResult
-import uuid
 
 import pydantic as pyd
 
@@ -92,7 +92,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
     """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "Grabber options."
-    _compact_form: t.ClassVar[t.Optional[str]] = "<num_workers>[,<prefetch>]"
+    _compact_form: t.ClassVar[t.Optional[str]] = (
+        "<num_workers>[,<prefetch>[,<allow_nested_mp>]]"
+    )
 
     num_workers: int = pyd.Field(
         0,
@@ -103,6 +105,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
     )
     prefetch: pyd.PositiveInt = pyd.Field(
         2, description="The number of samples loaded in advanced by each worker."
+    )
+    allow_nested_mp: bool = pyd.Field(
+        False, description="Whether to allow nested multiprocessing."
     )
 
     @classmethod
@@ -119,15 +124,21 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             if isinstance(value, int):
                 data["num_workers"] = value
             else:
-                wrks, _, pf = str(value).partition(",")
-                if wrks:
-                    data["num_workers"] = int(wrks)
-                if pf:
-                    data["prefetch"] = int(pf)
+                raw_data = str(value).split(",")
+                try:
+                    if raw_data[0]:
+                        data["num_workers"] = int(raw_data[0])
+                    if len(raw_data) > 1 and raw_data[1]:
+                        data["prefetch"] = int(raw_data[1])
+                    if len(raw_data) > 2 and raw_data[2]:
+                        data["allow_nested_mp"] = raw_data[2].lower() == "true"
+                except ValueError:
+                    raise ValueError("Invalid grabber definition.")
             value = data
 
         if isinstance(value, t.Mapping):
             return GrabberInterface(**value)
+
         raise ValueError("Invalid grabber definition.")
 
     def grab_all(
@@ -176,9 +187,11 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             sample_fn=sample_fn,
             size=size,
             grab_context_manager=grab_context_manager,
-            worker_init_fn=None
-            if grab_context_manager is None
-            else deepcopy(grab_context_manager).__enter__,
+            worker_init_fn=(
+                None
+                if grab_context_manager is None
+                else deepcopy(grab_context_manager).__enter__
+            ),
         )
 
     def grab_all_wrk_init(
@@ -221,7 +234,10 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         from pipelime.sequences import Grabber, grab_all
 
         grabber = Grabber(
-            num_workers=self.num_workers, prefetch=self.prefetch, keep_order=keep_order
+            num_workers=self.num_workers,
+            prefetch=self.prefetch,
+            keep_order=keep_order,
+            allow_nested_mp=self.allow_nested_mp,
         )
         track_fn = (
             None
@@ -498,9 +514,9 @@ class OutputDatasetInterface(
     """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "The output dataset."
-    _compact_form: t.ClassVar[
-        t.Optional[str]
-    ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
+    _compact_form: t.ClassVar[t.Optional[str]] = (
+        "<folder>[,<exists_ok>[,<force_new_files>]]"
+    )
     _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.OUTPUT
 
     folder: t.Optional[Path] = pyd.Field(
@@ -699,9 +715,9 @@ class RemoteInterface(
 ):
     """Remote data lake options."""
 
-    _default_type_description: t.ClassVar[
-        t.Optional[str]
-    ] = "Remote data lakes addresses."
+    _default_type_description: t.ClassVar[t.Optional[str]] = (
+        "Remote data lakes addresses."
+    )
     _compact_form: t.ClassVar[t.Optional[str]] = "<url>"
     _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.INPUT
 

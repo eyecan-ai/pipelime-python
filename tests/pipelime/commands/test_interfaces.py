@@ -39,7 +39,6 @@ class TestInterface:
             m = model_cls(**opt_dict)
             value_check_fn(m, False)
         for opt in opt_parse_list:
-            print(opt)
             with ctxman(ValidationError):
                 m = model_cls.parse_obj(opt)
                 value_check_fn(m, True)
@@ -107,8 +106,10 @@ class TestInterface:
                     _check_deep(xx, y[k])
             elif isinstance(x, YamlInput):
                 _check_deep(x.value, y)
+            elif isinstance(x, Path):
+                assert x == Path(y).resolve().absolute()
             else:
-                assert x == (Path(y).resolve().absolute() if isinstance(x, Path) else y)
+                assert x == y
 
         def _check_values(my_model, from_opt_str):
             for k, v in kwargs.items():
@@ -132,15 +133,25 @@ class TestInterface:
 class TestGrabberInterface(TestInterface):
     @pytest.mark.parametrize("nproc", [-10, -1, 0, 1, 10, None])
     @pytest.mark.parametrize("pref", [1, 2, 10, None])
-    def test_valid(self, nproc: t.Optional[int], pref: t.Optional[int]):
+    @pytest.mark.parametrize("allow_nested_mp", [True, False, None])
+    def test_valid(
+        self,
+        nproc: t.Optional[int],
+        pref: t.Optional[int],
+        allow_nested_mp: t.Optional[bool],
+    ):
         opt_str = ""
         opt_int = None
         if nproc is not None:
             opt_str = f"{nproc}"
-        if pref is None:
-            opt_int = nproc
-        else:
+        if pref is not None:
             opt_str += f",{pref}"
+            if allow_nested_mp is not None:
+                opt_str += f",{allow_nested_mp}"
+
+        if pref is None and allow_nested_mp is None:
+            opt_int = nproc
+
         self._standard_checks(
             interf_cls=plint.GrabberInterface,
             interf_compact_list=[opt_str, opt_int],
@@ -148,6 +159,7 @@ class TestGrabberInterface(TestInterface):
             should_fail=False,
             num_workers=nproc,
             prefetch=pref,
+            allow_nested_mp=allow_nested_mp and (pref is not None),
         )
 
     @pytest.mark.parametrize("prefetch", [-7, -1, 0])
@@ -159,6 +171,7 @@ class TestGrabberInterface(TestInterface):
             should_fail=True,
             num_workers=1,
             prefetch=prefetch,
+            allow_nested_mp=False,
         )
         with pytest.raises(ValueError):
             plint.GrabberInterface.validate([1, 2, 3])

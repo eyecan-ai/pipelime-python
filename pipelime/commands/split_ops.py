@@ -13,12 +13,12 @@ class SplitBase(
     extra="forbid",
     copy_on_model_validation="none",
 ):
-    output: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="o",
-        is_required=False,
-        description="Output split. Leave to None to not save to disk.",
+    output: t.Optional[pl_interfaces.OutputDatasetInterface] = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o",
+            is_required=False,
+            description="Output split. Leave to None to not save to disk.",
+        )
     )
 
     def __repr__(self) -> str:
@@ -29,9 +29,9 @@ class SplitBase(
 
 
 class PercSplit(SplitBase):
-    _default_type_description: t.ClassVar[
-        t.Optional[str]
-    ] = "Percentage splits definition."
+    _default_type_description: t.ClassVar[t.Optional[str]] = (
+        "Percentage splits definition."
+    )
     _compact_form: t.ClassVar[t.Optional[str]] = "<fraction>[,<folder>]"
 
     fraction: t.Optional[float] = pyd.Field(
@@ -79,9 +79,9 @@ class PercSplit(SplitBase):
 
 
 class AbsoluteSplit(SplitBase):
-    _default_type_description: t.ClassVar[
-        t.Optional[str]
-    ] = "Absolute splits definition."
+    _default_type_description: t.ClassVar[t.Optional[str]] = (
+        "Absolute splits definition."
+    )
     _compact_form: t.ClassVar[t.Optional[str]] = "<length>[,<folder>]"
 
     length: t.Optional[pyd.PositiveInt] = pyd.Field(
@@ -245,28 +245,28 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
         description=("A query to match (cfr. https://github.com/cyberlis/dictquery)."),
     )
 
-    output_selected: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="os",
-        is_required=False,
-        description=(
-            "Output dataset of sample selected by the query. "
-            "Leave to None to not save to disk."
-        ),
-        piper_port=PiperPortType.OUTPUT,
+    output_selected: t.Optional[pl_interfaces.OutputDatasetInterface] = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="os",
+            is_required=False,
+            description=(
+                "Output dataset of sample selected by the query. "
+                "Leave to None to not save to disk."
+            ),
+            piper_port=PiperPortType.OUTPUT,
+        )
     )
 
-    output_discarded: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="od",
-        is_required=False,
-        description=(
-            "Output dataset of sample discarded by the query. "
-            "Leave to None to not save to disk."
-        ),
-        piper_port=PiperPortType.OUTPUT,
+    output_discarded: t.Optional[pl_interfaces.OutputDatasetInterface] = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="od",
+            is_required=False,
+            description=(
+                "Output dataset of sample discarded by the query. "
+                "Leave to None to not save to disk."
+            ),
+            piper_port=PiperPortType.OUTPUT,
+        )
     )
 
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
@@ -353,9 +353,9 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
                 if isinstance(value, np.ndarray):
                     if value.size == 1:
                         value = (
-                            int(value)
+                            int(value[0])
                             if np.issubdtype(value.dtype, np.integer)
-                            else float(value)
+                            else float(value[0])
                         )
                     else:
                         value = tuple(value)
@@ -379,7 +379,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
                 if value is not None:  # pragma: no branch
                     value = self._value_to_str(value)
                     self._groups.setdefault(value, []).append(
-                        int(x[self._idx_key]())  # type: ignore
+                        int(x[self._idx_key]()[0])  # type: ignore
                     )
 
         reader = self.input.create_reader()

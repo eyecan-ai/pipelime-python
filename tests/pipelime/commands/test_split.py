@@ -1,9 +1,10 @@
-import pytest
-from .test_general_base import TestGeneralCommandsBase
 from pathlib import Path
-from pydantic import parse_obj_as, ValidationError
+
+import pytest
+from pydantic import ValidationError, parse_obj_as
 
 from ... import TestAssert
+from .test_general_base import TestGeneralCommandsBase
 
 
 class TestSplit(TestGeneralCommandsBase):

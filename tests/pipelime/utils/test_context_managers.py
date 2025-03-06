@@ -36,12 +36,22 @@ def test_context_manager_list():
     ],
 )
 def test_catch_signals(to_catch, to_raise, should_interrupt):
-    from pipelime.utils.context_managers import CatchSignals
     import signal
+
+    from pipelime.utils.context_managers import CatchSignals
 
     if to_catch:
         to_catch = [getattr(signal, sig) for sig in to_catch]
     to_raise = getattr(signal, to_raise)
+
+    if to_raise not in [signal.SIGINT, signal.SIGTERM]:
+        if (to_catch is None) or (to_raise not in to_catch):
+            # catch the signal with standard library to avoid process termination
+
+            def handler(signum, frame):
+                pass
+
+            signal.signal(to_raise, handler)
 
     with CatchSignals(to_catch) as catcher:
         assert not catcher.interrupted

@@ -374,7 +374,9 @@ class TestCliBase:
         if not isinstance(with_default_ckpt, bool):
             # create fake command calls to fill the other default checkpoints
             for _ in range(with_default_ckpt - 1):
-                self._base_launch(["clone"], exit_code=1, exc=TypeError)
+                self._base_launch(
+                    ["clone", "--no-ui"], exit_code=1, exc=ValidationError
+                )
 
         # now resume from checkpoint and override the slice size (invalid value)
         self._base_launch(

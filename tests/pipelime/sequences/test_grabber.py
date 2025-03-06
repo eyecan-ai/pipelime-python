@@ -1,8 +1,30 @@
-import pytest
+import multiprocessing.pool as mp_pool
 from pathlib import Path
+
 import numpy as np
-import pipelime.sequences as pls
+import pytest
+
 import pipelime.items as pli
+import pipelime.sequences as pls
+from pipelime.sequences import Sample
+from pipelime.stages import SampleStage
+
+
+def _square(x: int) -> int:
+    return x**2
+
+
+class _MpStage(SampleStage):
+    def __call__(self, sample: Sample) -> Sample:
+        label = int(sample["label"]()[0])  # type: ignore
+
+        with mp_pool.Pool(2) as pool:
+            results = pool.map(_square, [label, label])
+
+        results = np.asarray(results)
+        sample = sample.set_item("results", pli.TxtNumpyItem(results))
+
+        return sample
 
 
 class TestGrabber:
@@ -27,7 +49,10 @@ class TestGrabber:
             .to_underfolder(folder=output)
         )
         grabber = pls.Grabber(
-            num_workers=num_workers, keep_order=keep_order, prefetch=prefetch
+            num_workers=num_workers,
+            keep_order=keep_order,
+            prefetch=prefetch,
+            allow_nested_mp=False,
         )
 
         itm_sm = pli.item_serialization_mode(
@@ -119,3 +144,30 @@ class TestGrabber:
             _iota_fn,
         )
         assert counter == sum(range(total_count))
+
+    def test_grabber_nested_mp(self, minimnist_dataset: dict, tmp_path: Path):
+        source = pls.SamplesSequence.from_underfolder(
+            folder=minimnist_dataset["path"], merge_root_items=True
+        )
+
+        proc = source.map(_MpStage()).to_underfolder(
+            folder=tmp_path / "output_nested_mp"
+        )
+
+        grabber = pls.Grabber(
+            num_workers=4,
+            keep_order=True,
+            prefetch=2,
+            allow_nested_mp=True,
+        )
+
+        pls.grab_all(grabber, proc)
+
+        dest = pls.SamplesSequence.from_underfolder(
+            folder=tmp_path / "output_nested_mp", merge_root_items=True
+        )
+
+        for sample in dest:
+            label = int(sample["label"]()[0])  # type: ignore
+            results = np.asarray(sample["results"]())
+            assert np.array_equal(results, np.array([label**2, label**2]))
