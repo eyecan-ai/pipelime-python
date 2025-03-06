@@ -12,6 +12,8 @@ from pipelime.sequences.sample import Sample
 if t.TYPE_CHECKING:
     from pathlib import Path
 
+    import torch
+
     from pipelime.sequences.direct_access import DirectAccessSequence
     from pipelime.stages import SampleStage, StageInput
     from pipelime.utils.pydantic_types import SampleValidationInterface
