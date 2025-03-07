@@ -137,7 +137,7 @@ def paths_from_url(
     """
     if len(url.path) > 1:
         unquoted = unquote_plus(url.path)
-        file_full_path = Path(unquoted[1:] if unquoted.startswith("/") else unquoted)
+        file_full_path = Path(unquoted[1:] if unquoted.startswith("/C:") else unquoted)
         if not file_full_path.suffix:
             return str(file_full_path.as_posix()), ""
         return str(file_full_path.parent.as_posix()), str(file_full_path.name)
