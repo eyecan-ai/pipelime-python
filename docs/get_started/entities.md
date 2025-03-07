@@ -11,7 +11,7 @@ Pipelime data model comprises three basic concepts:
 An item is a container for a single, generic data unit. It can contain whatever type of data you need and automatically handles some things for you, namely:
 - Validation
 - (De)-Serialization
-- File or remote I/O
+- File
 - Value caching
 
 Currently, pipelime supports the following types of item:

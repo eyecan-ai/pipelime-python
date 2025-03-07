@@ -56,7 +56,7 @@ $ pipelime list-stg
 albumentations pipelime.stages.augmentations.StageAlbumentations     Sample augmentation via Albumentations.
 compose        pipelime.stages.base.StageCompose                     Applies a sequence of stages.
 duplicate-key  pipelime.stages.key_transformations.StageDuplicateKey Duplicate an item.
-forget-source  pipelime.stages.item_sources.StageForgetSource        Removes data sources, ie, file paths or remotes, from items.
+forget-source  pipelime.stages.item_sources.StageForgetSource        Removes data sources, ie, file paths, from items.
 identity       pipelime.stages.base.StageIdentity                    Returns the input sample.
 item-info      pipelime.stages.item_info.StageItemInfo               Collects item infos from samples.
                                                                      WARNING: this stage CANNOT be combined with MULTIPROCESSING.
@@ -65,7 +65,6 @@ filter-keys    pipelime.stages.key_transformations.StageKeysFilter   Filters sam
 lambda         pipelime.stages.base.StageLambda                      Applies a callable to the sample.
 remap-key      pipelime.stages.key_transformations.StageRemap        Remaps keys in sample preserving internal values.
 replace-item   pipelime.stages.item_replacement.StageReplaceItem     Replaces items in sample preserving internal values.
-remote-upload  pipelime.stages.item_sources.StageUploadToRemote      Uploads the sample to one or more remote servers.
 ```
 
 Where each line shows:

@@ -11,7 +11,7 @@
 Welcome to **pipelime**, a swiss army knife for data processing!
 
 `pipelime` is a full-fledge **framework** for **data science**: read your datasets,
-manipulate them, write back to disk or upload to a remote data lake.
+manipulate them and write back to disk.
 Then build up your **dataflow** with Piper and manage the configuration with Choixe.
 Finally, **embed** your custom commands into the `pipelime` workspace, to act both as dataflow nodes and advanced command line interface.
 

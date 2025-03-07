@@ -72,12 +72,11 @@ serialized to disk.
 
 The standard serialization procedure tries the following sequence of actions and stops
 when one of them succeeds:
-1. *remote file* (`REMOTE_FILE`): if remote source addresses are available, they are dumped
 1. *hard link* (`HARD_LINK`): if file sources are available, one of them is hard linked
 1. *deep copy* (`DEEP_COPY`): if file sources are available, one of them is copy
 1. *new file* (`CREATE_NEW_FILE`): a new file is created by serializing the item value
 
-Moreover, a *soft link* (`SYM_LINK`) option can be tried instead of *remote file* and
+Moreover, a *soft link* (`SYM_LINK`) option can be tried instead of 
 *hard link*, but only if **explicitly requested**.
 
 To alter this behavior, you can set the `serialization` option so as to override,
@@ -92,7 +91,7 @@ disable or force the desired mode, eg:
             "NumpyItem": "HARD_LINK"
         }
         "keys": {
-            "mask": "REMOTE_FILE",
+            "mask": "DEEP_COPY",
             "label": "SYM_LINK",
         }
     }

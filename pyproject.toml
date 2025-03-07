@@ -49,7 +49,6 @@ dependencies = [
     "schema",
     "pyzmq",
     "dictquery",
-    "minio",
     "requests",
     "textual>=0.26.0",
     "networkx"

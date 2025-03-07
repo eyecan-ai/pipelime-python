@@ -388,43 +388,6 @@ class TestOutputDataset(TestInterface):
             plint.OutputDatasetInterface.validate([1, 2, 3])
 
 
-class TestRemoteInterface(TestInterface):
-    @pytest.mark.parametrize(
-        "url",
-        [
-            "s3://user:password@host:42/bucket?kw1=arg1:kw2=arg2",
-            {
-                "scheme": "s3",
-                "user": "user",
-                "password": "password",
-                "host": "host",
-                "port": 42,
-                "bucket": "bucket",
-                "args": {"kw1": "arg1", "kw2": "arg2"},
-            },
-        ],
-    )
-    def test_valid(self, url: t.Union[str, t.Mapping]):
-        self._standard_checks(
-            interf_cls=plint.RemoteInterface,
-            interf_compact_list=[url if isinstance(url, str) else None],
-            out_of_compact=[],
-            should_fail=False,
-            url=url,
-        )
-
-    def test_invalid(self):
-        self._standard_checks(
-            interf_cls=plint.RemoteInterface,
-            interf_compact_list=[42],
-            should_fail=True,
-            out_of_compact=[],
-            url={"not": "valid"},
-        )
-        with pytest.raises(ValueError):
-            plint.RemoteInterface.validate([1, 2, 3])
-
-
 class TestInterval(TestInterface):
     @pytest.mark.parametrize("start", [None, -11, 0, 7])
     @pytest.mark.parametrize("stop", [None, -13, 5, 9])
