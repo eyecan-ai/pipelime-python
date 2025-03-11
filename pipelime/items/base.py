@@ -574,7 +574,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     def serialize(self, *targets: _item_data_source):
         for trg in targets:
             data_source = None
-            if isinstance(trg, Path):
+            if isinstance(trg, Path) or isinstance(trg, str):
+                trg = Path(trg).absolute().resolve()
                 data_source = self._serialize_to_local_file(trg)
             if data_source is not None:
                 self._add_data_source(data_source)
