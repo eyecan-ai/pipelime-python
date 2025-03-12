@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 import io
-import json
 import os
 import shutil
 import typing as t
@@ -11,7 +10,7 @@ from contextlib import ContextDecorator, contextmanager
 from copy import deepcopy
 from enum import IntEnum
 from pathlib import Path
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import ParseResult
 
 from loguru import logger
 
@@ -113,7 +112,7 @@ class ItemFactory(ABCMeta):
                 value = cls.ITEM_DATA_CACHE_MODE.get(base_cls, None)
                 if value is not None:
                     return value
-        return True
+        return False
 
     @classmethod
     def set_serialization_mode(cls, item_cls: t.Type[Item], mode: SerializationMode):
@@ -414,7 +413,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):
             elif self._data_cache is not None:
                 raise ValueError(f"{self.__class__.__name__}: Cannot set data twice.")
             elif isinstance(src, (t.BinaryIO, io.IOBase)):
-                self._data_cache = self.decode(src)
+                self._data_cache = self.decode(src)  # type: ignore
             else:
                 self._data_cache = self.validate(src)
 
@@ -574,7 +573,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     def serialize(self, *targets: _item_data_source):
         for trg in targets:
             data_source = None
-            if isinstance(trg, Path) or isinstance(trg, str):
+            if isinstance(trg, (Path, str)):
                 trg = Path(trg).absolute().resolve()
                 data_source = self._serialize_to_local_file(trg)
             if data_source is not None:

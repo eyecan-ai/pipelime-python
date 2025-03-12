@@ -296,12 +296,12 @@ class TestItems:
                 _check_single(it, should_cache[id], is_cached[id])
 
         _check((True, True, True, True), (True, True, True, True))
-        _check((False, False, False, False), (False, False, True, True))
+        _check((False, False, False, False), (False, False, False, True))
 
         with pli.no_data_cache(pli.NumpyItem):
             _check((True, True, True, True), (True, True, True, True))
             _check((False, False, False, False), (False, False, False, True))
-            _check((None, None, None, None), (False, True, False, True))
+            _check((None, None, None, None), (False, False, False, True))
 
         with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
             pli.enable_item_data_cache(pli.ImageItem)
