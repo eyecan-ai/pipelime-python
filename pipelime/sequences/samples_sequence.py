@@ -376,6 +376,18 @@ class SamplesSequence(
 
     @samples_sequence_stub
     @staticmethod
+    def from_video(
+        video: "Path",  # type: ignore # noqa: E602,F821
+        *,
+        must_exist: bool = True,
+        image_key: str = "image",
+    ) -> SamplesSequence:
+        """A SamplesSequence loading frames from a video.
+        Run `pipelime help from_video` to read the complete documentation.
+        """
+
+    @samples_sequence_stub
+    @staticmethod
     def toy_dataset(
         length: int,
         *,

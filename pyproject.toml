@@ -4,12 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pipelime-python"
-authors = [
-  { name="Eyecan.ai", email="info@eyecan.ai" },
-]
+authors = [{ name = "Eyecan.ai", email = "info@eyecan.ai" }]
 description = "Data workflows, cli and dataflow automation."
 readme = "README.md"
-license = { text="GNU General Public License v3 (GPLv3)" }
+license = { text = "GNU General Public License v3 (GPLv3)" }
 requires-python = ">=3.10,<3.13"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -25,9 +23,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development",
 ]
-keywords = [
-    "pipelime", "dataset", "dataflow", "workflow", "orchestration"
-]
+keywords = ["pipelime", "dataset", "dataflow", "workflow", "orchestration"]
 dependencies = [
     "typer>=0.6",
     "rich>=9.9.0",
@@ -36,7 +32,7 @@ dependencies = [
     "toml",
     "loguru",
     "numpy",
-    "imageio>=2.17.0",
+    "imageio[pyav,ffmpeg]>=2.17.0",
     "tifffile",
     "albumentations>=1.0.0",
     "trimesh",
@@ -45,33 +41,21 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic>=1.10.17,<3",  # this enables `import pydantic.v1`
+    "pydantic>=1.10.17,<3",         # this enables `import pydantic.v1`
     "schema",
     "pyzmq",
     "dictquery",
     "requests",
     "textual>=0.26.0",
-    "networkx"
+    "networkx",
 ]
-dynamic = [ "version" ]
+dynamic = ["version"]
 
 [project.optional-dependencies]
 draw = ["pygraphviz"]
-tests = [
-    "pytest",
-    "pytest-cov",
-    "pytest-asyncio",
-    "tox"
-]
-dev = [
-    "pylama",
-    "black",
-    "flake8",
-]
-build = [
-    "hatch",
-    "build",
-]
+tests = ["pytest", "pytest-cov", "pytest-asyncio", "tox"]
+dev = ["pylama", "black", "flake8"]
+build = ["hatch", "build"]
 docs = [
     "Sphinx==5.1.1",
     # "sphinx-material==0.0.35",
@@ -92,8 +76,4 @@ pipelime = "pipelime.cli.main:run_typer_app"
 path = "pipelime/__init__.py"
 
 [tool.hatch.build]
-include = [
-  "pipelime/**/*.py",
-  "pipelime/**/*.css",
-  "LICENSE",
-]
+include = ["pipelime/**/*.py", "pipelime/**/*.css", "LICENSE"]
