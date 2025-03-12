@@ -35,6 +35,7 @@ class PlCliOptions(BaseModel):
     output_ctx: t.Optional[Path]
     command_outputs: t.Optional[Path]
     verbose: int
+    data_cache: t.Optional[str]
     dry_run: bool
     no_ui: bool
     command: str
@@ -78,6 +79,33 @@ def _set_logger_level(verbose: int):
 
         # set the level in the environment so that it is inherited by subprocesses
         os.environ["LOGURU_LEVEL"] = level
+
+
+def _set_item_data_cache(data_cache: t.Optional[str]):
+    from loguru import logger
+
+    from pipelime.items import enable_item_data_cache
+    from pipelime.utils.pydantic_types import ItemType
+
+    item_list = (data_cache or "").replace(" ", "").split(",")
+    item_list = [i for i in item_list if i]
+
+    if not item_list:
+        return
+
+    if "*" in item_list:
+        logger.debug("Enabling data cache for all items.")
+        enable_item_data_cache()
+    else:
+        item_cls_list = []
+        for name in item_list:
+            try:
+                item_cls_list.append(ItemType.create(name).value)
+            except Exception:
+                logger.error(f"Item `{name}` not found.")
+        logger.debug(f"Enabling data cache for items: {item_cls_list}")
+        if item_cls_list:
+            enable_item_data_cache(*item_cls_list)
 
 
 def _complete_yaml(incomplete: str):  # pragma: no cover
@@ -422,6 +450,13 @@ def pl_main(
         resolve_path=True,
         help="The checkpoint folder. If it already exists, it must be empty.",
     ),
+    data_cache: t.Optional[str] = typer.Option(
+        None,
+        help=(
+            "Comma-separated list of pipelime items for which to enable data cache. "
+            "Use the special `*` value to enable data cache for any item."
+        ),
+    ),
     verbose: int = typer.Option(
         0,
         "--verbose",
@@ -574,6 +609,7 @@ def pl_main(
             output_ctx=output_ctx,
             command_outputs=command_outputs,
             verbose=verbose,
+            data_cache=data_cache,
             dry_run=dry_run,
             no_ui=no_ui,
             command=command,
@@ -618,6 +654,7 @@ def run_with_checkpoint(
     from pipelime.choixe import XConfig
     from pipelime.cli.pretty_print import print_error, print_info, print_warning
 
+    _set_item_data_cache(cli_opts.data_cache)
     PipelimeSymbolsHelper.set_extra_modules(cli_opts.extra_modules)
 
     if cli_opts.pipelime_tmp:

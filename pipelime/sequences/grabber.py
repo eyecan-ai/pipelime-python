@@ -9,6 +9,9 @@ import pydantic.v1 as pyd
 
 import pipelime.sequences as pls
 
+if t.TYPE_CHECKING:
+    from pipelime.items import Item
+
 
 class ReturnType(Enum):
     NO_RETURN = auto()
@@ -104,9 +107,18 @@ class _GrabContext:
         self._allow_nested_mp = allow_nested_mp
 
     @staticmethod
-    def wrk_init(extra_modules, session_temp_dir, user_init_fn):
+    def wrk_init(
+        item_data_cache: t.Mapping[t.Type["Item"], t.Optional[bool]],
+        extra_modules,
+        session_temp_dir,
+        user_init_fn,
+    ):
         from pipelime.choixe.utils.io import PipelimeTmp
         from pipelime.cli.utils import PipelimeSymbolsHelper
+        from pipelime.items.base import ItemFactory
+
+        for item_cls, cache_mode in item_data_cache.items():
+            ItemFactory.set_data_cache_mode(item_cls, cache_mode)
 
         PipelimeTmp.SESSION_TMP_DIR = session_temp_dir
 
@@ -119,6 +131,7 @@ class _GrabContext:
     def __enter__(self):
         from pipelime.choixe.utils.io import PipelimeTmp
         from pipelime.cli.utils import PipelimeSymbolsHelper
+        from pipelime.items import Item
 
         if self._grabber.num_workers == 0:
             # SINGLE PROCESS
@@ -148,6 +161,7 @@ class _GrabContext:
             self._grabber.num_workers if self._grabber.num_workers > 0 else None,
             initializer=_GrabContext.wrk_init,
             initargs=(
+                Item.ITEM_DATA_CACHE_MODE,
                 PipelimeSymbolsHelper.extra_modules,
                 PipelimeTmp.SESSION_TMP_DIR,
                 self._worker_init_fn,
