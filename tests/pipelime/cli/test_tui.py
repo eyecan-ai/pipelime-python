@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import pytest
 import yaml
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from textual.keys import Keys
 from textual.widgets import Input, Label
 

@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic.v1 import Field
 
 from pipelime.sequences import Sample, piped_sequence
 from pipelime.sequences.pipes import PipedSequenceBase

@@ -1,7 +1,7 @@
 import typing as t
 from pathlib import Path
 
-from pydantic import DirectoryPath, Field, ValidationError, conint, validator
+from pydantic.v1 import DirectoryPath, Field, ValidationError, conint, validator
 
 from pipelime.cli.utils import PipelimeUserAppDir
 from pipelime.piper import PipelimeCommand

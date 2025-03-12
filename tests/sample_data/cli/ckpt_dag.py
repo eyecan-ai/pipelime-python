@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.piper as piper
 from pipelime.commands.interfaces import (

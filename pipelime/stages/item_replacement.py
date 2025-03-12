@@ -1,13 +1,13 @@
 import hashlib
 import pickle
 import typing as t
-import pydantic as pyd
 
-from pipelime.stages import SampleStage
-from pipelime.utils.pydantic_types import ItemType, YamlInput
+import pydantic.v1 as pyd
 
 # if t.TYPE_CHECKING:
 from pipelime.sequences import Sample
+from pipelime.stages import SampleStage
+from pipelime.utils.pydantic_types import ItemType, YamlInput
 
 
 class StageReplaceItem(SampleStage, title="replace-item"):

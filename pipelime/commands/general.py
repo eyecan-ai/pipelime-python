@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 import pipelime.utils.pydantic_types as pl_types
@@ -37,22 +37,22 @@ class OutputStageTime(pyd.BaseModel):
 class TimeItCommand(PipelimeCommand, title="timeit"):
     """Measures the average time to get a sample from a sequence."""
 
-    input: t.Optional[
-        pl_interfaces.InputDatasetInterface
-    ] = pl_interfaces.InputDatasetInterface.pyd_field(
-        alias="i",
-        is_required=False,
-        description=(
-            "The input dataset. If None, the first operation "
-            "must be a sequence generator."
-        ),
-        piper_port=PiperPortType.INPUT,
+    input: t.Optional[pl_interfaces.InputDatasetInterface] = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i",
+            is_required=False,
+            description=(
+                "The input dataset. If None, the first operation "
+                "must be a sequence generator."
+            ),
+            piper_port=PiperPortType.INPUT,
+        )
     )
 
-    output: t.Optional[
-        pl_interfaces.OutputDatasetInterface
-    ] = pl_interfaces.OutputDatasetInterface.pyd_field(
-        alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
+    output: t.Optional[pl_interfaces.OutputDatasetInterface] = (
+        pl_interfaces.OutputDatasetInterface.pyd_field(
+            alias="o", is_required=False, piper_port=PiperPortType.OUTPUT
+        )
     )
 
     operations: t.Optional[pl_types.YamlInput] = pyd.Field(
@@ -287,16 +287,16 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         ),
     )
 
-    input: t.Optional[
-        pl_interfaces.InputDatasetInterface
-    ] = pl_interfaces.InputDatasetInterface.pyd_field(
-        alias="i",
-        is_required=False,
-        description=(
-            "The input dataset. If None, the first operation "
-            "must be a sequence generator."
-        ),
-        piper_port=PiperPortType.INPUT,
+    input: t.Optional[pl_interfaces.InputDatasetInterface] = (
+        pl_interfaces.InputDatasetInterface.pyd_field(
+            alias="i",
+            is_required=False,
+            description=(
+                "The input dataset. If None, the first operation "
+                "must be a sequence generator."
+            ),
+            piper_port=PiperPortType.INPUT,
+        )
     )
 
     output: pl_interfaces.OutputDatasetInterface = (
@@ -332,11 +332,7 @@ class PipeCommand(PipelimeCommand, title="pipe"):
 
 
 class CloneCommand(PipelimeCommand, title="clone"):
-    """Clone a dataset.
-
-    You can use this command to create a local copy of a dataset
-    hosted on a remote data lake by disabling the `REMOTE_FILE` serialization option.
-    """
+    """Clone a dataset."""
 
     input: pl_interfaces.InputDatasetInterface = (
         pl_interfaces.InputDatasetInterface.pyd_field(
@@ -467,118 +463,6 @@ class ZipCommand(PipelimeCommand, title="zip"):
             keep_order=False,
             parent_cmd=self,
             track_message=f"Zipping data ({len(seq)} samples)",
-        )
-
-
-class RemoteCommandBase(PipelimeCommand):
-    input: pl_interfaces.InputDatasetInterface = (
-        pl_interfaces.InputDatasetInterface.pyd_field(
-            alias="i", piper_port=PiperPortType.INPUT
-        )
-    )
-
-    remotes: t.Union[
-        pl_interfaces.RemoteInterface, t.Sequence[pl_interfaces.RemoteInterface]
-    ] = pl_interfaces.RemoteInterface.pyd_field(alias="r")
-
-    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
-        default_factory=list,
-        alias="k",
-        description="Affected keys. Leave empty to take all the keys.",
-    )
-
-    start: int = pyd.Field(
-        0,
-        description=(
-            "The first sample (included), defaults to the first element. "
-            "Can be negative, in which case it counts from the end."
-        ),
-    )
-    stop: t.Optional[int] = pyd.Field(
-        None,
-        description=(
-            "The last sample (excluded), defaults to the whole sequence."
-            "Can be negative, in which case it counts from the end."
-        ),
-    )
-    step: int = pyd.Field(
-        1, description="The slice step, defaults to 1. Can be negative."
-    )
-
-    output: pl_interfaces.OutputDatasetInterface = (
-        pl_interfaces.OutputDatasetInterface.pyd_field(
-            alias="o", piper_port=PiperPortType.OUTPUT
-        )
-    )
-
-    grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
-        alias="g"
-    )
-
-    @pyd.validator("remotes", "keys")
-    def validate_remotes(cls, v):
-        return (
-            v if not isinstance(v, (str, bytes)) and isinstance(v, t.Sequence) else [v]
-        )
-
-    def _run_remote_op(self, stage, message):
-        from pipelime.sequences.pipes.mapping import MappingConditionIndexRange
-
-        seq = self.input.create_reader().map_if(
-            stage=stage,
-            condition=MappingConditionIndexRange(
-                start=self.start,
-                stop=self.stop,
-                step=self.step,
-            ),
-        )
-
-        self.grabber.grab_all(
-            self.output.append_writer(seq),
-            grab_context_manager=self.output.serialization_cm(),
-            keep_order=False,
-            parent_cmd=self,
-            track_message=message,
-        )
-
-
-class AddRemoteCommand(RemoteCommandBase, title="remote-add"):
-    """Upload samples to one or more remotes.
-
-    Slicing and key options filter the samples to upload,
-    but the whole dataset is always written out.
-    """
-
-    def run(self):
-        from pipelime.stages import StageUploadToRemote
-
-        self._run_remote_op(
-            StageUploadToRemote(
-                remotes=[r.get_url() for r in self.remotes],  # type: ignore
-                keys_to_upload=self.keys,
-            ),
-            "Uploading data",
-        )
-
-
-class RemoveRemoteCommand(RemoteCommandBase, title="remote-remove"):
-    """Remove one or more remote from a dataset.
-
-    Slicing and key options filter the samples,
-    but the whole dataset is always written out.
-
-    NB: data is not removed from the remote data lake.
-    """
-
-    def run(self):
-        from pipelime.stages import StageForgetSource
-
-        remotes = [r.get_url() for r in self.remotes]  # type: ignore
-        remove_all = remotes if not self.keys else []
-        remove_by_key = {k: remotes for k in self.keys}
-
-        self._run_remote_op(
-            StageForgetSource(*remove_all, **remove_by_key), "Removing remote sources"
         )
 
 

@@ -3,7 +3,7 @@ import typing as t
 from enum import Enum
 
 from loguru import logger
-from pydantic import ByteSize, Field
+from pydantic.v1 import ByteSize, Field
 
 from pipelime.piper import PipelimeCommand
 
@@ -217,9 +217,11 @@ class TempCommand(PipelimeCommand, title="tmp"):
             )
 
         rows.sort(
-            key=lambda x: x[1]
-            if self.sort_by is SortBy.TIME
-            else (x[2] if self.sort_by is SortBy.SIZE else x[0].stem),
+            key=lambda x: (
+                x[1]
+                if self.sort_by is SortBy.TIME
+                else (x[2] if self.sort_by is SortBy.SIZE else x[0].stem)
+            ),
             reverse=self.sort_by is SortBy.SIZE,
         )
 
@@ -277,9 +279,11 @@ class TempCommand(PipelimeCommand, title="tmp"):
                 if isinstance(dttm, dt.date):
                     dttm = dt.datetime.combine(
                         date=dttm,
-                        time=dt.time(23, 59, 59, 999999)
-                        if inf_limit
-                        else dt.time(0, 0, 0, 0),
+                        time=(
+                            dt.time(23, 59, 59, 999999)
+                            if inf_limit
+                            else dt.time(0, 0, 0, 0)
+                        ),
                     )
                 elif isinstance(dttm, dt.time):
                     dttm = dt.datetime.combine(date=dt.date.today(), time=dttm)

@@ -1,8 +1,8 @@
 from enum import Enum
 from typing import List, Mapping, Tuple, Type, cast
 
-from pydantic import BaseModel
-from pydantic.fields import ModelField
+from pydantic.v1 import BaseModel
+from pydantic.v1.fields import ModelField
 
 from pipelime.cli.utils import PipelimeSymbolsHelper
 from pipelime.piper import PipelimeCommand

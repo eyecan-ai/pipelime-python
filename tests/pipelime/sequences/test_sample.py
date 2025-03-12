@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 import pipelime.sequences as pls
+
 from ... import TestUtils
 
 
@@ -31,8 +32,9 @@ class TestSample:
         assert sample.to_dict() == {k: v() for k, v in data.items()}
 
     def test_to_schema(self):
-        from pydantic import BaseConfig, Extra, create_model
         from typing import Optional
+
+        from pydantic.v1 import BaseConfig, Extra, create_model
 
         import pipelime.items as pli
 
@@ -131,9 +133,11 @@ class TestSample:
         assert all(k in other_sample for k in sample)
         assert all(k in sample for k in other_sample if k != target_key)
         assert all(
-            (v is sample[k])
-            if k != target_key
-            else isinstance(v, sample[ref_key].__class__)
+            (
+                (v is sample[k])
+                if k != target_key
+                else isinstance(v, sample[ref_key].__class__)
+            )
             for k, v in other_sample.items()
         )
         assert TestUtils.numpy_eq(other_sample[target_key](), new_value)
@@ -149,9 +153,11 @@ class TestSample:
 
         assert sample.keys() == other_sample.keys()
         assert all(
-            (v is sample[k])
-            if k != target_key
-            else isinstance(v, sample[target_key].__class__)
+            (
+                (v is sample[k])
+                if k != target_key
+                else isinstance(v, sample[target_key].__class__)
+            )
             for k, v in other_sample.items()
         )
         assert TestUtils.numpy_eq(other_sample[target_key](), new_value)
@@ -260,9 +266,11 @@ class TestSample:
     def _check_removed_keys(self, sample, data, other_sample, keys_to_remove):
         assert all(k in sample for k in data)
         assert all(
-            (k in other_sample)
-            if (k not in keys_to_remove)
-            else (k not in other_sample)
+            (
+                (k in other_sample)
+                if (k not in keys_to_remove)
+                else (k not in other_sample)
+            )
             for k in data
         )
 

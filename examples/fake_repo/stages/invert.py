@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic.v1 import Field
 
 import pipelime.sequences as pls
 import pipelime.stages as plst

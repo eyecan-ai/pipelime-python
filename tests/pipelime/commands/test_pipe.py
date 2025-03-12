@@ -1,8 +1,8 @@
 import pytest
-from pydantic import ValidationError
-from .test_general_base import TestGeneralCommandsBase
+from pydantic.v1 import ValidationError
 
 from ... import TestAssert
+from .test_general_base import TestGeneralCommandsBase
 
 
 class TestPipe(TestGeneralCommandsBase):

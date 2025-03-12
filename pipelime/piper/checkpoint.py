@@ -4,10 +4,10 @@ import shutil
 import typing as t
 from contextlib import nullcontext
 from pathlib import Path
-from loguru import logger
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 from filelock import FileLock
+from loguru import logger
 
 from pipelime.choixe.utils.io import PipelimeTmp
 from pipelime.utils.pydantic_types import NewPath

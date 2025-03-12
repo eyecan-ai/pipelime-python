@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-import pydantic
+import pydantic.v1 as pyd
 import pytest
 
 import pipelime.utils.pydantic_types as plt
@@ -36,12 +36,12 @@ class TestNewPath:
         ],
     )
     def test_create(self, path, ext, should_fail, result):
-        class FooModel(pydantic.BaseModel):
+        class FooModel(pyd.BaseModel):
             i1: plt.NewPath
             i2: plt.new_file_path(ext)  # type: ignore
 
         if should_fail:
-            with pytest.raises(pydantic.ValidationError, match="i2"):
+            with pytest.raises(pyd.ValidationError, match="i2"):
                 _ = FooModel(i1=path, i2=path)
         else:
             foo = FooModel(i1=path, i2=path)
@@ -57,7 +57,7 @@ class TestNewPath:
 
 class TestNumpyType:
     def test_create(self):
-        with pytest.raises(pydantic.ValidationError):
+        with pytest.raises(pyd.ValidationError):
             _ = plt.NumpyType()  # type: ignore
 
         target = np.arange(12).reshape(2, 3, 2)
@@ -92,11 +92,11 @@ class TestNumpyType:
         data = np.arange(12).reshape(2, 3, 2, order="F") * 3.1415 + 1.4142
         nt = plt.NumpyType(__root__=data.astype(np.float16))
 
-        nt_again = pydantic.parse_raw_as(plt.NumpyType, nt.json())
+        nt_again = pyd.parse_raw_as(plt.NumpyType, nt.json())
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
-        nt_again = pydantic.parse_obj_as(plt.NumpyType, nt.dict()["__root__"])
+        nt_again = pyd.parse_obj_as(plt.NumpyType, nt.dict()["__root__"])
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
@@ -141,10 +141,10 @@ class TestYamlInput:
         data = {"a": 1, "b": "c"}
         yi = plt.YamlInput(__root__=data)
 
-        yi_again = pydantic.parse_raw_as(plt.YamlInput, yi.json())
+        yi_again = pyd.parse_raw_as(plt.YamlInput, yi.json())
         assert yi.value == yi_again.value
 
-        yi_again = pydantic.parse_obj_as(plt.YamlInput, yi.dict()["__root__"])
+        yi_again = pyd.parse_obj_as(plt.YamlInput, yi.dict()["__root__"])
         assert yi.value == yi_again.value
 
 
@@ -178,10 +178,10 @@ class TestItemType:
 
         itp = plt.ItemType(__root__=MetadataItem)
 
-        itp_again = pydantic.parse_raw_as(plt.ItemType, itp.json())
+        itp_again = pyd.parse_raw_as(plt.ItemType, itp.json())
         assert itp.value == itp_again.value
 
-        itp_again = pydantic.parse_obj_as(plt.ItemType, itp.dict()["__root__"])
+        itp_again = pyd.parse_obj_as(plt.ItemType, itp.dict()["__root__"])
         assert itp.value == itp_again.value
 
     def test_hash(self):
@@ -244,10 +244,10 @@ class TestCallableDef:
     def test_serialize(self):
         cd = plt.CallableDef(__root__=a_callable)
 
-        cd_again = pydantic.parse_raw_as(plt.CallableDef, cd.json())
+        cd_again = pyd.parse_raw_as(plt.CallableDef, cd.json())
         assert cd.value == cd_again.value
 
-        cd_again = pydantic.parse_obj_as(plt.CallableDef, cd.dict()["__root__"])
+        cd_again = pyd.parse_obj_as(plt.CallableDef, cd.dict()["__root__"])
         assert cd.value == cd_again.value
 
     def test_hash(self):

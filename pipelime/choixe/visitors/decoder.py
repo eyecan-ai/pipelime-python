@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 from pipelime.choixe.ast.nodes import LiteralNode, Node
 from pipelime.choixe.visitors.unparser import Unparser

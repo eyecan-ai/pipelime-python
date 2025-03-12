@@ -259,7 +259,7 @@ Here a list of the most common commands available (run `$ pipelime lc` to see th
 - `run`: executes a DAG
 - `draw`: draws a DAG
 - `pipe`: applies a sequence of operations to a dataset
-- `clone`: clones a dataset, e.g., to download the data from a remote data lake
+- `clone`: clones a dataset
 - `cat`: concatenates two or more datasets
 - `split/split-value/split-query`: various dataset splitting commands
 - `toy_dataset`: creates a toy dataset

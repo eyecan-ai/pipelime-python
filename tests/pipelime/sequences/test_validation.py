@@ -1,7 +1,9 @@
-import pytest
-from typing import Optional
 from pathlib import Path
-import pydantic as pyd
+from typing import Optional
+
+import pydantic.v1 as pyd
+import pytest
+
 import pipelime.items as pli
 from pipelime.sequences import SamplesSequence, SampleValidationInterface
 
@@ -77,9 +79,11 @@ class TestValidation:
         self._schema_check(
             minimnist_dataset["path"],
             SampleValidationInterface(  # type: ignore
-                sample_schema=TestValidation.MyFullSchemaIgnoreExtra
-                if ignore_extra_keys
-                else TestValidation.MyFullSchemaForbidExtra,
+                sample_schema=(
+                    TestValidation.MyFullSchemaIgnoreExtra
+                    if ignore_extra_keys
+                    else TestValidation.MyFullSchemaForbidExtra
+                ),
                 lazy=lazy,
             ),
             should_fail=False,
@@ -107,7 +111,9 @@ class TestValidation:
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
     ):
         from typing import Optional
-        import pydantic as pyd
+
+        import pydantic.v1 as pyd
+
         import pipelime.items as pli
 
         class MySchema(
@@ -132,7 +138,9 @@ class TestValidation:
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
     ):
         from typing import Optional
-        import pydantic as pyd
+
+        import pydantic.v1 as pyd
+
         import pipelime.items as pli
 
         class MySchema(

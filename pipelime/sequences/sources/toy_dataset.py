@@ -1,7 +1,7 @@
 import typing as t
-import numpy as np
 
-import pydantic as pyd
+import numpy as np
+import pydantic.v1 as pyd
 
 import pipelime.sequences as pls
 
@@ -29,9 +29,9 @@ class ToyDataset(
     with_kpts: bool = pyd.Field(
         True, description="Whether to generate objects' keypoints."
     )
-    image_size: t.Union[
-        pyd.PositiveInt, t.Tuple[pyd.PositiveInt, pyd.PositiveInt]
-    ] = pyd.Field(256, description="The size of the generated images.")
+    image_size: t.Union[pyd.PositiveInt, t.Tuple[pyd.PositiveInt, pyd.PositiveInt]] = (
+        pyd.Field(256, description="The size of the generated images.")
+    )
     key_format: str = pyd.Field(
         "*",
         description=(
@@ -86,8 +86,9 @@ class ToyDataset(
         return sample
 
     def _generate_sample(self, idx) -> pls.Sample:
-        import pipelime.items as pli
         import json
+
+        import pipelime.items as pli
 
         label_key = self.key_format.replace("*", "label")
         bboxes_key = self.key_format.replace("*", "bboxes")

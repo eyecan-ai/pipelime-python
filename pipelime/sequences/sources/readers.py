@@ -3,7 +3,7 @@ import typing as t
 from pathlib import Path
 
 from loguru import logger
-from pydantic import Field, PrivateAttr, validator
+from pydantic.v1 import Field, PrivateAttr, validator
 
 from pipelime.sequences import Sample, SamplesSequence, source_sequence
 
@@ -182,7 +182,7 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
         return v
 
     def __init__(self, folder: Path, **data):
-        from pipelime.items import Item, ImageItem
+        from pipelime.items import ImageItem, Item
 
         super().__init__(folder=folder, **data)  # type: ignore
         self._samples = []

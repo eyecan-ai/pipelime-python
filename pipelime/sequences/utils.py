@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing as t
 from pathlib import Path
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic.v1 import BaseModel, Field, PrivateAttr
 
 from pipelime.sequences import Sample, SamplesSequence
 
@@ -154,9 +154,9 @@ class DataStream(
             DataStream: The created DataStream.
         """
         return cls(
-            input_sequence=output_interface.as_input().create_reader()
-            if bidirectional
-            else None,
+            input_sequence=(
+                output_interface.as_input().create_reader() if bidirectional else None
+            ),
             output_pipe=output_interface.as_pipe(),
         )
 
@@ -177,9 +177,9 @@ class DataStream(
                 "to_underfolder": {
                     "folder": str(path),
                     "exists_ok": True,
-                    "zfill": seq.best_zfill()
-                    if zfill is None
-                    else zfill,  # to be consistent if samples are added
+                    "zfill": (
+                        seq.best_zfill() if zfill is None else zfill
+                    ),  # to be consistent if samples are added
                 }
             },
         )

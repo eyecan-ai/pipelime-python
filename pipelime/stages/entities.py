@@ -1,10 +1,12 @@
 import inspect
 import typing as t
-import pydantic as pyd
-from pydantic.generics import GenericModel
-from pipelime.utils.pydantic_types import TypeDef, CallableDef
-from pipelime.stages import SampleStage
+
+import pydantic.v1 as pyd
+from pydantic.v1.generics import GenericModel
+
 from pipelime.items import Item
+from pipelime.stages import SampleStage
+from pipelime.utils.pydantic_types import CallableDef, TypeDef
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
@@ -15,13 +17,11 @@ ActionTp = t.TypeVar("ActionTp", bound=t.Callable)
 @t.overload
 def register_action(
     *, title: t.Optional[str] = None, description: t.Optional[str] = None
-) -> t.Callable[[ActionTp], ActionTp]:
-    ...
+) -> t.Callable[[ActionTp], ActionTp]: ...
 
 
 @t.overload
-def register_action(__action: ActionTp) -> ActionTp:
-    ...
+def register_action(__action: ActionTp) -> ActionTp: ...
 
 
 def register_action(
@@ -37,6 +37,7 @@ def register_action(
 
     def _decorator(func):
         from pathlib import Path
+
         from pipelime.cli.utils import ActionInfo, PipelimeSymbolsHelper
 
         name = title or func.__name__
