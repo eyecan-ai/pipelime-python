@@ -4,7 +4,7 @@ import inspect
 import typing as t
 from abc import ABC, abstractmethod
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 import pipelime.utils.pydantic_types as pl_types
 

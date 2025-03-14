@@ -210,7 +210,7 @@ class TestSamplesSequenceOperations:
         for (idx, s_sample), e_sample in zip(enumerate(source), enum_seq):
             assert "custom_id" in e_sample
             assert isinstance(e_sample["custom_id"], pli.TxtNumpyItem)
-            assert int(e_sample["custom_id"]()) == idx  # type: ignore
+            assert int(e_sample["custom_id"]()[0]) == idx  # type: ignore
             assert all(v == e_sample[k] for k, v in s_sample.items())
 
     @pytest.mark.parametrize("n", [1, 4, 10, 3.8, 4.2, 3.89])
@@ -348,7 +348,7 @@ class TestSamplesSequenceOperations:
     def test_batched(
         self, bsize, drop_last, should_fail, key_list, minimnist_dataset: dict
     ):
-        from pydantic import ValidationError
+        from pydantic.v1 import ValidationError
 
         from pipelime.items import NumpyItem
 

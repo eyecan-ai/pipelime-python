@@ -95,7 +95,6 @@ JpegImageItem:
   data: None
   sources:
       - datasets/mini_mnist/data/000007_image.jpg
-  remotes:
   shared: False
   cache: True
   serialization: None

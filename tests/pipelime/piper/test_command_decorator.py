@@ -1,7 +1,9 @@
-import pytest
 import typing as t
-from pydantic import Field
-from pipelime.piper import command, PipelimeCommand, self_
+
+import pytest
+from pydantic.v1 import Field
+
+from pipelime.piper import PipelimeCommand, command, self_
 
 
 @command
@@ -104,7 +106,7 @@ class TestCommandDecorator:
         [posonly, posorkw, kwonly, varpos, varkw, mixed, mixed_var, my_addup_func],
     )
     def test_is_command(self, cmd):
-        from pipelime.cli.pretty_print import print_models_short_help, print_model_info
+        from pipelime.cli.pretty_print import print_model_info, print_models_short_help
         from pipelime.cli.utils import PipelimeSymbolsHelper, get_pipelime_command_cls
 
         assert issubclass(cmd, PipelimeCommand)

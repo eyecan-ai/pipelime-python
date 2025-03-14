@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import pytest
 import yaml
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from textual.keys import Keys
 from textual.widgets import Input, Label
 
@@ -442,89 +442,98 @@ def test_create_title() -> None:
     assert len(labels) == 2
 
     title = FooCommand.command_title()
-    assert title in cast(str, labels[0].render())
+    assert title in str(labels[0].render())
 
     description = cast(str, FooCommand.__doc__)
     description = TuiApp.preprocess_string(description)
-    assert description in cast(str, labels[1].render())
+    assert description in str(labels[1].render())
 
 
 def test_create_simple_field() -> None:
-    app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
+    async def task() -> None:
+        app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
 
-    for f in ["input_folder", "output_folder", "debug", "grabber"]:
-        tui_field = app.fields[f]
+        async with app.run_test():
+            for f in ["input_folder", "output_folder", "debug", "grabber"]:
+                tui_field = app.fields[f]
 
-        widgets = app.create_simple_field(tui_field)
-        assert len(widgets) == 3
+                widgets = app.create_simple_field(tui_field)
+                assert len(widgets) == 3
 
-        title_label, description_label, input_ = widgets
-        title_label = cast(Label, title_label)
-        description_label = cast(Label, description_label)
-        input_ = cast(Input, input_)
+                title_label, description_label, input_ = widgets
+                title_label = cast(Label, title_label)
+                description_label = cast(Label, description_label)
+                input_ = cast(Input, input_)
 
-        assert tui_field.name in cast(str, title_label.render())
+                assert tui_field.name in str(title_label.render())
 
-        assert tui_field.type_ in cast(str, description_label.render())
-        assert tui_field.description in cast(str, description_label.render())
+                assert tui_field.type_ in str(description_label.render())
+                assert tui_field.description in str(description_label.render())
 
-        assert input_.value == tui_field.value
-        assert input_.placeholder == tui_field.hint
+                assert input_.value == tui_field.value
+                assert input_.placeholder == tui_field.hint
+
+    asyncio.run(task())
 
 
 def test_create_dict_field() -> None:
-    from pipelime.commands import MapCommand
+    async def task() -> None:
+        from pipelime.commands import MapCommand
 
-    PipelimeSymbolsHelper.set_extra_modules(["tests.pipelime.cli.test_tui"])
+        PipelimeSymbolsHelper.set_extra_modules(["tests.pipelime.cli.test_tui"])
 
-    app = TuiApp(MapCommand, {"stage": "foo-stage"})
-    stage_field = app.fields["stage"]
-    widgets = app.create_dict_field(stage_field)
+        app = TuiApp(MapCommand, {"stage": "foo-stage"})
 
-    assert len(widgets) == 8
+        async with app.run_test():
+            stage_field = app.fields["stage"]
+            widgets = app.create_dict_field(stage_field)
 
-    stage_title = cast(Label, widgets[0])
-    stage_description = cast(Label, widgets[1])
-    sub_field_0_title = cast(Label, widgets[2])
-    sub_field_0_description = cast(Label, widgets[3])
-    sub_field_0_input = cast(Input, widgets[4])
-    sub_field_1_title = cast(Label, widgets[5])
-    sub_field_1_description = cast(Label, widgets[6])
-    sub_field_1_input = cast(Input, widgets[7])
+            assert len(widgets) == 8
 
-    assert stage_field.name in cast(str, stage_title.render())
-    assert stage_field.description in cast(str, stage_description.render())
+            stage_title = cast(Label, widgets[0])
+            stage_description = cast(Label, widgets[1])
+            sub_field_0_title = cast(Label, widgets[2])
+            sub_field_0_description = cast(Label, widgets[3])
+            sub_field_0_input = cast(Input, widgets[4])
+            sub_field_1_title = cast(Label, widgets[5])
+            sub_field_1_description = cast(Label, widgets[6])
+            sub_field_1_input = cast(Input, widgets[7])
 
-    sub_field_0 = stage_field.values[0]
-    assert sub_field_0.name in cast(str, sub_field_0_title.render())
-    assert sub_field_0.type_ in cast(str, sub_field_0_description.render())
-    assert sub_field_0.description in cast(str, sub_field_0_description.render())
-    assert sub_field_0.value == sub_field_0_input.value
-    assert sub_field_0.hint == sub_field_0_input.placeholder
+            assert stage_field.name in str(stage_title.render())
+            assert stage_field.description in str(stage_description.render())
 
-    sub_field_1 = stage_field.values[1]
-    assert sub_field_1.name in cast(str, sub_field_1_title.render())
-    assert sub_field_1.type_ in cast(str, sub_field_1_description.render())
-    assert sub_field_1.description in cast(str, sub_field_1_description.render())
-    assert sub_field_1.value == sub_field_1_input.value
-    assert sub_field_1.hint == sub_field_1_input.placeholder
+            sub_field_0 = stage_field.values[0]
+            assert sub_field_0.name in str(sub_field_0_title.render())
+            assert sub_field_0.type_ in str(sub_field_0_description.render())
+            assert sub_field_0.description in str(sub_field_0_description.render())
+            assert sub_field_0.value == sub_field_0_input.value
+            assert sub_field_0.hint == sub_field_0_input.placeholder
 
-    for widget in [
-        sub_field_0_title,
-        sub_field_0_description,
-        sub_field_0_input,
-        sub_field_1_title,
-        sub_field_1_description,
-        sub_field_1_input,
-    ]:
-        assert widget.styles.margin == Constants.SUB_FIELD_MARGIN
+            sub_field_1 = stage_field.values[1]
+            assert sub_field_1.name in str(sub_field_1_title.render())
+            assert sub_field_1.type_ in str(sub_field_1_description.render())
+            assert sub_field_1.description in str(sub_field_1_description.render())
+            assert sub_field_1.value == sub_field_1_input.value
+            assert sub_field_1.hint == sub_field_1_input.placeholder
+
+            for widget in [
+                sub_field_0_title,
+                sub_field_0_description,
+                sub_field_0_input,
+                sub_field_1_title,
+                sub_field_1_description,
+                sub_field_1_input,
+            ]:
+                assert widget.styles.margin == Constants.SUB_FIELD_MARGIN
+
+    asyncio.run(task())
 
 
-def test_tui_ctrl_c() -> None:
+def test_tui_abort() -> None:
     async def task() -> None:
         app = TuiApp(FooCommand, {})
         async with app.run_test() as pilot:
-            # press "ctrl+c" to abort
+            # press the key combination to abort
             await pilot.press(Constants.TUI_KEY_ABORT)
 
     with pytest.raises(KeyboardInterrupt):
@@ -540,6 +549,8 @@ async def test_collect_cmd_args() -> None:
     app = TuiApp(FooCommand, {"i": "foo", "output_folder": "bar"})
 
     async with app.run_test() as pilot:
+        # move to the end of the input_folder input box
+        await pilot.press(Keys.End)
         # add "/path" after "foo" in input_folder input box
         await pilot.press("/", "p", "a", "t", "h")
 
@@ -606,7 +617,7 @@ async def test_toggle_descriptions() -> None:
 
     query = app.query(".description")
     for widget in query:
-        assert widget.styles.height.value == 0
+        assert widget.display is False
 
     async with app.run_test() as pilot:
         await pilot.press(Constants.TUI_KEY_TOGGLE_DESCRIPTIONS)
@@ -614,14 +625,14 @@ async def test_toggle_descriptions() -> None:
 
         query = app.query(".description")
         for widget in query:
-            assert widget.styles.height.value > 0
+            assert widget.display is True
 
         await pilot.press(Constants.TUI_KEY_TOGGLE_DESCRIPTIONS)
         assert app.show_descriptions is False
 
         query = app.query(".description")
         for widget in query:
-            assert widget.styles.height.value == 0
+            assert widget.display is False
 
 
 def test_preprocess_string() -> None:
@@ -645,22 +656,6 @@ def test_preprocess_string() -> None:
     assert splits[-1] == third_line.replace("[", r"\[")
 
 
-def test_save_screen_ctrl_c() -> None:
-    async def task() -> None:
-        app = TuiApp(FooCommand, {})
-        async with app.run_test() as pilot:
-            # launch the save screen
-            await pilot.press(Constants.TUI_KEY_SAVE)
-
-            assert len(app.screen_stack) == 2
-
-            # press "ctrl+c" to abort
-            await pilot.press(Constants.SAVE_KEY_ABORT)
-
-    with pytest.raises(KeyboardInterrupt):
-        asyncio.run(task())
-
-
 @pytest.mark.asyncio
 async def test_save_screen_cancel() -> None:
     app = TuiApp(FooCommand, {})
@@ -677,7 +672,7 @@ async def test_save_screen_cancel() -> None:
 
 
 @pytest.mark.asyncio
-async def test_save_screen_save() -> None:
+async def test_save_screen_save(tmp_path: Path) -> None:
     app = TuiApp(FooCommand, {"i": "foo"})
 
     async with app.run_test() as pilot:
@@ -692,9 +687,9 @@ async def test_save_screen_save() -> None:
         assert len(app.screen_stack) == 2
         # check that the error label is visible
         error_label = app.screen_stack[-1].query_one(".error-label")
-        assert error_label.styles.height.value > 0
+        assert error_label.display is True
         # check the error text
-        error_text = cast(str, error_label.render())
+        error_text = str(error_label.render())
         assert "Path cannot be empty." in error_text
 
         # enter a wrong save path
@@ -705,7 +700,7 @@ async def test_save_screen_save() -> None:
         # check that the save screen is still open
         assert len(app.screen_stack) == 2
         # check that the error text has changed
-        assert error_text != cast(str, error_label.render())
+        assert error_text != str(error_label.render())
 
         # enter a directory
         for c in "foo/bar":
@@ -717,7 +712,7 @@ async def test_save_screen_save() -> None:
         # check that the save screen is still open
         assert len(app.screen_stack) == 2
         # check the error text
-        assert "is a directory" in cast(str, error_label.render())
+        assert "is a directory" in str(error_label.render())
 
         # enter an existing file
         for c in "tests/":
@@ -729,19 +724,21 @@ async def test_save_screen_save() -> None:
         # check that the save screen is still open
         assert len(app.screen_stack) == 2
         # check the error text
-        assert "already exists" in cast(str, error_label.render())
+        assert "already exists" in str(error_label.render())
 
         # enter a correct save path
+        save_path = tmp_path / "temp_tui_cfg.yaml"
+
         for c in "pyproject.toml":
             await pilot.press(Keys.Backspace)
-        for c in "temp_tui_cfg.yaml":
+        for c in str(save_path):
             await pilot.press(c)
         # confirm
         await pilot.press(Constants.SAVE_KEY_CONFIRM)
         # check that the save screen is gone
         assert len(app.screen_stack) == 1
         # check the saved config
-        saved_cfg = yaml.safe_load(open("temp_tui_cfg.yaml", "r"))
+        saved_cfg = yaml.safe_load(open(save_path, "r"))
         assert saved_cfg == {
             "input_folder": "foo",
             "output_folder": "",
@@ -749,11 +746,9 @@ async def test_save_screen_save() -> None:
             "grabber": "",
         }
 
-        Path("temp_tui_cfg.yaml").unlink()
-
 
 @pytest.mark.asyncio
-async def test_tui_complete() -> None:
+async def test_tui_complete(tmp_path: Path) -> None:
     from pipelime.commands import MapCommand
 
     PipelimeSymbolsHelper.set_extra_modules(["tests.pipelime.cli.test_tui"])
@@ -786,6 +781,7 @@ async def test_tui_complete() -> None:
         await pilot.press(Keys.Tab)
 
         # add "/bar/path" to "foo"
+        await pilot.press(Keys.End)
         for c in "/bar/path":
             await pilot.press(c)
 
@@ -801,8 +797,9 @@ async def test_tui_complete() -> None:
 
         assert len(app.screen_stack) == 2
 
-        # enter a correct save path
-        for c in "temp_tui_cfg.yaml":
+        # enter a save path
+        cfg_save_path = tmp_path / "temp_tui_cfg.yaml"
+        for c in str(cfg_save_path):
             await pilot.press(c)
 
         # confirm
@@ -810,7 +807,7 @@ async def test_tui_complete() -> None:
 
         assert len(app.screen_stack) == 1
 
-        saved_cfg = yaml.safe_load(open("temp_tui_cfg.yaml", "r"))
+        saved_cfg = yaml.safe_load(open(cfg_save_path, "r"))
         assert saved_cfg == {
             "stage": {
                 "foo-stage": {
@@ -823,8 +820,6 @@ async def test_tui_complete() -> None:
             "output": {"name": "john", "surname": "doe", "age": 42},
             "grabber": "",
         }
-
-        Path("temp_tui_cfg.yaml").unlink()
 
         # confirm and exit the TUI
         await pilot.press(Constants.TUI_KEY_CONFIRM)

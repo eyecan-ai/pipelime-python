@@ -1,20 +1,18 @@
 from __future__ import annotations
-from abc import ABCMeta, abstractmethod
-from pathlib import Path
-from urllib.parse import ParseResult, urlparse
-from enum import IntEnum
-from copy import deepcopy
-from contextlib import ContextDecorator, contextmanager
-from loguru import logger
-import io
-import shutil
-import os
-import json
+
 import inspect
-
+import io
+import os
+import shutil
 import typing as t
+from abc import ABCMeta, abstractmethod
+from contextlib import ContextDecorator, contextmanager
+from copy import deepcopy
+from enum import IntEnum
+from pathlib import Path
+from urllib.parse import ParseResult
 
-import pipelime.remotes as plr
+from loguru import logger
 
 
 # IMPORTANT: IF YOU CHANGE THIS ENUM, YOU MUST ALSO CHANGE THE
@@ -23,16 +21,15 @@ import pipelime.remotes as plr
 #   -> SerializationModeInterface
 #   -> any_serialization
 class SerializationMode(IntEnum):
-    """Standard resolution is REMOTE FILE -> HARD LINK -> FILE COPY -> NEW FILE
-    or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour by setting
-    default and disabled serialization modes.
+    """Standard resolution is HARD LINK -> FILE COPY -> NEW FILE
+    or SYM LINK -> FILE COPY -> NEW FILE. You can alter this behaviour
+    by setting default and disabled serialization modes.
     """
 
     CREATE_NEW_FILE = 0
     DEEP_COPY = 1
     SYM_LINK = 2
     HARD_LINK = 3
-    REMOTE_FILE = 4
 
 
 class deferred_classattr:
@@ -63,7 +60,6 @@ class ItemFactory(ABCMeta):
     """
 
     ITEM_CLASSES: t.Dict[str, t.Type[Item]] = {}
-    REMOTE_FILE_EXT = ".remote"
     ITEM_DATA_CACHE_MODE: t.Dict[t.Type[Item], t.Optional[bool]] = {}
     ITEM_SERIALIZATION_MODE: t.Dict[t.Type[Item], SerializationMode] = {}
     ITEM_DISABLED_SERIALIZATION_MODES: t.Dict[
@@ -73,13 +69,11 @@ class ItemFactory(ABCMeta):
     def __init__(cls, name, bases, dct, **kwargs):
         """Registers item class extensions."""
         for ext in cls.file_extensions():  # type: ignore
-            if ext == cls.REMOTE_FILE_EXT:
-                raise ValueError(f"`{cls.REMOTE_FILE_EXT}` file extension is reserved")
             if ext in cls.ITEM_CLASSES:
                 raise ValueError(f"File extension `{ext}` is already registered")
             cls.ITEM_CLASSES[ext] = cls  # type: ignore
         cls.ITEM_DATA_CACHE_MODE[cls] = None  # type: ignore
-        cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.REMOTE_FILE  # type: ignore
+        cls.ITEM_SERIALIZATION_MODE[cls] = SerializationMode.HARD_LINK  # type: ignore
         cls.ITEM_DISABLED_SERIALIZATION_MODES[cls] = set()  # type: ignore
 
         super().__init__(name, bases, dct)
@@ -101,14 +95,6 @@ class ItemFactory(ABCMeta):
         filepath = Path(filepath)
         path_or_urls = [filepath]
         ext = filepath.suffix
-        if ext == cls.REMOTE_FILE_EXT:
-            with filepath.open("r") as fp:
-                url_list = json.load(fp)
-                url_list = [urlparse(u) for u in url_list if u]
-            if not url_list:
-                raise ValueError(f"The file {filepath} does not contain any remote.")
-            ext = Path(url_list[0].path).suffix
-            path_or_urls = url_list
 
         item_cls = cls.ITEM_CLASSES.get(ext, UnknownItem)
         return item_cls(*path_or_urls, shared=shared_item)
@@ -126,7 +112,7 @@ class ItemFactory(ABCMeta):
                 value = cls.ITEM_DATA_CACHE_MODE.get(base_cls, None)
                 if value is not None:
                     return value
-        return True
+        return False
 
     @classmethod
     def set_serialization_mode(cls, item_cls: t.Type[Item], mode: SerializationMode):
@@ -250,7 +236,7 @@ class item_disabled_serialization_modes(ContextDecorator):
 
        # apply at function invocation
        @item_disabled_serialization_modes(
-           ["REMOTE_FILE", SerializationMode.SYM_LINK], ImageItem
+           ["HARD_LINK", SerializationMode.SYM_LINK], ImageItem
        )
        def my_fn():
            ...
@@ -385,7 +371,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
 
     _data_cache: t.Optional[T]
     _file_sources: t.List[Path]
-    _remote_sources: t.List[ParseResult]
     _cache_data: t.Optional[bool]
     _shared: bool
     _serialization_mode: t.Optional[SerializationMode]
@@ -412,7 +397,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         super().__init__()
         self._data_cache = None
         self._file_sources = []
-        self._remote_sources = []
         self._cache_data = None
         self._shared = shared
         self._serialization_mode = None
@@ -429,7 +413,7 @@ class Item(t.Generic[T], metaclass=ItemFactory):
             elif self._data_cache is not None:
                 raise ValueError(f"{self.__class__.__name__}: Cannot set data twice.")
             elif isinstance(src, (t.BinaryIO, io.IOBase)):
-                self._data_cache = self.decode(src)
+                self._data_cache = self.decode(src)  # type: ignore
             else:
                 self._data_cache = self.validate(src)
 
@@ -461,21 +445,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     def local_sources(self) -> t.Sequence[Path]:
         return deepcopy(self._file_sources)
 
-    @property
-    def remote_sources(self) -> t.Sequence[ParseResult]:
-        return deepcopy(self._remote_sources)
-
     def effective_serialization_mode(self) -> SerializationMode:
         smode = (
             self.serialization_mode
             if self.serialization_mode is not None
             else ItemFactory.get_serialization_mode(self.__class__)
         )
-        if smode is SerializationMode.REMOTE_FILE and (
-            not self._remote_sources
-            or not self.is_mode_enabled(SerializationMode.REMOTE_FILE)
-        ):
-            smode = SerializationMode.HARD_LINK
         return smode
 
     def is_mode_enabled(self, mode: SerializationMode) -> bool:
@@ -501,13 +476,8 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     def as_default_name(self, filepath: Path) -> Path:
         return self.with_extension(filepath, None)
 
-    def as_default_remote_file(self, filepath: Path) -> Path:
-        filename = self.as_default_name(filepath)
-        return filename.parent / (filename.name + Item.REMOTE_FILE_EXT)
-
     def get_all_names(self, filepath: Path) -> t.List[Path]:
         names = [self.with_extension(filepath, ext) for ext in self.file_extensions()]
-        names += [self.as_default_remote_file(filepath)]
         return names
 
     def _check_source(self, source: _item_data_source):
@@ -528,9 +498,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
             if source not in self._file_sources:
                 self._file_sources.append(source)
                 return True
-        elif source not in self._remote_sources:
-            self._remote_sources.append(source)
-            return True
         return False
 
     def _serialize_to_local_file(self, path: Path) -> t.Optional[Path]:  # noqa: C901
@@ -547,37 +514,10 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         target_path = path.resolve().absolute()
         smode: t.Optional[SerializationMode] = self.effective_serialization_mode()
 
-        # At this point if smode is REMOTE_FILE, then REMOTE_FILE is not disabled.
-        if smode is SerializationMode.REMOTE_FILE:
-            path = self.as_default_remote_file(target_path)
-        elif target_path.suffix not in self.file_extensions():
+        if target_path.suffix not in self.file_extensions():
             path = self.as_default_name(target_path)
         else:
             path = target_path
-
-        if smode is SerializationMode.REMOTE_FILE:
-            # it's safe to delete an existing remote file
-            path.unlink(missing_ok=True)
-
-            try:
-                with path.open("w") as fp:
-                    json.dump([rm.geturl() for rm in self._remote_sources], fp)
-                return None  # do not save remote file among file sources!
-            except Exception as exc:
-                logger.warning(  # logger.exception(
-                    f"{self.__class__}: remote file serialization error `{exc}`."
-                )
-
-                # remove any unfinished remote file
-                path.unlink(missing_ok=True)
-
-                # fall back to local file path
-                path = (
-                    self.as_default_name(target_path)
-                    if target_path.suffix not in self.file_extensions()
-                    else target_path
-                )
-                smode = SerializationMode.HARD_LINK
 
         # skip if local file already exists
         if path in self._file_sources:
@@ -630,36 +570,12 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         logger.warning(f"{self.__class__}: cannot serialize item data.")
         return None
 
-    def _serialize_to_remote(self, remote_url: ParseResult) -> t.Optional[ParseResult]:
-        remote, rm_paths = plr.create_remote(remote_url), plr.paths_from_url(remote_url)
-        if remote is not None and rm_paths[0] is not None:
-            data = self()
-            if data is None:
-                logger.warning(f"{self.__class__}: no data to upload to remote.")
-            else:
-                with _unclosable_BytesIO() as data_stream:
-                    self.encode(data, data_stream)
-
-                    data_stream.seek(0, io.SEEK_END)
-                    data_size = data_stream.tell()
-                    data_stream.seek(0, io.SEEK_SET)
-
-                    ext = self.default_extension()
-                    if ext is None:
-                        ext = ".___"
-
-                    return remote.upload_stream(
-                        data_stream, data_size, rm_paths[0], ext
-                    )
-        return None
-
     def serialize(self, *targets: _item_data_source):
         for trg in targets:
-            data_source = (
-                self._serialize_to_local_file(trg)
-                if isinstance(trg, Path)
-                else self._serialize_to_remote(trg)
-            )
+            data_source = None
+            if isinstance(trg, (Path, str)):
+                trg = Path(trg).absolute().resolve()
+                data_source = self._serialize_to_local_file(trg)
             if data_source is not None:
                 self._add_data_source(data_source)
                 if (
@@ -704,11 +620,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
             else:
                 new_sources.append(src)
 
-        new_sources += [
-            src
-            for src in self._remote_sources
-            if _normalize_source(src)[0] not in to_be_removed
-        ]
         new_sources += (
             [self._data_cache]
             if self._data_cache is not None
@@ -728,24 +639,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
                 logger.warning(  # logger.exception(
                     f"{self.__class__}: file source error `{exc}`."
                 )
-        for rmsrc in self._remote_sources:
-            remote, rm_paths = plr.create_remote(rmsrc), plr.paths_from_url(rmsrc)
-            if (
-                remote is not None
-                and rm_paths[0] is not None
-                and rm_paths[1] is not None
-            ):
-                try:
-                    with _unclosable_BytesIO() as data_stream:
-                        if remote.download_stream(
-                            data_stream, rm_paths[0], rm_paths[1]
-                        ):
-                            data_stream.seek(0)
-                            return self._decode_and_store(data_stream)
-                except Exception as exc:
-                    logger.warning(  # logger.exception(
-                        f"{self.__class__}: remote source error `{exc}`."
-                    )
         return None
 
     def _decode_and_store(self, fp: t.BinaryIO) -> T:
@@ -812,14 +705,13 @@ class Item(t.Generic[T], metaclass=ItemFactory):
     def __repr__(self) -> str:
         return (
             f"{self.__class__}(data={repr(self._data_cache)}, "
-            f"sources={self._file_sources}, remotes={self._remote_sources}) "
+            f"sources={self._file_sources}, "
             f"shared={self.is_shared}, cache={self.cache_data}, "
             f"serialization={self.serialization_mode})"
         )
 
     def __str__(self) -> str:
         str_srcs = [f"    - {str(fs)}" for fs in self._file_sources]
-        str_rmts = [f"    - {pr.geturl()}" for pr in self._remote_sources]
         return "\n".join(
             [
                 f"{self.__class__.__name__}:",
@@ -827,8 +719,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
                 "  sources:",
             ]
             + str_srcs
-            + ["  remotes:"]
-            + str_rmts
             + [
                 f"  shared: {self.is_shared}",
                 f"  cache: {self.cache_data}",
@@ -837,9 +727,9 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         )
 
     def __pl_pretty__(self) -> t.Any:
-        from rich.tree import Tree
-        from rich.panel import Panel
         from rich import box
+        from rich.panel import Panel
+        from rich.tree import Tree
 
         item_tree = Tree(f"{self.__class__.__name__}")
         if self._data_cache is None:
@@ -856,9 +746,6 @@ class Item(t.Generic[T], metaclass=ItemFactory):
         branch = item_tree.add("sources")
         for fs in self._file_sources:
             branch.add(str(fs))
-        branch = item_tree.add("remotes")
-        for pr in self._remote_sources:
-            branch.add(pr.geturl())
         item_tree.add(f"shared: {self.is_shared}")
         item_tree.add(f"cache: {self.cache_data}")
         item_tree.add(f"serialization: {self.serialization_mode}")

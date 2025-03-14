@@ -3,8 +3,8 @@ from pathlib import Path
 
 import albumentations as A
 import numpy as np
-import pydantic as pyd
-from pydantic.color import Color
+import pydantic.v1 as pyd
+from pydantic.v1.color import Color
 
 from pipelime.stages import SampleStage
 

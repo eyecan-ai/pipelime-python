@@ -1,11 +1,13 @@
-import pytest
 import typing as t
 from pathlib import Path
-from pydantic import BaseModel
+
+import pytest
 import yaml
-from pipelime.piper.parsers.factory import DAGParserFactory
-from pipelime.piper.parsers.base import DAGParser
+from pydantic.v1 import BaseModel
+
 from pipelime.piper.model import DAGModel
+from pipelime.piper.parsers.base import DAGParser
+from pipelime.piper.parsers.factory import DAGParserFactory
 
 
 class TestDAGParserFactory:

@@ -1,7 +1,7 @@
 # Data Items
 
 Item objects provide a general interface to efficiently manage the data in your pipeline.
-Any item can be built from a local path or an URL to a remote data lake, as well as from a binary stream or simply raw data. Whatever the source, you should **never** directly access the internal attributes of an item, but always use the provided methods to access the data. This way, pipelime may ensure that, e.g., the data in memory actually represents the data on disk.
+Any item can be built from a local path, as well as from a binary stream or simply raw data. Whatever the source, you should **never** directly access the internal attributes of an item, but always use the provided methods to access the data. This way, pipelime may ensure that, e.g., the data in memory actually represents the data on disk.
 
 Though most of the class attributes is of no interest for the user, some are worth mentioning:
 - `__call__`: returns the data wrapped by the item. This is the only method that should be used to access the data.
@@ -40,7 +40,6 @@ When an item is saved to disk, pipelime uses the `serialization_mode` property t
 2. `DEEP_COPY`: if the source is file, such file is deep copied; otherwise, `CREATE_NEW_FILE` applies.
 3. `SYM_LINK`: if the source is a file, a [symbolic link](https://en.wikipedia.org/wiki/Symbolic_link) is created; otherwise, `DEEP_COPY` applies.
 4. `HARD_LINK`: is the source is a file, a [hard link](https://en.wikipedia.org/wiki/Hard_link) is created; otherwise, `DEEP_COPY` applies.
-5. `REMOTE_FILE`: if the data comes from a [remote data lake](../advanced/remotes.md), a special `.remote` file is saved with a reference to the data lake; otherwise, `HARD_LINK` applies.
 
 If you are not familiar with symbolic and hard links, these are the main differences:
 - hard links are the usual "data" pointer you find in your filesystem, while symbolic links are "pointers" to other files;
@@ -49,7 +48,7 @@ If you are not familiar with symbolic and hard links, these are the main differe
 - on the other hand, a symbolic link and its target file do not talk to each other, so deleting a symbolic link does not affect the pointed file, while deleting the file makes the link invalid;
 - therefore, hard links always refer to an existing file, whereas symbolic links may be broken.
 
-Clearly, hard links are the most efficient way to manipulate a huge datasets, since when saving a sequence to disk, only the new data are actually written, while the rest is just *hard*-linked, which usually lightning-fast. Hence, the default serialization mode is set to `REMOTE_FILE`, which fall backs to `HARD_LINK` when a remote data lake is not given.
+Clearly, hard links are the most efficient way to manipulate a huge datasets, since when saving a sequence to disk, only the new data are actually written, while the rest is just *hard*-linked, which usually lightning-fast. Hence, the default serialization mode is set to `HARD_LINK`.
 
 In order to change the default serialization mode, you have several options:
 - set the `serialization_mode` property on each item;
@@ -96,11 +95,11 @@ with pli.item_disabled_serialization_modes(["HARD_LINK", "DEEP_COPY"]):
 ```{tip}
 When you set the serialization mode on a base class, such as `NumpyItem`, it will affect
 derive classes too. Indeed, pipelime goes through all base classes of an item and chooses
-the *lowest* mode according to this order: `REMOTE_FILE` > `HARD_LINK` > `SYM_LINK` > `DEEP_COPY` > `CREATE_NEW_FILE`.
+the *lowest* mode according to this order: `HARD_LINK` > `SYM_LINK` > `DEEP_COPY` > `CREATE_NEW_FILE`.
 ```
 
 ```{note}
-When serializing an item, either to disk or to a remote data lake, the content does not change,
+When serializing an item to disk, the content does not change,
 so it is safely added a new *source* to the same item object. Then, subsequent serializations
 might take advantage of that, e.g., by hard-linking the existing file instead of creating
 again a new one.
@@ -110,7 +109,7 @@ again a new one.
 
 The first time you get the data from an item, such raw data is internally saved.
 This way, subsequent calls to `__call__` will return the cached data, instead of loading
-again from disk or from a remote data lake. Moreover, even if the samples are processed
+again from disk. Moreover, even if the samples are processed
 through a long sequence of stages and pipes, as long as an item does not change, i.e.,
 it is shallow copied, its cached data is always returned.
 

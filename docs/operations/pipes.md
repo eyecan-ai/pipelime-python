@@ -45,7 +45,7 @@ class SequenceFromImageList(SamplesSequence, title="from_image_list"):
 
 In the above example notice that:
 - we use `PrivateAttr` to define an internal variable (see [pydantic](https://docs.pydantic.dev/usage/models/#private-model-attributes) for details)
-- we delegate to `ItemFactory.get_instance` the actual creation of the item: this way we support any possible extension as well as the [`.remote` files](../advanced/remotes.md)
+- we delegate to `ItemFactory.get_instance` the actual creation of the item: this way we support any possible extension.
 
 Once the module is imported, the generator is automatically registered into `SamplesSequence`
 as `from_image_list`:

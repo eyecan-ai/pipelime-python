@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import field
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
-# from dataclasses import dataclass
-from pydantic.dataclasses import dataclass
+from pydantic.v1.dataclasses import dataclass
 
 
 class NodeVisitor:  # pragma: no cover
@@ -336,7 +336,7 @@ class RandNode(Node):
 
     args: Sequence[HashNode] = tuple()
     n: Optional[Node] = None
-    pdf: Optional[Node] = None
+    pdf: Optional[Node] = field(default=None, compare=False)
 
     def __init__(self, *args: HashNode, **data) -> None:
         super().__init__()

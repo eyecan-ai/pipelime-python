@@ -4,7 +4,14 @@ from enum import Enum
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel, Field, PositiveInt, PrivateAttr, create_model, validator
+from pydantic.v1 import (
+    BaseModel,
+    Field,
+    PositiveInt,
+    PrivateAttr,
+    create_model,
+    validator,
+)
 
 from pipelime.piper.model import T_NODES, LazyCommand, PipelimeCommand, PiperPortType
 
@@ -89,9 +96,10 @@ class PiperGraphCommandBase(PipelimeCommand):
 
     @property
     def piper_graph(self) -> "DAGNodesGraph":
+        import fnmatch
+
         from pipelime.piper.graph import DAGNodesGraph
         from pipelime.piper.model import DAGModel, NodesDefinition
-        import fnmatch
 
         if not self._piper_graph:
             inc_n = [self.include] if isinstance(self.include, str) else self.include

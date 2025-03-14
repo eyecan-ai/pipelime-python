@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Sequence
 
-from pydantic import Field
+from pydantic.v1 import Field
 
 from pipelime.piper.model import PipelimeCommand, PiperPortType
 

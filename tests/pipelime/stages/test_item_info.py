@@ -1,8 +1,9 @@
 import pytest
-from pipelime.sequences import SamplesSequence, Sample
+from pydantic.v1 import parse_obj_as
+
+from pipelime.sequences import Sample, SamplesSequence
 from pipelime.stages import StageItemInfo
 from pipelime.stages.item_info import ItemInfo
-from pydantic import parse_obj_as
 
 
 class TestItemInfo:

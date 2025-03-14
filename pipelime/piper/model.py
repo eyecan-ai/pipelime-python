@@ -3,9 +3,10 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 import typing_extensions as te
-from pydantic import BaseModel, Field, PrivateAttr
-from pydantic.generics import GenericModel
 from loguru import logger
+from pydantic.v1 import BaseModel, Field, PrivateAttr
+from pydantic.v1.generics import GenericModel
+
 from pipelime.piper.checkpoint import CheckpointNamespace
 from pipelime.piper.progress.tracker.base import TrackCallback, TrackedTask, Tracker
 
@@ -18,8 +19,9 @@ def command(
     *,
     title: t.Optional[str] = None,
     **__config_kwargs,
-) -> t.Callable[[t.Callable[..., None]], t.Callable[..., t.Type["PipelimeCommand"]]]:
-    ...
+) -> t.Callable[
+    [t.Callable[..., None]], t.Callable[..., t.Type["PipelimeCommand"]]
+]: ...
 
 
 # The return type is a hack to fool the type checker
@@ -28,8 +30,7 @@ def command(
 @t.overload
 def command(
     __func: t.Callable[..., None]
-) -> t.Callable[..., t.Type["PipelimeCommand"]]:
-    ...
+) -> t.Callable[..., t.Type["PipelimeCommand"]]: ...
 
 
 def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
@@ -134,7 +135,7 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     def _make_cmd(func):
         import inspect
 
-        from pydantic.fields import FieldInfo, Undefined
+        from pydantic.v1.fields import FieldInfo, Undefined
 
         def _make_field(p: inspect.Parameter):
             """Returns a tuple of (annotation, default) for a given parameter.
@@ -513,7 +514,7 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
         checkpoint: t.Optional[CheckpointNamespace] = None,
         skip_on_error: bool = False,
     ):
-        from pydantic import ValidationError
+        from pydantic.v1 import ValidationError
 
         from pipelime.cli.utils import get_pipelime_command, show_field_alias_valerr
 

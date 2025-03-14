@@ -1,5 +1,6 @@
-from pipelime.sequences import SamplesSequence, Sample
-import pydantic as pyd
+import pydantic.v1 as pyd
+
+from pipelime.sequences import Sample, SamplesSequence
 
 
 class PipedSequenceBase(SamplesSequence):

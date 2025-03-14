@@ -5,7 +5,7 @@ from typing import Tuple
 import numpy as np
 import pytest
 from deepdiff import DeepDiff
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 import pipelime.choixe.visitors.processor as processor_module
 from pipelime.choixe.ast.parser import parse

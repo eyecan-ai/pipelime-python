@@ -100,6 +100,8 @@ class TestSamplesSequencesSources:
         sort_files: bool,
         expected_len: int,
     ):
+        import pipelime.items as pli
+
         sseq = pls.SamplesSequence.from_images(
             folder=raw_images,
             recursive=recursive,
@@ -110,13 +112,42 @@ class TestSamplesSequencesSources:
 
         assert len(sseq) == expected_len
 
-        for _ in range(2):  # Do it twice to check that the cache is working
-            for sample in sseq:
-                assert set(sample.keys()) == {"image"}
-                assert isinstance(sample["image"](), np.ndarray)
+        with pli.data_cache():
+            for _ in range(2):  # Do it twice to check that the cache is working
+                for sample in sseq:
+                    assert set(sample.keys()) == {"image"}
+                    assert isinstance(sample["image"](), np.ndarray)
 
     @pytest.mark.parametrize("must_exist", [True, False])
     def test_from_images_must_exist(self, must_exist: bool):
+        cm = pytest.raises(ValueError) if must_exist else contextlib.nullcontext()
+        with cm:
+            pls.SamplesSequence.from_images(
+                folder=Path("/WRONG"), must_exist=must_exist
+            )
+
+    @pytest.mark.parametrize("must_exist", [True, False])
+    @pytest.mark.parametrize("image_key", ["image", "img"])
+    def test_from_video(self, datasets_folder: Path, must_exist: bool, image_key: str):
+        import imageio.v3 as iio
+
+        sseq = pls.SamplesSequence.from_video(
+            video=datasets_folder / "video.mp4",
+            must_exist=must_exist,
+            image_key=image_key,
+        )
+        assert isinstance(sseq, pls.SamplesSequence)
+
+        gt_video = iio.imread(datasets_folder / "video.mp4")
+        assert len(sseq) == len(gt_video)
+
+        for sample, frame in zip(sseq, gt_video):
+            assert set(sample.keys()) == {image_key}
+            assert isinstance(sample[image_key](), np.ndarray)
+            assert np.all(sample[image_key]() == frame)
+
+    @pytest.mark.parametrize("must_exist", [True, False])
+    def test_from_video_must_exist(self, must_exist: bool):
         cm = pytest.raises(ValueError) if must_exist else contextlib.nullcontext()
         with cm:
             pls.SamplesSequence.from_images(

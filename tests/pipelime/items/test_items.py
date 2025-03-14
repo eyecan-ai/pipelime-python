@@ -1,17 +1,19 @@
-import pytest
-from pathlib import Path
-import numpy as np
 import typing as t
+from pathlib import Path
 
+import numpy as np
+import pytest
 import trimesh
 
 import pipelime.items as pli
+
 from ... import TestUtils
 
 
 def _generic_mesh():
-    import trimesh.creation
     import math
+
+    import trimesh.creation
 
     c, s = math.cos(30 * math.pi / 180), math.sin(30 * math.pi / 180)
     rz = np.array([[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
@@ -211,15 +213,17 @@ class TestItems:
             assert eq_fn(w_item(), br_item())
 
     def test_read_write_jpeg(self, tmp_path: Path):
-        import imageio.v3 as iio
         from io import BytesIO
+
+        import imageio.v3 as iio
 
         data_path = tmp_path / "data"
         data = (np.random.rand(3, 4) * 100).astype(np.uint8)
 
-        w_item = pli.JpegImageItem(data)
-        w_item.serialize(data_path)
-        assert TestUtils.numpy_eq(data, w_item())
+        with pli.data_cache(pli.JpegImageItem):
+            w_item = pli.JpegImageItem(data)
+            w_item.serialize(data_path)
+            assert TestUtils.numpy_eq(data, w_item())
 
         jpeg_suffix = pli.JpegImageItem.file_extensions()[0]
         r_item = pli.JpegImageItem(data_path.with_suffix(jpeg_suffix))
@@ -293,12 +297,12 @@ class TestItems:
                 _check_single(it, should_cache[id], is_cached[id])
 
         _check((True, True, True, True), (True, True, True, True))
-        _check((False, False, False, False), (False, False, True, True))
+        _check((False, False, False, False), (False, False, False, True))
 
         with pli.no_data_cache(pli.NumpyItem):
             _check((True, True, True, True), (True, True, True, True))
             _check((False, False, False, False), (False, False, False, True))
-            _check((None, None, None, None), (False, True, False, True))
+            _check((None, None, None, None), (False, False, False, True))
 
         with pli.no_data_cache(pli.NumpyItem, pli.JsonMetadataItem):
             pli.enable_item_data_cache(pli.ImageItem)
@@ -373,65 +377,21 @@ class TestItems:
     ):
         import pipelime.items as pli
         from pipelime.sequences import SamplesSequence
-        from pipelime.stages import StageUploadToRemote
-        from pipelime.remotes import make_remote_url
-
-        # data lake
-        remote_url = make_remote_url(
-            scheme="file",
-            host="localhost",
-            bucket=(tmp_path / "rmbucket"),
-        )
 
         input_seq = SamplesSequence.from_underfolder(
             minimnist_private_dataset["path"], merge_root_items=True
         )
 
-        # upload to remote (remote source is added to the items)
-        for _ in input_seq.map(
-            StageUploadToRemote(remotes=[remote_url])  # type: ignore
-        ):
-            pass
-
-        # default mode: writing remote files
-        for _ in input_seq.to_underfolder(folder=(tmp_path / "output_rm")):
-            pass
-        for p in (tmp_path / "output_rm").rglob("*"):
-            if p.is_file():
-                assert p.suffix == pli.Item.REMOTE_FILE_EXT
-
-        # disable writing remote files
-        with pli.item_disabled_serialization_modes("REMOTE_FILE"):
-            for _ in input_seq.to_underfolder(folder=(tmp_path / "output_hl")):
-                pass
-            for p in (tmp_path / "output_hl").rglob("*"):
-                if p.is_file():
-                    assert p.suffix != pli.Item.REMOTE_FILE_EXT
-                    assert not p.is_symlink()
-                    assert p.stat().st_nlink > 1
-
         with pli.item_disabled_serialization_modes(
-            pli.SerializationMode.REMOTE_FILE, pli.NumpyItem
+            [pli.SerializationMode.DEEP_COPY, "HARD_LINK"], pli.ImageItem
         ):
-            with pli.item_disabled_serialization_modes(
-                [pli.SerializationMode.DEEP_COPY, "HARD_LINK"], pli.ImageItem
-            ):
-                for _ in input_seq.to_underfolder(folder=(tmp_path / "output_mx")):
-                    pass
-                for p in (tmp_path / "output_mx").rglob("*"):
-                    if p.is_file():
-                        assert not p.is_symlink()
-                        if p.suffix == pli.TxtNumpyItem.file_extensions()[0]:
-                            assert p.stat().st_nlink > 1
-                        elif p.suffix == pli.PngImageItem.file_extensions()[0]:
-                            assert p.stat().st_nlink == 1
-                        else:
-                            format_suffix = (
-                                pli.JsonMetadataItem.file_extensions()[0]
-                                if ".json" in p.suffixes
-                                else pli.YamlMetadataItem.file_extensions()[0]
-                            )
-                            assert (
-                                "".join(p.suffixes)
-                                == format_suffix + pli.Item.REMOTE_FILE_EXT
-                            )
+            for _ in input_seq.to_underfolder(folder=(tmp_path / "output_mx")):
+                pass
+            for p in (tmp_path / "output_mx").rglob("*"):
+                if p.is_file():
+                    if p.suffix == pli.PngImageItem.file_extensions()[0]:
+                        # images should have been created as new files
+                        assert p.stat().st_nlink == 1
+                    else:
+                        # other files should be hard links
+                        assert p.stat().st_nlink > 1

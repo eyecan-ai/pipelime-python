@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic.v1 import Field
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType

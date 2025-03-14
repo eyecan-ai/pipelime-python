@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import typing as t
+import uuid
 from pathlib import Path
 from urllib.parse import ParseResult
-import uuid
 
-import pydantic as pyd
+import pydantic.v1 as pyd
 
 from pipelime.piper import PiperPortType
 from pipelime.utils.pydantic_types import ItemType, SampleValidationInterface, YamlInput
@@ -92,7 +92,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
     """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "Grabber options."
-    _compact_form: t.ClassVar[t.Optional[str]] = "<num_workers>[,<prefetch>]"
+    _compact_form: t.ClassVar[t.Optional[str]] = (
+        "<num_workers>[,<prefetch>[,<allow_nested_mp>]]"
+    )
 
     num_workers: int = pyd.Field(
         0,
@@ -103,6 +105,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
     )
     prefetch: pyd.PositiveInt = pyd.Field(
         2, description="The number of samples loaded in advanced by each worker."
+    )
+    allow_nested_mp: bool = pyd.Field(
+        False, description="Whether to allow nested multiprocessing."
     )
 
     @classmethod
@@ -119,15 +124,21 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             if isinstance(value, int):
                 data["num_workers"] = value
             else:
-                wrks, _, pf = str(value).partition(",")
-                if wrks:
-                    data["num_workers"] = int(wrks)
-                if pf:
-                    data["prefetch"] = int(pf)
+                raw_data = str(value).split(",")
+                try:
+                    if raw_data[0]:
+                        data["num_workers"] = int(raw_data[0])
+                    if len(raw_data) > 1 and raw_data[1]:
+                        data["prefetch"] = int(raw_data[1])
+                    if len(raw_data) > 2 and raw_data[2]:
+                        data["allow_nested_mp"] = raw_data[2].lower() == "true"
+                except ValueError:
+                    raise ValueError("Invalid grabber definition.")
             value = data
 
         if isinstance(value, t.Mapping):
             return GrabberInterface(**value)
+
         raise ValueError("Invalid grabber definition.")
 
     def grab_all(
@@ -176,9 +187,11 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             sample_fn=sample_fn,
             size=size,
             grab_context_manager=grab_context_manager,
-            worker_init_fn=None
-            if grab_context_manager is None
-            else deepcopy(grab_context_manager).__enter__,
+            worker_init_fn=(
+                None
+                if grab_context_manager is None
+                else deepcopy(grab_context_manager).__enter__
+            ),
         )
 
     def grab_all_wrk_init(
@@ -221,7 +234,10 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         from pipelime.sequences import Grabber, grab_all
 
         grabber = Grabber(
-            num_workers=self.num_workers, prefetch=self.prefetch, keep_order=keep_order
+            num_workers=self.num_workers,
+            prefetch=self.prefetch,
+            keep_order=keep_order,
+            allow_nested_mp=self.allow_nested_mp,
         )
         track_fn = (
             None
@@ -393,9 +409,7 @@ class InputDatasetInterface(
 IDataset = InputDatasetInterface
 
 
-any_serialization_t = t.Literal[
-    "CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HARD_LINK", "REMOTE_FILE"
-]
+any_serialization_t = t.Literal["CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HARD_LINK"]
 any_item_t = t.Union[None, t.Literal["_"], ItemType]
 
 
@@ -498,9 +512,9 @@ class OutputDatasetInterface(
     """
 
     _default_type_description: t.ClassVar[t.Optional[str]] = "The output dataset."
-    _compact_form: t.ClassVar[
-        t.Optional[str]
-    ] = "<folder>[,<exists_ok>[,<force_new_files>]]"
+    _compact_form: t.ClassVar[t.Optional[str]] = (
+        "<folder>[,<exists_ok>[,<force_new_files>]]"
+    )
     _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.OUTPUT
 
     folder: t.Optional[Path] = pyd.Field(
@@ -654,93 +668,6 @@ class OutputDatasetInterface(
 
 
 ODataset = OutputDatasetInterface
-
-
-class UrlDataModel(
-    pyd.BaseModel,
-    extra="forbid",
-    copy_on_model_validation="none",
-    underscore_attrs_are_private=True,
-):
-    """URL data model."""
-
-    scheme: str = pyd.Field(..., description="The addressing scheme, eg, `s3`.")
-    user: str = pyd.Field("", description="The user name.")
-    password: str = pyd.Field("", description="The user password.")
-    host: str = pyd.Field(..., description="The host name or ip address.")
-    port: t.Optional[pyd.NonNegativeInt] = pyd.Field(
-        None, description="The optional port number."
-    )
-    bucket: str = pyd.Field(..., description="The path to the remote data bucket.")
-    args: t.Mapping[str, str] = pyd.Field(
-        default_factory=dict, description="Optional remote-specific arguments."
-    )
-
-    def get_url(self):
-        from pipelime.remotes import make_remote_url
-
-        return make_remote_url(
-            scheme=self.scheme,
-            user=self.user,
-            password=self.password,
-            host=self.host,
-            port=self.port,
-            bucket=self.bucket,
-            **self.args,
-        )
-
-
-class RemoteInterface(
-    PydanticFieldNoDefaultMixin,
-    pyd.BaseModel,
-    extra="forbid",
-    copy_on_model_validation="none",
-    underscore_attrs_are_private=True,
-):
-    """Remote data lake options."""
-
-    _default_type_description: t.ClassVar[
-        t.Optional[str]
-    ] = "Remote data lakes addresses."
-    _compact_form: t.ClassVar[t.Optional[str]] = "<url>"
-    _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.INPUT
-
-    url: t.Union[str, UrlDataModel] = pyd.Field(
-        ...,
-        description=(
-            "The remote data lake URL. You can user the format "
-            "`s3://user:password@host:port/bucket?kw1=arg1:kw2=arg2`."
-        ),
-    )
-
-    _parsed_url: ParseResult
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, RemoteInterface):
-            return value
-        if isinstance(value, (str, bytes)):
-            return RemoteInterface(url=str(value))
-        if isinstance(value, t.Mapping):
-            return RemoteInterface(**value)
-        raise ValueError("Invalid remote definition.")
-
-    def __init__(self, **data):
-        from urllib.parse import urlparse
-
-        super().__init__(**data)
-        self._parsed_url = (
-            self.url.get_url()
-            if isinstance(self.url, UrlDataModel)
-            else urlparse(self.url)
-        )
-
-    def get_url(self):
-        return self._parsed_url
 
 
 class ToyDatasetInterface(

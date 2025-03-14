@@ -4,16 +4,27 @@ from typing import Any, List
 
 import pytest
 import yaml
-from pydantic import Field
+from pydantic.v1 import Field
 
 from pipelime.piper import PipelimeCommand
+import pipelime.items as pli
 
 
 class SimpleCommand(PipelimeCommand, title="simple-command"):
     simple_list: List[Any] = Field(..., title="Simple list")
+    item_cache: str = Field("", title="Item cache file")
 
     def run(self) -> None:
-        pass
+        import json
+
+        if self.item_cache:
+            with open(self.item_cache, "w") as f:
+                cache2str = {
+                    k.__name__: v
+                    for k, v in pli.Item.ITEM_DATA_CACHE_MODE.items()
+                    if v is not None
+                }
+                json.dump(cache2str, f)
 
 
 class TestCliBase:
@@ -155,6 +166,59 @@ class TestCliBase:
                     if isinstance(v, NpyNumpyItem)
                     else path.stat().st_nlink > 1
                 )
+
+    @pytest.mark.parametrize(
+        ("item_names", "item_keys"),
+        (
+            ["ImageItem", {"ImageItem"}],
+            [
+                "TomlMetadataItem,BinaryItem,NpyNumpyItem",
+                {"TomlMetadataItem", "BinaryItem", "NpyNumpyItem"},
+            ],
+            [" PngImageItem ,   NumpyItem,  FakeFoo,,", {"PngImageItem", "NumpyItem"}],
+            ["*", {k.__name__ for k in pli.Item.ITEM_DATA_CACHE_MODE}],
+            ["ImageItem , *,", {k.__name__ for k in pli.Item.ITEM_DATA_CACHE_MODE}],
+            ['""', set()],
+            [",", set()],
+            [",, ,,", set()],
+            [None, set()],
+        ),
+    )
+    def test_set_data_cache(self, item_names, item_keys, tmp_path) -> None:
+        from pipelime.items.base import ItemFactory
+
+        default_item_cache = {k: v for k, v in pli.Item.ITEM_DATA_CACHE_MODE.items()}
+
+        out_cache_file = tmp_path / "out_cache.json"
+
+        args = [
+            "-m",
+            f"{os.path.realpath(__file__)}",
+            "simple-command",
+            "+simple_list",
+            "a",
+            "b",
+            "c",
+            "d",
+            "+item_cache",
+            str(out_cache_file),
+        ]
+
+        if item_names is not None:
+            args += ["--data-cache", item_names]
+
+        self._base_launch(args)
+
+        with open(out_cache_file, "r") as f:
+            out_cache = yaml.safe_load(f)
+
+        assert item_keys == set(out_cache.keys())
+        assert all(out_cache.values())
+
+        # restore the default cache mode,
+        # otherwise it will affect other tests
+        # NB: must be set on ItemFactory, not on the Item class
+        ItemFactory.ITEM_DATA_CACHE_MODE = default_item_cache
 
     @pytest.mark.parametrize(
         ["cmd_line", "parsed_cfg", "parsed_ctx", "should_fail"],
@@ -338,7 +402,7 @@ class TestCliBase:
 
     @pytest.mark.parametrize("with_default_ckpt", [False, True, 2])
     def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path, with_default_ckpt):
-        from pydantic import ValidationError
+        from pydantic.v1 import ValidationError
 
         from pipelime.sequences import SamplesSequence
 
@@ -374,7 +438,9 @@ class TestCliBase:
         if not isinstance(with_default_ckpt, bool):
             # create fake command calls to fill the other default checkpoints
             for _ in range(with_default_ckpt - 1):
-                self._base_launch(["clone"], exit_code=1, exc=TypeError)
+                self._base_launch(
+                    ["clone", "--no-ui"], exit_code=1, exc=ValidationError
+                )
 
         # now resume from checkpoint and override the slice size (invalid value)
         self._base_launch(
@@ -390,7 +456,7 @@ class TestCliBase:
         assert len(SamplesSequence.from_underfolder(outpath)) == 5
 
     def test_resume_with_tui(self, minimnist_dataset, tmp_path, monkeypatch):
-        from pydantic import ValidationError
+        from pydantic.v1 import ValidationError
         from textual.keys import Keys
         from textual.pilot import Pilot
 

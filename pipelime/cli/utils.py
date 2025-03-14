@@ -1,24 +1,24 @@
 import json
+import os
+import shutil
 import typing as t
 from ast import literal_eval
 from json import JSONDecodeError
 from pathlib import Path
 from types import ModuleType
-import shutil
 
 import yaml
 from loguru import logger
-from pydantic import BaseModel, ValidationError
+from pydantic.v1 import BaseModel, ValidationError
 from rich import get_console
 from rich.prompt import Prompt
 from yaml.error import YAMLError
-import os
 
 if t.TYPE_CHECKING:
     from pipelime.piper import T_DAG_NODE, PipelimeCommand
     from pipelime.piper.checkpoint import CheckpointNamespace
-    from pipelime.stages import SampleStage
     from pipelime.sequences import SamplesSequence
+    from pipelime.stages import SampleStage
 
 
 class ActionInfo(BaseModel):
@@ -108,7 +108,7 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def _symbol_name(cls, symbol):
-        from pydantic import BaseModel
+        from pydantic.v1 import BaseModel
 
         return (
             symbol.__config__.title
@@ -175,9 +175,9 @@ class PipelimeSymbolsHelper:
     def import_everything(cls):
         import pipelime.choixe.utils.imports as pl_imports
         import pipelime.sequences as pl_seq
+        from pipelime.commands.piper import DagBaseCommand
         from pipelime.piper import PipelimeCommand
         from pipelime.stages import SampleStage
-        from pipelime.commands.piper import DagBaseCommand
 
         if not cls.is_cache_valid():
             for module_name in cls.std_modules + cls.extra_modules:
@@ -631,7 +631,7 @@ def pl_print(
     """
     import inspect
 
-    from pydantic import BaseModel
+    from pydantic.v1 import BaseModel
     from rich import print as rprint
 
     from pipelime.cli.pretty_print import print_model_info

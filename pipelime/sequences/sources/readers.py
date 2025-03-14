@@ -3,7 +3,7 @@ import typing as t
 from pathlib import Path
 
 from loguru import logger
-from pydantic import Field, PrivateAttr, validator
+from pydantic.v1 import Field, PrivateAttr, validator
 
 from pipelime.sequences import Sample, SamplesSequence, source_sequence
 
@@ -182,7 +182,7 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
         return v
 
     def __init__(self, folder: Path, **data):
-        from pipelime.items import Item, ImageItem
+        from pipelime.items import ImageItem, Item
 
         super().__init__(folder=folder, **data)  # type: ignore
         self._samples = []
@@ -226,3 +226,54 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
             sample = Sample({self.image_key: image_item})
             self._samples[idx] = sample
         return sample
+
+
+@source_sequence
+class SamplesFromVideo(SamplesSequence, title="from_video"):
+    """Loads samples from frames of a video file."""
+
+    video: Path = Field(..., description="The video file.")
+    must_exist: bool = Field(
+        True, description="If True raises an error when `video` does not exist."
+    )
+    image_key: str = Field("image", description="The image key")
+
+    _iio = PrivateAttr(None)
+    _nframes: int = PrivateAttr(0)
+
+    @validator("must_exist", always=True)
+    def check_video_exists(cls, v, values):
+        p = values["video"]
+        if v and not p.exists():
+            raise ValueError(f"Video file {p} does not exist.")
+        return v
+
+    def __init__(self, video: Path, **data):
+        import math
+
+        import imageio.v3 as iio
+
+        super().__init__(video=video, **data)  # type: ignore
+
+        self._nframes = 0
+        if self.video.exists():
+            meta = iio.immeta(self.video)
+            if "fps" in meta and "duration" in meta:
+                self._nframes = math.ceil(meta["fps"] * meta["duration"])
+
+    def __del__(self):
+        if self._iio is not None:
+            self._iio.__exit__(None, None, None)
+
+    def size(self) -> int:
+        return self._nframes
+
+    def get_sample(self, idx: int) -> Sample:
+        import imageio.v3 as iio
+
+        from pipelime.items import ImageItem
+
+        if self._iio is None:
+            self._iio = iio.imopen(self.video, "r").__enter__()
+
+        return Sample({self.image_key: ImageItem.make_new(self._iio.read(index=idx))})

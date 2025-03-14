@@ -1,5 +1,6 @@
 import typing as t
-import pydantic as pyd
+
+import pydantic.v1 as pyd
 
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
