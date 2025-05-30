@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import typing as t
 import uuid
 from pathlib import Path
-from urllib.parse import ParseResult
 
 import pydantic.v1 as pyd
+from pydantic.v1.generics import GenericModel
 
 from pipelime.piper import PiperPortType
 from pipelime.utils.pydantic_types import ItemType, SampleValidationInterface, YamlInput
@@ -835,3 +836,98 @@ class ExtendedInterval(Interval):
             raise ValueError(f"Invalid interval: {value}")
 
         return cls(**data)
+
+
+ValueType = t.TypeVar("ValueType")
+
+
+class OutputValueInterface(
+    PydanticFieldNoDefaultMixin,
+    GenericModel,
+    t.Generic[ValueType],
+    extra="forbid",
+    copy_on_model_validation="none",
+    underscore_attrs_are_private=True,
+):
+    """Interface that allows to store a value in a file.
+
+    Examples:
+        How to use it in your command::
+
+        class EasyCommand(PipelimeCommand, title="easy"):
+            output_value: OutputValueInterface[int] = OutputValueInterface.pyd_field()
+
+            def run(self):
+                # this will write the value 42 to the given file
+                self.output_value.set(42)
+    """
+
+    _default_type_description: t.ClassVar[t.Optional[str]] = "An output value."
+    _compact_form: t.ClassVar[t.Optional[str]] = "<file>[,<exists_ok>]"
+    _default_port_type: t.ClassVar[PiperPortType] = PiperPortType.OUTPUT
+    _data: ValueType
+
+    file: Path = pyd.Field(
+        description=(
+            "The output file that will store the value. If the file exists, it will"
+            "be overwritten if `exists_ok` is set to `True`."
+        ),
+    )
+    exists_ok: bool = pyd.Field(
+        False,
+        description=(
+            "If `True`, the output file will be overwritten if it exists. "
+            "If `False`, an error will be raised."
+        ),
+    )
+
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, OutputValueInterface):
+            return value
+
+        if isinstance(value, (str, bytes, Path)):
+            data = {}
+            raw_data = str(value).split(",")
+            data["file"] = raw_data[0]
+            if len(raw_data) > 1:
+                # NB: the value is left as-is when it is not True nor False
+                # to raise an error on validation
+                data["exists_ok"] = (
+                    True
+                    if raw_data[1].lower() == "true"
+                    else (False if raw_data[1].lower() == "false" else raw_data[1])
+                )
+            value = data
+
+        if isinstance(value, t.Mapping):
+            return OutputValueInterface(**value)
+
+        raise ValueError("Invalid OutputValueInterface definition.")
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @pyd.validator("exists_ok", always=True)
+    def _check_file_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
+        if (v is False) and (values["file"].exists()):
+            raise ValueError(
+                f"Trying to overwrite an existing file: `{values['file']}`. "
+                "Please use `exists_ok=True` to overwrite."
+            )
+        return v
+
+    def get(self) -> ValueType:
+        """Return the stored value."""
+        return self._data
+
+    def set(self, value: ValueType) -> None:
+        """Writes the value to the output file.
+
+        Args:
+            value: The value to write.
+        """
+        self._data = value
+        with open(self.file, "w") as f:
+            json.dump(self._data, f)
