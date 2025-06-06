@@ -931,3 +931,9 @@ class OutputValueInterface(
         self._data = value
         with open(self.file, "w") as f:
             json.dump(self._data, f)
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        return self.file.as_posix()
