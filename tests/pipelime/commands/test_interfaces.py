@@ -1,3 +1,4 @@
+import json
 import typing as t
 from contextlib import nullcontext
 from pathlib import Path
@@ -469,3 +470,74 @@ class TestExtendedInterval(TestInterface):
             plint.Interval.validate([1, 2, 3, 4])
         with pytest.raises(ValueError):
             plint.Interval.validate(12.5)
+
+
+class TestOutputValue(TestInterface):
+    @pytest.mark.parametrize(
+        "file,check_cls",
+        [
+            (
+                "fake_output.txt",
+                True,
+            ),
+            (
+                Path("fake_output.txt"),
+                True,
+            ),
+            (Path(), False),
+            ("", False),
+        ],
+    )
+    @pytest.mark.parametrize("exists_ok", [True, False, None])
+    def test_valid(
+        self,
+        file: t.Union[Path, str],
+        exists_ok: bool,
+        check_cls: bool,
+        tmp_path: Path,
+    ):
+        if check_cls:
+            p = tmp_path / file
+            file = p.as_posix() if isinstance(file, str) else p
+
+        opt_str = f"{str(file)}"
+        if exists_ok is not None:
+            opt_str += f",{str(exists_ok)}"
+
+        opt_str = [opt_str]
+
+        should_fail = (exists_ok is not True) and Path(file).exists()
+
+        self._standard_checks(
+            interf_cls=plint.OutputValueInterface,
+            interf_compact_list=opt_str,
+            should_fail=should_fail,
+            out_of_compact=[],
+            file=file,
+            exists_ok=exists_ok,
+        )
+
+        if check_cls:
+            interface = plint.OutputValueInterface[int](
+                file=file,
+                exists_ok=True if exists_ok is None else exists_ok,
+            )  # type: ignore
+
+            interface.set(10)
+
+            with open(file, "r") as f:
+                content = f.read()
+                stored_value = json.loads(content)
+                assert stored_value == 10
+
+    def test_invalid(self):
+        self._standard_checks(
+            interf_cls=plint.OutputValueInterface,
+            interf_compact_list=["/path/to/file.txt,42"],
+            out_of_compact=[],
+            should_fail=True,
+            file="/path/to/file.txt",
+            exists_ok=None,
+        )
+        with pytest.raises(ValueError):
+            plint.OutputValueInterface.validate([1, 2, 3])
