@@ -881,6 +881,11 @@ class OutputValueInterface(
         ),
     )
 
+    @pyd.validator("file")
+    def resolve_file(cls, v: Path):
+        # see https://bugs.python.org/issue38671
+        return v.resolve().absolute()
+
     @classmethod
     def validate(cls, value):
         if isinstance(value, OutputValueInterface):
