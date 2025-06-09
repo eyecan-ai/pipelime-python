@@ -911,11 +911,30 @@ class OutputValueInterface(
 
     @pyd.validator("exists_ok", always=True)
     def _check_file_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
-        if (v is False) and (values["file"].exists()):
-            raise ValueError(
-                f"Trying to overwrite an existing file: `{values['file']}`. "
-                "Please use `exists_ok=True` to overwrite."
-            )
+        if "file" not in values:
+            # the "file" validator already failed
+            return v
+
+        if v is True:
+            if values["file"].is_dir():
+                raise ValueError(
+                    f"Cannot overwrite the directory: `{values['file']}`. "
+                    "Please provide a file path."
+                )
+
+        if v is False:
+            if values["file"].is_dir():
+                raise ValueError(
+                    f"Trying to overwrite the directory: `{values['file']}`. "
+                    "Please provide a file path and use `exists_ok=True` to overwrite."
+                )
+
+            if values["file"].exists():
+                raise ValueError(
+                    f"Trying to overwrite an existing file: `{values['file']}`. "
+                    "Please use `exists_ok=True` to overwrite."
+                )
+
         return v
 
     def get(self) -> ValueType:
