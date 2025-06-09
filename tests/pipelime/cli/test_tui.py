@@ -615,21 +615,26 @@ async def test_collect_cmd_args() -> None:
 async def test_toggle_descriptions() -> None:
     app = TuiApp(FooCommand, {})
 
-    query = app.query(".description")
-    for widget in query:
-        assert widget.display is False
-
     async with app.run_test() as pilot:
+        # check that descriptions are not shown by default
+        query = app.query(".description")
+        for widget in query:
+            assert widget.display is False
+
+        # toggle descriptions on
         await pilot.press(Constants.TUI_KEY_TOGGLE_DESCRIPTIONS)
         assert app.show_descriptions is True
 
+        # check that descriptions are shown
         query = app.query(".description")
         for widget in query:
             assert widget.display is True
 
+        # toggle descriptions off
         await pilot.press(Constants.TUI_KEY_TOGGLE_DESCRIPTIONS)
         assert app.show_descriptions is False
 
+        # check that descriptions are not shown
         query = app.query(".description")
         for widget in query:
             assert widget.display is False
