@@ -1,3 +1,4 @@
+import json
 import typing as t
 from contextlib import nullcontext
 from pathlib import Path
@@ -295,16 +296,10 @@ class TestOutputDataset(TestInterface):
         "folder,check_cls",
         [
             (None, True),
-            (
-                "fake_output",
-                True,
-            ),
+            ("fake_output", True),
+            (Path("fake_output"), True),
             (Path(), False),
             ("", False),
-            (
-                Path("fake_output"),
-                True,
-            ),
         ],
     )
     @pytest.mark.parametrize("zfill", [0, 10, None])
@@ -469,3 +464,82 @@ class TestExtendedInterval(TestInterface):
             plint.Interval.validate([1, 2, 3, 4])
         with pytest.raises(ValueError):
             plint.Interval.validate(12.5)
+
+
+class TestOutputValue(TestInterface):
+    @pytest.mark.parametrize(
+        "file,check_cls",
+        [
+            ("fake_output.txt", True),  # valid new file
+            (Path("fake_output.txt"), True),  # valid new file
+            (Path(), False),  # not valid file (directory)
+            (Path(__file__), False),  # existing file
+        ],
+    )
+    @pytest.mark.parametrize("exists_ok", [True, False, None])
+    @pytest.mark.parametrize(
+        "value_type,value",
+        [
+            (int, 10),
+            (str, "test_value"),
+            (float, 3.14),
+            (bool, True),
+        ],
+    )
+    def test_valid(
+        self,
+        file: t.Union[Path, str],
+        exists_ok: bool,
+        check_cls: bool,
+        tmp_path: Path,
+        value_type: type,
+        value: t.Any,
+    ):
+        if check_cls:
+            p = tmp_path / file
+            file = p.as_posix() if isinstance(file, str) else p
+
+        opt_str = f"{str(file)}"
+        if exists_ok is not None:
+            opt_str += f",{str(exists_ok)}"
+
+        opt_str = [opt_str]
+
+        should_fail = (exists_ok is not True) and Path(file).exists()
+        should_fail |= (exists_ok is True) and Path(file).is_dir()
+
+        self._standard_checks(
+            interf_cls=plint.OutputValueInterface,
+            interf_compact_list=opt_str,
+            should_fail=should_fail,
+            out_of_compact=[],
+            file=file,
+            exists_ok=exists_ok,
+        )
+
+        if check_cls:
+            interface = plint.OutputValueInterface[value_type](
+                file=file,
+                exists_ok=True if exists_ok is None else exists_ok,
+            )  # type: ignore
+
+            interface.set(value)
+
+            with open(file, "r") as f:
+                content = f.read()
+                stored_value = json.loads(content)
+                assert stored_value == value
+                assert interface.get() == value
+
+    def test_invalid(self):
+        self._standard_checks(
+            interf_cls=plint.OutputValueInterface,
+            interf_compact_list=["/path/to/file.txt,42"],
+            out_of_compact=[],
+            should_fail=True,
+            file=3.14,
+            exists_ok=None,
+        )
+
+        with pytest.raises(ValueError):
+            plint.OutputValueInterface.validate([1, 2, 3])
