@@ -256,8 +256,10 @@ class RunCommandBase(GraphPortForwardingCommand):
 
             PipelimeCommand._track_callback = DirectTrackCallback(callback)
 
-            # disable annoying logging
-            logger.disable("pipelime")
+            # disable annoying logging (only if we don't need it for the watcher)
+            if watch != WatcherBackend.LOGURU:
+                logger.disable("pipelime")
+
             exit_stack.callback(logger.enable, "pipelime")
             exit_stack.callback(PipelimeCommand._track_callback.stop_callbacks)
 
