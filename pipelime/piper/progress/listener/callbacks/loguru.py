@@ -41,7 +41,7 @@ class LoguruListenerCallback(ListenerCallback):
     def __init__(
         self,
         show_token: bool = False,
-        log_extras: dict = {},
+        log_extras: dict | None = None,
         level: str = "DEBUG",
     ) -> None:
         super().__init__(show_token)
@@ -59,6 +59,7 @@ class LoguruListenerCallback(ListenerCallback):
                     env_extras[extra_key] = value
 
         # merge env extras with provided extras (env vars take precedence)
+        log_extras = log_extras or {}
         self._log_extras = {**log_extras, **env_extras}
 
         # determine log level (env var takes precedence)
