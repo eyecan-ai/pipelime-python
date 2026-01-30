@@ -25,11 +25,13 @@ class WatcherBackend(Enum):
 
     RICH = "rich"
     TQDM = "tqdm"
+    LOGURU = "loguru"
 
     def listener_key(self) -> str:
         return {
             WatcherBackend.RICH: "RICH_TABLE",
             WatcherBackend.TQDM: "TQDM_BARS",
+            WatcherBackend.LOGURU: "LOGURU",
         }[self]
 
 
@@ -254,8 +256,10 @@ class RunCommandBase(GraphPortForwardingCommand):
 
             PipelimeCommand._track_callback = DirectTrackCallback(callback)
 
-            # disable annoying logging
-            logger.disable("pipelime")
+            # disable annoying logging (only if we don't need it for the watcher)
+            if watch != WatcherBackend.LOGURU:
+                logger.disable("pipelime")
+
             exit_stack.callback(logger.enable, "pipelime")
             exit_stack.callback(PipelimeCommand._track_callback.stop_callbacks)
 
@@ -456,7 +460,8 @@ class WatchCommand(PipelimeCommand, title="watch"):
         from pipelime.utils.context_managers import CatchSignals
 
         receiver = ProgressReceiverFactory.get_receiver(
-            self.token, **({"port": self.port} if self.port else {})  # type: ignore
+            self.token,
+            **({"port": self.port} if self.port else {}),  # type: ignore
         )
         if isinstance(self.watcher, WatcherBackend):
             callback = ListenerCallbackFactory.get_callback(
