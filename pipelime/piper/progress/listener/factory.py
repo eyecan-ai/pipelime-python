@@ -1,13 +1,15 @@
 from typing import Optional
+
 from pipelime.piper.progress.listener.base import ListenerCallback, ProgressReceiver
-from pipelime.piper.progress.listener.receiver.zmq import ZMQProgressReceiver
+from pipelime.piper.progress.listener.callbacks.file import FileListenerCallback
+from pipelime.piper.progress.listener.callbacks.loguru import LoguruListenerCallback
 from pipelime.piper.progress.listener.callbacks.rich_table import (
     RichTableListenerCallback,
 )
 from pipelime.piper.progress.listener.callbacks.tqdm_bars import (
     TqdmBarsListenerCallback,
 )
-from pipelime.piper.progress.listener.callbacks.file import FileListenerCallback
+from pipelime.piper.progress.listener.receiver.zmq import ZMQProgressReceiver
 
 
 class ProgressReceiverFactory:
@@ -35,6 +37,7 @@ class ListenerCallbackFactory:
         "RICH_TABLE": RichTableListenerCallback,
         "TQDM_BARS": TqdmBarsListenerCallback,
         "FILE": FileListenerCallback,
+        "LOGURU": LoguruListenerCallback,
     }
 
     @classmethod
