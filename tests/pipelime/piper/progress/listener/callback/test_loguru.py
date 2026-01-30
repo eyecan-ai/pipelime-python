@@ -1,5 +1,4 @@
 import json
-import os
 from io import BytesIO, TextIOWrapper
 from typing import TextIO
 
@@ -53,9 +52,10 @@ class TestLoguruListenerCallback:
     def test_callback(
         self,
         loguru_sink: TextIO,
+        monkeypatch: pytest.MonkeyPatch,
         show_token: bool,
-        arg_level: str,
-        env_level: str,
+        arg_level: str | None,
+        env_level: str | None,
         expected_level: str,
         arg_extras: dict,
         env_extras: dict,
@@ -63,9 +63,9 @@ class TestLoguruListenerCallback:
     ) -> None:
         # set environment variables
         if env_level is not None:
-            os.environ[LoguruListenerCallback.LOG_LEVEL_ENV_VAR] = env_level
+            monkeypatch.setenv(LoguruListenerCallback.LOG_LEVEL_ENV_VAR, env_level)
         for key, value in env_extras.items():
-            os.environ[key] = value
+            monkeypatch.setenv(key, value)
 
         # create callback
         callback = LoguruListenerCallback(
@@ -107,12 +107,6 @@ class TestLoguruListenerCallback:
             last_log_data = _get_last_log_data()
             LoguruListenerCallback.update_data(expected_data, pu, show_token=show_token)
             assert last_log_data == expected_data
-
-        # clean up environment variables
-        if env_level is not None:
-            del os.environ[LoguruListenerCallback.LOG_LEVEL_ENV_VAR]
-        for key in env_extras.keys():
-            del os.environ[key]
 
     def test_on_stop(self, loguru_sink: TextIO) -> None:
         callback = LoguruListenerCallback()
