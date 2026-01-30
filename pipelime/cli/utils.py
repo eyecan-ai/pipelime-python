@@ -816,7 +816,9 @@ def get_user_input(text: str) -> t.Any:
     Returns:
         The parsed user input.
     """
-    live = get_console()._live
+    # if there is only one live, pause it to avoid messing the prompt
+    live_stack = get_console()._live_stack
+    live = live_stack[0] if len(live_stack) == 1 else None
     if live is not None:
         live.stop()
 
@@ -878,7 +880,7 @@ class PipelimeUserAppDir:
         for i in reversed(range(1, cls.MAX_CHECKPOINTS)):
             ckpt = base_ckpt.with_name(base_ckpt.name + f"-{i}")
             if ckpt.exists():
-                ckpt.rename(base_ckpt.with_name(base_ckpt.name + f"-{i+1}"))
+                ckpt.rename(base_ckpt.with_name(base_ckpt.name + f"-{i + 1}"))
 
         ckpt = base_ckpt.with_name(base_ckpt.name + "-1")
         ckpt.mkdir(parents=True, exist_ok=False)
