@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._fast import fast_params
+
 import pipelime.sequences as pls
 
 
@@ -120,7 +122,7 @@ class TestSamplesSequenceOperations:
     def test_add(self, minimnist_dataset: dict, fn):
         self._cat_test(minimnist_dataset, fn, False)
 
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     @pytest.mark.parametrize("empty_smpls", [True, False])
     def test_filter(self, minimnist_dataset: dict, lazy, empty_smpls):
         source = pls.SamplesSequence.from_underfolder(
@@ -143,7 +145,7 @@ class TestSamplesSequenceOperations:
                 else:
                     assert len(fs) == 0
 
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     def test_sort(self, minimnist_dataset: dict, lazy):
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=False

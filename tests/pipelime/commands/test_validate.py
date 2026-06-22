@@ -1,10 +1,12 @@
 import pytest
+
+from tests._fast import fast_params
 from .test_general_base import TestGeneralCommandsBase
 
 
 class TestValidate(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", [0, 2])
-    @pytest.mark.parametrize("prefetch", [2, 4])
+    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     @pytest.mark.parametrize("max_samples", [0, -10, 5])
     def test_validate(self, minimnist_dataset, nproc, prefetch, max_samples):
         import io

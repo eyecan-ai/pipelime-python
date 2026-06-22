@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._fast import fast_params
+
 from ... import TestUtils
 from .test_general_base import TestGeneralCommandsBase
 
@@ -17,8 +19,8 @@ class TestMapIf(TestGeneralCommandsBase):
 """,
         ],
     )
-    @pytest.mark.parametrize("nproc", [0, 2])
-    @pytest.mark.parametrize("prefetch", [2, 4])
+    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     def test_map_if(self, minimnist_dataset, condition, nproc, prefetch, tmp_path):
         from pipelime.commands import MapIfCommand
         from pipelime.sequences import SamplesSequence

@@ -4,6 +4,8 @@ from typing import Optional
 import pydantic.v1 as pyd
 import pytest
 
+from tests._fast import fast_params
+
 import pipelime.items as pli
 from pipelime.sequences import SamplesSequence, SampleValidationInterface
 
@@ -71,7 +73,7 @@ class TestValidation:
             }
         }
 
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_full_schema(
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
@@ -105,7 +107,7 @@ class TestValidation:
             should_fail=False,
         )
 
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_partial_schema(
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
@@ -132,7 +134,7 @@ class TestValidation:
             should_fail=not ignore_extra_keys,
         )
 
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_schema_with_base_classes(
         self, minimnist_dataset: dict, lazy, ignore_extra_keys
@@ -162,7 +164,7 @@ class TestValidation:
             should_fail=not ignore_extra_keys,
         )
 
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
     def test_validate_schema_from_dict(
         self, minimnist_dataset: dict, lazy: bool, ignore_extra_keys: bool

@@ -1,14 +1,16 @@
 import pytest
+
+from tests._fast import fast_params
 from .test_general_base import TestGeneralCommandsBase
 
 from ... import TestAssert
 
 
 class TestClone(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("lazy", [True, False])
+    @pytest.mark.parametrize("lazy", fast_params([True, False]))
     @pytest.mark.parametrize("ignore_extra_keys", [True, False])
-    @pytest.mark.parametrize("nproc", [0, 2])
-    @pytest.mark.parametrize("prefetch", [1, 2, 4])
+    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("prefetch", fast_params([1, 2, 4]))
     @pytest.mark.parametrize("skip_empty", [True, False])
     def test_clone(
         self,

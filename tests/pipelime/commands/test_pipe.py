@@ -1,4 +1,6 @@
 import pytest
+
+from tests._fast import fast_params
 from pydantic.v1 import ValidationError
 
 from ... import TestAssert
@@ -6,8 +8,8 @@ from .test_general_base import TestGeneralCommandsBase
 
 
 class TestPipe(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", [0, 2])
-    @pytest.mark.parametrize("prefetch", [2, 4])
+    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     def test_pipe(self, minimnist_dataset, nproc, prefetch, tmp_path):
         from pipelime.commands import PipeCommand
         from pipelime.sequences import SamplesSequence
