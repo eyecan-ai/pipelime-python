@@ -5,6 +5,31 @@ from pathlib import Path
 import pytest
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--fast",
+        action="store_true",
+        default=bool(os.environ.get("PIPELIME_TEST_FAST")),
+        help="Run a fast, high-coverage subset: collapse parametrization and "
+        "deselect tests marked 'slow'.",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "slow: heavy test, deselected when --fast is given"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--fast"):
+        return
+    skip_slow = pytest.mark.skip(reason="deselected in --fast mode")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)
+
+
 @pytest.fixture(scope="session")
 def tests_folder() -> Path:
     return Path(__file__).parent.resolve().absolute()
