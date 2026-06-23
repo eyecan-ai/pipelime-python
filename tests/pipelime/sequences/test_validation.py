@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 import pytest
 
 from tests._fast import fast_params
@@ -69,7 +69,7 @@ class TestValidation:
 
         assert schema_def.as_pipe() == {
             "validate_samples": {
-                "sample_schema": schema_def.dict(by_alias=True),
+                "sample_schema": schema_def.model_dump(by_alias=True),
             }
         }
 
@@ -114,7 +114,7 @@ class TestValidation:
     ):
         from typing import Optional
 
-        import pydantic.v1 as pyd
+        import pydantic as pyd
 
         import pipelime.items as pli
 
@@ -141,7 +141,7 @@ class TestValidation:
     ):
         from typing import Optional
 
-        import pydantic.v1 as pyd
+        import pydantic as pyd
 
         import pipelime.items as pli
 

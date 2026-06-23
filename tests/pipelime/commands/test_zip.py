@@ -32,7 +32,7 @@ class TestZip(TestGeneralCommandsBase):
             "grabber": f"{nproc},{prefetch}",
             "key_format": ["s2_*", "_s1"],
         }
-        cmd = ZipCommand.parse_obj(params)
+        cmd = ZipCommand.model_validate(params)
         cmd()
 
         src1 = SamplesSequence.from_underfolder(src1p).map(
@@ -49,4 +49,4 @@ class TestZip(TestGeneralCommandsBase):
 
         params["key_format"].append("s3_*")
         with pytest.raises(ValueError):
-            cmd = ZipCommand.parse_obj(params)  # output exists
+            cmd = ZipCommand.model_validate(params)  # output exists

@@ -26,25 +26,25 @@ class TestSort(TestGeneralCommandsBase):
             "grabber": f"{nproc},{prefetch}",
             "sort_key": "metadata.random",
         }
-        cmd = SortCommand.parse_obj(params)
+        cmd = SortCommand.model_validate(params)
         cmd()
         _check_output(params["output"], params["sort_key"])
 
         params["output"] = (tmp_path / "output_fn").as_posix()
         params["sort_fn"] = f"{Path(__file__).with_name('helper.py')}:sort_fn"
-        cmd = SortCommand.parse_obj(params)
+        cmd = SortCommand.model_validate(params)
         with pytest.raises(ValueError):
             cmd()
 
         del params["sort_key"]
         if nproc == 0:
-            cmd = SortCommand.parse_obj(params)
+            cmd = SortCommand.model_validate(params)
             cmd()
             _check_output(params["output"], "metadata.random")
             with pytest.raises(ValueError):
-                cmd = SortCommand.parse_obj(params)  # output exists
+                cmd = SortCommand.model_validate(params)  # output exists
         else:
             del params["sort_fn"]
-            cmd = SortCommand.parse_obj(params)
+            cmd = SortCommand.model_validate(params)
             with pytest.raises(ValueError):
                 cmd()

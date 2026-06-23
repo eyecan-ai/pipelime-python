@@ -1,7 +1,7 @@
 import typing as t
 
 import pytest
-from pydantic.v1 import Field
+from pydantic import Field
 
 from pipelime.piper import PipelimeCommand, command, self_
 

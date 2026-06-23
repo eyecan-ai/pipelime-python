@@ -18,7 +18,7 @@ class TestZMQProgressReceiver:
         for i in range(self.N_PACKETS):
             token = "token" if i % 2 == 0 else "token2"
             prog = ProgressUpdate(op_info=op_info, progress=i // 2)
-            socket.send_multipart([token.encode(), prog.json().encode()])
+            socket.send_multipart([token.encode(), prog.model_dump_json().encode()])
             time.sleep(0.1)
         socket.close()
 

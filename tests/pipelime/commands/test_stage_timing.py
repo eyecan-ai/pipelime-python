@@ -39,7 +39,7 @@ class TestStageTiming(TestGeneralCommandsBase):
             "repeat": repeat,
             "process": process_timer,
         }
-        cmd = StageTimingCommand.parse_obj(params)
+        cmd = StageTimingCommand.model_validate(params)
         cmd()
 
         # check output

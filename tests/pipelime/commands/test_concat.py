@@ -32,7 +32,7 @@ class TestConcat(TestGeneralCommandsBase):
             "grabber": f"{nproc},{prefetch}",
             "interleave": interleave,
         }
-        cmd = ConcatCommand.parse_obj(params)
+        cmd = ConcatCommand.model_validate(params)
         cmd()
 
         src1 = SamplesSequence.from_underfolder(src1p)

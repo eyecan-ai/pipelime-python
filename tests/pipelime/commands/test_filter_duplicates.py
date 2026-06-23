@@ -58,7 +58,7 @@ class TestFilterDuplicates(TestGeneralCommandsBase):
             "keys": keys,
             "algorithm": algorithm,
         }
-        cmd = FilterDuplicatesCommand.parse_obj(params)
+        cmd = FilterDuplicatesCommand.model_validate(params)
         cmd()
 
         seq = SamplesSequence.from_underfolder(params["output"])
@@ -100,5 +100,5 @@ class TestFilterDuplicates(TestGeneralCommandsBase):
                 "keys": keys,
                 "algorithm": algorithm,
             }
-            cmd = FilterDuplicatesCommand.parse_obj(params)
+            cmd = FilterDuplicatesCommand.model_validate(params)
             cmd()

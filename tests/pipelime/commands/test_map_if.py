@@ -33,7 +33,7 @@ class TestMapIf(TestGeneralCommandsBase):
             "stage": {"filter-keys": {"key_list": minimnist_dataset["image_keys"]}},
             "condition": f"{Path(__file__).with_name('helper.py')}:map_if_fn",
         }
-        cmd = MapIfCommand.parse_obj(params)
+        cmd = MapIfCommand.model_validate(params)
         cmd()
 
         # check output

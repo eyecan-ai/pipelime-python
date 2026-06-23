@@ -34,7 +34,7 @@ class TestZmqTrackCallback:
             while time.time() - t0 < 10:
                 try:
                     token, msg = zmq_socket.recv_multipart(flags=zmq.NOBLOCK)
-                    prog = ProgressUpdate.parse_obj(json.loads(msg.decode("utf-8")))
+                    prog = ProgressUpdate.model_validate(json.loads(msg.decode("utf-8")))
                     assert token.decode() == "token"
                     assert prog == progress_update
                     return

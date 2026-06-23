@@ -37,7 +37,7 @@ class TestClone(TestGeneralCommandsBase):
             minimnist_dataset["len"] - 2 if skip_empty else minimnist_dataset["len"]
         )
 
-        cmd = CloneCommand.parse_obj(
+        cmd = CloneCommand.model_validate(
             {
                 "input": {
                     "folder": partial_input,

@@ -4,7 +4,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
-from pydantic.v1 import ValidationError, create_model
+from pydantic import ValidationError, create_model
 
 import pipelime.commands.interfaces as plint
 import pipelime.sequences.pipes.operations as plops
@@ -41,13 +41,13 @@ class TestInterface:
             value_check_fn(m, False)
         for opt in opt_parse_list:
             with ctxman(ValidationError):
-                m = model_cls.parse_obj(opt)
+                m = model_cls.model_validate(opt)
                 value_check_fn(m, True)
         with ctxman(ValidationError):
-            m = model_cls.parse_obj(opt_dict)
+            m = model_cls.model_validate(opt_dict)
             value_check_fn(m, False)
         try:
-            m = model_cls.parse_obj({k: getattr(m, k) for k in model_cls.__fields__})
+            m = model_cls.model_validate({k: getattr(m, k) for k in model_cls.__fields__})
             value_check_fn(m, False)
             assert not should_fail
         except NameError:

@@ -33,7 +33,7 @@ class TestTimeIt(TestGeneralCommandsBase):
             return x
 
         def _run_cmd(optdict, ge):
-            cmd = TimeItCommand.parse_obj(optdict)
+            cmd = TimeItCommand.model_validate(optdict)
             cmd()
             assert cmd.average_time is not None
             if ge:

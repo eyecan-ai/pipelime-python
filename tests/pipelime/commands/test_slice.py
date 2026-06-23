@@ -60,7 +60,7 @@ class TestSlice(TestGeneralCommandsBase):
             "slice": ":".join(["" if x is None else str(x) for x in indexes]),
             "shuffle": shuffle,
         }
-        cmd = SliceCommand.parse_obj(params)
+        cmd = SliceCommand.model_validate(params)
         cmd()
 
         inseq = SamplesSequence.from_underfolder(params["input"])

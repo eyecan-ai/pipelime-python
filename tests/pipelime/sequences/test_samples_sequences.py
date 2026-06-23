@@ -9,11 +9,11 @@ class TestSamplesSequences:
         from pipelime.sequences.pipes import PipedSequenceBase
         from pipelime.sequences.pipes.mapping import MappedSequence
 
-        assert not PipedSequenceBase.__config__.title
+        assert not PipedSequenceBase.model_config.get("title")
         assert PipedSequenceBase.name() == PipedSequenceBase.__name__
 
-        assert bool(MappedSequence.__config__.title)
-        assert MappedSequence.name() == MappedSequence.__config__.title
+        assert bool(MappedSequence.model_config.get("title"))
+        assert MappedSequence.name() == MappedSequence.model_config.get("title")
 
     def test_is_normalized(self, minimnist_dataset: dict):
         import pipelime.items as pli
@@ -52,7 +52,7 @@ class TestSamplesSequences:
         from pathlib import Path
 
         stg = StageInput(
-            __root__=StageCompose([StageIdentity(), StageIdentity(), StageIdentity()])
+            StageCompose([StageIdentity(), StageIdentity(), StageIdentity()])
         )
 
         a = (
@@ -131,7 +131,7 @@ class TestSamplesSequences:
             .data_cache("ImageItem", "MetadataItem")
         )
 
-        assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
+        assert pls.build_pipe(input_pipe).model_dump() == expected_seq.model_dump()
 
         input_pipe = {
             "from_underfolder": {
@@ -144,7 +144,7 @@ class TestSamplesSequences:
             "data_cache": ["ImageItem", "MetadataItem"],
         }
 
-        assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
+        assert pls.build_pipe(input_pipe).model_dump() == expected_seq.model_dump()
 
         with pytest.raises(pls.PipeBuildingError):
             pls.build_pipe("shuffle")

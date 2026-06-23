@@ -24,7 +24,7 @@ class TestValidate(TestGeneralCommandsBase):
             "max_samples": max_samples,
             "grabber": f"{nproc},{prefetch}",
         }
-        cmd = ValidateCommand.parse_obj(params)
+        cmd = ValidateCommand.model_validate(params)
         cmd()
 
         # apply the schema on the input dataset
@@ -34,20 +34,20 @@ class TestValidate(TestGeneralCommandsBase):
         sample_schema = py_.get(outschema, cmd.root_key_path)
         assert sample_schema is not None
         py_.set_(params, cmd.root_key_path, sample_schema)
-        cmd = ValidateCommand.parse_obj(params)
+        cmd = ValidateCommand.model_validate(params)
         cmd()
 
         # validate using standard piping as well
         seq = SamplesSequence.from_underfolder(
             params["input"]["folder"]
         ).validate_samples(
-            sample_schema=SampleValidationInterface.parse_obj(sample_schema)
+            sample_schema=SampleValidationInterface.model_validate(sample_schema)
         )
         seq.run(num_workers=nproc, prefetch=prefetch)
 
         # check the schema-to-cmdline converter
         params["root_key_path"] = ""
-        cmd = ValidateCommand.parse_obj(params)
+        cmd = ValidateCommand.model_validate(params)
         cmd()
         assert cmd.output_schema_def is not None
         assert cmd.output_schema_def.schema_def == outschema["input"]["schema"]

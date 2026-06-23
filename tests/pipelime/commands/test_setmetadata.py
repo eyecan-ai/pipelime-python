@@ -27,23 +27,23 @@ class TestSetMetadata(TestGeneralCommandsBase):
             "key_path": "metadata.the_answer",
             "value": "fourtytwo",
         }
-        cmd = SetMetadataCommand.parse_obj(params)
+        cmd = SetMetadataCommand.model_validate(params)
         cmd()
         _check_output(params["output"])
 
         params["output"] = (tmp_path / "output_fn").as_posix()
         params["filter_fn"] = f"{Path(__file__).with_name('helper.py')}:set_meta_fn"
         with pytest.raises(ValueError):
-            cmd = SetMetadataCommand.parse_obj(params)
+            cmd = SetMetadataCommand.model_validate(params)
 
         del params["filter_query"]
         if nproc == 0:
-            cmd = SetMetadataCommand.parse_obj(params)
+            cmd = SetMetadataCommand.model_validate(params)
             cmd()
             _check_output(params["output"])
             with pytest.raises(ValueError):
-                cmd = SetMetadataCommand.parse_obj(params)  # output exists
+                cmd = SetMetadataCommand.model_validate(params)  # output exists
         else:
             del params["filter_fn"]
             with pytest.raises(ValueError):
-                cmd = SetMetadataCommand.parse_obj(params)
+                cmd = SetMetadataCommand.model_validate(params)

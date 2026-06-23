@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 
 class _GraphArgs(BaseModel):
@@ -63,7 +63,7 @@ class TestCommands:
         for dag in all_dags:
             if "dot" in dag:
                 with open(dag["dot"]) as f:
-                    dots_test_data = _DotsTestData.parse_obj(yaml.safe_load(f))
+                    dots_test_data = _DotsTestData.model_validate(yaml.safe_load(f))
                 for idx, test_data in enumerate(dots_test_data.__root__):
                     target_dot = test_data.dot
                     outdot = tmp_path / str(idx) / "out.dot"
@@ -76,7 +76,7 @@ class TestCommands:
                         data_max_width="/",  # type: ignore
                         ellipsis_position=DrawCommand.EllipsesChoice.START,  # type: ignore
                         show_command_names=True,  # type: ignore
-                        **test_data.args.dict(),
+                        **test_data.args.model_dump(),
                     )
                     cmd()
 

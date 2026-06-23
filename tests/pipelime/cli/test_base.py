@@ -4,7 +4,7 @@ from typing import Any, List
 
 import pytest
 import yaml
-from pydantic.v1 import Field
+from pydantic import Field
 
 from pipelime.piper import PipelimeCommand
 import pipelime.items as pli
@@ -402,7 +402,7 @@ class TestCliBase:
 
     @pytest.mark.parametrize("with_default_ckpt", [False, True, 2])
     def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path, with_default_ckpt):
-        from pydantic.v1 import ValidationError
+        from pydantic import ValidationError
 
         from pipelime.sequences import SamplesSequence
 
@@ -456,7 +456,7 @@ class TestCliBase:
         assert len(SamplesSequence.from_underfolder(outpath)) == 5
 
     def test_resume_with_tui(self, minimnist_dataset, tmp_path, monkeypatch):
-        from pydantic.v1 import ValidationError
+        from pydantic import ValidationError
         from textual.keys import Keys
         from textual.pilot import Pilot
 

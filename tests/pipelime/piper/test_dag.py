@@ -2,7 +2,7 @@ import typing as t
 from pathlib import Path
 
 import pytest
-from pydantic.v1 import Field, ValidationError
+from pydantic import Field, ValidationError
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.commands.piper import T_NODES, DagBaseCommand, PiperDAG, piper_dag

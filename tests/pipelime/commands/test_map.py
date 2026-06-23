@@ -19,7 +19,7 @@ class TestMap(TestGeneralCommandsBase):
             "grabber": f"{nproc},{prefetch}",
             "stage": {"filter-keys": {"key_list": minimnist_dataset["image_keys"]}},
         }
-        cmd = MapCommand.parse_obj(params)
+        cmd = MapCommand.model_validate(params)
         cmd()
 
         # check output

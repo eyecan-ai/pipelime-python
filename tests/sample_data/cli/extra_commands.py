@@ -1,4 +1,4 @@
-from pydantic.v1 import Field
+from pydantic import Field
 
 from pipelime.commands.interfaces import InputDatasetInterface, OutputDatasetInterface
 from pipelime.piper import PipelimeCommand, PiperPortType

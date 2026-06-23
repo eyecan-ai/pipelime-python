@@ -24,23 +24,23 @@ class TestFilter(TestGeneralCommandsBase):
             "grabber": f"{nproc},{prefetch}",
             "filter_query": "`metadata.double` == 6",
         }
-        cmd = FilterCommand.parse_obj(params)
+        cmd = FilterCommand.model_validate(params)
         cmd()
         _check_output(params["output"])
 
         params["output"] = (tmp_path / "output_fn").as_posix()
         params["filter_fn"] = f"{Path(__file__).with_name('helper.py')}:filter_fn"
         with pytest.raises(ValueError):
-            cmd = FilterCommand.parse_obj(params)
+            cmd = FilterCommand.model_validate(params)
 
         del params["filter_query"]
         if nproc == 0:
-            cmd = FilterCommand.parse_obj(params)
+            cmd = FilterCommand.model_validate(params)
             cmd()
             _check_output(params["output"])
             with pytest.raises(ValueError):
-                cmd = FilterCommand.parse_obj(params)  # output exists
+                cmd = FilterCommand.model_validate(params)  # output exists
         else:
             del params["filter_fn"]
             with pytest.raises(ValueError):
-                cmd = FilterCommand.parse_obj(params)
+                cmd = FilterCommand.model_validate(params)
