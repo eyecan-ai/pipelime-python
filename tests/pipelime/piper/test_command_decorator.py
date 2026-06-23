@@ -163,8 +163,10 @@ class TestCommandDecorator:
     def test_varpos(self):
         varpos()()
         varpos("a")()
-        varpos("a", 1)()
-        varpos("a", 1, True)()
+        # NB: pydantic v2 no longer coerces non-str values to str, so varargs
+        # values must already match the declared `*a: str` element type.
+        varpos("a", "1")()
+        varpos("a", "1", "True")()
 
         self._type_error(varpos, a="a")
         self._validation_error(varpos, d=None)
@@ -172,9 +174,9 @@ class TestCommandDecorator:
     def test_varkw(self):
         varkw()()
         varkw(a="a")()
-        varkw(a="a", b=1)()
-        varkw(a="a", b=1, c=True)()
-        varkw(a="a", c=True)()
+        varkw(a="a", b="1")()
+        varkw(a="a", b="1", c="True")()
+        varkw(a="a", c="True")()
 
         self._type_error(varkw, "a")
         self._type_error(varkw, "a", 1)

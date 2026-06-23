@@ -14,9 +14,9 @@ class TestInterface:
     def _check_description(
         self, model_cls, interf_class, no_desc_field, user_desc_field, user_desc, flags
     ):
-        nodesc = model_cls.__fields__[no_desc_field].field_info.description
-        udesc = model_cls.__fields__[user_desc_field].field_info.description
-        extra = model_cls.__fields__[user_desc_field].field_info.extra
+        nodesc = model_cls.model_fields[no_desc_field].description
+        udesc = model_cls.model_fields[user_desc_field].description
+        extra = model_cls.model_fields[user_desc_field].json_schema_extra or {}
 
         assert interf_class._default_type_description is not None
         assert interf_class._compact_form is not None
@@ -47,7 +47,7 @@ class TestInterface:
             m = model_cls.model_validate(opt_dict)
             value_check_fn(m, False)
         try:
-            m = model_cls.model_validate({k: getattr(m, k) for k in model_cls.__fields__})
+            m = model_cls.model_validate({k: getattr(m, k) for k in model_cls.model_fields})
             value_check_fn(m, False)
             assert not should_fail
         except NameError:
@@ -86,7 +86,7 @@ class TestInterface:
 
         # get default values
         default_values = {}
-        for k, v in interf_cls.__fields__.items():
+        for k, v in interf_cls.model_fields.items():
             default_values[k] = v.get_default()
         for k, v in kwargs.items():
             if v is None:
@@ -175,7 +175,7 @@ class TestGrabberInterface(TestInterface):
             allow_nested_mp=False,
         )
         with pytest.raises(ValueError):
-            plint.GrabberInterface.validate([1, 2, 3])
+            plint.GrabberInterface.model_validate([1, 2, 3])
 
 
 class TestInputDataset(TestInterface):
@@ -288,7 +288,7 @@ class TestInputDataset(TestInterface):
             skip_empty=None,
         )
         with pytest.raises(ValueError):
-            plint.InputDatasetInterface.validate([1, 2, 3])
+            plint.InputDatasetInterface.model_validate([1, 2, 3])
 
 
 class TestOutputDataset(TestInterface):
@@ -380,7 +380,7 @@ class TestOutputDataset(TestInterface):
             exists_ok=None,
         )
         with pytest.raises(ValueError):
-            plint.OutputDatasetInterface.validate([1, 2, 3])
+            plint.OutputDatasetInterface.model_validate([1, 2, 3])
 
 
 class TestInterval(TestInterface):
@@ -414,9 +414,9 @@ class TestInterval(TestInterface):
             stop=12.3,
         )
         with pytest.raises(ValueError):
-            plint.Interval.validate([1, 2, 3])
+            plint.Interval.model_validate([1, 2, 3])
         with pytest.raises(ValueError):
-            plint.Interval.validate(12.5)
+            plint.Interval.model_validate(12.5)
 
 
 class TestExtendedInterval(TestInterface):
@@ -461,9 +461,9 @@ class TestExtendedInterval(TestInterface):
             step=False,
         )
         with pytest.raises(ValueError):
-            plint.Interval.validate([1, 2, 3, 4])
+            plint.Interval.model_validate([1, 2, 3, 4])
         with pytest.raises(ValueError):
-            plint.Interval.validate(12.5)
+            plint.Interval.model_validate(12.5)
 
 
 class TestOutputValue(TestInterface):
@@ -542,4 +542,4 @@ class TestOutputValue(TestInterface):
         )
 
         with pytest.raises(ValueError):
-            plint.OutputValueInterface.validate([1, 2, 3])
+            plint.OutputValueInterface.model_validate([1, 2, 3])

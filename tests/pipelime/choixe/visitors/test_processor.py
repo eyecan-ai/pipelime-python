@@ -327,7 +327,11 @@ class TestProcessor:
                 d=(MyModel2(a=98, b="hello"), MyModel2(a=24, b="world")),
             )
         ]
-        assert process(parse(data)) == expected
+        # NB: `$model` imports MyModel from the file path, yielding a distinct
+        # class object from the locally-imported one. Pydantic v2 model equality
+        # requires matching class identity, so compare serialized values instead.
+        result = process(parse(data))
+        assert [m.model_dump() for m in result] == [m.model_dump() for m in expected]
 
     def test_for_dict(self):
         data = {"$for(collection1, x)": {"Index=$index(x)": "Item=$item(x)"}}

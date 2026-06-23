@@ -511,7 +511,8 @@ class DagBaseCommand(RunCommandBase):
 
         if not v:
             v = PipelimeTmp.make_subdir()
-        v = v.resolve().absolute()
+        # NB: mode="before" gives the raw value (possibly a str from a checkpoint)
+        v = Path(v).resolve().absolute()
         logger.debug(f"DAG debug folder: {v}")
         return v
 
@@ -688,7 +689,7 @@ def piper_dag(cls: t.Type[PiperDAG]):
         cls.__name__,
         __base__=_PiperDagCommandHelper,
         __module__=cls.__module__,
-        __cls_kwargs__={"title": cls.schema()["title"]},
+        __cls_kwargs__={"title": cls.model_json_schema()["title"]},
     )
     dag_command.__doc__ = cls.__doc__
 
