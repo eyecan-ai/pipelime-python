@@ -41,7 +41,8 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic>=1.10.17,<3",         # this enables `import pydantic.v1`
+    "pydantic>=2.5,<3",
+    "pydantic-extra-types>=2.0",
     "schema",
     "pyzmq",
     "dictquery",
