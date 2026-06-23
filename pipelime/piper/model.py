@@ -163,7 +163,12 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
                     else t.Mapping[str, p.annotation]
                 )
             else:
-                ann = p.annotation
+                # pydantic v2 requires every field to be annotated; fall back to Any
+                ann = (
+                    t.Any
+                    if p.annotation is inspect.Signature.empty
+                    else p.annotation
+                )
 
             return (ann, value)
 
