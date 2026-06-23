@@ -5,8 +5,9 @@ import typing as t
 from pathlib import Path
 
 import numpy as np
-import pydantic.v1 as pyd
-import pydantic.v1.generics as pydg
+import pydantic as pyd
+from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler
+from pydantic_core import PydanticUndefined, core_schema
 
 from pipelime.items import Item
 
@@ -22,17 +23,22 @@ class NewPath(Path):
     extension: t.Optional[str] = None
 
     @classmethod
-    def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
-        field_schema.update(exists=False)
-        if cls.extension is not None:
-            field_schema.update(extension=cls.extension)
+    def __get_pydantic_core_schema__(
+        cls, source_type: t.Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(Path)
+        )
 
     @classmethod
-    def __get_validators__(cls):
-        from pydantic.v1.validators import path_validator
-
-        yield path_validator
-        yield cls.validate
+    def __get_pydantic_json_schema__(
+        cls, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> t.Dict[str, t.Any]:
+        json_schema = handler(schema)
+        json_schema.update(exists=False)
+        if cls.extension is not None:
+            json_schema.update(extension=cls.extension)
+        return json_schema
 
     @classmethod
     def validate(cls, value: Path) -> Path:
@@ -64,12 +70,7 @@ def new_file_path(extension: t.Optional[str] = None) -> t.Type[NewPath]:
     return type(clsname, (NewPath,), namespace)
 
 
-class NumpyType(
-    pyd.BaseModel,
-    extra="forbid",
-    copy_on_model_validation="none",
-    arbitrary_types_allowed=True,
-):
+class NumpyType(pyd.RootModel[t.Any]):
     """Numpy array type for stages, commands and any other pydantic model.
     Any argument accepted by `numpy.array()` is a valid value. Also, any mapping
     will be treated as keyword arguments for `numpy.array()`.
@@ -117,49 +118,45 @@ class NumpyType(
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
 
-    __root__: np.ndarray
-
     @classmethod
     def create(
         cls, value: t.Union[NumpyType, "ArrayLike", t.Mapping[str, t.Any]]
     ) -> NumpyType:
-        return cls.validate(value)
+        return cls.model_validate(value)
 
     @property
     def value(self):
-        return self.__root__
+        return self.root
 
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # assert k == "__root__"
-            # assert isinstance(v, np.ndarray)
-            v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
-            yield k, {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
+    @pyd.model_serializer
+    def _serialize(self):
+        v = self.root
+        v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
+        return {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, cls):
+    def _coerce(cls, value):
+        if value is PydanticUndefined:
+            raise ValueError("A numpy array value is required")
+        if isinstance(value, NumpyType):
+            return value.root
+        if isinstance(value, np.ndarray):
             return value
         try:
-            return cls(
-                __root__=(
-                    np.array(**value)
-                    if isinstance(value, t.Mapping)
-                    else np.array(value)
-                )
+            return (
+                np.array(**value)
+                if isinstance(value, t.Mapping)
+                else np.array(value)
             )
         except Exception as e:
             raise ValueError(f"Invalid numpy input: {value}") from e
@@ -176,7 +173,7 @@ yaml_any_type = t.Union[
 ]
 
 
-class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class YamlInput(pyd.RootModel[yaml_any_type]):
     """General yaml/json data (str, number, mapping, list...) optionally loaded from
     a yaml/json file, possibly with key path (format <filepath>[:<key>]).
 
@@ -228,33 +225,28 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
 
-    __root__: yaml_any_type
-
     @classmethod
     def create(cls, value: t.Union[YamlInput, yaml_any_type]) -> YamlInput:
-        return cls.validate(value)
+        return cls.model_validate(value)
 
     @property
     def value(self):
-        return self.__root__
+        return self.root
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, cls):
-            return value
+    def _coerce(cls, value):
+        if isinstance(value, YamlInput):
+            return value.root
         if isinstance(value, (str, Path)):
             pval = Path(value)
             filepath, _, root_key = pval.name.partition(":")
@@ -267,9 +259,9 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
                     value = yaml.safe_load(f)
                     if root_key:
                         value = py_.get(value, root_key, default=None)
-            return cls(__root__=value)  # type: ignore
+            return value
         if cls._check_any_type(value):
-            return cls(__root__=value)
+            return value
         raise ValueError(f"Invalid yaml data input: {value}")
 
     @classmethod
@@ -283,13 +275,7 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 TRoot = t.TypeVar("TRoot")
 
 
-class TypeDef(
-    pydg.GenericModel,
-    t.Generic[TRoot],
-    extra="forbid",
-    copy_on_model_validation="none",
-    allow_mutation=False,
-):
+class TypeDef(pyd.RootModel[t.Type[TRoot]], t.Generic[TRoot]):
     """Generic type definition. It accepts both type names and string.
     You should derive from this class to define your own type definitions and,
     possibly, re-implement the `default_class_path` class method
@@ -340,7 +326,7 @@ class TypeDef(
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
 
-    __root__: t.Type[TRoot]
+    model_config = pyd.ConfigDict(frozen=True)
 
     @classmethod
     def default_class_path(cls) -> str:
@@ -348,21 +334,19 @@ class TypeDef(
 
     @classmethod
     def wrapped_type(cls) -> t.Type[TRoot]:
-        return t.get_args(cls.__fields__["__root__"].outer_type_)[0]
+        return t.get_args(cls.model_fields["root"].annotation)[0]
 
     @classmethod
     def create(cls, value: t.Union[TypeDef, t.Type[TRoot], str]) -> TypeDef:
-        return cls.validate(value)
+        return cls.model_validate(value)
 
     @property
     def value(self) -> t.Type[TRoot]:
-        return self.__root__
+        return self.root
 
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # assert k == "__root__"
-            # assert issubclass(v, self.wrapped_type())
-            yield k, self._type_to_string(v)
+    @pyd.model_serializer
+    def _serialize(self):
+        return self._type_to_string(self.root)
 
     @classmethod
     def _type_to_string(cls, type_: t.Type[TRoot]) -> str:
@@ -384,34 +368,31 @@ class TypeDef(
         return import_symbol(type_str)
 
     def __call__(self, *args, **kwargs) -> TRoot:
-        return self.__root__(*args, **kwargs)
+        return self.root(*args, **kwargs)
 
     def __hash__(self) -> int:
-        return hash(self.__root__)
+        return hash(self.root)
 
     def __str__(self) -> str:
-        return self._type_to_string(self.__root__)
+        return self._type_to_string(self.root)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value: t.Union[TypeDef, t.Type[TRoot], str]) -> TypeDef:
+    def _coerce(cls, value: t.Union[TypeDef, t.Type[TRoot], str]):
         import inspect
 
         if isinstance(value, cls):
-            return value
+            return value.root
         if isinstance(value, str):
             value = cls._string_to_type(value)
         if inspect.isclass(value) and issubclass(value, cls.wrapped_type()):
-            return cls(__root__=value)
+            return value
         raise ValueError(f"Type `{value}` is not a subclass of `{cls.wrapped_type()}`")
 
 
@@ -425,9 +406,7 @@ class ItemType(TypeDef[Item]):
         return "pipelime.items."
 
 
-class CallableDef(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
-):
+class CallableDef(pyd.RootModel[t.Callable]):
     """Generic callable definition. It accepts functions and callable classes.
     You may derive from this class to re-implement the `default_class_path` class method
     (NB: it must end with `.`).
@@ -484,7 +463,7 @@ class CallableDef(
             mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
     """
 
-    __root__: t.Callable
+    model_config = pyd.ConfigDict(frozen=True)
 
     @classmethod
     def default_class_path(cls) -> str:
@@ -492,15 +471,15 @@ class CallableDef(
 
     @classmethod
     def create(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
-        return cls.validate(value)
+        return cls.model_validate(value)
 
     @property
     def value(self) -> t.Callable:
-        return self.__root__
+        return self.root
 
     @property
     def full_signature(self) -> inspect.Signature:
-        return inspect.signature(self.__root__)
+        return inspect.signature(self.root)
 
     @property
     def args(self) -> t.Sequence[inspect.Parameter]:
@@ -530,10 +509,9 @@ class CallableDef(
         rt = self.full_signature.return_annotation
         return None if rt is inspect.Signature.empty else rt
 
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # assert k == "__root__"
-            yield k, self._callable_to_string(v)
+    @pyd.model_serializer
+    def _serialize(self):
+        return self._callable_to_string(self.root)
 
     @classmethod
     def _callable_to_string(cls, clb: t.Callable) -> str:
@@ -563,33 +541,30 @@ class CallableDef(
         return import_symbol(clb_str)
 
     def __call__(self, *args, **kwargs):
-        return self.__root__(*args, **kwargs)
+        return self.root(*args, **kwargs)
 
     def __hash__(self) -> int:
-        return hash(self.__root__)
+        return hash(self.root)
 
     def __str__(self) -> str:
-        return self._callable_to_string(self.__root__)
+        return self._callable_to_string(self.root)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(
+    def _coerce(
         cls,
         value: t.Union[
             CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
         ],
     ):
         if isinstance(value, cls):
-            return value
+            return value.root
         try:
             if isinstance(value, str):
                 value = cls._string_to_callable(value)
@@ -616,7 +591,7 @@ class CallableDef(
             raise ValueError(f"Invalid callable: {value}") from e
 
         if isinstance(value, t.Callable):
-            return cls(__root__=value)
+            return value
         raise ValueError(f"Invalid callable: {value}")
 
 
@@ -625,10 +600,10 @@ def _identity_fn_helper(x):
     return x
 
 
-class ItemValidationModel(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
-):
+class ItemValidationModel(pyd.BaseModel):
     """Item schema validation."""
+
+    model_config = pyd.ConfigDict(extra="forbid")
 
     class_path: ItemType = pyd.Field(
         ...,
@@ -694,13 +669,13 @@ class ItemValidationModel(
         }
         exec(_validator_wrapper, local_scope)
         fn_helper = local_scope[f"validate_{rnd_name}_fn"]
-        return pyd.validator(field_name)(fn_helper)
+        return pyd.field_validator(field_name)(classmethod(fn_helper))
 
 
-class SampleValidationInterface(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
-):
+class SampleValidationInterface(pyd.BaseModel):
     """Sample schema validation."""
+
+    model_config = pyd.ConfigDict(extra="forbid")
 
     sample_schema: t.Union[
         t.Type[pyd.BaseModel], str, t.Mapping[str, ItemValidationModel]
@@ -742,9 +717,10 @@ class SampleValidationInterface(
         return imported_schema
 
     def _make_schema(self, schema_def: t.Mapping[str, ItemValidationModel]):
-        class Config(pyd.BaseConfig):
-            arbitrary_types_allowed = True
-            extra = pyd.Extra.ignore if self.ignore_extra_keys else pyd.Extra.forbid
+        config = pyd.ConfigDict(
+            arbitrary_types_allowed=True,
+            extra="ignore" if self.ignore_extra_keys else "forbid",
+        )
 
         def _safe_name(k):
             return f"{k}___"
@@ -757,7 +733,7 @@ class SampleValidationInterface(
 
         return pyd.create_model(
             "SampleSchema",
-            __config__=Config,
+            __config__=config,
             __validators__=_validators,
             **_item_map,
         )
@@ -785,4 +761,4 @@ class SampleValidationInterface(
         return sequence.validate_samples(sample_schema=self)
 
     def as_pipe(self):
-        return {"validate_samples": {"sample_schema": self.dict(by_alias=True)}}
+        return {"validate_samples": {"sample_schema": self.model_dump(by_alias=True)}}

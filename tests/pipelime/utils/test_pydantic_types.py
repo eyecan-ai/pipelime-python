@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-import pydantic.v1 as pyd
+import pydantic as pyd
 import pytest
 
 import pipelime.utils.pydantic_types as plt
@@ -63,7 +63,7 @@ class TestNumpyType:
         target = np.arange(12).reshape(2, 3, 2)
         src_list = [[[0, 1], [2, 3], [4, 5]], [[6, 7], [8, 9], [10, 11]]]
 
-        nt = plt.NumpyType(__root__=np.array(src_list))
+        nt = plt.NumpyType(np.array(src_list))
         assert TestUtils.numpy_eq(nt.value, target)
 
         nt = plt.NumpyType.create(src_list)  # type: ignore
@@ -90,13 +90,13 @@ class TestNumpyType:
 
     def test_serialize(self):
         data = np.arange(12).reshape(2, 3, 2, order="F") * 3.1415 + 1.4142
-        nt = plt.NumpyType(__root__=data.astype(np.float16))
+        nt = plt.NumpyType(data.astype(np.float16))
 
-        nt_again = pyd.parse_raw_as(plt.NumpyType, nt.json())
+        nt_again = pyd.TypeAdapter(plt.NumpyType).validate_json(nt.model_dump_json())
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
-        nt_again = pyd.parse_obj_as(plt.NumpyType, nt.dict()["__root__"])
+        nt_again = pyd.TypeAdapter(plt.NumpyType).validate_python(nt.model_dump())
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
@@ -139,12 +139,12 @@ class TestYamlInput:
 
     def test_serialize(self):
         data = {"a": 1, "b": "c"}
-        yi = plt.YamlInput(__root__=data)
+        yi = plt.YamlInput(data)
 
-        yi_again = pyd.parse_raw_as(plt.YamlInput, yi.json())
+        yi_again = pyd.TypeAdapter(plt.YamlInput).validate_json(yi.model_dump_json())
         assert yi.value == yi_again.value
 
-        yi_again = pyd.parse_obj_as(plt.YamlInput, yi.dict()["__root__"])
+        yi_again = pyd.TypeAdapter(plt.YamlInput).validate_python(yi.model_dump())
         assert yi.value == yi_again.value
 
 
@@ -170,24 +170,24 @@ class TestItemType:
     def test_call(self):
         from pipelime.items import JsonMetadataItem
 
-        itp = plt.ItemType(__root__=JsonMetadataItem)
+        itp = plt.ItemType(JsonMetadataItem)
         assert isinstance(itp(42), JsonMetadataItem)
 
     def test_serialize(self):
         from pipelime.items import MetadataItem
 
-        itp = plt.ItemType(__root__=MetadataItem)
+        itp = plt.ItemType(MetadataItem)
 
-        itp_again = pyd.parse_raw_as(plt.ItemType, itp.json())
+        itp_again = pyd.TypeAdapter(plt.ItemType).validate_json(itp.model_dump_json())
         assert itp.value == itp_again.value
 
-        itp_again = pyd.parse_obj_as(plt.ItemType, itp.dict()["__root__"])
+        itp_again = pyd.TypeAdapter(plt.ItemType).validate_python(itp.model_dump())
         assert itp.value == itp_again.value
 
     def test_hash(self):
         from pipelime.items import MetadataItem
 
-        itp = plt.ItemType(__root__=MetadataItem)
+        itp = plt.ItemType(MetadataItem)
         assert hash(itp) == hash(MetadataItem)
 
         d = {itp: 42}  # type: ignore
@@ -221,7 +221,7 @@ class TestCallableDef:
     def test_signature(self):
         import inspect
 
-        cd = plt.CallableDef(__root__=a_callable)
+        cd = plt.CallableDef(a_callable)
 
         assert cd.full_signature == inspect.signature(a_callable)
         assert cd.args_type == [int, None, None]
@@ -229,7 +229,7 @@ class TestCallableDef:
         assert cd.has_var_keyword
         assert cd.return_type is str
 
-        cd = plt.CallableDef(__root__=b_callable)
+        cd = plt.CallableDef(b_callable)
         assert cd.full_signature == inspect.signature(b_callable)
         assert cd.args_type == [int, None, None]
         assert cd.has_var_positional
@@ -237,21 +237,21 @@ class TestCallableDef:
         assert cd.return_type is str
 
     def test_call(self):
-        cd = plt.CallableDef(__root__=a_callable)
+        cd = plt.CallableDef(a_callable)
         assert cd(42) == "42c{}"
         assert cd(49, "d", e=50) == "49d{'e': 50}"
 
     def test_serialize(self):
-        cd = plt.CallableDef(__root__=a_callable)
+        cd = plt.CallableDef(a_callable)
 
-        cd_again = pyd.parse_raw_as(plt.CallableDef, cd.json())
+        cd_again = pyd.TypeAdapter(plt.CallableDef).validate_json(cd.model_dump_json())
         assert cd.value == cd_again.value
 
-        cd_again = pyd.parse_obj_as(plt.CallableDef, cd.dict()["__root__"])
+        cd_again = pyd.TypeAdapter(plt.CallableDef).validate_python(cd.model_dump())
         assert cd.value == cd_again.value
 
     def test_hash(self):
-        cd = plt.CallableDef(__root__=a_callable)
+        cd = plt.CallableDef(a_callable)
         assert hash(cd) == hash(a_callable)
 
         d = {cd: 42}
