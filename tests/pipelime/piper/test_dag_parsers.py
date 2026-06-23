@@ -46,9 +46,10 @@ class TestDAGParserFactory:
                 assert dag_model_ref == dag_file
 
                 # dict parsing + choixe processing
-                with open(dag["cfg_path"], "r") as fcfg, open(
-                    dag["ctx_path"], "r"
-                ) as fctx:
+                with (
+                    open(dag["cfg_path"], "r") as fcfg,
+                    open(dag["ctx_path"], "r") as fctx,
+                ):
                     cfg = yaml.safe_load(fcfg)
                     ctx = yaml.safe_load(fctx)
                     dag_cfg = parser.parse_cfg(cfg, ctx)
@@ -64,9 +65,10 @@ class TestDAGParserFactory:
                 dag_model_ref = DAGModel.model_validate(dag["config"])
                 dag_model_ref = self._purge_paths(dag_model_ref)
 
-                with open(dag["cfg_path"], "r") as fcfg, open(
-                    dag["ctx_path"], "r"
-                ) as fctx:
+                with (
+                    open(dag["cfg_path"], "r") as fcfg,
+                    open(dag["ctx_path"], "r") as fctx,
+                ):
                     cfg = yaml.safe_load(fcfg)
                     ctx = yaml.safe_load(fctx)
 

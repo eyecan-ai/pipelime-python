@@ -28,9 +28,7 @@ class _serialization_mode_override:
 
 
 @pls.piped_sequence
-class UnderfolderWriter(
-    PipedSequenceBase, title="to_underfolder"
-):
+class UnderfolderWriter(PipedSequenceBase, title="to_underfolder"):
     """Writes samples to an underfolder dataset while iterating over them."""
 
     folder: Path = pyd.Field(..., description="The output folder.")

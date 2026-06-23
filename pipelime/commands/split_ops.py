@@ -46,7 +46,6 @@ class PercSplit(SplitBase):
     def split_size(self, n_samples: int) -> t.Optional[int]:
         return int(n_samples * self.fraction) if self.fraction is not None else None
 
-
     @pyd.model_validator(mode="before")
     @classmethod
     def _coerce(cls, value):
@@ -91,7 +90,6 @@ class AbsoluteSplit(SplitBase):
 
     def split_size(self, *args, **kwargs) -> t.Optional[int]:
         return self.length
-
 
     @pyd.model_validator(mode="before")
     @classmethod

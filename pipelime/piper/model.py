@@ -35,7 +35,7 @@ def command(
 # TODO: forward with typing.ParamSpec (New in Python 3.10) to get full type checking
 @t.overload
 def command(
-    __func: t.Callable[..., None]
+    __func: t.Callable[..., None],
 ) -> t.Callable[..., t.Type["PipelimeCommand"]]: ...
 
 
@@ -164,11 +164,7 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
                 )
             else:
                 # pydantic v2 requires every field to be annotated; fall back to Any
-                ann = (
-                    t.Any
-                    if p.annotation is inspect.Signature.empty
-                    else p.annotation
-                )
+                ann = t.Any if p.annotation is inspect.Signature.empty else p.annotation
 
             return (ann, value)
 
@@ -481,9 +477,7 @@ class PipelimeCommand(
 CmdTp = t.TypeVar("CmdTp", bound=PipelimeCommand)
 
 
-class LazyCommand(
-    BaseModel, t.Generic[CmdTp], extra="forbid"
-):
+class LazyCommand(BaseModel, t.Generic[CmdTp], extra="forbid"):
     command_class: t.Type[CmdTp]
     data: t.Dict[str, t.Any] = Field(default_factory=dict)
 

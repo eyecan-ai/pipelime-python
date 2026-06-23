@@ -110,7 +110,6 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
         False, description="Whether to allow nested multiprocessing."
     )
 
-
     @pyd.model_validator(mode="before")
     @classmethod
     def _coerce(cls, value):
@@ -335,16 +334,13 @@ class InputDatasetInterface(
 
     @pyd.field_validator("pipe")
     @classmethod
-    def check_pipe_and_folder(
-        cls, v: t.Optional[YamlInput], info: pyd.ValidationInfo
-    ):
+    def check_pipe_and_folder(cls, v: t.Optional[YamlInput], info: pyd.ValidationInfo):
         if v is None:
             if info.data.get("folder", None) is None:
                 raise ValueError("Either `folder` or `pipe` (or both) must be defined.")
         elif not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
             raise ValueError(f"Invalid pipeline: {v.value}")
         return v
-
 
     @pyd.model_validator(mode="before")
     @classmethod
@@ -521,7 +517,8 @@ class OutputDatasetInterface(
     )
     exists_ok: bool = pyd.Field(
         False,
-        validate_default=True, description="If False raises an error when `folder` exists."
+        validate_default=True,
+        description="If False raises an error when `folder` exists.",
     )
     serialization: SerializationModeInterface = pyd.Field(
         default_factory=SerializationModeInterface,
@@ -570,16 +567,13 @@ class OutputDatasetInterface(
 
     @pyd.field_validator("pipe")
     @classmethod
-    def check_pipe_and_folder(
-        cls, v: t.Optional[YamlInput], info: pyd.ValidationInfo
-    ):
+    def check_pipe_and_folder(cls, v: t.Optional[YamlInput], info: pyd.ValidationInfo):
         if v is None:
             if info.data.get("folder", None) is None:
                 raise ValueError("Either `folder` or `pipe` (or both) must be defined.")
         elif not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
             raise ValueError(f"Invalid pipeline: {v.value}")
         return v
-
 
     @pyd.model_validator(mode="before")
     @classmethod
@@ -668,9 +662,7 @@ class OutputDatasetInterface(
 ODataset = OutputDatasetInterface
 
 
-class ToyDatasetInterface(
-    pyd.BaseModel, extra="forbid"
-):
+class ToyDatasetInterface(pyd.BaseModel, extra="forbid"):
     """Toy dataset creation options."""
 
     length: pyd.PositiveInt = pyd.Field(
@@ -761,7 +753,6 @@ class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
         ),
     )
 
-
     @pyd.model_validator(mode="before")
     @classmethod
     def _coerce(cls, value) -> Interval:
@@ -801,7 +792,6 @@ class ExtendedInterval(Interval):
     step: t.Optional[int] = pyd.Field(
         None, description="The slice step, defaults to 1 (can be negative)."
     )
-
 
     @pyd.model_validator(mode="before")
     @classmethod
@@ -904,7 +894,6 @@ class OutputValueInterface(
             return value
 
         raise ValueError("Invalid OutputValueInterface definition.")
-
 
     @pyd.field_validator("exists_ok")
     @classmethod

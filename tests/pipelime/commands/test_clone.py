@@ -43,9 +43,11 @@ class TestClone(TestGeneralCommandsBase):
                     "folder": partial_input,
                     "skip_empty": skip_empty,
                     "schema": {
-                        "sample_schema": self.minimnist_partial_schema
-                        if ignore_extra_keys
-                        else self.minimnist_full_schema,
+                        "sample_schema": (
+                            self.minimnist_partial_schema
+                            if ignore_extra_keys
+                            else self.minimnist_full_schema
+                        ),
                         "ignore_extra_keys": ignore_extra_keys,
                         "lazy": lazy,
                     },

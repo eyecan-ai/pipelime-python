@@ -26,9 +26,7 @@ class NewPath(Path):
     def __get_pydantic_core_schema__(
         cls, source_type: t.Any, handler: GetCoreSchemaHandler
     ) -> core_schema.CoreSchema:
-        return core_schema.no_info_after_validator_function(
-            cls.validate, handler(Path)
-        )
+        return core_schema.no_info_after_validator_function(cls.validate, handler(Path))
 
     @classmethod
     def __get_pydantic_json_schema__(
@@ -154,9 +152,7 @@ class NumpyType(pyd.RootModel[t.Any]):
             return value
         try:
             return (
-                np.array(**value)
-                if isinstance(value, t.Mapping)
-                else np.array(value)
+                np.array(**value) if isinstance(value, t.Mapping) else np.array(value)
             )
         except Exception as e:
             raise ValueError(f"Invalid numpy input: {value}") from e

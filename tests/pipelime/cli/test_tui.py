@@ -242,7 +242,11 @@ def test_init_tui_field() -> None:
             simple=True,
             name="grabber",
             description=str(fields[3].description),
-            hint=str(FooCommand.model_fields["grabber"].get_default(call_default_factory=True)),
+            hint=str(
+                FooCommand.model_fields["grabber"].get_default(
+                    call_default_factory=True
+                )
+            ),
             type_="GrabberInterface",
         ),
         TuiField(
@@ -293,7 +297,9 @@ def test_init_tui_stageinput_field() -> None:
         name="format-key",
         description=str(stage_cls.__doc__),
         values=[
-            init_tui_field("key_format", stage_cls.model_fields["key_format"], stage_args),
+            init_tui_field(
+                "key_format", stage_cls.model_fields["key_format"], stage_args
+            ),
             init_tui_field("apply_to", stage_cls.model_fields["apply_to"], stage_args),
         ],
     )
@@ -306,7 +312,9 @@ def test_init_tui_stageinput_field() -> None:
         name="format-key",
         description=str(stage_cls.__doc__),
         values=[
-            init_tui_field("key_format", stage_cls.model_fields["key_format"], stage_args),
+            init_tui_field(
+                "key_format", stage_cls.model_fields["key_format"], stage_args
+            ),
             init_tui_field("apply_to", stage_cls.model_fields["apply_to"], stage_args),
         ],
     )
@@ -388,9 +396,7 @@ def test_tui_init_fields() -> None:
                 TuiField(
                     simple=True,
                     name="remap",
-                    description=str(
-                        StageRemap.model_fields["remap"].description
-                    ),
+                    description=str(StageRemap.model_fields["remap"].description),
                     type_="Mapping[str, str]",
                     value="",
                 ),
@@ -423,7 +429,11 @@ def test_tui_init_fields() -> None:
             simple=True,
             name="grabber",
             description=str(MapCommand.model_fields["grabber"].description),
-            hint=str(MapCommand.model_fields["grabber"].get_default(call_default_factory=True)),
+            hint=str(
+                MapCommand.model_fields["grabber"].get_default(
+                    call_default_factory=True
+                )
+            ),
             type_="GrabberInterface",
         ),
     }

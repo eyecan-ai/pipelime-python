@@ -47,7 +47,9 @@ class TestInterface:
             m = model_cls.model_validate(opt_dict)
             value_check_fn(m, False)
         try:
-            m = model_cls.model_validate({k: getattr(m, k) for k in model_cls.model_fields})
+            m = model_cls.model_validate(
+                {k: getattr(m, k) for k in model_cls.model_fields}
+            )
             value_check_fn(m, False)
             assert not should_fail
         except NameError:

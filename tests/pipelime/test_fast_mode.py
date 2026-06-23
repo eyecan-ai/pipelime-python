@@ -14,6 +14,7 @@ import importlib
 def test_fast_params_collapses(monkeypatch):
     monkeypatch.setenv("PIPELIME_TEST_FAST", "1")
     import tests._fast as f
+
     importlib.reload(f)
     assert f.fast_params([0, 2]) == [0]
     assert f.fast_params([2, 4], fast=[2]) == [2]
@@ -22,6 +23,7 @@ def test_fast_params_collapses(monkeypatch):
 def test_fast_params_full_when_not_fast(monkeypatch):
     monkeypatch.delenv("PIPELIME_TEST_FAST", raising=False)
     import tests._fast as f
+
     importlib.reload(f)
     assert f.fast_params([0, 2]) == [0, 2]
     assert f.fast_params([2, 4], fast=[2]) == [2, 4]

@@ -113,9 +113,7 @@ def print_model_field_values(
         rprint(f"\n{icon if icon else '***'} {k}:")
         # Ports might be virtual, as in ShellCommand, so they might not be in the model
         if k in model_fields and model_fields[k].description:
-            rprint(
-                f"[italic grey50]{escape(model_fields[k].description)}[/]"
-            )
+            rprint(f"[italic grey50]{escape(model_fields[k].description)}[/]")
         rprint(
             "[green]"
             + escape(str(v) if isinstance(v, (bytes, str)) else repr(v))
@@ -267,9 +265,7 @@ def _field_row(
     if show_piper_port:
         from pipelime.piper import PiperPortType
 
-        fport = str(
-            json_extra.get("piper_port", PiperPortType.PARAMETER).value
-        ).upper()
+        fport = str(json_extra.get("piper_port", PiperPortType.PARAMETER).value).upper()
 
         if fport == PiperPortType.INPUT.value.upper():
             fport = f"{_input_icon()} [yellow]{fport}[/]"
@@ -338,7 +334,7 @@ def _field_row(
             for arg in inner_types:
                 grid.add_row(
                     (" " * indent)
-                    + f"[grey50]{_short_line()} {arg.__name__}[/]"  # type:ignore
+                    + f"[grey50]{_short_line()} {arg.__name__}[/]"  # type: ignore
                 )
                 _iterate_model_fields(
                     model_cls=arg,

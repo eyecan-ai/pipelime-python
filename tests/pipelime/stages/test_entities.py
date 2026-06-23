@@ -195,7 +195,9 @@ class TestEntities:
 
     @pytest.mark.parametrize("input_cls", [MyInput0, MyInput1, MyInput2])
     def test_inputs(self, input_cls):
-        self._make_test(my_action0, input_cls, input_cls.model_config.get("extra"), False)
+        self._make_test(
+            my_action0, input_cls, input_cls.model_config.get("extra"), False
+        )
 
     @pytest.mark.parametrize(
         ("action_fn", "extra", "no_input"),
@@ -226,7 +228,8 @@ class TestEntities:
         )
         self._make_stage_test(se, "allow", False)
 
-        se = TypeAdapter(StageEntity).validate_python((
+        se = TypeAdapter(StageEntity).validate_python(
+            (
                 action_fn
                 if input_cls is None
                 else {"action": action_fn, "input_type": input_cls}
@@ -245,7 +248,9 @@ class TestEntities:
             )
 
     def test_parsed_action(self):
-        self._make_test(my_parsed_action0, MyInput0, MyInput0.model_config.get("extra"), False)
+        self._make_test(
+            my_parsed_action0, MyInput0, MyInput0.model_config.get("extra"), False
+        )
 
         self._make_test(
             my_parsed_action1, MyInput0, MyInput0.model_config.get("extra"), False, True

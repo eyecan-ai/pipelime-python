@@ -96,9 +96,7 @@ class TestAugmentationStages:
         from pipelime.stages.augmentations import Transformation
 
         dict_tr = self._transformation_dict()
-        self._stage_albumentations_test(
-            augmentations_folder, Transformation(dict_tr)
-        )
+        self._stage_albumentations_test(augmentations_folder, Transformation(dict_tr))
 
     def test_albumentation_object(self, augmentations_folder: Path):
         tr = self._albumentations_transform()
