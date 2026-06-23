@@ -69,7 +69,7 @@ class SamplesSequenceBase(t.Sequence[Sample]):
         return len(str(len(self) - 1))
 
 
-class SamplesSequence(SamplesSequenceBase, pyd.BaseModel, extra="forbid"):
+class SamplesSequence(pyd.BaseModel, SamplesSequenceBase, extra="forbid"):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`.
 

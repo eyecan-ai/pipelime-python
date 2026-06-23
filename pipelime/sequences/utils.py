@@ -98,8 +98,8 @@ def build_pipe(
 
 
 class DataStream(
-    t.Sequence[Sample],
     BaseModel,
+    t.Sequence[Sample],
     extra="forbid",
 ):
     """A stream of samples, comprising an input sequence to the data and an output
