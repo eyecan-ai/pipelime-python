@@ -10,7 +10,7 @@ class TestStageTiming(TestGeneralCommandsBase):
     @pytest.mark.parametrize("max_samples", [1, 10, None])
     @pytest.mark.parametrize("repeat", [1, 3])
     @pytest.mark.parametrize("process_timer", [True, False])
-    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("nproc", fast_params([0, 2]))
     @pytest.mark.parametrize("prefetch", fast_params([2, 8]))
     def test_stage_timing(
         self,

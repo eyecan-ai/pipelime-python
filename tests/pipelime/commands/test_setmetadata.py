@@ -7,7 +7,7 @@ from .test_general_base import TestGeneralCommandsBase
 
 
 class TestSetMetadata(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("nproc", fast_params([0, 2]))
     @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     def test_set_meta(self, minimnist_dataset, nproc, prefetch, tmp_path):
         from pipelime.commands import SetMetadataCommand

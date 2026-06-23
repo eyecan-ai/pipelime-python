@@ -125,7 +125,7 @@ class TestSplit(TestGeneralCommandsBase):
         ],
     )
     @pytest.mark.parametrize("subsample", [1, 2])
-    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("nproc", fast_params([0, 2]))
     @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     def test_split(
         self, minimnist_dataset, shuffle, subsample, splits, nproc, prefetch, tmp_path
@@ -177,7 +177,7 @@ class TestSplit(TestGeneralCommandsBase):
 
     @pytest.mark.parametrize("output_selected", [None, "out_selected"])
     @pytest.mark.parametrize("output_discarded", [None, "out_discarded"])
-    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("nproc", fast_params([0, 2]))
     @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     def test_split_query(
         self,
@@ -218,7 +218,7 @@ class TestSplit(TestGeneralCommandsBase):
             TestAssert.sequences_equal(inseq[12:], outseq_discarded)
 
     @pytest.mark.parametrize(("key", "nsplits"), [("label", 10), ("values.data", 4)])
-    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("nproc", fast_params([0, 2]))
     @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     def test_split_value(
         self,

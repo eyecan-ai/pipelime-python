@@ -7,7 +7,7 @@ from .test_general_base import TestGeneralCommandsBase
 
 
 class TestConcat(TestGeneralCommandsBase):
-    @pytest.mark.parametrize("nproc", fast_params([0, 2], fast=[2]))
+    @pytest.mark.parametrize("nproc", fast_params([0, 2]))
     @pytest.mark.parametrize("prefetch", fast_params([2, 4]))
     @pytest.mark.parametrize("interleave", [False, True])
     def test_concat(self, minimnist_dataset, nproc, prefetch, interleave, tmp_path):

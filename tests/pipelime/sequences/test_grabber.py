@@ -6,6 +6,7 @@ import pytest
 
 import pipelime.items as pli
 import pipelime.sequences as pls
+from tests._fast import fast_params
 from pipelime.sequences import Sample
 from pipelime.stages import SampleStage
 
@@ -89,13 +90,16 @@ class TestGrabber:
 
     @pytest.mark.parametrize(
         ["num_workers", "keep_order", "prefetch"],
-        [
-            (0, False, 2),
-            (1, False, 2),
-            (4, False, 4),
-            (4, True, 4),
-            (-1, False, 20),
-        ],
+        fast_params(
+            [
+                (0, False, 2),
+                (1, False, 2),
+                (4, False, 4),
+                (4, True, 4),
+                (-1, False, 20),
+            ],
+            fast=[(0, False, 2)],
+        ),
     )
     def test_grabber(
         self,
@@ -145,6 +149,7 @@ class TestGrabber:
         )
         assert counter == sum(range(total_count))
 
+    @pytest.mark.slow
     def test_grabber_nested_mp(self, minimnist_dataset: dict, tmp_path: Path):
         source = pls.SamplesSequence.from_underfolder(
             folder=minimnist_dataset["path"], merge_root_items=True
