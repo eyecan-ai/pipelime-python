@@ -3,7 +3,7 @@ import typing as t
 from pathlib import Path
 
 from loguru import logger
-from pydantic.v1 import Field, PrivateAttr, validator
+from pydantic import Field, PrivateAttr, field_validator
 
 from pipelime.sequences import Sample, SamplesSequence, source_sequence
 
@@ -21,7 +21,9 @@ class UnderfolderReader(SamplesSequence, title="from_underfolder"):
         ),
     )
     must_exist: bool = Field(
-        True, description="If True raises an error when `folder` does not exist."
+        True,
+        validate_default=True,
+        description="If True raises an error when `folder` does not exist.",
     )
     watch: bool = Field(
         False,
@@ -35,10 +37,11 @@ class UnderfolderReader(SamplesSequence, title="from_underfolder"):
     )
     _root_sample: t.Optional[t.Union[Sample, t.Dict[str, str]]] = PrivateAttr(None)
 
-    @validator("must_exist", always=True)
-    def check_folder_exists(cls, v, values):
+    @field_validator("must_exist")
+    @classmethod
+    def check_folder_exists(cls, v, info):
         if v:
-            root_folder = values["folder"]
+            root_folder = info.data["folder"]
             if not root_folder.exists() or not root_folder.is_dir():
                 raise ValueError(f"Root folder {root_folder} does not exist.")
 
@@ -164,7 +167,9 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
         ..., description="The root folder in which to scan for images."
     )
     must_exist: bool = Field(
-        True, description="If True raises an error when `folder` does not exist."
+        True,
+        validate_default=True,
+        description="If True raises an error when `folder` does not exist.",
     )
     image_key: str = Field("image", description="The key of the image item.")
     sort_files: bool = Field(
@@ -174,9 +179,10 @@ class SequenceFromImageFolders(SamplesSequence, title="from_images"):
 
     _samples: t.List[t.Union[str, Sample]] = PrivateAttr(default_factory=list)
 
-    @validator("must_exist", always=True)
-    def check_folder_exists(cls, v, values):
-        p = values["folder"]
+    @field_validator("must_exist")
+    @classmethod
+    def check_folder_exists(cls, v, info):
+        p = info.data["folder"]
         if v and not p.exists():
             raise ValueError(f"Root folder {p} does not exist.")
         return v
@@ -234,16 +240,19 @@ class SamplesFromVideo(SamplesSequence, title="from_video"):
 
     video: Path = Field(..., description="The video file.")
     must_exist: bool = Field(
-        True, description="If True raises an error when `video` does not exist."
+        True,
+        validate_default=True,
+        description="If True raises an error when `video` does not exist.",
     )
     image_key: str = Field("image", description="The image key")
 
     _iio = PrivateAttr(None)
     _nframes: int = PrivateAttr(0)
 
-    @validator("must_exist", always=True)
-    def check_video_exists(cls, v, values):
-        p = values["video"]
+    @field_validator("must_exist")
+    @classmethod
+    def check_video_exists(cls, v, info):
+        p = info.data["video"]
         if v and not p.exists():
             raise ValueError(f"Video file {p} does not exist.")
         return v

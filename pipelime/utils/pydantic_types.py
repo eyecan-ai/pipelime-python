@@ -563,6 +563,15 @@ class CallableDef(pyd.RootModel[t.Callable]):
             CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
         ],
     ):
+        return cls._to_callable(value)
+
+    @classmethod
+    def _to_callable(
+        cls,
+        value: t.Union[
+            CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
+        ],
+    ):
         if isinstance(value, cls):
             return value.root
         try:

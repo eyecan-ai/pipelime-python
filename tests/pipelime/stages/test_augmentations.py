@@ -97,7 +97,7 @@ class TestAugmentationStages:
 
         dict_tr = self._transformation_dict()
         self._stage_albumentations_test(
-            augmentations_folder, Transformation(__root__=dict_tr)
+            augmentations_folder, Transformation(dict_tr)
         )
 
     def test_albumentation_object(self, augmentations_folder: Path):

@@ -1,7 +1,8 @@
 import inspect
 import typing as t
 
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel, RootModel
+from pydantic_core import PydanticUndefined
 from rich import box, get_console
 from rich import print as rprint
 from rich.markup import escape
@@ -92,8 +93,8 @@ def show_spinning_status(text: str):
 
 
 def get_model_title(model_cls: t.Type[BaseModel]) -> str:
-    if model_cls.__config__.title:
-        return model_cls.__config__.title
+    if model_cls.model_config.get("title"):
+        return model_cls.model_config.get("title")
     return model_cls.__name__
 
 
@@ -111,9 +112,9 @@ def print_model_field_values(
     for k, v in port_values.items():
         rprint(f"\n{icon if icon else '***'} {k}:")
         # Ports might be virtual, as in ShellCommand, so they might not be in the model
-        if k in model_fields and model_fields[k].field_info.description:
+        if k in model_fields and model_fields[k].description:
             rprint(
-                f"[italic grey50]{escape(model_fields[k].field_info.description)}[/]"
+                f"[italic grey50]{escape(model_fields[k].description)}[/]"
             )
         rprint(
             "[green]"
@@ -123,11 +124,15 @@ def print_model_field_values(
 
 
 def print_command_inputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821
-    print_model_field_values(command.__fields__, command.get_inputs(), _input_icon())
+    print_model_field_values(
+        type(command).model_fields, command.get_inputs(), _input_icon()
+    )
 
 
 def print_command_outputs(command: "PipelimeCommand"):  # type: ignore # noqa: E602,F821
-    print_model_field_values(command.__fields__, command.get_outputs(), _output_icon())
+    print_model_field_values(
+        type(command).model_fields, command.get_outputs(), _output_icon()
+    )
 
 
 def print_actions_short_help(*actions_info: "ActionInfo", show_class_path: bool = True):
@@ -216,8 +221,18 @@ def print_model_info(
     rprint(grid)
 
 
+def _outer_type(ann):
+    """Strip Optional/Union[..., None] and return the underlying type (v1 outer_type_)."""
+    if t.get_origin(ann) is t.Union:
+        args = [a for a in t.get_args(ann) if a is not type(None)]
+        if len(args) == 1:
+            return args[0]
+    return ann
+
+
 def _field_row(
     grid: Table,
+    name: str,
     field,
     indent: int,
     indent_offs: int,
@@ -227,35 +242,33 @@ def _field_row(
 ):
     from enum import Enum
 
-    expand_help = field.field_info.extra.get("expand_help", False)
+    json_extra = field.json_schema_extra or {}
+    expand_help = json_extra.get("expand_help", False)
 
-    is_model = _is_model(field.outer_type_) and not inspect.isabstract(
-        field.outer_type_
-    )
+    field_core = _outer_type(field.annotation)
+    is_model = _is_model(field_core) and not inspect.isabstract(field_core)
 
     if show_description:
         # NB: docs should not come from the inner __root__ type
-        if field.field_info.description:
-            field_docs = field.field_info.description
-        elif hasattr(field.outer_type_, "__doc__") and field.outer_type_.__doc__:
-            field_docs = str(inspect.getdoc(field.outer_type_))
+        if field.description:
+            field_docs = field.description
+        elif hasattr(field_core, "__doc__") and field_core.__doc__:
+            field_docs = str(inspect.getdoc(field_core))
         else:
             field_docs = ""
 
         # field_docs = " ".join(field_docs.split())
 
-    has_root_item = ("__root__" in field.outer_type_.__fields__) if is_model else False
+    has_root_item = is_model and issubclass(field_core, RootModel)
     field_outer_type = (
-        field.outer_type_.__fields__["__root__"].outer_type_
-        if has_root_item
-        else field.outer_type_
+        field_core.model_fields["root"].annotation if has_root_item else field_core
     )
 
     if show_piper_port:
         from pipelime.piper import PiperPortType
 
         fport = str(
-            field.field_info.extra.get("piper_port", PiperPortType.PARAMETER).value
+            json_extra.get("piper_port", PiperPortType.PARAMETER).value
         ).upper()
 
         if fport == PiperPortType.INPUT.value.upper():
@@ -266,15 +279,12 @@ def _field_row(
             fport = f"{_parameter_icon()} {fport}"
 
     # Field name & alias
+    has_alias = field.alias is not None and field.alias != name
     line = [
         (" " * indent)
         + ("[bold dark_orange]" if indent == 0 else "")
-        + (
-            f"{escape(field.name)} / "
-            if field.model_config.allow_population_by_field_name and field.has_alias
-            else ""
-        )
-        + f"{escape(field.alias)}"
+        + (f"{escape(name)} / " if has_alias else "")
+        + f"{escape(field.alias or name)}"
         + ("[/]" if indent == 0 else "")
     ]
 
@@ -294,10 +304,12 @@ def _field_row(
         line.append(fport)  # type: ignore
 
     # Default value
-    field_default = field.get_default()
+    field_default = field.get_default(call_default_factory=True)
+    if field_default is PydanticUndefined:
+        field_default = None
     if isinstance(field_default, Enum):
         field_default = field_default.value
-    line.append("[red]✗[/]" if field.required else f"[green]{field_default}[/]")
+    line.append("[red]✗[/]" if field.is_required() else f"[green]{field_default}[/]")
 
     grid.add_row(*line)
 
@@ -381,11 +393,14 @@ def _get_signature(model_cls: t.Type[BaseModel]) -> str:
 
             return f"\n  {formatted}"
 
-    fullname = {mfield.alias: mfield.name for mfield in model_cls.__fields__.values()}
+    fullname = {
+        (mfield.alias or mname): mname
+        for mname, mfield in model_cls.model_fields.items()
+    }
     excluded = [
-        mfield.alias
-        for mfield in model_cls.__fields__.values()
-        if mfield.field_info.exclude
+        (mfield.alias or mname)
+        for mname, mfield in model_cls.model_fields.items()
+        if mfield.exclude
     ]
 
     sig = inspect.signature(model_cls)
@@ -419,22 +434,18 @@ def _is_model(type_):
 
 
 def _human_readable_type(field_outer_type):
+    import types as _types
     from enum import Enum
+    from typing import get_args, get_origin
 
-    from pydantic.v1.typing import (
-        WithArgsTypes,
-        get_args,
-        get_origin,
-        is_union,
-        typing_base,  # noqa: F401  # type: ignore
-    )
+    def is_union(o):
+        if o is t.Union:
+            return True
+        union_type = getattr(_types, "UnionType", None)
+        return union_type is not None and o is union_type
 
     v = field_outer_type
-    if (
-        not isinstance(v, typing_base)
-        and not isinstance(v, WithArgsTypes)
-        and not isinstance(v, type)
-    ):
+    if not (isinstance(v, type) or get_origin(v) is not None or v is None):
         v = v.__class__
 
     v_orig = get_origin(v)
@@ -451,7 +462,7 @@ def _human_readable_type(field_outer_type):
 
     if inspect.isclass(v) and issubclass(v, Enum):
         v = v.__name__ + "{" + ", ".join(e.name.lower() for e in v) + "}"
-    elif isinstance(v, WithArgsTypes):
+    elif get_origin(v) is not None:
         # Generic alias are constructs like `list[int]`
         v = str(v).replace("typing.", "")
     else:
@@ -497,11 +508,12 @@ def _iterate_model_fields(
     add_blank_row,
 ):
     no_data = True
-    for field in model_cls.__fields__.values():  # type: ignore
-        if not field.field_info.exclude:
+    for name, field in model_cls.model_fields.items():  # type: ignore
+        if not field.exclude:
             no_data = False
             _field_row(
                 grid,
+                name,
                 field,
                 indent=indent,
                 indent_offs=indent_offs,

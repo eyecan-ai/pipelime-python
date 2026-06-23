@@ -5,7 +5,7 @@ import multiprocessing.pool as mp_pool
 import typing as t
 from enum import Enum, auto
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.sequences as pls
 
@@ -19,7 +19,7 @@ class ReturnType(Enum):
     SAMPLE_AND_INDEX = auto()
 
 
-class Grabber(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class Grabber(pyd.BaseModel, extra="forbid"):
     num_workers: int = pyd.Field(
         0,
         description=(

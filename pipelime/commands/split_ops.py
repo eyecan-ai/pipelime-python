@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.piper import PipelimeCommand, PiperPortType
@@ -9,9 +9,8 @@ from pipelime.piper import PipelimeCommand, PiperPortType
 class SplitBase(
     pl_interfaces.PydanticFieldNoDefaultMixin,
     pyd.BaseModel,
-    allow_population_by_field_name=True,
+    populate_by_name=True,
     extra="forbid",
-    copy_on_model_validation="none",
 ):
     output: t.Optional[pl_interfaces.OutputDatasetInterface] = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
@@ -47,12 +46,10 @@ class PercSplit(SplitBase):
     def split_size(self, n_samples: int) -> t.Optional[int]:
         return int(n_samples * self.fraction) if self.fraction is not None else None
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def validate(cls, value):
+    def _coerce(cls, value):
         if isinstance(value, PercSplit):
             return value
         if isinstance(value, (str, bytes, float)):
@@ -74,7 +71,7 @@ class PercSplit(SplitBase):
                     )
             value = data
         if isinstance(value, t.Mapping):
-            return PercSplit(**value)
+            return value
         raise ValueError("Invalid perc split definition.")
 
 
@@ -95,12 +92,10 @@ class AbsoluteSplit(SplitBase):
     def split_size(self, *args, **kwargs) -> t.Optional[int]:
         return self.length
 
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def validate(cls, value):
+    def _coerce(cls, value):
         if isinstance(value, AbsoluteSplit):
             return value
         if isinstance(value, (str, bytes, int)):
@@ -123,7 +118,7 @@ class AbsoluteSplit(SplitBase):
                     )
             value = data
         if isinstance(value, t.Mapping):
-            return AbsoluteSplit(**value)
+            return value
         raise ValueError("Invalid absolute split definition.")
 
 

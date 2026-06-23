@@ -1,5 +1,5 @@
 import pytest
-from pydantic.v1 import parse_obj_as
+from pydantic import TypeAdapter
 
 from pipelime.sequences import Sample, SamplesSequence
 from pipelime.stages import StageItemInfo
@@ -22,8 +22,7 @@ class TestItemInfo:
         source.run()
 
         expected_info = {
-            k: parse_obj_as(
-                ItemInfo,
+            k: TypeAdapter(ItemInfo).validate_python(
                 {
                     "item_type": self._str2item(v),
                     "is_shared": (k in minimnist_dataset["root_keys"]),

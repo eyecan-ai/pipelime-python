@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 import pipelime.utils.pydantic_types as pl_types
@@ -211,10 +211,10 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
         stages = self.stages if isinstance(self.stages, t.Sequence) else [self.stages]
         names = []
         for st in stages:
-            stage_cls = st.__root__.__class__
+            stage_cls = st.root.__class__
             stage_name = (
-                stage_cls.__config__.title
-                if stage_cls.__config__.title
+                stage_cls.model_config.get("title")
+                if stage_cls.model_config.get("title")
                 else stage_cls.__name__
             )
             names.append(stage_name)
@@ -309,7 +309,8 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         alias="g"
     )
 
-    @pyd.validator("operations")
+    @pyd.field_validator("operations")
+    @classmethod
     def _validate_operations(cls, v: pl_types.YamlInput) -> pl_types.YamlInput:
         if not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
             raise ValueError(f"Invalid pipeline: {v.value}")
@@ -598,7 +599,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             ignore_extra_keys=False,
             lazy=(self.max_samples == 0),
             max_samples=self.max_samples,
-        ).dict(by_alias=True)
+        ).model_dump(by_alias=True)
 
         if self.root_key_path:  # pragma: no branch
             import pydash as py_
@@ -785,6 +786,7 @@ class FilterCommand(PipelimeCommand, title="filter"):
     filter_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
         None,
         alias="f",
+        validate_default=True,
         description=(
             "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
             "of a callable `(Sample) -> bool` returning True for any valid sample."
@@ -807,11 +809,12 @@ class FilterCommand(PipelimeCommand, title="filter"):
         alias="g"
     )
 
-    @pyd.validator("filter_fn", always=True)
+    @pyd.field_validator("filter_fn")
+    @classmethod
     def _check_filters(
-        cls, v: t.Optional[pl_types.CallableDef], values: t.Mapping[str, t.Any]
+        cls, v: t.Optional[pl_types.CallableDef], info: pyd.ValidationInfo
     ) -> t.Optional[pl_types.CallableDef]:
-        fquery = values.get("filter_query", None)
+        fquery = info.data.get("filter_query", None)
         if (v is None) == (fquery is None):
             raise ValueError("You should define either `filter_query` or `filter_fn`")
         return v
@@ -912,6 +915,7 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
     filter_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
         None,
         alias="f",
+        validate_default=True,
         description=(
             "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
             "of a callable returning True for any valid sample.\n"

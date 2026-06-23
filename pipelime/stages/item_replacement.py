@@ -2,7 +2,7 @@ import hashlib
 import pickle
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 # if t.TYPE_CHECKING:
 from pipelime.sequences import Sample
@@ -65,7 +65,8 @@ class StageSampleHash(SampleStage, title="sample-hash"):
 
     hash_key: str = pyd.Field("hash", description="The key to store the hash.")
 
-    @pyd.validator("algorithm")
+    @pyd.field_validator("algorithm")
+    @classmethod
     def _validate_algorithm(cls, v: str) -> str:
         algorithms_with_parameters = ["shake_128", "shake_256"]
         if v not in hashlib.algorithms_available or v in algorithms_with_parameters:
@@ -127,15 +128,13 @@ class StageShareItems(SampleStage, title="share-items"):
     )
 
     # We need to check that the keys are not present in both lists.
-    @pyd.root_validator
-    def _validate_keys(cls, values: t.Dict[str, t.Any]) -> t.Dict[str, t.Any]:
-        share = values.get("share", [])
-        unshare = values.get("unshare", [])
-        if set(share) & set(unshare):
+    @pyd.model_validator(mode="after")
+    def _validate_keys(self) -> "StageShareItems":
+        if set(self.share) & set(self.unshare):
             raise ValueError(
                 "The keys in the `share` and `unshare` lists must be disjoint."
             )
-        return values
+        return self
 
     def __call__(self, x: "Sample") -> "Sample":
         for key, item in x.items():

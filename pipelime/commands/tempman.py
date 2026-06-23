@@ -3,7 +3,7 @@ import typing as t
 from enum import Enum
 
 from loguru import logger
-from pydantic.v1 import ByteSize, Field
+from pydantic import ByteSize, Field
 
 from pipelime.piper import PipelimeCommand
 

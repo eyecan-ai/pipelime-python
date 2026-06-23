@@ -66,12 +66,12 @@ class TestBaseStages:
         )
 
     def test_stage_input(self):
-        from pydantic.v1 import BaseModel
+        from pydantic import BaseModel
 
         from pipelime.stages import StageInput, StageKeyFormat
 
         def _check_stage(stage_input):
-            assert isinstance(stage_input.__root__, StageKeyFormat)
+            assert isinstance(stage_input.root, StageKeyFormat)
             s_in = Sample({"a": UnknownItem(42), "b": UnknownItem(47)})
             s_out = stage_input(s_in)
             assert s_out.keys() == {"a", "b"}
@@ -83,25 +83,25 @@ class TestBaseStages:
 
         # diret assignment
         ref_stage = StageKeyFormat(key_format="*")
-        ref_stage_input = StageInput(__root__=ref_stage)
+        ref_stage_input = StageInput(ref_stage)
         _check_stage(ref_stage_input)
 
         # validation: another StageInput
-        stage_input = Dummy.parse_obj({"stg": ref_stage_input})
+        stage_input = Dummy.model_validate({"stg": ref_stage_input})
         _check_stage(stage_input.stg)
 
         # validation: a Stage
-        stage_input = Dummy.parse_obj({"stg": ref_stage})
+        stage_input = Dummy.model_validate({"stg": ref_stage})
         _check_stage(stage_input.stg)
 
         # validation: a Stage title
-        stage_input = Dummy.parse_obj({"stg": "format-key"})
+        stage_input = Dummy.model_validate({"stg": "format-key"})
         _check_stage(stage_input.stg)
 
         # validation: a Stage dict
-        stage_input = Dummy.parse_obj({"stg": {"format-key": {"key_format": "*"}}})
+        stage_input = Dummy.model_validate({"stg": {"format-key": {"key_format": "*"}}})
         _check_stage(stage_input.stg)
 
         with pytest.raises(ValueError):
-            Dummy.parse_obj({"stg": 42})
-            Dummy.parse_obj({"stg": "unknown-stage"})
+            Dummy.model_validate({"stg": 42})
+            Dummy.model_validate({"stg": "unknown-stage"})

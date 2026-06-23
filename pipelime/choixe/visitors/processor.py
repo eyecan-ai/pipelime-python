@@ -214,7 +214,9 @@ class Processor(ast.NodeVisitor):
         symbol_branches = node.symbol.accept(self)
         args_branches = node.args.accept(self)
         branches = self._branches(symbol_branches, args_branches)
-        return [import_symbol(s, cwd=self._cwd).parse_obj(a) for s, a in branches]
+        return [
+            import_symbol(s, cwd=self._cwd).model_validate(a) for s, a in branches
+        ]
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
         if isinstance(node.iterable.data, str):

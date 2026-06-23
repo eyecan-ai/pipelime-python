@@ -1,4 +1,4 @@
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 from pipelime.sequences import Sample, SamplesSequence
 
@@ -8,7 +8,10 @@ class PipedSequenceBase(SamplesSequence):
 
     # subclasses may override and give a proper description
     source: SamplesSequence = pyd.Field(
-        ..., description="The source sample sequence.", exclude=True, pipe_source=True
+        ...,
+        description="The source sample sequence.",
+        exclude=True,
+        json_schema_extra={"pipe_source": True},
     )
 
     def size(self) -> int:

@@ -4,7 +4,7 @@ import itertools
 import typing as t
 from abc import abstractmethod
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 from loguru import logger
 
 from pipelime.sequences.sample import Sample
@@ -70,7 +70,7 @@ class SamplesSequenceBase(t.Sequence[Sample]):
 
 
 class SamplesSequence(
-    SamplesSequenceBase, pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
+    SamplesSequenceBase, pyd.BaseModel, extra="forbid"
 ):
     """A generic sequence of samples. Subclasses should implement `size(self) -> int`
     and `get_sample(self, idx: int) -> Sample`.
@@ -110,8 +110,8 @@ class SamplesSequence(
 
     @classmethod
     def name(cls) -> str:
-        if cls.__config__.title:
-            return cls.__config__.title
+        if cls.model_config.get("title"):
+            return cls.model_config["title"]
         return cls.__name__
 
     def direct_access(self) -> "DirectAccessSequence":
@@ -286,7 +286,7 @@ class SamplesSequence(
                 if recursive:
                     # NB: do not unfold sub-pydantic models, since it may not be
                     # straightforward to de-serialize them when subclasses are used
-                    field_value = field_value.dict()
+                    field_value = field_value.model_dump()
             elif isinstance(field_value, t.Sequence):
                 field_value = [_maybe_go_deeper(x) for x in field_value]
             elif isinstance(field_value, t.Mapping):
@@ -305,10 +305,10 @@ class SamplesSequence(
 
         source_list = []
         arg_dict = {}
-        for field_name, model_field in self.__fields__.items():
+        for field_name, model_field in self.model_fields.items():
             field_value = getattr(self, field_name)
-            field_alias = model_field.alias
-            if model_field.field_info.extra.get("pipe_source", False):
+            field_alias = model_field.alias or field_name
+            if (model_field.json_schema_extra or {}).get("pipe_source", False):
                 if not isinstance(field_value, SamplesSequence):
                     raise ValueError(
                         f"{field_alias} is tagged as `pipe_source`, "
@@ -648,13 +648,13 @@ def piped_sequence(cls: t.Type[SamplesSequence]) -> t.Type[SamplesSequence]:
         logger.warning(f"Function {cls.name()} has been already registered.")
 
     prms_source_name = None
-    for mfield in cls.__fields__.values():
-        if mfield.field_info.extra.get("pipe_source", False):
+    for field_name, mfield in cls.model_fields.items():
+        if (mfield.json_schema_extra or {}).get("pipe_source", False):
             if prms_source_name is not None:
                 raise ValueError(
                     f"More than one field has `pipe_source=True` in {cls.__name__}."
                 )
-            prms_source_name = mfield.alias
+            prms_source_name = mfield.alias or field_name
     if prms_source_name is None:
         raise ValueError(
             f"{cls.__name__} is tagged as `piped`, but no field has `pipe_source=True`."

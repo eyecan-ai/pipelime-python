@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 import pytest
-from pydantic.v1 import BaseModel, ValidationError, parse_obj_as
+from pydantic import BaseModel, ValidationError, TypeAdapter
 
 import pipelime.items as pli
 from pipelime.sequences import Sample
@@ -61,8 +61,8 @@ class MyModel(BaseModel):
 
 
 class OptionalEntity(BaseEntity):
-    label: Optional[pli.NumpyItem]
-    meta: Optional[ParsedItem[pli.MetadataItem, MyModel]]
+    label: Optional[pli.NumpyItem] = None
+    meta: Optional[ParsedItem[pli.MetadataItem, MyModel]] = None
 
 
 class FooBarModel(BaseModel):
@@ -195,7 +195,7 @@ class TestEntities:
 
     @pytest.mark.parametrize("input_cls", [MyInput0, MyInput1, MyInput2])
     def test_inputs(self, input_cls):
-        self._make_test(my_action0, input_cls, input_cls.__config__.extra, False)
+        self._make_test(my_action0, input_cls, input_cls.model_config.get("extra"), False)
 
     @pytest.mark.parametrize(
         ("action_fn", "extra", "no_input"),
@@ -226,9 +226,7 @@ class TestEntities:
         )
         self._make_stage_test(se, "allow", False)
 
-        se = parse_obj_as(
-            StageEntity,
-            (
+        se = TypeAdapter(StageEntity).validate_python((
                 action_fn
                 if input_cls is None
                 else {"action": action_fn, "input_type": input_cls}
@@ -247,10 +245,10 @@ class TestEntities:
             )
 
     def test_parsed_action(self):
-        self._make_test(my_parsed_action0, MyInput0, MyInput0.__config__.extra, False)
+        self._make_test(my_parsed_action0, MyInput0, MyInput0.model_config.get("extra"), False)
 
         self._make_test(
-            my_parsed_action1, MyInput0, MyInput0.__config__.extra, False, True
+            my_parsed_action1, MyInput0, MyInput0.model_config.get("extra"), False, True
         )
 
         se = StageEntity(EntityAction(action=my_parsed_action2, input_type=MyInput0))  # type: ignore

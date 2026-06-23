@@ -9,7 +9,7 @@ from types import ModuleType
 
 import yaml
 from loguru import logger
-from pydantic.v1 import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 from rich import get_console
 from rich.prompt import Prompt
 from yaml.error import YAMLError
@@ -108,11 +108,11 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def _symbol_name(cls, symbol):
-        from pydantic.v1 import BaseModel
+        from pydantic import BaseModel
 
         return (
-            symbol.__config__.title
-            if issubclass(symbol, BaseModel) and symbol.__config__.title
+            symbol.model_config.get("title")
+            if issubclass(symbol, BaseModel) and symbol.model_config.get("title")
             else symbol.__name__
         )
 
@@ -631,7 +631,7 @@ def pl_print(
     """
     import inspect
 
-    from pydantic.v1 import BaseModel
+    from pydantic import BaseModel
     from rich import print as rprint
 
     from pipelime.cli.pretty_print import print_model_info
@@ -762,20 +762,10 @@ def time_to_str(nanosec: int) -> str:
 
 
 def show_field_alias_valerr(e: ValidationError):
-    def _replace_alias(val):
-        if isinstance(val, str):
-            for field in e.model.__fields__.values():  # type: ignore
-                if (
-                    field.model_config.allow_population_by_field_name
-                    and field.has_alias
-                    and field.alias == val
-                ):
-                    return f"{field.name} / {field.alias}"
-        return val
-
-    for err in e.errors():
-        if "loc" in err:
-            err["loc"] = tuple(_replace_alias(pos) for pos in err["loc"])
+    # NB: in pydantic v2 the originating model class is no longer attached to the
+    # ValidationError, so field aliases can no longer be expanded to
+    # "name / alias" in the error locations. Errors are shown as-is.
+    return
 
 
 def parse_user_input(s: str) -> t.Any:

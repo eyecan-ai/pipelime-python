@@ -1,6 +1,6 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 from pipelime.stages import SampleStage
 
@@ -44,7 +44,8 @@ class StageKeyFormat(SampleStage, title="format-key"):
         ),
     )
 
-    @pyd.validator("key_format")
+    @pyd.field_validator("key_format")
+    @classmethod
     def validate_key_format(cls, v):
         if "*" in v:
             return v

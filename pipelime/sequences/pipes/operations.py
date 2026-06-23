@@ -1,7 +1,7 @@
 import typing as t
 from pathlib import Path
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
@@ -26,7 +26,8 @@ class ZippedSequences(PipedSequenceBase, title="zip"):
 
     _key_formatting_stage = pyd.PrivateAttr()
 
-    @pyd.validator("key_format")
+    @pyd.field_validator("key_format")
+    @classmethod
     def validate_key_format(cls, v):
         if "*" in v:
             return v
@@ -192,7 +193,7 @@ class SortedSequence(PipedSequenceBase, title="sort"):
 
 @pls.piped_sequence
 class SlicedSequence(
-    PipedSequenceBase, title="slice", underscore_attrs_are_private=True
+    PipedSequenceBase, title="slice"
 ):
     """Extracts a slice [start_idx:end_idx:step] from the input SamplesSequence."""
 
@@ -240,7 +241,7 @@ class SlicedSequence(
 
 @pls.piped_sequence
 class IndexSelectionSequence(
-    PipedSequenceBase, title="select", underscore_attrs_are_private=True
+    PipedSequenceBase, title="select"
 ):
     """Given a list of indexes, extracts the corresponding samples from the input
     SamplesSequence. The index sequence is not automatically sorted.
@@ -287,7 +288,7 @@ class IndexSelectionSequence(
 
 @pls.piped_sequence
 class ShuffledSequence(
-    PipedSequenceBase, title="shuffle", underscore_attrs_are_private=True
+    PipedSequenceBase, title="shuffle"
 ):
     """Shuffles samples in the input SamplesSequence."""
 
@@ -309,7 +310,7 @@ class ShuffledSequence(
 
 @pls.piped_sequence
 class EnumeratedSequence(
-    PipedSequenceBase, title="enumerate", underscore_attrs_are_private=True
+    PipedSequenceBase, title="enumerate"
 ):
     """Adds a new index item to each Sample in the input SamplesSequence."""
 

@@ -4,7 +4,7 @@ import inspect
 import typing as t
 from abc import ABC, abstractmethod
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.utils.pydantic_types as pl_types
 
@@ -16,8 +16,7 @@ class SampleStage(
     pyd.BaseModel,
     ABC,
     extra="forbid",
-    copy_on_model_validation="none",
-    allow_population_by_field_name=True,
+    populate_by_name=True,
 ):
     """Base class for all sample stages."""
 
@@ -56,44 +55,44 @@ class StageLambda(SampleStage, title="lambda"):
         return self.func(x)
 
 
-class StageInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class StageInput(pyd.RootModel[SampleStage]):
     """A stage is SampleStage object, `<name>` or `<name>: <args>` mapping,
     where `<name>` is `compose`, `remap`, `albumentations` etc,
     while `<args>` is a mapping of its arguments."""
 
-    __root__: SampleStage
-
     def __call__(self, x: "Sample") -> "Sample":
-        return self.__root__(x)
+        return self.root(x)
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
+    def _coerce(cls, value):
         from pipelime.cli.utils import create_stage_from_config
 
         if isinstance(value, StageInput):
-            return value
+            return value.root
         if isinstance(value, SampleStage):
-            return StageInput(__root__=value)
+            return value
         if isinstance(value, (str, bytes)):
-            return StageInput(__root__=create_stage_from_config(str(value), None))
+            return create_stage_from_config(str(value), None)
         if isinstance(value, t.Mapping):
-            return StageInput(
-                __root__=create_stage_from_config(*next(iter(value.items())))
-            )
+            return create_stage_from_config(*next(iter(value.items())))
         raise ValueError(f"Invalid stage definition: {value}")
 
-    def dict(self, *args, **kwargs) -> t.Mapping:
-        return {self.__root__.__config__.title: self.__root__.dict(*args, **kwargs)}
+    @pyd.model_serializer(mode="plain")
+    def _serialize(self, info: pyd.SerializationInfo) -> t.Mapping:
+        return {
+            self.root.model_config.get("title"): self.root.model_dump(
+                by_alias=bool(info.by_alias),
+                exclude_none=bool(info.exclude_none),
+                exclude_defaults=bool(info.exclude_defaults),
+            )
+        }
 
 
 class StageCompose(SampleStage, title="compose"):
@@ -154,7 +153,7 @@ class StageTimer(SampleStage, title="timer"):
     def __call__(self, x: "Sample") -> "Sample":
         import time
 
-        stg = self.stage.__root__
+        stg = self.stage.root
 
         if self._skipped < self.skip_first:
             self._skipped += 1
@@ -166,10 +165,10 @@ class StageTimer(SampleStage, title="timer"):
         x = stg(x)
         end_time = clock_fn()
 
-        stage_cls = self.stage.__root__.__class__
+        stage_cls = self.stage.root.__class__
         stage_name = (
-            stage_cls.__config__.title
-            if stage_cls.__config__.title
+            stage_cls.model_config.get("title")
+            if stage_cls.model_config.get("title")
             else stage_cls.__name__
         )
 

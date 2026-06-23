@@ -14,7 +14,7 @@ class ChoixeDAGParser(DAGParser):
         cfg = cfg.process(context)
         assert cfg.inspect().processed, "The configuration is still not processed"
 
-        return DAGModel.parse_obj(cfg.to_dict())
+        return DAGModel.model_validate(cfg.to_dict())
 
     def _read_file(
         self, path: Path, additional_args: Optional[Mapping] = None

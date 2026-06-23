@@ -1,7 +1,7 @@
 import typing as t
 from pathlib import Path
 
-from pydantic.v1 import DirectoryPath, Field, ValidationError, conint, validator
+from pydantic import DirectoryPath, Field, ValidationError, conint, field_validator
 
 from pipelime.cli.utils import PipelimeUserAppDir
 from pipelime.piper import PipelimeCommand
@@ -19,6 +19,7 @@ class ResumeCommand(
     ] = Field(
         None,
         alias="c",
+        validate_default=True,
         description=(
             "The checkpoint folder, or the nth-last default checkpoint "
             f"(up to {PipelimeUserAppDir.MAX_CHECKPOINTS}). "
@@ -26,7 +27,8 @@ class ResumeCommand(
         ),
     )
 
-    @validator("ckpt", always=True)
+    @field_validator("ckpt", mode="before")
+    @classmethod
     def _validate_ckpt(cls, v):
         if v is None:
             return PipelimeUserAppDir.last_checkpoint_path()
@@ -40,12 +42,12 @@ class ResumeCommand(
 
         ckpt = LocalCheckpoint(folder=self.ckpt)
         try:
-            cli_opts = cli.PlCliOptions.parse_obj(
+            cli_opts = cli.PlCliOptions.model_validate(
                 ckpt.read_data(cli.PlCliOptions._namespace, "", None)
             )
 
             flattened_extra = {}
-            for k, v in self.dict(exclude={"ckpt"}).items():
+            for k, v in self.model_dump(exclude={"ckpt"}).items():
                 self._flatten_values(v, k, flattened_extra)
             cli_opts.command_args.extend(
                 x for k, v in flattened_extra.items() for x in [f"+{k}", v]

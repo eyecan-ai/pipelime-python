@@ -3,8 +3,8 @@ from pathlib import Path
 
 import albumentations as A
 import numpy as np
-import pydantic.v1 as pyd
-from pydantic.v1.color import Color
+import pydantic as pyd
+from pydantic_extra_types.color import Color
 
 from pipelime.stages import SampleStage
 
@@ -12,46 +12,43 @@ if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class Transformation(pyd.RootModel[t.Dict[str, t.Any]]):
     """The albumentations transformation defined as python object,
     serialized dict or yaml/json file.
     """
 
-    __root__: t.Dict[str, t.Any]
     _value: t.Union[A.BaseCompose, A.BasicTransform] = pyd.PrivateAttr(None)
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._value = A.from_dict(self.__root__)  # type: ignore
 
     @property
     def value(self):
         return self._value
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
+    @pyd.model_validator(mode="before")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
+    def _coerce(cls, value):
         if isinstance(value, Transformation):
-            return value
+            return value.root
         if isinstance(value, (A.BaseCompose, A.BasicTransform)):
-            return Transformation(__root__=A.to_dict(value))
+            return A.to_dict(value)
         if isinstance(value, (str, Path)):
             import yaml
 
             with open(str(value)) as f:
                 value = yaml.safe_load(f)
         if isinstance(value, t.Mapping):
-            return Transformation(__root__=value)
+            return value
         raise ValueError(f"{value} is not a valid transformation")
+
+    @pyd.model_validator(mode="after")
+    def _build_value(self) -> "Transformation":
+        self._value = A.from_dict(self.root)  # type: ignore
+        return self
 
 
 class StageAlbumentations(SampleStage, title="albumentations"):
@@ -80,7 +77,8 @@ class StageAlbumentations(SampleStage, title="albumentations"):
 
     _target_to_keys: t.Dict[str, str] = pyd.PrivateAttr(default_factory=dict)
 
-    @pyd.validator("output_key_format")
+    @pyd.field_validator("output_key_format")
+    @classmethod
     def validate_output_key_format(cls, v):
         if "*" in v:
             return v

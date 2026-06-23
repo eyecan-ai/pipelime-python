@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing as t
 from pathlib import Path
 
-from pydantic.v1 import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr
 
 from pipelime.sequences import Sample, SamplesSequence
 
@@ -101,8 +101,6 @@ class DataStream(
     t.Sequence[Sample],
     BaseModel,
     extra="forbid",
-    copy_on_model_validation="none",
-    underscore_attrs_are_private=True,
 ):
     """A stream of samples, comprising an input sequence to the data and an output
     pipe to further process the samples when ready.

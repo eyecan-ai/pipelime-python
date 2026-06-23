@@ -1,8 +1,9 @@
 from enum import Enum
 from typing import List, Mapping, Tuple, Type, cast
 
-from pydantic.v1 import BaseModel
-from pydantic.v1.fields import ModelField
+from pydantic import BaseModel
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
 
 from pipelime.cli.utils import PipelimeSymbolsHelper
 from pipelime.piper import PipelimeCommand
@@ -31,17 +32,16 @@ def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
     Returns:
         True if the TUI is needed, False otherwise.
     """
-    for field in cmd_cls.__fields__.values():
-        name = field.name
-        alias = field.alias
-        required = field.required
+    for name, field in cmd_cls.model_fields.items():
+        alias = field.alias or name
+        required = field.is_required()
 
         if (name not in cmd_args) and (alias not in cmd_args) and required:
             # if required and not present, return True
             return True
 
         # if present, check if it's a StageInput
-        if field.type_ == StageInput:
+        if field.annotation == StageInput:
             if name in cmd_args:
                 stage_input_args = cmd_args.get(name)
             else:
@@ -81,10 +81,9 @@ def are_stageinput_args_present(
     Returns:
         True if the StageInput required args are present, False otherwise.
     """
-    for field in stage_cls.__fields__.values():
-        name = field.name
-        alias = field.alias
-        required = field.required
+    for name, field in stage_cls.model_fields.items():
+        alias = field.alias or name
+        required = field.is_required()
 
         if (name not in stage_args) and (alias not in stage_args) and required:
             # if required and not present, return True
@@ -93,27 +92,29 @@ def are_stageinput_args_present(
     return True
 
 
-def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
+def init_tui_field(name: str, field: FieldInfo, args: Mapping) -> TuiField:
     """Initialize a TuiField.
 
     Args:
-        field: The field from the parent pydantic model.
+        name: The field name (the `model_fields` key).
+        field: The field info from the parent pydantic model.
         args: The args provided by the user (if any).
 
     Returns:
         The initialized TuiField.
     """
+    alias = field.alias or name
     default = ""
     hint = ""
 
-    if field.name in args:
-        default = str(args[field.name])
-    elif field.alias in args:
-        default = str(args[field.alias])
+    if name in args:
+        default = str(args[name])
+    elif alias in args:
+        default = str(args[alias])
     else:
-        field_default = field.get_default()
+        field_default = field.get_default(call_default_factory=True)
 
-        if field_default is not None:
+        if field_default is not None and field_default is not PydanticUndefined:
             if isinstance(field_default, BaseModel):
                 hint = str(field_default)
             else:
@@ -123,8 +124,8 @@ def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
 
     tui_field = TuiField(
         simple=True,
-        name=field.name,
-        description=str(field.field_info.description),
+        name=name,
+        description=str(field.description),
         hint=hint,
         type_=get_field_type(field),
         value=default,
@@ -132,29 +133,33 @@ def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
     return tui_field
 
 
-def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
+def init_stageinput_tui_field(
+    name: str, field: FieldInfo, cmd_args: Mapping
+) -> TuiField:
     """Initialize a TuiField for a StageInput.
 
     Args:
-        field: The field from the parent pydantic model.
+        name: The field name (the `model_fields` key).
+        field: The field info from the parent pydantic model.
         cmd_args: The args provided by the user (if any).
 
     Returns:
         The initialized TuiField.
     """
-    if (field.name not in cmd_args) and (field.alias not in cmd_args):
+    alias = field.alias or name
+    if (name not in cmd_args) and (alias not in cmd_args):
         tui_field = TuiField(
             simple=True,
-            name=field.name,
-            description=str(field.field_info.description),
+            name=name,
+            description=str(field.description),
             type_=get_field_type(field),
         )
         return tui_field
 
-    if field.name in cmd_args:
-        stage_input_args = cmd_args.get(field.name)
+    if name in cmd_args:
+        stage_input_args = cmd_args.get(name)
     else:
-        stage_input_args = cmd_args.get(field.alias)
+        stage_input_args = cmd_args.get(alias)
 
     stage_name = ""
     stage_args = {}
@@ -170,8 +175,8 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     stage_cls = stage_info[-1]
 
     tui_fields = []
-    for field in stage_cls.__fields__.values():
-        tui_fields.append(init_tui_field(field, stage_args))
+    for sub_name, sub_field in stage_cls.model_fields.items():
+        tui_fields.append(init_tui_field(sub_name, sub_field, stage_args))
 
     tui_field = TuiField(
         simple=False,
@@ -182,11 +187,11 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     return tui_field
 
 
-def get_field_type(field: ModelField) -> str:
+def get_field_type(field: FieldInfo) -> str:
     """Get the type of a field.
 
     Args:
-        field: The field from the parent pydantic model.
+        field: The field info from the parent pydantic model.
 
     Returns:
         The type of the field.

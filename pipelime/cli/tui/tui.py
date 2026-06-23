@@ -143,11 +143,11 @@ class TuiApp(App[Mapping]):
         """
         tui_fields = {}
 
-        for field in self.cmd_cls.__fields__.values():
-            if field.type_ == StageInput:
-                tui_fields[field.name] = init_stageinput_tui_field(field, cmd_args)
+        for name, field in self.cmd_cls.model_fields.items():
+            if field.annotation == StageInput:
+                tui_fields[name] = init_stageinput_tui_field(name, field, cmd_args)
             else:
-                tui_fields[field.name] = init_tui_field(field, cmd_args)
+                tui_fields[name] = init_tui_field(name, field, cmd_args)
 
         return tui_fields
 
