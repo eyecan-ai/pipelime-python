@@ -8,7 +8,7 @@ authors = [{ name = "Eyecan.ai", email = "info@eyecan.ai" }]
 description = "Data workflows, cli and dataflow automation."
 readme = "README.md"
 license = { text = "GNU General Public License v3 (GPLv3)" }
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.14"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: English",
     "Operating System :: OS Independent",
