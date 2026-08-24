@@ -85,19 +85,26 @@ class TestCommands:
                     # We do not save a reference image since graphviz may change the
                     # layout in the future. Also, we do not compare SVGs, since graphviz
                     # writes as comments the names of the nodes.
+                    import imageio.v3 as iio
+                    import numpy as np
                     import pygraphviz as pgv
 
                     # reading from string does not work, so we write to a file
                     with open(tmp_path / str(idx) / "target.dot", "w") as f:
                         f.write(target_dot)
 
+                    # NOTE: we decode to pixel arrays instead of comparing raw bytes,
+                    # since the availability of raster formats (eg bmp) in the gd
+                    # plugin varies across graphviz builds, and even for png the
+                    # encoded bytes are not guaranteed to be deterministic across
+                    # libpng/zlib versions.
                     g_ref = pgv.AGraph(str(tmp_path / str(idx) / "target.dot")).draw(
-                        format="bmp", prog="dot"
+                        format="png", prog="dot"
                     )
-                    g_out = pgv.AGraph(str(outdot)).draw(format="bmp", prog="dot")
+                    g_out = pgv.AGraph(str(outdot)).draw(format="png", prog="dot")
                     assert g_ref is not None
                     assert g_out is not None
-                    assert g_ref == g_out
+                    assert np.array_equal(iio.imread(g_ref), iio.imread(g_out))
 
     @pytest.mark.parametrize(
         "watch", [True, False, "rich", "tqdm", Path("cmdout.json"), None]
