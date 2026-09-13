@@ -117,7 +117,8 @@ working with a warning; `values` is not available there — use `info.data`.
   `X | None`, `X | Y`) are fully supported in commands, stages, sequences and
   entities, including `pipelime help` and the TUI.
 - `SamplesSequence.to_pipe()` works with string fields; `@command` functions
-  receive `**kwargs` expanded.
+  receive `**kwargs` expanded; an unannotated `@command` parameter with a `None`
+  default is accepted (typed `Any`) — 2.x raised a `ConfigError` at decoration.
 
 ## 5. Behaviour differences you may notice
 
