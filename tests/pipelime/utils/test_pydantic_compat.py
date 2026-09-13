@@ -209,6 +209,12 @@ class TestPolymorphicSerialization:
         s = self.Sub()
         assert self.Host(one=s).one is s
 
+    def test_non_model_value_falls_back_to_pydantic(self):
+        # e.g. after `model_construct`: pydantic warns and dumps the value as-is
+        h = self.Host.model_construct(one={"a": 1})
+        with pytest.warns(UserWarning, match="PydanticSerializationUnexpectedValue"):
+            assert h.model_dump()["one"] == {"a": 1}
+
 
 class _Upper(pc.PipelimeRootModel[str]):
     @classmethod

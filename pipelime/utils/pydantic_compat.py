@@ -200,9 +200,12 @@ def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> cor
     """Serialize instances of subclasses with *their* serializer (v1 behaviour)."""
 
     def _serialize(value: t.Any, nxt: t.Callable[[t.Any], t.Any], info: core_schema.SerializationInfo):
-        if type(value) is cls:
+        serializer = getattr(type(value), "__pydantic_serializer__", None)
+        if type(value) is cls or serializer is None:
+            # exact type, or not a model at all (e.g. after `model_construct`):
+            # pydantic's own path, which warns on unexpected values instead of failing
             return nxt(value)
-        return type(value).__pydantic_serializer__.to_python(
+        return serializer.to_python(
             value,
             mode=info.mode,
             include=info.include,
