@@ -125,6 +125,9 @@ working with a warning; `values` is not available there — use `info.data`.
   left-to-right, error messages have the v2 format, and a few lax coercions of
   v1 are gone (e.g. `"1.5"` is not an `int`).
 - Choixe `$model` requires a pydantic v2 model.
+- An explicit `None` passed to a *required* value-wrapper field (e.g.
+  `pipe: YamlInput = Field(...)` given `None`) was rejected by 2.x; it is now
+  accepted as a wrapper holding `None` (the same result as `YamlInput.create(None)`).
 - `pipelime help` and DAG validation errors show `name / alias` exactly as before.
 ```
 
