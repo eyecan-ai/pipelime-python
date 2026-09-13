@@ -353,6 +353,8 @@ git commit -m "test(contract): compact forms and split union resolution"
 
 ### Task S0-T5: Contracts — root wrappers
 
+> **Executed with a ruling:** the `ContractItem(pli.Item)` fixture below was replaced by a plain `ContractBase`/`ContractSub` hierarchy with a `ContractTypeDef(TypeDef[ContractBase])` — an `Item` subclass registers itself in pipelime's global item registry and changed what the CLI enumerates for `--data-cache "*"`. Never define `Item` subclasses in the contract module.
+
 **Files:**
 - Modify: `tests/pipelime/test_pydantic_contract.py` (append)
 
