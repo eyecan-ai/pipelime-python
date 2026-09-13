@@ -300,3 +300,57 @@ class TestFieldWrapper:
         schema = M.model_json_schema()["properties"]["a"]
         assert schema["x"] == 1 and schema["piper_port"] == "output"
         assert pc.field_extra(M.model_fields["a"], "piper_port") is None  # callables are opaque
+
+
+class TestIntrospection:
+    def test_type_info_both_spellings(self):
+        for tp in (t.Optional[int], int | None, t.Union[None, int]):
+            ti = pc.type_info(tp)
+            assert ti.is_union and ti.is_optional and ti.inner is int
+        ti = pc.type_info(t.Union[int, str, None])
+        assert ti.is_optional and ti.inner == t.Union[int, str, None]  # v1 outer_type_ semantics
+        ti = pc.type_info(int | str)
+        assert ti.is_union and not ti.is_optional and ti.inner == int | str
+        assert pc.type_info(list[int]).origin is list and pc.type_info(t.List[int]).origin is list
+        assert pc.type_info(t.Annotated[t.Optional[int], "meta"]).inner is int
+        assert pc.strip_optional(dict[str, int] | None) == dict[str, int]
+        assert pc.type_info(int).inner is int and pc.type_info(int).args == ()
+
+    def test_field_view(self):
+        class Inner(pc.PipelimeModel):
+            x: int = 1
+
+        class R(pc.PipelimeRootModel[list[int]]):
+            pass
+
+        class M(pc.PipelimeModel, populate_by_name=True):
+            a: int = pc.Field(1, alias="aa", description="A", piper_port="input")
+            b: t.Optional[Inner]
+            c: list[str] = pc.Field(default_factory=list, exclude=True)
+            d: R | None = None
+            e: str
+
+        views = {v.name: v for v in pc.iter_fields(M)}
+        assert list(views) == ["a", "b", "c", "d", "e"]
+        a, b, c, d, e = (views[k] for k in "abcde")
+        assert a.owner is M and a.populate_by_name is True
+        assert (a.alias, a.effective_alias, a.has_alias) == ("aa", "aa", True)
+        assert (e.alias, e.effective_alias, e.has_alias) == (None, "e", False)
+        assert a.description == "A" and a.extra == {"piper_port": "input"} and not a.exclude
+        assert a.default == 1 and c.default == [] and e.default is Ellipsis
+        assert e.required and not a.required and not b.required
+        assert b.inner_type is Inner and b.is_model and b.root_type is None
+        assert d.inner_type is R and d.root_type == list[int]
+        assert c.exclude is True and c.inner_type == list[str] and not c.is_model
+        assert pc.get_field(M, "b") == b
+        with pytest.raises(KeyError):
+            pc.get_field(M, "nope")
+
+    def test_model_title(self):
+        class A(pc.PipelimeModel, title="the-title"):
+            pass
+
+        class B(pc.PipelimeModel):
+            pass
+
+        assert pc.model_title(A) == "the-title" and pc.model_title(B) == "B"

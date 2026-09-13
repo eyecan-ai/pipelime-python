@@ -333,3 +333,113 @@ def field_extra(field_info: FieldInfo, key: str, default: t.Any = None) -> t.Any
     if isinstance(extra, dict):
         return extra.get(key, default)
     return default
+
+
+# --------------------------------------------------------------------------- #
+# introspection
+# --------------------------------------------------------------------------- #
+@dataclasses.dataclass(frozen=True)
+class TypeInfo:
+    origin: t.Any
+    args: tuple
+    is_union: bool
+    is_optional: bool
+    inner: t.Any
+    """The type with ``None`` stripped when exactly one other member remains
+    (pydantic v1's ``ModelField.outer_type_``); otherwise the type itself."""
+
+
+def type_info(tp: t.Any) -> TypeInfo:
+    """Uniform view over ``typing`` aliases, builtin generics and both union spellings."""
+    tp = _unwrap_annotated(tp)
+    origin = t.get_origin(tp)
+    args = t.get_args(tp)
+    is_union = origin in (t.Union, types.UnionType)
+    is_optional = is_union and _NONE_TYPE in args
+    inner = tp
+    if is_optional:
+        rest = tuple(a for a in args if a is not _NONE_TYPE)
+        if len(rest) == 1:
+            inner = rest[0]
+    return TypeInfo(origin, args, is_union, is_optional, inner)
+
+
+def strip_optional(tp: t.Any) -> t.Any:
+    return type_info(tp).inner
+
+
+def model_title(cls: t.Type[BaseModel]) -> str:
+    """``model_config["title"]`` or the class name (v1 ``__config__.title``)."""
+    return cls.model_config.get("title") or cls.__name__
+
+
+@dataclasses.dataclass(frozen=True)
+class FieldView:
+    """What pipelime needs to know about a model field (replaces v1 ``ModelField``)."""
+
+    owner: t.Type[BaseModel]
+    name: str
+    field_info: FieldInfo
+    annotation: t.Any
+    inner_type: t.Any
+    alias: t.Optional[str]
+    required: bool
+    description: t.Optional[str]
+    exclude: bool
+    extra: t.Dict[str, t.Any]
+
+    @property
+    def effective_alias(self) -> str:
+        return self.alias or self.name
+
+    @property
+    def has_alias(self) -> bool:
+        return bool(self.alias) and self.alias != self.name
+
+    @property
+    def populate_by_name(self) -> bool:
+        return bool(self.owner.model_config.get("populate_by_name", False))
+
+    @property
+    def default(self) -> t.Any:
+        """The default value (factories are called); ``Ellipsis`` when required."""
+        if self.required:
+            return Ellipsis
+        return self.field_info.get_default(call_default_factory=True)
+
+    @property
+    def is_model(self) -> bool:
+        return inspect.isclass(self.inner_type) and issubclass(self.inner_type, BaseModel)
+
+    @property
+    def root_type(self) -> t.Any:
+        """The root annotation when the (inner) type is a ``RootModel``, else ``None``."""
+        if inspect.isclass(self.inner_type) and issubclass(self.inner_type, RootModel):
+            return self.inner_type.model_fields["root"].annotation
+        return None
+
+
+def _field_view(owner: t.Type[BaseModel], name: str, field_info: FieldInfo) -> FieldView:
+    extra = field_info.json_schema_extra
+    return FieldView(
+        owner=owner,
+        name=name,
+        field_info=field_info,
+        annotation=field_info.annotation,
+        inner_type=strip_optional(field_info.annotation),
+        alias=field_info.alias,
+        required=field_info.is_required(),
+        description=field_info.description,
+        exclude=bool(field_info.exclude),
+        extra=dict(extra) if isinstance(extra, dict) else {},
+    )
+
+
+def iter_fields(model_cls: t.Type[BaseModel]) -> t.Iterator[FieldView]:
+    """Fields of ``model_cls`` in declaration order."""
+    for name, field_info in model_cls.model_fields.items():
+        yield _field_view(model_cls, name, field_info)
+
+
+def get_field(model_cls: t.Type[BaseModel], name: str) -> FieldView:
+    return _field_view(model_cls, name, model_cls.model_fields[name])
