@@ -729,8 +729,6 @@ class TestSequences:
         assert SamplesSequence.toy_dataset(2).to_pipe()[0]["toy_dataset"]["length"] == 2
 
 
-
-
 # --- validation interfaces & validator ordering (spec §4.1, §4.5) --------------
 class TestValidationInterfaces:
     def test_dynamic_sample_schema(self):
