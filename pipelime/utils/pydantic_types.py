@@ -5,10 +5,12 @@ import typing as t
 from pathlib import Path
 
 import numpy as np
-import pydantic.v1 as pyd
-import pydantic.v1.generics as pydg
+import pydantic
+from pydantic import ConfigDict, PrivateAttr
+from pydantic_core import core_schema
 
 from pipelime.items import Item
+from pipelime.utils.pydantic_compat import Field, PipelimeModel, PipelimeRootModel
 
 if t.TYPE_CHECKING:
     from numpy.typing import ArrayLike
@@ -19,20 +21,19 @@ if t.TYPE_CHECKING:
 class NewPath(Path):
     """A path that does not exist yet."""
 
-    extension: t.Optional[str] = None
+    extension: t.ClassVar[t.Optional[str]] = None
 
     @classmethod
-    def __modify_schema__(cls, field_schema: t.Dict[str, t.Any]) -> None:
-        field_schema.update(exists=False)
+    def __get_pydantic_core_schema__(cls, source, handler):
+        return core_schema.no_info_after_validator_function(cls.validate, handler(Path))
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        json_schema = handler(schema)
+        json_schema.update(exists=False)
         if cls.extension is not None:
-            field_schema.update(extension=cls.extension)
-
-    @classmethod
-    def __get_validators__(cls):
-        from pydantic.v1.validators import path_validator
-
-        yield path_validator
-        yield cls.validate
+            json_schema.update(extension=cls.extension)
+        return json_schema
 
     @classmethod
     def validate(cls, value: Path) -> Path:

@@ -347,7 +347,19 @@ class TestFieldWrapper:
         with pytest.raises(pydantic.ValidationError):
             M(a=[1])
         with pytest.raises(pydantic.PydanticUserError):
-            pc.Field("x", regex="x")
+            pc.Field("x", const=True)
+
+    def test_v1_regex_translated_to_pattern(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            class M(pydantic.BaseModel):
+                a: str = pc.Field("a", regex=r"^[a-z]+$")
+
+        assert M.model_fields["a"].json_schema_extra is None
+        assert M(a="abc").a == "abc"
+        with pytest.raises(pydantic.ValidationError):
+            M(a="A1")
 
     def test_callable_json_schema_extra_preserved(self):
         def upd(schema):

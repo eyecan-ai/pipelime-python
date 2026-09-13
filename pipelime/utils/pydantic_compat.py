@@ -320,7 +320,9 @@ PipelimeRootModel.__root__ = property(lambda self: self.root)  # type: ignore[at
 # --------------------------------------------------------------------------- #
 # v1-era keywords that `pydantic.Field` still consumes out of its `**extra` (converting
 # `min_items`/`max_items`/`allow_mutation` with a deprecation warning, raising for
-# `const`/`unique_items`/`regex`, ignoring `include`): they must reach pydantic.
+# `const`/`unique_items`/`regex`, popping `include` after its own deprecation warning):
+# they are forwarded so that pydantic's own handling (and warning) applies. `regex` is
+# translated into v2's `pattern` by :func:`Field` before forwarding.
 _PYDANTIC_LEGACY_FIELD_KWARGS = frozenset(
     {"const", "min_items", "max_items", "unique_items", "allow_mutation", "regex", "include"}
 )
@@ -341,10 +343,14 @@ def Field(default: t.Any = PydanticUndefined, **kwargs: t.Any) -> t.Any:  # noqa
     other keyword unknown to ``pydantic.Field`` are stored in
     ``json_schema_extra`` (read back with :func:`field_extra`), which is where
     pydantic v2 puts extra ``Field`` kwargs — but without the deprecation
-    warning pydantic emits for them. The v1-era keywords pydantic still handles
-    itself (``min_items``, ``regex``, ... see ``_PYDANTIC_LEGACY_FIELD_KWARGS``)
-    are forwarded, so pydantic's own conversion, warning or error applies.
+    warning pydantic emits for them. The v1 ``regex=`` keyword is translated
+    into v2's ``pattern=`` (pydantic v2 rejects ``regex``); the other v1-era
+    keywords pydantic still handles itself (``min_items``, ``const``, ... see
+    ``_PYDANTIC_LEGACY_FIELD_KWARGS``) are forwarded, so pydantic's own
+    conversion, warning or error applies.
     """
+    if "regex" in kwargs and "pattern" not in kwargs:
+        kwargs["pattern"] = kwargs.pop("regex")
     extra = {k: kwargs.pop(k) for k in list(kwargs) if k not in _PYDANTIC_FIELD_PARAMS}
     if extra:
         current = kwargs.get("json_schema_extra")

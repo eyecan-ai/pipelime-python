@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-import pydantic.v1 as pyd
+import pydantic as pyd
 import pytest
 
 import pipelime.utils.pydantic_types as plt
