@@ -54,7 +54,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 draw = ["pygraphviz"]
-tests = ["pytest", "pytest-cov", "pytest-asyncio", "tox"]
+tests = ["pytest", "pytest-cov", "pytest-asyncio", "pytest-xdist", "tox"]
 dev = ["pylama", "black", "flake8"]
 build = ["hatch", "build"]
 docs = [
