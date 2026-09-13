@@ -869,3 +869,89 @@ class TestHelpRendering:
             HELP_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
             HELP_SNAPSHOT.write_text(text)
         assert text == HELP_SNAPSHOT.read_text()
+
+
+# --- modern type hints (spec §4.8) ----------------------------------------------
+class ModernCommand(PipelimeCommand, title="contract-modern"):
+    a: list[int] = Field([1], description="a list")
+    b: dict[str, float] = Field(default_factory=dict, description="a dict")
+    c: int | None = Field(None, description="optional int")
+    d: tuple[int, str] = Field((1, "x"), description="a tuple")
+    e: list[SampleStage] | None = Field(None, description="stages")
+    f: int | str = Field(3, description="union")
+    g: int | None
+    h: StageInput | None = None
+
+    def run(self) -> None:
+        pass
+
+
+class ModernStage(SampleStage, title="contract-modern-stage"):
+    keys: list[str] = Field(default_factory=list)
+    limit: int | None = None
+
+    def __call__(self, x):
+        return x
+
+
+# See the `ContractPipe`/`ContractItem` guards above: `test_callable_def`'s
+# `THIS_FILE:contract_identity` reimports this whole file a second time as a
+# bare-stem module, and re-running `@pls.piped_sequence` would rebind
+# `SamplesSequence.contract_modern_pipe` to that second-generation class (whose
+# `__module__` a spawned multiprocessing worker cannot reimport).
+if "contract_modern_pipe" in SamplesSequence._pipes:
+    ModernPipe = SamplesSequence._pipes["contract_modern_pipe"]
+else:
+
+    @pls.piped_sequence
+    class ModernPipe(PipedSequenceBase, title="contract_modern_pipe"):
+        keys: list[str] = Field(default_factory=list)
+        limit: int | None = None
+
+        def size(self) -> int:
+            return self.source.size()
+
+        def get_sample(self, idx: int) -> pls.Sample:
+            return self.source.get_sample(idx)
+
+
+class ModernEntity(BaseEntity):
+    image: pli.ImageItem
+    label: pli.NumpyItem | None
+
+
+class TestModernTypeHints:
+    def test_validation(self):
+        c = ModernCommand(a=["3"], f="5", e=[StageIdentity()], h="identity")
+        assert c.a == [3] and c.f == 5 and c.g is None
+        assert isinstance(c.h.__root__, StageIdentity)
+        assert ModernStage(keys=("a",)).keys == ["a"]
+        e = ModernEntity(**_sample())
+        assert e.label is None
+        seq = SamplesSequence.toy_dataset(2).contract_modern_pipe(keys=["image"], limit=1)
+        assert seq.limit == 1
+
+    def test_help(self):
+        text = _render_help(ModernCommand)
+        for token in ["[int, ...]", "{str: float}", "(int, str)", "int | str", "SampleStage"]:
+            assert token in text, token
+
+    @pytest.mark.xfail(V1, reason="spec §4.8: TUI on types.UnionType", strict=True)
+    def test_tui(self):
+        from pipelime.cli.tui.utils import get_field_type, init_tui_field, is_tui_needed
+
+        assert is_tui_needed(ModernCommand, {}) is False
+        if V1:
+            fields = list(ModernCommand.__fields__.values())
+        else:
+            from pipelime.utils.pydantic_compat import iter_fields
+
+            fields = list(iter_fields(ModernCommand))
+        types = [get_field_type(f) for f in fields]
+        assert all(isinstance(x, str) and x for x in types)
+        assert init_tui_field(fields[2], {}).type_  # `c: int | None`
+
+    def test_dag_node(self):
+        nodes = NodesDefinition.create({"n": {f"{MODULE}.ModernCommand": {"a": [1, 2], "g": 4}}})
+        assert nodes.value["n"].a == [1, 2]
+        assert dump(nodes.value["n"])["g"] == 4
