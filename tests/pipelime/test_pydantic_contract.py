@@ -65,6 +65,27 @@ def contract_action(x):
     return x
 
 
+def _clean_registry() -> None:
+    """Forget the extra modules registered by class-path imports.
+
+    `import_symbol` registers every module it loads as a pipelime "extra module";
+    this test module re-exports pipelime stages at top level, so a later
+    registry scan (stage-by-name / command-title lookups) would report them as
+    duplicates. Call this right before such a lookup when the same test resolved a
+    `MODULE`-qualified symbol earlier.
+    """
+    from pipelime.cli.utils import PipelimeSymbolsHelper
+
+    PipelimeSymbolsHelper.set_extra_modules([])
+
+
+@pytest.fixture(autouse=True)
+def _isolated_registry():
+    _clean_registry()
+    yield
+    _clean_registry()
+
+
 # --- compact forms (spec §4.5) -------------------------------------------------
 from pipelime.commands.interfaces import (
     ExtendedInterval,
@@ -358,23 +379,10 @@ class TestPolymorphicDumps:
 
     def test_stage_input_dump(self):
         # `StageInput.validate` resolves bare stage names (here "compose"/"identity")
-        # through `PipelimeSymbolsHelper`, which lazily scans every module it has ever
-        # been told about (`std_modules` plus any `extra_modules` registered by a
-        # dynamic import elsewhere) for `SampleStage`/`PipelimeCommand` subclasses and
-        # raises on any two carrying the same title. `test_type_def_and_item_type`/
-        # `test_callable_def` above register *this* module twice under different
-        # names (its dotted path, and its file path — the latter via the `THIS_FILE:`
-        # form, which reimports the file under a bare module name and so re-executes
-        # every top-level class statement, including `OptCommand`/`OptStage`); once
-        # both are registered, the module-level `OptCommand`/`OptStage` fixtures
-        # collide with their own re-executed copies purely by title, unrelated to the
-        # "compose"/"identity" lookup this test actually needs. Reset the registry to
-        # just the std modules first, the same isolation idiom already used by
-        # `test_tui.py`/`test_command_decorator.py` (`set_extra_modules`), so this
-        # lookup only ever sees pipelime's own built-in stages.
-        from pipelime.cli.utils import PipelimeSymbolsHelper
-
-        PipelimeSymbolsHelper.set_extra_modules([])
+        # through `PipelimeSymbolsHelper`, which would otherwise report this module's
+        # top-level `StageCompose`/`StageIdentity` re-exports as duplicates of
+        # pipelime's own (see `_clean_registry`).
+        _clean_registry()
         si = StageInput.validate({"compose": {"stages": ["identity", "identity"]}})
         assert dump(si) == {"compose": {"stages": [{"identity": {}}, {"identity": {}}]}}
         assert isinstance(si.__root__, StageCompose)
@@ -474,14 +482,23 @@ class TestCommandFramework:
 
     def test_command_decorator_unannotated(self):
         @command
-        def fn(a=1, b="s", c=None):
+        def fn(a=1, b="s"):
             pass
 
         cmd = fn()
-        assert (cmd.a, cmd.b, cmd.c) == (1, "s", None)
+        assert (cmd.a, cmd.b) == (1, "s")
         assert fn(a=2).a == 2
         with pytest.raises(pyd.ValidationError):
             fn(a="x")  # v1 inferred `int` from the default
+
+    @pytest.mark.xfail(V1, reason="spec §4.2: unannotated param with None default → Any (v1 ConfigError)", strict=True)
+    def test_command_decorator_unannotated_none_default(self):
+        @command
+        def fn(a=1, c=None):
+            pass
+
+        assert (fn().a, fn().c) == (1, None)
+        assert fn(c="anything").c == "anything"
 
     @pytest.mark.xfail(V1, reason="spec §4.2 bug fix: **kwargs expanded with **", strict=True)
     def test_command_decorator_var_keyword_expansion(self):
@@ -507,20 +524,10 @@ class TestCommandFramework:
             lc.nope
 
     def test_nodes_definition_dump_and_validate(self):
-        # Resolving a `f"{MODULE}...."` node here goes through `get_pipelime_command`,
-        # which (like `StageInput.validate` in `test_stage_input_dump` above) always
-        # triggers a `PipelimeSymbolsHelper` scan first, and then registers this module
-        # as an "extra module" as a side effect of the dotted-path lookup itself. This
-        # module also imports several already-titled `SampleStage` classes at top level
-        # (`StageCompose`, `StageIdentity`, ...) for use as fixtures, so once it is
-        # registered, the *next* scan finds them a second time and collides with
-        # pipelime's own `pipelime.stages` definitions, unrelated to the "contract-
-        # ports" node this test actually resolves. Reset before each lookup (the
-        # registration happens again after each one) so it only ever sees pipelime's
-        # own built-in commands/stages; see `test_stage_input_dump` for the mechanism.
-        from pipelime.cli.utils import PipelimeSymbolsHelper
-
-        PipelimeSymbolsHelper.set_extra_modules([])
+        # Resolving a `f"{MODULE}...."` node re-registers this module as an "extra
+        # module" (see `_clean_registry`); reset before each lookup below, since the
+        # registration happens again after each one.
+        _clean_registry()
         nodes = NodesDefinition.create(
             {"n1": {f"{MODULE}.PortsCommand": {"i": 4}}, "n2": PortsCommand(o=8)}
         )
@@ -534,7 +541,7 @@ class TestCommandFramework:
         }
         assert dump(nodes, by_alias=True)["__root__" if V1 else "n1"] is not None
         H = make_model("H", nodes=(NodesDefinition, ...))
-        PipelimeSymbolsHelper.set_extra_modules([])
+        _clean_registry()
         h = H(nodes={"n": {f"{MODULE}.PortsCommand": {}}})
         assert isinstance(h.nodes.value["n"], PortsCommand)
         assert dump(h) == {"nodes": {"n": {"contract-ports": {"inp": 1, "out": 2, "prm": 3}}}}
