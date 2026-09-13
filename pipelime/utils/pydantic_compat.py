@@ -42,6 +42,13 @@ except Exception:  # pragma: no cover
     _V1FieldInfo = None  # type: ignore[assignment,misc]
     _V1PrivateAttr = None  # type: ignore[assignment,misc]
 
+try:  # pydantic internals used by PipelimeModelMeta to capture the class-statement frame
+    from pydantic._internal._model_construction import build_lenient_weakvaluedict as _weak_valued
+    from pydantic._internal._typing_extra import parent_frame_namespace as _parent_frame_namespace
+except Exception:  # pragma: no cover - internals moved: pydantic's own (shallower) capture is used
+    _weak_valued = None  # type: ignore[assignment]
+    _parent_frame_namespace = None  # type: ignore[assignment]
+
 _ModelMetaclass = type(BaseModel)
 _NONE_TYPE = type(None)
 _UNRESOLVED = object()
@@ -93,17 +100,23 @@ def is_optional_annotation(resolved: t.Any, raw: t.Any = None) -> bool:
     return origin in (t.Union, types.UnionType) and _NONE_TYPE in t.get_args(resolved)
 
 
-def _apply_v1_optional_semantics(namespace: dict) -> None:
-    """v1: ``Optional[X]`` without default → ``= None``; ``x: T = None`` → ``Optional[T]``."""
+def _apply_v1_optional_semantics(namespace: dict, parent_namespace: t.Optional[dict] = None) -> None:
+    """v1: ``Optional[X]`` without default → ``= None``; ``x: T = None`` → ``Optional[T]``.
+
+    String annotations are evaluated against the defining module's globals, the
+    locals of the frame executing the ``class`` statement (``parent_namespace``,
+    the same pydantic uses to resolve forward references) and the class body.
+    """
     anns = namespace.get("__annotations__")
     if not anns:
         return
     module = sys.modules.get(namespace.get("__module__", ""))
     globalns = dict(vars(module)) if module is not None else {}
+    localns = {**(parent_namespace or {}), **namespace}
     for name, raw in list(anns.items()):
         if name.startswith("_"):
             continue
-        resolved = _resolve_annotation(raw, globalns, namespace)
+        resolved = _resolve_annotation(raw, globalns, localns)
         if _is_classvar(resolved, raw):
             continue
         if name not in namespace:
@@ -139,12 +152,44 @@ def _check_v1_leftovers(cls_name: str, namespace: dict) -> None:
             )
 
 
+def _class_statement_namespace(mcs: type) -> t.Optional[dict]:
+    """Locals of the frame executing the ``class`` statement (``None`` at module level).
+
+    pydantic's ``ModelMetaclass.__new__`` captures them at a fixed stack depth to
+    resolve forward references to function-local names (``__pydantic_parent_namespace__``).
+    Every metaclass ``__new__`` layered above it — ours, or a downstream subclass of it —
+    shifts that depth onto the metaclass frame, so the capture is done here instead,
+    skipping every ``__new__`` found in the metaclass MRO.
+    """
+    if _parent_frame_namespace is None:  # pragma: no cover
+        return None
+    new_codes = set()
+    for klass in mcs.__mro__:
+        new = klass.__dict__.get("__new__")
+        code = getattr(getattr(new, "__func__", new), "__code__", None)
+        if code is not None:
+            new_codes.add(code)
+    depth = 1  # frame 1 (from here) is our caller: `PipelimeModelMeta.__new__`
+    frame: t.Optional[types.FrameType] = sys._getframe(1)
+    while frame is not None and frame.f_code in new_codes:
+        depth += 1
+        frame = frame.f_back
+    return _parent_frame_namespace(parent_depth=depth + 1)  # +1: its own frame
+
+
 class PipelimeModelMeta(_ModelMetaclass):  # type: ignore[misc,valid-type]
     """pydantic's metaclass plus the v1-compat rules of the design spec §3.1."""
 
     def __new__(mcs, cls_name: str, bases: tuple, namespace: dict, **kwargs: t.Any):
         _check_v1_leftovers(cls_name, namespace)
-        _apply_v1_optional_semantics(namespace)
+        parent_namespace = None
+        if _weak_valued is not None and kwargs.get("__pydantic_reset_parent_namespace__", True):
+            # pydantic passes `False` when it parametrizes generics (the origin's
+            # namespace is inherited): only replace *its* capture with ours.
+            parent_namespace = _class_statement_namespace(mcs)
+            namespace["__pydantic_parent_namespace__"] = _weak_valued(parent_namespace)
+            kwargs["__pydantic_reset_parent_namespace__"] = False
+        _apply_v1_optional_semantics(namespace, parent_namespace)
         return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
 
 

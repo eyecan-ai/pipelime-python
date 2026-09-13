@@ -111,6 +111,59 @@ class TestV1Guard:
         assert M().x == 1
 
 
+class _DeeperMeta(pc.PipelimeModelMeta):
+    """A further metaclass layer, as downstream code may add."""
+
+    def __new__(mcs, cls_name, bases, namespace, **kwargs):
+        return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
+
+
+class TestLocalForwardReferences:
+    """Models defined inside functions resolve annotations naming function-local
+    classes exactly like plain pydantic models do (this module uses
+    `from __future__ import annotations`, so every annotation is a string)."""
+
+    def test_local_names_resolve(self):
+        Alias = t.Optional[int]
+
+        class Inner(pc.PipelimeModel):
+            x: int = 1
+
+        class M(pc.PipelimeModel):
+            a: Inner | None = None
+            b: "Alias"
+            c: Inner = None  # type: ignore[assignment]
+
+        assert M.__pydantic_complete__
+        fa, fb, fc = (M.model_fields[k] for k in "abc")
+        assert set(t.get_args(fa.annotation)) == {Inner, type(None)}
+        assert type(None) in t.get_args(fb.annotation) and not fb.is_required()
+        assert set(t.get_args(fc.annotation)) == {Inner, type(None)}
+        m = M(a={"x": 2}, c=None)
+        assert m.a == Inner(x=2) and m.b is None and m.c is None
+
+    def test_extra_metaclass_layer(self):
+        class Inner(pc.PipelimeModel):
+            x: int = 1
+
+        class M(pc.PipelimeModel, metaclass=_DeeperMeta):
+            a: t.Optional[Inner]
+
+        assert M.__pydantic_complete__ and M().a is None and M(a={}).a == Inner()
+
+    def test_root_model_local_names(self):
+        class Inner(pc.PipelimeModel):
+            x: int = 1
+
+        class R(pc.PipelimeRootModel[t.Optional[Inner]]):
+            pass
+
+        assert R.__pydantic_complete__ and R(None).root is None and R({"x": 3}).root == Inner(x=3)
+
+    def test_module_level_has_no_parent_namespace(self):
+        assert _PolyBase.__pydantic_parent_namespace__ is None
+
+
 class _PolyBase(pc.PipelimeModel, extra="forbid"):
     pass
 
