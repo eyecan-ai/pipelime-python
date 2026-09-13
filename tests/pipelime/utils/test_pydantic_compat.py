@@ -309,6 +309,30 @@ class TestRootModel:
         assert IntBox(["1", 2]).root == [1, 2]
         assert IntBox.model_fields["root"].annotation == list[int]
 
+    def test_mapping_root(self):
+        # a dict input is the root *value*, never `cls(**dict)` (pydantic would
+        # call the custom `__init__` that way unless it is flagged as base init)
+        class Cfg(pc.PipelimeRootModel[dict[str, int]]):
+            @classmethod
+            def _coerce(cls, value):
+                return dict(value)
+
+        d = {"a": 1, "b": 2}
+        for c in (Cfg(d), Cfg(__root__=d), Cfg.create(d), Cfg.model_validate(d), Cfg.create([("a", 1), ("b", 2)])):
+            assert c.root == d
+        assert Cfg.model_validate_json('{"a": 1, "b": 2}').root == d
+        assert Cfg(d).dict() == {"__root__": d}
+
+        class H(pc.PipelimeModel):
+            c: Cfg
+
+        assert H(c=d).c.root == d
+        assert H.model_validate({"c": {"x": "3"}}).c.root == {"x": 3}
+        with pytest.raises(pydantic.ValidationError):
+            Cfg({"a": "not an int"})
+        with pytest.raises(TypeError):
+            Cfg(d, extra=1)
+
 
 class TestFieldWrapper:
     def test_flags_go_to_json_schema_extra_without_warnings(self):

@@ -65,12 +65,7 @@ def new_file_path(extension: t.Optional[str] = None) -> t.Type[NewPath]:
     return type(clsname, (NewPath,), namespace)
 
 
-class NumpyType(
-    pyd.BaseModel,
-    extra="forbid",
-    copy_on_model_validation="none",
-    arbitrary_types_allowed=True,
-):
+class NumpyType(PipelimeRootModel, arbitrary_types_allowed=True):
     """Numpy array type for stages, commands and any other pydantic model.
     Any argument accepted by `numpy.array()` is a valid value. Also, any mapping
     will be treated as keyword arguments for `numpy.array()`.
@@ -94,13 +89,14 @@ class NumpyType(
 
         Serialize to dict or json::
 
-            npt_dict = npt.dict()
-            npt_json_str = npt.json()
+            npt_dict = npt.model_dump()      # {"object": [...], "dtype": "..."}
+            npt_json_str = npt.model_dump_json()
+            npt.dict()                       # {"__root__": {...}} (pipelime 2.x shape)
 
         Get the object back from dict or json::
 
-            npt_again = pydantic.parse_obj_as(NumpyType, npt_dict["__root__"])
-            npt_again = pydantic.parse_raw_as(NumpyType, npt_json_str)
+            npt_again = NumpyType.model_validate(npt_dict)
+            npt_again = NumpyType.model_validate_json(npt_json_str)
 
         Use this type within another model::
 
@@ -113,71 +109,57 @@ class NumpyType(
 
             mm = MyModel()
             mm = MyModel(tensor=np.array([1,2,3]))
-            mm = MyModel.parse_obj({"tensor": [1, 2, 3]})
-            mm = MyModel.parse_obj({"tensor": {"object": [1,2,3], "dtype": "float32"}})
-            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+            mm = MyModel.model_validate({"tensor": [1, 2, 3]})
+            mm = MyModel.model_validate({"tensor": {"object": [1,2,3], "dtype": "float32"}})
+            mm_again = MyModel.model_validate(mm.model_dump())
     """
 
-    __root__: np.ndarray
+    # declared in the body (the documented `RootModel` subclass form) because
+    # `PipelimeRootModel[np.ndarray]` would build the parametrized model before
+    # this class' `arbitrary_types_allowed` exists and fail on `np.ndarray`
+    root: np.ndarray
 
     @classmethod
     def create(
         cls, value: t.Union[NumpyType, "ArrayLike", t.Mapping[str, t.Any]]
     ) -> NumpyType:
-        return cls.validate(value)
+        return cls.model_validate(value)
 
-    @property
-    def value(self):
-        return self.__root__
+    @classmethod
+    def _coerce(cls, value):
+        try:
+            return np.array(**value) if isinstance(value, t.Mapping) else np.array(value)
+        except Exception as e:
+            raise ValueError(f"Invalid numpy input: {value}") from e
 
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # assert k == "__root__"
-            # assert isinstance(v, np.ndarray)
-            v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
-            yield k, {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
+    @pydantic.model_serializer(mode="plain")
+    def _serialize(self) -> t.Dict[str, t.Any]:
+        v = self.root
+        v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
+        return {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return repr(self.__root__)
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, cls):
-            return value
-        try:
-            return cls(
-                __root__=(
-                    np.array(**value)
-                    if isinstance(value, t.Mapping)
-                    else np.array(value)
-                )
-            )
-        except Exception as e:
-            raise ValueError(f"Invalid numpy input: {value}") from e
+        return repr(self.root)
 
 
 yaml_any_type = t.Union[
     None,
-    pyd.StrictBool,
-    pyd.StrictInt,
-    pyd.StrictFloat,
-    pyd.StrictStr,
+    pydantic.StrictBool,
+    pydantic.StrictInt,
+    pydantic.StrictFloat,
+    pydantic.StrictStr,
     t.Mapping[str, t.Any],
     t.Sequence,
 ]
 
 
-class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class YamlInput(PipelimeRootModel[yaml_any_type]):
     """General yaml/json data (str, number, mapping, list...) optionally loaded from
     a yaml/json file, possibly with key path (format <filepath>[:<key>]).
 
@@ -206,13 +188,14 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 
         Serialize to dict or json::
 
-            yml_dict = yml.dict()
-            yml_json_str = yml.json()
+            yml_dict = yml.model_dump()      # the bare value
+            yml_json_str = yml.model_dump_json()
+            yml.dict()                       # {"__root__": <value>} (pipelime 2.x shape)
 
         Get the object back from dict or json::
 
-            yml_again = pydantic.parse_obj_as(YamlInput, yml_dict["__root__"])
-            yml_again = pydantic.parse_raw_as(YamlInput, yml_json_str)
+            yml_again = YamlInput.model_validate(yml_dict)
+            yml_again = YamlInput.model_validate_json(yml_json_str)
 
         Use this type within another model::
 
@@ -225,37 +208,16 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
 
             mm = MyModel()
             mm = MyModel(config=[4, 5, 6])
-            mm = MyModel.parse_obj({"config": [4, 5, 6]})
-            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+            mm = MyModel.model_validate({"config": [4, 5, 6]})
+            mm_again = MyModel.model_validate(mm.model_dump())
     """
-
-    __root__: yaml_any_type
 
     @classmethod
     def create(cls, value: t.Union[YamlInput, yaml_any_type]) -> YamlInput:
-        return cls.validate(value)
-
-    @property
-    def value(self):
-        return self.__root__
-
-    def __str__(self) -> str:
-        return str(self.__root__)
-
-    def __repr__(self) -> str:
-        return self.__piper_repr__()
-
-    def __piper_repr__(self) -> str:
-        return repr(self.__root__)
+        return cls.model_validate(value)
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, cls):
-            return value
+    def _coerce(cls, value):
         if isinstance(value, (str, Path)):
             pval = Path(value)
             filepath, _, root_key = pval.name.partition(":")
@@ -268,9 +230,9 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
                     value = yaml.safe_load(f)
                     if root_key:
                         value = py_.get(value, root_key, default=None)
-            return cls(__root__=value)  # type: ignore
+            return value
         if cls._check_any_type(value):
-            return cls(__root__=value)
+            return value
         raise ValueError(f"Invalid yaml data input: {value}")
 
     @classmethod
@@ -279,6 +241,15 @@ class YamlInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
             return True
         if isinstance(value, t.Mapping):
             return all(isinstance(k, str) for k in value)
+
+    def __str__(self) -> str:
+        return str(self.root)
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        return repr(self.root)
 
 
 TRoot = t.TypeVar("TRoot")

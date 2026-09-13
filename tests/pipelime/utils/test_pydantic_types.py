@@ -92,11 +92,11 @@ class TestNumpyType:
         data = np.arange(12).reshape(2, 3, 2, order="F") * 3.1415 + 1.4142
         nt = plt.NumpyType(__root__=data.astype(np.float16))
 
-        nt_again = pyd.parse_raw_as(plt.NumpyType, nt.json())
+        nt_again = plt.NumpyType.model_validate_json(nt.model_dump_json())
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
-        nt_again = pyd.parse_obj_as(plt.NumpyType, nt.dict()["__root__"])
+        nt_again = plt.NumpyType.model_validate(nt.dict()["__root__"])
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
@@ -141,10 +141,10 @@ class TestYamlInput:
         data = {"a": 1, "b": "c"}
         yi = plt.YamlInput(__root__=data)
 
-        yi_again = pyd.parse_raw_as(plt.YamlInput, yi.json())
+        yi_again = plt.YamlInput.model_validate_json(yi.model_dump_json())
         assert yi.value == yi_again.value
 
-        yi_again = pyd.parse_obj_as(plt.YamlInput, yi.dict()["__root__"])
+        yi_again = plt.YamlInput.model_validate(yi.dict()["__root__"])
         assert yi.value == yi_again.value
 
 
@@ -178,10 +178,10 @@ class TestItemType:
 
         itp = plt.ItemType(__root__=MetadataItem)
 
-        itp_again = pyd.parse_raw_as(plt.ItemType, itp.json())
+        itp_again = plt.ItemType.model_validate_json(itp.model_dump_json())
         assert itp.value == itp_again.value
 
-        itp_again = pyd.parse_obj_as(plt.ItemType, itp.dict()["__root__"])
+        itp_again = plt.ItemType.model_validate(itp.dict()["__root__"])
         assert itp.value == itp_again.value
 
     def test_hash(self):
@@ -244,10 +244,10 @@ class TestCallableDef:
     def test_serialize(self):
         cd = plt.CallableDef(__root__=a_callable)
 
-        cd_again = pyd.parse_raw_as(plt.CallableDef, cd.json())
+        cd_again = plt.CallableDef.model_validate_json(cd.model_dump_json())
         assert cd.value == cd_again.value
 
-        cd_again = pyd.parse_obj_as(plt.CallableDef, cd.dict()["__root__"])
+        cd_again = plt.CallableDef.model_validate(cd.dict()["__root__"])
         assert cd.value == cd_again.value
 
     def test_hash(self):

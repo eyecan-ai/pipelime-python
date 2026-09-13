@@ -280,6 +280,13 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
             root = root.root
         super().__init__(root)
 
+    # Like `RootModel.__init__`: tell pydantic this `__init__` adds nothing to
+    # validation, so `model_validate(<dict>)` (and `handler(<dict>)` from
+    # `_validate_root`) validates the dict *as the root value* instead of
+    # calling `cls(**dict)` — which a custom `__init__` would trigger and which
+    # breaks every wrapper whose root is a mapping (`YamlInput`, `NodesDefinition`).
+    __init__.__pydantic_base_init__ = True  # type: ignore[attr-defined]
+
     @classmethod
     def _coerce(cls, value: t.Any) -> t.Any:
         """Turn any accepted input into the root value. Override in subclasses."""
