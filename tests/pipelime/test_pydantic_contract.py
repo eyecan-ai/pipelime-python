@@ -10,6 +10,7 @@ the TUI, bug fixes) and are expected to fail before the migration.
 """
 from __future__ import annotations
 
+import os
 import pickle
 import typing as t
 from pathlib import Path
@@ -239,8 +240,13 @@ class TestRootWrappers:
         assert dump(H(tp="PngImageItem")) == {
             "tp": "pipelime.items.image_item.PngImageItem"
         }
-        assert H(tp=f"{MODULE}.ContractItem").tp.value is ContractItem
-        assert dump(H(tp=f"{MODULE}.ContractItem")) == {"tp": f"{MODULE}.ContractItem"}
+        H2 = make_model("H2", tp=(ContractTypeDef, ...))
+        assert H2(tp="ContractSub").tp.value is ContractSub  # default class path applied
+        assert H2(tp=f"{MODULE}.ContractSub").tp.value is ContractSub
+        assert dump(H2(tp=ContractSub)) == {"tp": "ContractSub"}  # reduced through default_class_path
+        assert ContractTypeDef.wrapped_type() is ContractBase
+        with pytest.raises(pyd.ValidationError):
+            H2(tp=f"{MODULE}.ContractCallable")  # not a ContractBase subclass
         # `import_symbol` raises a bare `ImportError` on failure; pydantic v1 only
         # auto-wraps `ValueError`/`TypeError`/`AssertionError` from validators into
         # `ValidationError`, and `TypeDef._string_to_type` does not catch it, so an
@@ -268,33 +274,20 @@ class TestRootWrappers:
             H(fn=42)
 
 
-# `test_callable_def` also imports `contract_identity` via `THIS_FILE:...`
-# (file-path form), which makes `import_symbol` load *this same file* a
-# second time under a bare-stem module name (see `import_module_from_file`);
-# that re-executes every top-level statement, including this class body.
-# `ItemFactory` (pipelime/items/base.py) registers file extensions in a
-# process-global dict at class-creation time and raises if an extension is
-# already taken, so the second execution collides with the first (normal,
-# package-qualified) import of this module. Reuse the already-registered
-# class instead of letting that collision propagate.
-if ".contract" in type(pli.Item).ITEM_CLASSES:
-    ContractItem = type(pli.Item).ITEM_CLASSES[".contract"]
-else:
+class ContractBase:
+    """Base of a user-defined type hierarchy for the TypeDef contracts (not an Item:
+    defining an Item subclass would register it in pipelime's global item registry
+    and change what the CLI enumerates for `--data-cache "*"`)."""
 
-    class ContractItem(pli.Item):
-        """Item subclass used by the TypeDef contracts (never instantiated)."""
 
-        @classmethod
-        def file_extensions(cls):  # pragma: no cover
-            return [".contract"]
+class ContractSub(ContractBase):
+    pass
 
-        @classmethod
-        def decode(cls, fp):  # pragma: no cover
-            return fp.read()
 
-        @classmethod
-        def encode(cls, value, fp):  # pragma: no cover
-            fp.write(value)
+class ContractTypeDef(plt.TypeDef[ContractBase]):
+    @classmethod
+    def default_class_path(cls) -> str:
+        return f"{MODULE}."
 
 
 class ContractCallable:
@@ -657,10 +650,11 @@ class TestStagesAndEntities:
             assert isinstance(st, StageEntity), st
             y = st(_sample())
             assert y["meta"]() == {"name": "n!"}
-        # config written by pipelime 2.x carries the `__root__` envelope
-        # the loop above resolved `f"{MODULE}...."` again (constructing the last
-        # stage), re-registering this module; clean up before another by-name lookup.
+        # the `stages.append(StageInput.validate({"entity": f"{MODULE}.annotated_action"}))`
+        # call above resolved `f"{MODULE}...."` again, re-registering this module;
+        # clean up before another by-name lookup.
         _clean_registry()
+        # config written by pipelime 2.x carries the `__root__` envelope
         st = StageInput.validate(
             {"entity": {"__root__": {"action": f"{MODULE}.annotated_action"}}}
         ).__root__
@@ -683,14 +677,16 @@ class TestStagesAndEntities:
 
 
 # --- sequences (spec §4.4) ------------------------------------------------------
-# `test_callable_def` above (`THIS_FILE:contract_identity`) reimports this whole file
-# a second time as a bare-stem module (see the `ContractItem` comment above); letting
+# `test_callable_def` above imports `contract_identity` via `THIS_FILE:...`
+# (file-path form), which makes `import_symbol` load *this same file* a second
+# time under a bare-stem module name (see `import_module_from_file`); that
+# re-executes every top-level statement, including this class body. Letting
 # `@pls.piped_sequence` re-run would re-register "contract_pipe" and rebind
 # `SamplesSequence.contract_pipe` to that second-generation class, whose `__module__`
 # is the bare stem rather than the dotted package path. A spawned multiprocessing
 # worker (fresh interpreter) can no longer `import` that bare module to reconstruct
 # pickled instances, so `seq.run(num_workers=...)` hangs waiting for results that
-# never come back. Reuse the already-registered class, exactly like `ContractItem`.
+# never come back. Reuse the already-registered class instead.
 if "contract_pipe" in SamplesSequence._pipes:
     ContractPipe = SamplesSequence._pipes["contract_pipe"]
 else:
@@ -846,8 +842,6 @@ def _render_help(model_cls) -> str:
     import pipelime.cli.pretty_print as pp
 
     console = Console(width=160, record=True, force_terminal=False, color_system=None)
-    with console.capture():
-        pass
     # rich.print uses the global console; render through a local one instead
     original = pp.rprint
     try:
@@ -863,9 +857,12 @@ class TestHelpRendering:
         text = _render_help(PortsCommand)
         for token in ["inp / i", "out / o", "prm", "INPUT", "OUTPUT", "PARAMETER", "int"]:
             assert token in text
-        if not HELP_SNAPSHOT.exists():  # first run on v1 writes the snapshot
+        if os.environ.get("PIPELIME_CONTRACT_REGEN") == "1":  # opt-in (re)generation
             HELP_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
             HELP_SNAPSHOT.write_text(text)
+        assert HELP_SNAPSHOT.exists(), (
+            "run once with PIPELIME_CONTRACT_REGEN=1 to (re)generate the help snapshot"
+        )
         assert text == HELP_SNAPSHOT.read_text()
 
 
@@ -892,7 +889,7 @@ class ModernStage(SampleStage, title="contract-modern-stage"):
         return x
 
 
-# See the `ContractPipe`/`ContractItem` guards above: `test_callable_def`'s
+# See the `ContractPipe` guard above: `test_callable_def`'s
 # `THIS_FILE:contract_identity` reimports this whole file a second time as a
 # bare-stem module, and re-running `@pls.piped_sequence` would rebind
 # `SamplesSequence.contract_modern_pipe` to that second-generation class (whose
