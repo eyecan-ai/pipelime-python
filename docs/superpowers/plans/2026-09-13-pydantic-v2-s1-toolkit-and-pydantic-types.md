@@ -1192,8 +1192,34 @@ class CallableDef(PipelimeRootModel[t.Callable], frozen=True):
     def create(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
         return cls.model_validate(value)
 
-    # full_signature / args / args_type / has_var_positional / has_var_keyword /
-    # return_type: unchanged, reading `self.root` instead of `self.__root__`
+    # full_signature / args / has_var_positional / has_var_keyword: unchanged,
+    # reading `self.root` instead of `self.__root__`. `args_type` / `return_type`
+    # now resolve string (forward-reference) annotations — modules using
+    # `from __future__ import annotations` are common downstream and
+    # `EntityAction` inference crashed on them (`issubclass(x, "Name")`):
+
+    def _resolved_annotations(self) -> t.Dict[str, t.Any]:
+        try:
+            return t.get_type_hints(self.root)
+        except Exception:  # unresolvable forward refs: fall back to raw annotations
+            return {}
+
+    @property
+    def args_type(self) -> t.Sequence[t.Optional[t.Type]]:
+        hints = self._resolved_annotations()
+        return [
+            None
+            if p.annotation is inspect.Signature.empty
+            else hints.get(p.name, p.annotation)
+            for p in self.full_signature.parameters.values()
+        ]
+
+    @property
+    def return_type(self) -> t.Optional[t.Type]:
+        rt = self.full_signature.return_annotation
+        if rt is inspect.Signature.empty:
+            return None
+        return self._resolved_annotations().get("return", rt)
 
     @pydantic.model_serializer(mode="plain")
     def _serialize(self) -> str:
@@ -1254,15 +1280,28 @@ class CallableDef(PipelimeRootModel[t.Callable], frozen=True):
 
 `"(unchanged)"` means: keep the existing method body verbatim, only replacing `self.__root__` with `self.root`.
 
-- [ ] **Step 2: Run**
+- [ ] **Step 2: Add a unit test for string annotations** to `tests/pipelime/utils/test_pydantic_types.py::TestCallableDef`:
+
+```python
+    def test_string_annotations_resolved(self):
+        def fn(x: "int", y: "t.Optional[str]" = None) -> "float":
+            return 1.0
+
+        cd = plt.CallableDef.create(fn)
+        assert cd.args_type == [int, t.Optional[str]]
+        assert cd.return_type is float
+```
+(`t` must be importable in that test module — it already does `import typing as t`.)
+
+- [ ] **Step 3: Run**
 
 Run: `.venv/bin/python -m pytest -q -o addopts="" tests/pipelime/utils/test_pydantic_types.py -k "ItemType or CallableDef"`
 Expected: passed (module imports once T8 is also done if `ItemValidationModel` still references `pyd`).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add pipelime/utils/pydantic_types.py
+git add pipelime/utils/pydantic_types.py tests/pipelime/utils/test_pydantic_types.py
 git commit -m "refactor(pydantic_types): TypeDef/ItemType/CallableDef as PipelimeRootModel"
 ```
 
