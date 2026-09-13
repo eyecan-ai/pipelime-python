@@ -243,3 +243,48 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
 
 # `__root__` cannot be declared inside a model body (pydantic rejects the name)
 PipelimeRootModel.__root__ = property(lambda self: self.root)  # type: ignore[attr-defined]
+
+
+# --------------------------------------------------------------------------- #
+# Field wrapper
+# --------------------------------------------------------------------------- #
+_PYDANTIC_FIELD_PARAMS = frozenset(
+    name
+    for name, prm in inspect.signature(pydantic.Field).parameters.items()
+    if prm.kind not in (prm.VAR_KEYWORD, prm.VAR_POSITIONAL)
+)
+
+
+def Field(default: t.Any = PydanticUndefined, **kwargs: t.Any) -> t.Any:  # noqa: N802
+    """``pydantic.Field`` that also accepts pipelime flags.
+
+    ``piper_port``, ``pipe_source``, ``expand_help``, ``is_required`` and any
+    other keyword unknown to ``pydantic.Field`` are stored in
+    ``json_schema_extra`` (read back with :func:`field_extra`), which is where
+    pydantic v2 puts extra ``Field`` kwargs — but without the deprecation
+    warning pydantic emits for them.
+    """
+    extra = {k: kwargs.pop(k) for k in list(kwargs) if k not in _PYDANTIC_FIELD_PARAMS}
+    if extra:
+        current = kwargs.get("json_schema_extra")
+        if current is None:
+            kwargs["json_schema_extra"] = extra
+        elif isinstance(current, dict):
+            kwargs["json_schema_extra"] = {**current, **extra}
+        else:  # callable(schema) -> None
+
+            def _merged(schema: dict, _orig=current, _extra=extra) -> None:
+                _orig(schema)
+                schema.update(_extra)
+
+            kwargs["json_schema_extra"] = _merged
+    return pydantic.Field(default, **kwargs)
+
+
+def field_extra(field_info: FieldInfo, key: str, default: t.Any = None) -> t.Any:
+    """Read a pipelime flag stored by :func:`Field` (or by a raw
+    ``pydantic.Field(**flags)``) from ``json_schema_extra``."""
+    extra = field_info.json_schema_extra
+    if isinstance(extra, dict):
+        return extra.get(key, default)
+    return default

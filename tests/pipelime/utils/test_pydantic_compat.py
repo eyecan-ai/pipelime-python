@@ -214,3 +214,36 @@ class TestRootModel:
 
         assert IntBox(["1", 2]).root == [1, 2]
         assert IntBox.model_fields["root"].annotation == list[int]
+
+
+class TestFieldWrapper:
+    def test_flags_go_to_json_schema_extra_without_warnings(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            class M(pydantic.BaseModel):
+                a: int = pc.Field(1, description="a", alias="aa", piper_port="input", custom_flag=42)
+                b: int = pc.Field(default_factory=lambda: 2, pipe_source=True, json_schema_extra={"k": "v"})
+                c: int = pc.Field(3)
+                d: int = pc.Field(..., is_required=False)
+
+        fa, fb, fc, fd = (M.model_fields[k] for k in "abcd")
+        assert fa.description == "a" and fa.alias == "aa" and fa.default == 1
+        assert fa.json_schema_extra == {"piper_port": "input", "custom_flag": 42}
+        assert fb.json_schema_extra == {"k": "v", "pipe_source": True}
+        assert fc.json_schema_extra is None
+        assert fd.is_required() and fd.json_schema_extra == {"is_required": False}
+        assert pc.field_extra(fa, "piper_port") == "input"
+        assert pc.field_extra(fc, "piper_port", "param") == "param"
+        assert pc.field_extra(fb, "missing") is None
+
+    def test_callable_json_schema_extra_preserved(self):
+        def upd(schema):
+            schema["x"] = 1
+
+        class M(pydantic.BaseModel):
+            a: int = pc.Field(1, json_schema_extra=upd, piper_port="output")
+
+        schema = M.model_json_schema()["properties"]["a"]
+        assert schema["x"] == 1 and schema["piper_port"] == "output"
+        assert pc.field_extra(M.model_fields["a"], "piper_port") is None  # callables are opaque
