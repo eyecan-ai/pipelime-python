@@ -546,3 +546,170 @@ class TestCommandFramework:
         assert isinstance(h.nodes.value["n"], PortsCommand)
         assert dump(h) == {"nodes": {"n": {"contract-ports": {"inp": 1, "out": 2, "prm": 3}}}}
         assert dump(h, by_alias=True) == {"nodes": {"n": {"contract-ports": {"i": 1, "o": 2, "prm": 3}}}}
+
+
+# --- stages & entities (spec §4.3) ---------------------------------------------
+from pipelime.stages import StageEntity
+from pipelime.stages.entities import DynamicKey, EntityAction, ParsedData, ParsedItem
+
+
+class ContractMeta(pyd.BaseModel):
+    name: str
+
+
+class ContractInput(BaseEntity):
+    image: pli.ImageItem
+    meta: ParsedItem[pli.MetadataItem, ContractMeta]
+    _dyn = DynamicKey(pli.NumpyItem, [1, 2, 3])
+
+
+class ContractOutput(BaseEntity):
+    image: pli.ImageItem
+    meta: ParsedData[ContractMeta]
+    extra: t.Optional[pli.NumpyItem]
+
+
+def annotated_action(x: ContractInput) -> ContractOutput:
+    return ContractOutput.merge(x, meta=ContractMeta(name=x.meta().name + "!"), extra=None)
+
+
+# This module's `from __future__ import annotations` stringifies this function's
+# annotations too. Pydantic *model* fields resolve such forward-ref strings via
+# `resolve_annotations`/the class's `__module__` globals at class-creation time (that
+# is why `OptCommand`/`PortsCommand`/etc. above work fine); but `EntityAction`'s
+# `input_type` inference goes through `CallableDef.args_type`, which reads
+# `inspect.signature(...).parameters[...].annotation` on a plain callable with no
+# forward-ref resolution at all, so it would receive the literal string
+# `"ContractInput"` and crash inside `issubclass(BaseEntity, "ContractInput")`.
+# Restore real objects to match how action callables are annotated in ordinary
+# (non-`__future__`) modules, which is how `EntityAction`/`StageEntity` are used
+# in practice.
+annotated_action.__annotations__ = {"x": ContractInput, "return": ContractOutput}
+
+
+def _sample() -> pls.Sample:
+    return pls.Sample(
+        {
+            "image": pli.PngImageItem(np.zeros((4, 4, 3), dtype=np.uint8)),
+            "meta": pli.JsonMetadataItem({"name": "n"}),
+            "other": pli.NpyNumpyItem(np.array([9])),  # NumpyItem is abstract; use a concrete subclass
+        }
+    )
+
+
+class TestStagesAndEntities:
+    def test_stage_input_forms(self):
+        assert isinstance(StageInput.validate("identity").__root__, StageIdentity)
+        assert isinstance(StageInput.validate(StageIdentity()).__root__, StageIdentity)
+        si = StageInput.validate({"compose": {"stages": ["identity"]}})
+        assert isinstance(si.__root__, StageCompose)
+        s = StageIdentity()
+        assert StageInput.validate(StageInput.validate(s)).__root__ is s
+
+    def test_stage_titles(self):
+        from pipelime.utils.pydantic_types import CallableDef  # noqa: F401
+
+        assert StageCompose.__config__.title == "compose" if V1 else StageCompose.model_config.get("title") == "compose"
+        lam = StageLambda(contract_identity)
+        assert lam.func.value is contract_identity
+
+    def test_entity_parsing_and_merge(self):
+        x = _sample()
+        e = ContractInput(**x)
+        assert isinstance(e.meta, ParsedItem) and e.meta().name == "n"
+        assert e.meta.raw_item is x["meta"]
+        assert e.other is x["other"]  # extra="allow" forwards unknown items
+        assert e._dyn.validate("other")() .tolist() == [9]
+        out = annotated_action(e)
+        assert out.meta().name == "n!" and out.extra is None
+        d = dump(out)
+        assert set(d) == {"image", "meta", "other"}  # None skipped, ParsedItem -> raw item
+        assert isinstance(d["meta"], pli.MetadataItem) and d["meta"]() == {"name": "n!"}
+
+    def test_entity_action_inference(self):
+        ea = EntityAction(action=annotated_action)
+        assert ea.input_type.value is ContractInput
+        ea = EntityAction(action=contract_action)
+        assert ea.input_type.value is BaseEntity
+        with pytest.raises(pyd.ValidationError):
+            EntityAction(action=lambda: None)  # needs one positional arg
+        H = make_model("H", ea=(EntityAction, ...))
+        assert H(ea=f"{MODULE}.annotated_action").ea.input_type.value is ContractInput
+        assert H(ea={"action": f"{MODULE}.contract_action"}).ea.input_type.value is BaseEntity
+
+    def test_stage_entity_call_shapes(self):
+        ea = EntityAction(action=annotated_action)
+        stages = [
+            StageEntity(ea),
+            StageEntity(__root__=ea),
+            StageEntity({"action": annotated_action}),
+            StageInput.validate({"entity": {"action": f"{MODULE}.annotated_action"}}).__root__,
+        ]
+        # the previous line resolved `f"{MODULE}.annotated_action"`, registering this
+        # module as an extra module; the next by-name lookup of the "entity" stage
+        # would otherwise rescan it and report `StageIdentity`/`StageCompose`/etc.
+        # (re-exported at module top level) as duplicates of pipelime's own.
+        _clean_registry()
+        stages.append(
+            StageInput.validate({"entity": f"{MODULE}.annotated_action"}).__root__
+        )
+        for st in stages:
+            assert isinstance(st, StageEntity), st
+            y = st(_sample())
+            assert y["meta"]() == {"name": "n!"}
+        # config written by pipelime 2.x carries the `__root__` envelope
+        # the loop above resolved `f"{MODULE}...."` again (constructing the last
+        # stage), re-registering this module; clean up before another by-name lookup.
+        _clean_registry()
+        st = StageInput.validate(
+            {"entity": {"__root__": {"action": f"{MODULE}.annotated_action"}}}
+        ).__root__
+        assert isinstance(st, StageEntity)
+
+    def test_stage_entity_dump_roundtrip(self):
+        si = StageInput.validate({"entity": {"action": f"{MODULE}.annotated_action"}})
+        d = dump(si)
+        assert list(d) == ["entity"]
+        spec = d["entity"]
+        if V1:  # v1 top-level `.dict()` of the inner root model keeps the envelope
+            assert spec == {"__root__": {"action": f"{MODULE}.annotated_action", "input_type": f"{__name__}.ContractInput"}}
+        else:
+            assert spec == {"action": f"{MODULE}.annotated_action", "input_type": f"{__name__}.ContractInput"}
+        # `si` resolved `f"{MODULE}.annotated_action"` above, registering this module;
+        # clean up before the "entity" by-name lookup triggered by validating `d`.
+        _clean_registry()
+        again = StageInput.validate(d)
+        assert isinstance(again.__root__, StageEntity)
+
+
+# --- sequences (spec §4.4) ------------------------------------------------------
+@pls.piped_sequence
+class ContractPipe(PipedSequenceBase, title="contract_pipe"):
+    keys: t.Sequence[str] = Field(default_factory=list)
+    stage: StageInput = Field(default_factory=lambda: StageInput.validate("identity"))
+
+    def size(self) -> int:
+        return self.source.size()
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        return self.stage(self.source.get_sample(idx))
+
+
+class TestSequences:
+    def test_piped_sequence_registration_and_pickle(self):
+        seq = SamplesSequence.toy_dataset(3).contract_pipe(keys=["image"], stage="identity")
+        assert seq.name() == "contract_pipe" and len(seq) == 3
+        seq2 = pickle.loads(pickle.dumps(seq))
+        assert len(seq2) == 3 and seq2.keys == ["image"]
+        # multiprocessing path
+        seq.run(num_workers=2, prefetch=1, track_fn=False)
+
+    @pytest.mark.xfail(V1, reason="spec §4.4 bug fix: to_pipe recursion on str", strict=True)
+    def test_to_pipe_roundtrip(self):
+        seq = SamplesSequence.toy_dataset(3).contract_pipe(keys=["image"])
+        pipe = seq.to_pipe()
+        assert pipe[-1] == {
+            "contract_pipe": {"keys": ["image"], "stage": {"identity": {}}}
+        }
+        assert len(build_pipe(pipe)) == 3
+        assert SamplesSequence.toy_dataset(2).to_pipe()[0]["toy_dataset"]["length"] == 2
