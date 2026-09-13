@@ -185,3 +185,61 @@ class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
     @classmethod
     def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):
         return _polymorphic_serialization(cls, handler(source))
+
+
+RootT = t.TypeVar("RootT")
+
+
+class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeModelMeta):
+    """Base of pipelime's value wrappers (``NumpyType``, ``TypeDef``, ...).
+
+    Subclasses implement :meth:`_coerce` (any accepted input → root value); the
+    v1 surface (``cls(__root__=x)``, ``.__root__``, ``.value``, ``create``,
+    ``validate``, ``.dict()`` envelope) is provided here.
+    """
+
+    def __init__(self, root: t.Any = PydanticUndefined, /, **data: t.Any) -> None:
+        if "__root__" in data:
+            if root is not PydanticUndefined:
+                raise TypeError("pass the root value either positionally or as `__root__`")
+            root = data.pop("__root__")
+        if data:
+            raise TypeError(
+                f"{type(self).__name__} takes a single root value, "
+                f"got unexpected keyword arguments: {sorted(data)}"
+            )
+        super().__init__(root)
+
+    @classmethod
+    def _coerce(cls, value: t.Any) -> t.Any:
+        """Turn any accepted input into the root value. Override in subclasses."""
+        return value
+
+    @pydantic.model_validator(mode="wrap")
+    @classmethod
+    def _validate_root(cls, value: t.Any, handler: pydantic.ValidatorFunctionWrapHandler):
+        if isinstance(value, cls):
+            return value
+        if value is PydanticUndefined:  # missing root → let pydantic raise
+            return handler(value)
+        return handler(cls._coerce(value))
+
+    @classmethod
+    def create(cls, value: t.Any):
+        return cls.model_validate(value)
+
+    @classmethod
+    def validate(cls, value: t.Any):  # v1 name, kept for downstream code
+        return cls.model_validate(value)
+
+    @property
+    def value(self) -> RootT:
+        return self.root
+
+    def dict(self, **kwargs: t.Any) -> t.Dict[str, t.Any]:  # type: ignore[override]
+        """v1 envelope ``{"__root__": <serialized root>}``; ``model_dump()`` is bare."""
+        return {"__root__": self.model_dump(**kwargs)}
+
+
+# `__root__` cannot be declared inside a model body (pydantic rejects the name)
+PipelimeRootModel.__root__ = property(lambda self: self.root)  # type: ignore[attr-defined]

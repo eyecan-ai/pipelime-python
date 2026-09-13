@@ -155,3 +155,62 @@ class TestPolymorphicSerialization:
     def test_identity_preserved_on_validation(self):
         s = self.Sub()
         assert self.Host(one=s).one is s
+
+
+class _Upper(pc.PipelimeRootModel[str]):
+    @classmethod
+    def _coerce(cls, value):
+        if isinstance(value, bytes):
+            value = value.decode()
+        if not isinstance(value, str):
+            raise ValueError("not a string")
+        return value.upper()
+
+
+class _UpperHost(pydantic.BaseModel):
+    u: _Upper
+
+
+class TestRootModel:
+    Upper = _Upper
+
+    def test_construction_forms(self):
+        assert self.Upper("a").root == "A"
+        assert self.Upper(__root__="b").root == "B"
+        assert self.Upper.create(b"c").root == "C"
+        assert self.Upper.validate("d").value == "D"
+        assert self.Upper.model_validate("e").__root__ == "E"
+        with pytest.raises(TypeError):
+            self.Upper("a", __root__="b")
+        with pytest.raises(TypeError):
+            self.Upper("a", other=1)
+        with pytest.raises(pydantic.ValidationError):
+            self.Upper(3)
+        with pytest.raises(pydantic.ValidationError):
+            self.Upper()
+
+    def test_dumps(self):
+        u = self.Upper("a")
+        assert u.model_dump() == "A"
+        assert u.model_dump_json() == '"A"'
+        assert u.dict() == {"__root__": "A"}
+
+    def test_nested(self):
+        H = _UpperHost
+        h = H(u="x")
+        assert h.model_dump() == {"u": "X"}
+        u = self.Upper("y")
+        assert H(u=u).u is u  # identity pass-through
+        assert H.model_validate({"u": "z"}).u.root == "Z"
+
+    def test_generic(self):
+        T = t.TypeVar("T")
+
+        class Box(pc.PipelimeRootModel[list[T]], t.Generic[T]):
+            pass
+
+        class IntBox(Box[int]):
+            pass
+
+        assert IntBox(["1", 2]).root == [1, 2]
+        assert IntBox.model_fields["root"].annotation == list[int]
