@@ -63,3 +63,91 @@ def contract_identity(x):
 def contract_action(x):
     """Entity action used by the StageEntity contracts (importable by class path)."""
     return x
+
+
+# --- compact forms (spec §4.5) -------------------------------------------------
+from pipelime.commands.interfaces import (
+    ExtendedInterval,
+    GrabberInterface,
+    InputDatasetInterface,
+    Interval,
+    OutputDatasetInterface,
+    OutputValueInterface,
+)
+from pipelime.commands.split_ops import AbsoluteSplit, PercSplit, Splits
+
+
+class TestCompactForms:
+    def test_grabber(self):
+        H = make_model("H", g=(GrabberInterface, GrabberInterface.pyd_field()))
+        assert dump(H(g="4,3").g) == {
+            "num_workers": 4,
+            "prefetch": 3,
+            "allow_nested_mp": False,
+        }
+        assert H(g=2).g.num_workers == 2
+        assert H(g="4,3,true").g.allow_nested_mp is True
+        assert H().g.num_workers == 0
+        g0 = GrabberInterface(num_workers=9)
+        assert H(g=g0).g is g0  # instance pass-through keeps identity
+        with pytest.raises(pyd.ValidationError):
+            H(g="abc")
+        with pytest.raises(pyd.ValidationError):
+            H(g={"bad": 1})  # extra="forbid" still enforced
+
+    def test_input_dataset(self, tmp_path: Path):
+        H = make_model("H", i=(InputDatasetInterface, ...))
+        inp = H(i=f"{tmp_path},true").i
+        assert inp.folder == tmp_path.resolve() and inp.skip_empty is True
+        assert H(i=str(tmp_path)).i.skip_empty is False
+        assert H(i={"folder": str(tmp_path)}).i.folder == tmp_path.resolve()
+        with pytest.raises(pyd.ValidationError):
+            H(i=f"{tmp_path},maybe")
+
+    def test_output_dataset(self, tmp_path: Path):
+        H = make_model("H", o=(OutputDatasetInterface, ...))
+        out = H(o=f"{tmp_path / 'new'},true,true").o
+        assert out.folder == (tmp_path / "new").resolve()
+        assert out.exists_ok is True
+        assert out.serialization.override == {"DEEP_COPY": None}
+
+    def test_intervals(self):
+        H = make_model("H", a=(Interval, ...), b=(ExtendedInterval, ...))
+        h = H(a="2:5", b="1:9:2")
+        assert (h.a.start, h.a.stop) == (2, 5)
+        assert (h.b.start, h.b.stop, h.b.step) == (1, 9, 2)
+        assert H(a=3, b=[1, 2]).a.start == 3
+        assert H(a=":4", b={"stop": 2}).a.stop == 4
+        with pytest.raises(pyd.ValidationError):
+            H(a="1:2:3", b=1)
+
+    def test_output_value(self, tmp_path: Path):
+        H = make_model("H", v=(OutputValueInterface[int], ...))
+        v = H(v=f"{tmp_path / 'value.json'},true").v
+        assert v.exists_ok is True and v.file == (tmp_path / "value.json").resolve()
+
+    def test_splits_union_resolution(self, tmp_path: Path):
+        """Union[AbsoluteSplit, PercSplit, Sequence[...]] must resolve as in v1."""
+        H = make_model("H", s=(Splits.any_split_t, ...))
+        expected = {
+            "1": (AbsoluteSplit, 1),
+            1: (AbsoluteSplit, 1),
+            0.5: (PercSplit, 0.5),
+            "0.5": (PercSplit, 0.5),
+            "none": (AbsoluteSplit, None),
+            "10": (AbsoluteSplit, 10),
+        }
+        for value, (cls, size) in expected.items():
+            s = H(s=value).s
+            assert type(s) is cls, value
+            assert (s.length if cls is AbsoluteSplit else s.fraction) == size
+        s = H(s=f"1,{tmp_path / 'abs_out'}").s
+        assert type(s) is AbsoluteSplit and s.output.folder == (
+            tmp_path / "abs_out"
+        ).resolve()
+        s = H(s=f"0.3,{tmp_path / 'perc_out'}").s
+        assert type(s) is PercSplit and s.output.folder == (
+            tmp_path / "perc_out"
+        ).resolve()
+        assert [type(x) for x in H(s=[0.5, "0.5"]).s] == [PercSplit, PercSplit]
+        assert type(H(s={"fraction": 0.2}).s) is PercSplit
