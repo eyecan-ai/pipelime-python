@@ -1,0 +1,157 @@
+"""Unit tests for pipelime.utils.pydantic_compat (design spec §3)."""
+from __future__ import annotations
+
+import typing as t
+import warnings
+
+import pydantic
+import pytest
+
+from pipelime.utils import pydantic_compat as pc
+
+
+class TestOptionalSemantics:
+    def test_optional_without_default_is_optional(self):
+        class M(pc.PipelimeModel):
+            a: t.Optional[int]
+            b: int | None
+            c: t.Union[int, str, None]
+            d: int
+
+        assert M.model_fields["a"].is_required() is False
+        assert M.model_fields["b"].is_required() is False
+        assert M.model_fields["c"].is_required() is False
+        assert M.model_fields["d"].is_required() is True
+        m = M(d=1)
+        assert (m.a, m.b, m.c) == (None, None, None)
+
+    def test_none_default_allows_none(self):
+        class M(pc.PipelimeModel):
+            a: int = None  # type: ignore[assignment]
+            b: str = pydantic.Field(None, description="b")
+            c: t.Optional[int] = pydantic.Field(None)
+
+        assert M(a=None, b=None, c=None).a is None
+        assert M(a=3).a == 3
+        with pytest.raises(pydantic.ValidationError):
+            M(a="x")
+
+    def test_string_annotations(self):
+        class M(pc.PipelimeModel):
+            a: "t.Optional[int]"
+            b: "int | None"
+            c: "int"
+            d: "list[int] | None"
+
+        m = M(c=1)
+        assert (m.a, m.b, m.d) == (None, None, None)
+        assert M.model_fields["c"].is_required()
+
+    def test_classvar_and_private_untouched(self):
+        class M(pc.PipelimeModel):
+            _priv: t.Optional[int] = pydantic.PrivateAttr(None)
+            cv: t.ClassVar[t.Optional[int]] = 3
+            x: int = 1
+
+        assert M.model_fields.keys() == {"x"}
+        assert M.cv == 3 and M()._priv is None
+
+    def test_inherited_fields_keep_semantics(self):
+        class Base(pc.PipelimeModel):
+            a: t.Optional[int]
+
+        class Child(Base):
+            b: t.Optional[str]
+
+        assert Child().a is None and Child().b is None
+
+    def test_numbers_coerced_to_str(self):
+        class M(pc.PipelimeModel):
+            s: str
+
+        assert M(s=5).s == "5"
+
+
+class TestV1Guard:
+    def test_v1_field_rejected(self):
+        v1 = pytest.importorskip("pydantic.v1")
+        with pytest.raises(TypeError, match="pydantic.v1"):
+
+            class M(pc.PipelimeModel):
+                x: int = v1.Field(1)
+
+    def test_v1_private_attr_rejected(self):
+        v1 = pytest.importorskip("pydantic.v1")
+        with pytest.raises(TypeError, match="pydantic.v1"):
+
+            class M(pc.PipelimeModel):
+                _p: int = v1.PrivateAttr(1)
+
+    def test_v1_validator_rejected(self):
+        v1 = pytest.importorskip("pydantic.v1")
+        with pytest.raises(TypeError, match="pydantic.v1"):
+
+            class M(pc.PipelimeModel):
+                x: int = 1
+
+                @v1.validator("x")
+                def _v(cls, v):
+                    return v
+
+    def test_v2_objects_accepted(self):
+        class M(pc.PipelimeModel):
+            x: int = pydantic.Field(1)
+            _p: int = pydantic.PrivateAttr(2)
+
+            @pydantic.field_validator("x")
+            @classmethod
+            def _v(cls, v):
+                return v
+
+        assert M().x == 1
+
+
+class _PolyBase(pc.PipelimeModel, extra="forbid"):
+    pass
+
+
+class _PolySub(_PolyBase):
+    a: int = 1
+    s: str = pydantic.Field("x", alias="ss")
+
+
+class _PolyHost(pydantic.BaseModel):
+    one: _PolyBase
+    many: list[_PolyBase] = []
+    maybe: t.Optional[_PolyBase] = None
+    by_key: dict[str, _PolyBase] = {}
+
+
+class TestPolymorphicSerialization:
+    Base, Sub, Host = _PolyBase, _PolySub, _PolyHost
+
+    def test_python_and_json(self):
+        h = self.Host(one=self.Sub(a=2), many=[self.Sub()], by_key={"k": self.Sub(a=5)})
+        assert h.model_dump() == {
+            "one": {"a": 2, "s": "x"},
+            "many": [{"a": 1, "s": "x"}],
+            "maybe": None,
+            "by_key": {"k": {"a": 5, "s": "x"}},
+        }
+        assert h.model_dump(by_alias=True)["one"] == {"a": 2, "ss": "x"}
+        assert h.model_dump(exclude_defaults=True) == {"one": {"a": 2}, "many": [{}], "by_key": {"k": {"a": 5}}}
+        assert '"one":{"a":2,"s":"x"}' in h.model_dump_json()
+
+    def test_exact_type_and_top_level(self):
+        assert self.Host(one=self.Base()).model_dump()["one"] == {}
+        assert self.Sub(a=3).model_dump() == {"a": 3, "s": "x"}
+
+    def test_no_warnings_and_json_schema(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self.Host(one=self.Sub()).model_dump()
+            assert "one" in self.Host.model_json_schema()["properties"]
+
+    def test_identity_preserved_on_validation(self):
+        s = self.Sub()
+        assert self.Host(one=s).one is s
