@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-12
 **Branch:** `pydantic_v2`
-**Status:** approved section by section in the design session; implementation plan to follow
+**Status:** approved section by section in the design session; implementation plans in `docs/superpowers/plans/2026-09-13-pydantic-v2-*.md`
 **Companion:** `2026-09-12-pydantic-v2-migration-analysis.md` (factual inventory, empirical
 pydantic facts, risk map — read it first)
 
@@ -72,14 +72,19 @@ progress models — i.e. every non-root pipelime model.
    nested `list`/`dict`/`Optional`, JSON schema generation, no warnings, no
    recursion. It applies to *any* field annotated with a pipelime base class,
    including downstream ones. Top-level `model_dump()` is unaffected.
-2. **v1 `Optional` semantics (metaclass).** In `PipelimeModelMeta.__new__`, before
-   delegating to `ModelMetaclass`, every annotation in the class namespace that is
-   `Optional[X]` / `X | None` / `Union[..., None]` and has **no default in the
-   namespace** gets `= None`. Skips `ClassVar`, names starting with `_`, and
-   names already present in the namespace. String annotations (from
-   `from __future__ import annotations`) are evaluated with
+2. **v1 `Optional`/`None` semantics (metaclass).** In `PipelimeModelMeta.__new__`,
+   before delegating to `ModelMetaclass`: (a) every annotation in the class
+   namespace that is `Optional[X]` / `X | None` / `Union[..., None]` and has
+   **no default in the namespace** gets `= None`; (b) every field whose default
+   is `None` (plain or `Field(None)`) and whose annotation is not already
+   optional gets its annotation wrapped in `Optional[...]` — v1 set
+   `allow_none=True` in that case, so `x: int = None` accepted an explicit
+   `None` (verified). Skips `ClassVar` and names starting with `_`. String
+   annotations (from `from __future__ import annotations`) are evaluated with
    `eval(ann, module.__dict__, namespace)`; if evaluation fails, a textual check
    (`Optional[`, `| None`, `None |`, `Union[...None...]`) is the fallback.
+   (c) `model_config` sets `coerce_numbers_to_str=True`: v1 coerced numbers into
+   `str` fields and CLI values are parsed (`+key 0` → `0`) before validation.
 3. **v1-leftover guard (metaclass).** If the namespace contains a
    `pydantic.v1.fields.FieldInfo`, a `pydantic.v1.fields.ModelPrivateAttr`, or a
    classmethod/function carrying `__validator_config__`/`__root_validator_config__`
@@ -90,7 +95,8 @@ progress models — i.e. every non-root pipelime model.
    the guard is a no-op.
 
 Config keys used by pipelime models after migration: `extra`, `populate_by_name`,
-`arbitrary_types_allowed`, `frozen`, `title`, `validate_default` (per field).
+`arbitrary_types_allowed`, `frozen`, `title`, `coerce_numbers_to_str`,
+`validate_default` (per field).
 `copy_on_model_validation` and `underscore_attrs_are_private` disappear (v2
 defaults match).
 
@@ -121,25 +127,28 @@ Base for the value wrappers (`NumpyType`, `YamlInput`, `TypeDef`, `CallableDef`,
 
 ### 3.3 `Field(...)`
 
-`def Field(default=PydanticUndefined, *, piper_port=None, pipe_source=None,
-expand_help=None, is_required=None, json_schema_extra=None, **kwargs)`:
-merges the pipelime flags (only those not `None`) into `json_schema_extra` (a
-dict; a callable `json_schema_extra` is wrapped) and returns `pydantic.Field(...)`.
+`def Field(default=PydanticUndefined, **kwargs)`: every keyword that
+`pydantic.Field` does not declare (`piper_port`, `pipe_source`, `expand_help`,
+`is_required`, and any other custom flag — `test_interfaces.py` passes arbitrary
+ones through `pyd_field(**kwargs)`) is merged into `json_schema_extra` (a dict;
+a callable `json_schema_extra` is wrapped) and the rest is forwarded to
+`pydantic.Field(...)`.
 Re-exported as `pipelime.piper.Field`; `PydanticField*Mixin.pyd_field()` uses it.
 `field_extra(field_info, key, default)` reads a flag back from
 `json_schema_extra` (dict only; callables yield `default`).
 
 ### 3.4 Introspection helpers
 
-- `FieldView` (frozen dataclass): `name`, `alias` (may be `None`),
+- `FieldView` (frozen dataclass): `owner` (the model class), `name`, `alias` (may be `None`),
   `effective_alias` (`alias or name` — v1's `ModelField.alias`), `has_alias`,
   `annotation`, `inner_type` (annotation with `None` stripped from
   `Optional`/`Union`/`X | None`, exactly v1's `outer_type_`), `required`
   (`FieldInfo.is_required()`), `default` (`get_default(call_default_factory=True)`;
   `PydanticUndefined` → `Ellipsis` for display), `description`, `exclude`,
   `extra` (dict from `json_schema_extra`), `is_model` (inner type is a
-  `BaseModel` subclass, not abstract), `root_type` (inner type's root annotation
-  when it is a `RootModel`, else `None`), `field_info`.
+  `BaseModel` subclass), `root_type` (inner type's root annotation
+  when it is a `RootModel`, else `None`), `populate_by_name` (from the owner's
+  config), `field_info`.
 - `iter_fields(model_cls) -> Iterator[FieldView]` in declaration order;
   `get_field(model_cls, name)`.
 - `model_title(cls)` → `model_config.get("title") or cls.__name__`.
@@ -374,7 +383,7 @@ the two bug fixes (§4.2, §4.4) as *expected-failure-on-v1* tests.
 |---|---|---|---|
 | 0 | `tests/pipelime/{utils,stages,piper,sequences,choixe}` minus grabber/TUI/ZMQ + contract tests | after every change | ~15 s |
 | 1 | the subtask's module tests + Tier 0 + a curated `commands` slice (one `nproc`) | subtask gate | 1–3 min |
-| 2 | full suite with `pytest-xdist` (`-n auto --dist loadfile`; ZMQ tests get free ports if they collide), tox on 3.10–3.13 | end of layers 4/5/6, pre-merge | minutes |
+| 2 | full suite with `pytest-xdist` (`-n auto --dist loadgroup`, tests grouped per file, the two ZMQ tests in one group), tox on 3.10–3.13 | end of subtasks 3/4/5, pre-merge | minutes |
 
 The final Tier 0 run adds `-W error::pydantic.PydanticDeprecatedSince20` to prove
 pipelime itself is warning-free.
@@ -414,17 +423,15 @@ pipelime itself is warning-free.
 | # | Subtask | Gate |
 |---|---|---|
 | 0 | test infra (`pytest-xdist`, tiers, `TEST_CHANGES.md`) + contract tests on v1 | contract tests green on v1 (except the documented expected failures) |
-| 1 | compat toolkit + `utils/pydantic_types.py` | `tests/pipelime/utils` + toolkit unit tests + relevant contract tests |
-| 2 | `stages` + `sequences` (one unit) | their tests + Tier 0 |
-| 3 | `piper` + `commands` (interfaces first) | their tests + Tier 1 |
-| 4 | `cli` (help, TUI, errors, main) | **full suite green (Tier 2)** |
-| 5 | `choixe` | choixe tests + Tier 2 |
-| 6 | docs, examples, migration guide, deps, version | Tier 2 + warning-free Tier 0 + tox |
-| 7 | downstream smoke test on a real project + release checklist | maintainer sign-off |
+| 1 | compat toolkit + `utils/pydantic_types.py` | `tests/pipelime/utils` + toolkit unit tests |
+| 2 | the model graph: `stages` + `sequences` (2a), then `piper` + `commands` + the minimal `cli/utils.py` registry/error compat (2b) — one unit, because the stage/command registry (`PipelimeSymbolsHelper.import_everything`) imports all of them | `tests/pipelime/{stages,sequences,piper,commands}` + contract tests minus the CLI-rendering ones |
+| 3 | `cli` (help, TUI, errors, main) | **full suite green (Tier 2)** |
+| 4 | `choixe` | choixe tests + Tier 2 |
+| 5 | docs, examples, migration guide, deps, version, downstream smoke test + release checklist | Tier 2 + warning-free Tier 0 + tox + maintainer sign-off |
 
-Between subtasks 1 and 4 the package is intentionally not fully importable;
-each of those subtasks is gated by its own module tests and the contract tests
-that its layer covers.
+Between subtask 1 and the end of subtask 2 the package is intentionally not
+fully importable; subtask 2a is checked with import smoke tests and
+direct-construction tests only, and the real gate sits at the end of 2b.
 
 ---
 
