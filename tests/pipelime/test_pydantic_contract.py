@@ -727,3 +727,145 @@ class TestSequences:
         }
         assert len(build_pipe(pipe)) == 3
         assert SamplesSequence.toy_dataset(2).to_pipe()[0]["toy_dataset"]["length"] == 2
+
+
+
+
+# --- validation interfaces & validator ordering (spec §4.1, §4.5) --------------
+class TestValidationInterfaces:
+    def test_dynamic_sample_schema(self):
+        svi = plt.SampleValidationInterface(
+            sample_schema={
+                "image": plt.ItemValidationModel(class_path="ImageItem", is_shared=False),
+                "meta": plt.ItemValidationModel(class_path="MetadataItem", is_optional=True),
+            },
+            ignore_extra_keys=False,
+            lazy=True,
+        )
+        model = svi.schema_model
+        model(**_sample().extract_keys("image", "meta"))
+        with pytest.raises(pyd.ValidationError):
+            model(**_sample())  # `other` is an extra key
+        shared = _sample().extract_keys("image", "meta")
+        shared = shared.set_item("image", shared["image"].make_new(shared["image"], shared=True))
+        with pytest.raises(pyd.ValidationError):
+            model(**shared)  # image must not be shared
+        # `_type_to_string` only strips the `pipelime.items.` default class path when
+        # doing so leaves no further dot; `ImageItem` lives in the `pipelime.items.
+        # image_item` submodule, so the reduced name still has a dot and the full
+        # dotted path is kept instead (same v1 fact pinned in
+        # `test_type_def_and_item_type` above).
+        assert dump(svi, by_alias=True)["sample_schema"]["image"] == {
+            "class_path": "pipelime.items.image_item.ImageItem",
+            "is_optional": True,
+            "is_shared": False,
+            "validator": None,
+        }
+        assert svi.as_pipe()["validate_samples"]["sample_schema"]["lazy"] is True
+
+    def test_schema_from_class_and_path(self):
+        class S(pyd.BaseModel, arbitrary_types_allowed=True):
+            image: pli.ImageItem
+
+        assert plt.SampleValidationInterface(sample_schema=S).schema_model is S
+        svi = plt.SampleValidationInterface(sample_schema=f"{MODULE}.ContractMeta")
+        assert svi.schema_model is ContractMeta
+
+    def test_validator_ordering(self, tmp_path: Path):
+        with pytest.raises(pyd.ValidationError, match="Either `folder` or `pipe`"):
+            InputDatasetInterface()
+        with pytest.raises(pyd.ValidationError, match="overwrite an existing dataset"):
+            OutputDatasetInterface(folder=tmp_path)
+        assert OutputDatasetInterface(folder=tmp_path, exists_ok=True).folder == tmp_path.resolve()
+        assert OutputDatasetInterface(pipe=[{"identity": None}]).folder is None
+        with pytest.raises(pyd.ValidationError, match="Invalid pipeline"):
+            InputDatasetInterface(folder=tmp_path, pipe=3)
+        with pytest.raises(pyd.ValidationError, match="either `filter_query` or `filter_fn`"):
+            from pipelime.commands import FilterCommand
+
+            FilterCommand(input=str(tmp_path), output=str(tmp_path / "o"))
+
+    def test_new_path(self, tmp_path: Path):
+        H = make_model("H", p=(plt.new_file_path(".txt"), ...))
+        assert H(p=tmp_path / "x").p == tmp_path / "x.txt"
+        assert H(p=str(tmp_path / "y.txt")).p == tmp_path / "y.txt"
+        with pytest.raises(pyd.ValidationError):
+            H(p=tmp_path)  # exists
+        with pytest.raises(pyd.ValidationError):
+            H(p=tmp_path / "z.png")  # wrong suffix
+        from pipelime.piper.checkpoint import LocalCheckpoint
+
+        assert LocalCheckpoint(folder=tmp_path / "new").folder == (tmp_path / "new").resolve()
+        assert LocalCheckpoint(folder=tmp_path).folder == tmp_path.resolve()
+
+    def test_alias_error_formatting(self):
+        from pipelime.cli.utils import show_field_alias_valerr
+
+        with pytest.raises(pyd.ValidationError) as ei:
+            PortsCommand(i="notanint")
+        if V1:
+            show_field_alias_valerr(ei.value)
+            text = str(ei.value)
+        else:
+            from pipelime.cli.utils import format_validation_error
+
+            text = format_validation_error(ei.value, PortsCommand)
+        assert "inp / i" in text
+
+    def test_transformation(self):
+        import albumentations as A
+        from pipelime.stages import StageAlbumentations
+        from pipelime.stages.augmentations import Transformation
+
+        tr = A.Compose([A.Resize(height=2, width=2)])
+        st = StageAlbumentations(transform=tr, keys_to_targets={"image": "image"})
+        assert isinstance(st.transform, Transformation)
+        assert isinstance(st.transform.value, A.Compose)
+        st2 = StageAlbumentations(transform=A.to_dict(tr), keys_to_targets={"image": "image"})
+        assert dump(st2)["transform"] == A.to_dict(tr)
+        y = st(_sample())
+        assert y["image"]().shape[:2] == (2, 2)
+
+    def test_color_field(self):
+        """`pad_colors: Union[Color, Sequence[Color]]` parses names, hex and tuples."""
+        from pipelime.stages import StageCropAndPad
+
+        kw = dict(x=0, y=0, width=4, height=4, images="image")
+        st = StageCropAndPad(pad_colors="red", **kw)
+        assert st.pad_colors.as_rgb_tuple() == (255, 0, 0)
+        st = StageCropAndPad(pad_colors=["#00ff00", (0, 0, 255)], **kw)
+        assert [c.as_rgb_tuple() for c in st.pad_colors] == [(0, 255, 0), (0, 0, 255)]
+        assert StageCropAndPad(**kw).pad_colors.as_rgb_tuple() == (0, 0, 0)
+
+
+# --- help rendering (spec §4.6) -------------------------------------------------
+HELP_SNAPSHOT = Path(__file__).parent.parent / "sample_data" / "contract" / "help_contract_ports.txt"
+
+
+def _render_help(model_cls) -> str:
+    from rich.console import Console
+
+    import pipelime.cli.pretty_print as pp
+
+    console = Console(width=160, record=True, force_terminal=False, color_system=None)
+    with console.capture():
+        pass
+    # rich.print uses the global console; render through a local one instead
+    original = pp.rprint
+    try:
+        pp.rprint = console.print
+        pp.print_model_info(model_cls, show_class_path=False, show_piper_port=True)
+    finally:
+        pp.rprint = original
+    return " ".join(console.export_text().split())
+
+
+class TestHelpRendering:
+    def test_help_rows_snapshot(self):
+        text = _render_help(PortsCommand)
+        for token in ["inp / i", "out / o", "prm", "INPUT", "OUTPUT", "PARAMETER", "int"]:
+            assert token in text
+        if not HELP_SNAPSHOT.exists():  # first run on v1 writes the snapshot
+            HELP_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
+            HELP_SNAPSHOT.write_text(text)
+        assert text == HELP_SNAPSHOT.read_text()
