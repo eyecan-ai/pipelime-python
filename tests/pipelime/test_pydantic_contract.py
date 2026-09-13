@@ -193,8 +193,14 @@ class TestRootWrappers:
         # custom __root__ validator ever runs (pydantic v1 field-level None guard);
         # only `YamlInput.create(None)`/`.validate(None)` (no enclosing field) can
         # build the None-valued wrapper.
-        with pytest.raises(pyd.ValidationError):
-            H(c=None)
+        # v1 rejects an explicit None for a *required* wrapper field before the type's
+        # validators run; the v2 design accepts it as `YamlInput(None)` (documented
+        # difference, design ruling in the migration ledger)
+        if V1:
+            with pytest.raises(pyd.ValidationError):
+                H(c=None)
+        else:
+            assert H(c=None).c.value is None
 
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_type_def_and_item_type(self):
@@ -241,19 +247,19 @@ class TestRootWrappers:
             H(fn=42)
 
 
-try:
-    # `test_callable_def` also imports `contract_identity` via `THIS_FILE:...`
-    # (file-path form), which makes `import_symbol` load *this same file* a
-    # second time under a bare-stem module name (see `import_module_from_file`);
-    # that re-executes every top-level statement, including this class body.
-    # `ItemFactory` (pipelime/items/base.py) registers file extensions in a
-    # process-global dict at class-creation time and raises if an extension is
-    # already taken, so the second execution collides with the first (normal,
-    # package-qualified) import of this module. Reuse the already-registered
-    # class instead of letting that collision propagate; the class is only used
-    # by class-path lookups against `MODULE` (the original import), never by
-    # code fetched through `THIS_FILE`, so which physical class object backs it
-    # here is immaterial.
+# `test_callable_def` also imports `contract_identity` via `THIS_FILE:...`
+# (file-path form), which makes `import_symbol` load *this same file* a
+# second time under a bare-stem module name (see `import_module_from_file`);
+# that re-executes every top-level statement, including this class body.
+# `ItemFactory` (pipelime/items/base.py) registers file extensions in a
+# process-global dict at class-creation time and raises if an extension is
+# already taken, so the second execution collides with the first (normal,
+# package-qualified) import of this module. Reuse the already-registered
+# class instead of letting that collision propagate.
+if ".contract" in type(pli.Item).ITEM_CLASSES:
+    ContractItem = type(pli.Item).ITEM_CLASSES[".contract"]
+else:
+
     class ContractItem(pli.Item):
         """Item subclass used by the TypeDef contracts (never instantiated)."""
 
@@ -269,9 +275,6 @@ try:
         def encode(cls, value, fp):  # pragma: no cover
             fp.write(value)
 
-except ValueError:
-    ContractItem = type(pli.Item).ITEM_CLASSES[".contract"]
-
 
 class ContractCallable:
     def __init__(self, offset: int):
@@ -279,3 +282,108 @@ class ContractCallable:
 
     def __call__(self, x):
         return x + self.offset
+
+
+# --- v1 Optional / None-default semantics (spec §3.1.2) ------------------------
+from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.sequences import SamplesSequence, build_pipe
+from pipelime.sequences.pipes import PipedSequenceBase
+import pipelime.sequences as pls
+from pipelime.stages import (
+    SampleStage,
+    StageCompose,
+    StageIdentity,
+    StageInput,
+    StageLambda,
+)
+from pipelime.stages.entities import BaseEntity
+
+
+class OptCommand(PipelimeCommand, title="contract-opt"):
+    a: t.Optional[int]
+    b: int = None  # type: ignore[assignment]
+    c: t.Optional[str] = Field(None, description="c")
+    d: t.Optional[float]  # all annotations are strings here (`from __future__ import annotations`)
+
+    def run(self) -> None:
+        pass
+
+
+class OptStage(SampleStage, title="contract-opt-stage"):
+    a: t.Optional[int]
+    b: int = None  # type: ignore[assignment]
+
+    def __call__(self, x):
+        return x
+
+
+class OptEntity(BaseEntity):
+    label: t.Optional[pli.NumpyItem]
+    image: pli.ImageItem = None  # type: ignore[assignment]
+
+
+class TestV1OptionalSemantics:
+    def test_command(self):
+        c = OptCommand()
+        assert (c.a, c.b, c.c, c.d) == (None, None, None, None)
+        assert OptCommand(a=None, b=None, d=None).b is None
+        assert OptCommand(a=1, b=2).b == 2
+        with pytest.raises(pyd.ValidationError):
+            OptCommand(b="x")
+
+    def test_stage(self):
+        assert OptStage().a is None and OptStage(b=None).b is None
+
+    def test_entity(self):
+        e = OptEntity()
+        assert e.label is None and e.image is None
+        e = OptEntity(label=[1, 2])
+        assert isinstance(e.label, pli.NumpyItem)
+        assert dump(e) == {"label": e.label}  # None fields are skipped in dumps
+
+
+# --- polymorphic nested serialization (spec §3.1.1) ----------------------------
+class PolyHost(pyd.BaseModel):
+    stage: SampleStage
+    stages: t.List[SampleStage] = []
+    cmd: t.Optional[PipelimeCommand] = None
+
+
+class TestPolymorphicDumps:
+    def test_stage_in_plain_model(self):
+        h = PolyHost(stage=StageCompose([StageIdentity()]), stages=[OptStage(a=3)])
+        d = dump(h)
+        assert d["stage"] == {"stages": [{"identity": {}}]}
+        assert d["stages"] == [{"a": 3, "b": None}]
+
+    def test_stage_input_dump(self):
+        # `StageInput.validate` resolves bare stage names (here "compose"/"identity")
+        # through `PipelimeSymbolsHelper`, which lazily scans every module it has ever
+        # been told about (`std_modules` plus any `extra_modules` registered by a
+        # dynamic import elsewhere) for `SampleStage`/`PipelimeCommand` subclasses and
+        # raises on any two carrying the same title. `test_type_def_and_item_type`/
+        # `test_callable_def` above register *this* module twice under different
+        # names (its dotted path, and its file path — the latter via the `THIS_FILE:`
+        # form, which reimports the file under a bare module name and so re-executes
+        # every top-level class statement, including `OptCommand`/`OptStage`); once
+        # both are registered, the module-level `OptCommand`/`OptStage` fixtures
+        # collide with their own re-executed copies purely by title, unrelated to the
+        # "compose"/"identity" lookup this test actually needs. Reset the registry to
+        # just the std modules first, the same isolation idiom already used by
+        # `test_tui.py`/`test_command_decorator.py` (`set_extra_modules`), so this
+        # lookup only ever sees pipelime's own built-in stages.
+        from pipelime.cli.utils import PipelimeSymbolsHelper
+
+        PipelimeSymbolsHelper.set_extra_modules([])
+        si = StageInput.validate({"compose": {"stages": ["identity", "identity"]}})
+        assert dump(si) == {"compose": {"stages": [{"identity": {}}, {"identity": {}}]}}
+        assert isinstance(si.__root__, StageCompose)
+
+    def test_command_in_plain_model(self):
+        h = PolyHost(stage=StageIdentity(), cmd=OptCommand(a=4))
+        assert dump(h)["cmd"] == {"a": 4, "b": None, "c": None, "d": None}
+        assert dump(h, exclude_none=True)["cmd"] == {"a": 4}
+
+    def test_sequence_iteration_yields_samples(self):
+        seq = SamplesSequence.toy_dataset(2)
+        assert all(isinstance(x, pls.Sample) for x in seq)
