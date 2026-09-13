@@ -387,3 +387,155 @@ class TestPolymorphicDumps:
     def test_sequence_iteration_yields_samples(self):
         seq = SamplesSequence.toy_dataset(2)
         assert all(isinstance(x, pls.Sample) for x in seq)
+
+
+# --- command framework (spec §4.2) ---------------------------------------------
+from pipelime.piper import command
+from pipelime.piper.model import LazyCommand, NodesDefinition
+
+
+class PortsCommand(PipelimeCommand, title="contract-ports"):
+    inp: int = Field(1, alias="i", piper_port=PiperPortType.INPUT)
+    out: int = Field(2, alias="o", piper_port=PiperPortType.OUTPUT)
+    prm: int = Field(3)
+
+    def run(self) -> None:
+        pass
+
+
+class TestCommandFramework:
+    def test_piper_ports(self):
+        c = PortsCommand()
+        assert c.get_inputs() == {"inp": 1} and c.get_outputs() == {"out": 2}
+        assert PortsCommand(i=5, o=6).inp == 5  # by alias
+        assert PortsCommand(inp=5, out=6).out == 6  # by name (populate_by_name)
+        assert PortsCommand.command_title() == "contract-ports"
+        assert PortsCommand().command_name == "contract-ports"
+
+    def test_raw_pydantic_field_with_flags(self):
+        """`pydantic.Field(piper_port=...)` (the pre-3.0 spelling) keeps working;
+        on v2 pydantic emits a deprecation warning at class creation, which is
+        expected and documented in the migration guide."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+
+            class RawPortsCommand(PipelimeCommand, title="contract-raw-ports"):
+                inp: int = pyd.Field(1, piper_port=PiperPortType.INPUT)
+                out: int = pyd.Field(2, piper_port=PiperPortType.OUTPUT)
+
+                def run(self) -> None:
+                    pass
+
+        assert RawPortsCommand().get_inputs() == {"inp": 1}
+        assert RawPortsCommand().get_outputs() == {"out": 2}
+
+    def test_numbers_coerced_to_str(self):
+        """v1 coerced numbers to `str` fields (CLI values are parsed before validation)."""
+        assert OptCommand(c=5).c == "5"
+        assert OptCommand(c=2.5).c == "2.5"
+
+    def test_dump_by_alias(self):
+        assert dump(PortsCommand(), by_alias=True) == {"i": 1, "o": 2, "prm": 3}
+        assert dump(PortsCommand()) == {"inp": 1, "out": 2, "prm": 3}
+
+    def test_extra_forbidden(self):
+        with pytest.raises(pyd.ValidationError):
+            PortsCommand(nope=1)
+
+    def test_class_kwargs(self):
+        class GcCommand(PipelimeCommand, title="gc", force_gc=True, no_default_checkpoint=True):
+            def run(self) -> None:
+                pass
+
+        assert GcCommand._force_gc is True
+        assert GcCommand.save_to_default_checkpoint() is False
+        assert PortsCommand.save_to_default_checkpoint() is True
+
+    def test_command_decorator_signature(self):
+        calls = []
+
+        @command(title="contract-fn")
+        def fn(a: int, b: str = "x", *args: int, c: float = 1.0, **kw: int):
+            calls.append((a, b, args, c, kw))
+
+        cmd = fn(1, "y", 2, 3, c=2.5, z=7)
+        assert cmd.command_title() == "contract-fn"
+        assert (cmd.a, cmd.b, cmd.args, cmd.c) == (1, "y", (2, 3), 2.5)
+        import inspect
+
+        params = list(inspect.signature(fn).parameters)
+        assert params == ["a", "b", "args", "c", "kw"]
+        with pytest.raises(TypeError):
+            fn(1, 2, 3, args=(4,))  # var-positional not allowed as keyword
+        with pytest.raises(pyd.ValidationError):
+            fn("notanint")
+
+    def test_command_decorator_unannotated(self):
+        @command
+        def fn(a=1, b="s", c=None):
+            pass
+
+        cmd = fn()
+        assert (cmd.a, cmd.b, cmd.c) == (1, "s", None)
+        assert fn(a=2).a == 2
+        with pytest.raises(pyd.ValidationError):
+            fn(a="x")  # v1 inferred `int` from the default
+
+    @pytest.mark.xfail(V1, reason="spec §4.2 bug fix: **kwargs expanded with **", strict=True)
+    def test_command_decorator_var_keyword_expansion(self):
+        seen = {}
+
+        @command
+        def fn(a: int, **kw: int):
+            seen.update(kw)
+
+        fn(1, x=2, y=3)()
+        assert seen == {"x": 2, "y": 3}
+
+    def test_lazy_command(self):
+        lc = PortsCommand.lazy()(inp=9)
+        assert isinstance(lc, LazyCommand)
+        assert lc.inp == 9
+        assert lc.out == 2  # declared default
+        assert lc.command_title() == "contract-ports"
+        lc.prm = 5
+        real = lc()
+        assert isinstance(real, PortsCommand) and (real.inp, real.prm) == (9, 5)
+        with pytest.raises(AttributeError):
+            lc.nope
+
+    def test_nodes_definition_dump_and_validate(self):
+        # Resolving a `f"{MODULE}...."` node here goes through `get_pipelime_command`,
+        # which (like `StageInput.validate` in `test_stage_input_dump` above) always
+        # triggers a `PipelimeSymbolsHelper` scan first, and then registers this module
+        # as an "extra module" as a side effect of the dotted-path lookup itself. This
+        # module also imports several already-titled `SampleStage` classes at top level
+        # (`StageCompose`, `StageIdentity`, ...) for use as fixtures, so once it is
+        # registered, the *next* scan finds them a second time and collides with
+        # pipelime's own `pipelime.stages` definitions, unrelated to the "contract-
+        # ports" node this test actually resolves. Reset before each lookup (the
+        # registration happens again after each one) so it only ever sees pipelime's
+        # own built-in commands/stages; see `test_stage_input_dump` for the mechanism.
+        from pipelime.cli.utils import PipelimeSymbolsHelper
+
+        PipelimeSymbolsHelper.set_extra_modules([])
+        nodes = NodesDefinition.create(
+            {"n1": {f"{MODULE}.PortsCommand": {"i": 4}}, "n2": PortsCommand(o=8)}
+        )
+        assert isinstance(nodes.value["n1"], PortsCommand)
+        d = nodes.dict()  # v1 envelope on a root wrapper
+        assert d == {
+            "__root__": {
+                "n1": {"contract-ports": {"inp": 4, "out": 2, "prm": 3}},
+                "n2": {"contract-ports": {"inp": 1, "out": 8, "prm": 3}},
+            }
+        }
+        assert dump(nodes, by_alias=True)["__root__" if V1 else "n1"] is not None
+        H = make_model("H", nodes=(NodesDefinition, ...))
+        PipelimeSymbolsHelper.set_extra_modules([])
+        h = H(nodes={"n": {f"{MODULE}.PortsCommand": {}}})
+        assert isinstance(h.nodes.value["n"], PortsCommand)
+        assert dump(h) == {"nodes": {"n": {"contract-ports": {"inp": 1, "out": 2, "prm": 3}}}}
+        assert dump(h, by_alias=True) == {"nodes": {"n": {"contract-ports": {"i": 1, "o": 2, "prm": 3}}}}
