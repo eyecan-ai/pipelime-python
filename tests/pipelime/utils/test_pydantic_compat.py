@@ -1,6 +1,7 @@
 """Unit tests for pipelime.utils.pydantic_compat (design spec §3)."""
 from __future__ import annotations
 
+import inspect
 import typing as t
 import warnings
 
@@ -31,10 +32,22 @@ class TestOptionalSemantics:
             b: str = pydantic.Field(None, description="b")
             c: t.Optional[int] = pydantic.Field(None)
 
-        assert M(a=None, b=None, c=None).a is None
+        m = M(a=None, b=None, c=None)
+        assert (m.a, m.b, m.c) == (None, None, None)
+        assert M.model_fields["b"].is_required() is False and M.model_fields["b"].description == "b"
+        assert M.model_fields["c"].is_required() is False
         assert M(a=3).a == 3
         with pytest.raises(pydantic.ValidationError):
             M(a="x")
+
+    def test_annotated_default_is_kept(self):
+        class M(pc.PipelimeModel):
+            x: t.Annotated[t.Optional[int], pydantic.Field(default=3)]
+            y: t.Annotated[t.Optional[int], pydantic.Field(default_factory=lambda: 4)]
+            z: t.Annotated[t.Optional[int], pydantic.Field(description="d")]
+
+        assert M.model_fields["x"].is_required() is False
+        assert (M().x, M().y, M().z) == (3, 4, None)
 
     def test_string_annotations(self):
         class M(pc.PipelimeModel):
@@ -209,6 +222,22 @@ class TestPolymorphicSerialization:
         s = self.Sub()
         assert self.Host(one=s).one is s
 
+    def test_exclude_computed_fields_forwarded(self):
+        if "exclude_computed_fields" not in inspect.signature(pydantic.BaseModel.model_dump).parameters:
+            pytest.skip("pydantic < 2.12 has no `exclude_computed_fields`")
+
+        class WithComputed(self.Base):
+            a: int = 1
+
+            @pydantic.computed_field
+            @property
+            def double(self) -> int:
+                return self.a * 2
+
+        h = self.Host(one=WithComputed())
+        assert h.model_dump()["one"] == {"a": 1, "double": 2}
+        assert h.model_dump(exclude_computed_fields=True)["one"] == {"a": 1}
+
     def test_non_model_value_falls_back_to_pydantic(self):
         # e.g. after `model_construct`: pydantic warns and dumps the value as-is
         h = self.Host.model_construct(one={"a": 1})
@@ -247,6 +276,12 @@ class TestRootModel:
             self.Upper(3)
         with pytest.raises(pydantic.ValidationError):
             self.Upper()
+
+    def test_instance_is_unwrapped(self):
+        u = self.Upper("a")
+        assert self.Upper(u).root == "A"
+        assert self.Upper(__root__=u).root == "A"
+        assert self.Upper.model_validate(u) is u  # identity pass-through kept
 
     def test_dumps(self):
         u = self.Upper("a")
@@ -295,6 +330,24 @@ class TestFieldWrapper:
         assert pc.field_extra(fa, "piper_port") == "input"
         assert pc.field_extra(fc, "piper_port", "param") == "param"
         assert pc.field_extra(fb, "missing") is None
+
+    def test_legacy_pydantic_kwargs_forwarded(self):
+        # kwargs pydantic.Field still converts (or rejects) itself must reach it,
+        # with pydantic's own deprecation warning, instead of being stashed as flags
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+
+            class M(pydantic.BaseModel):
+                a: list[int] = pc.Field([], min_items=2, piper_port="input")
+
+        assert len(caught) == 1 and issubclass(caught[0].category, DeprecationWarning)
+        assert "min_items" in str(caught[0].message)
+        assert M.model_fields["a"].json_schema_extra == {"piper_port": "input"}
+        assert M(a=[1, 2]).a == [1, 2]
+        with pytest.raises(pydantic.ValidationError):
+            M(a=[1])
+        with pytest.raises(pydantic.PydanticUserError):
+            pc.Field("x", regex="x")
 
     def test_callable_json_schema_extra_preserved(self):
         def upd(schema):

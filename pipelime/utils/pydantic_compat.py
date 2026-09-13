@@ -100,6 +100,19 @@ def is_optional_annotation(resolved: t.Any, raw: t.Any = None) -> bool:
     return origin in (t.Union, types.UnionType) and _NONE_TYPE in t.get_args(resolved)
 
 
+def _annotated_has_default(resolved: t.Any) -> bool:
+    """True when ``Annotated[...]`` metadata carries a ``FieldInfo`` with a default
+    (``x: Annotated[Optional[int], Field(default=3)]``): pydantic owns the default then."""
+    while t.get_origin(resolved) is t.Annotated:
+        resolved, *metadata = t.get_args(resolved)
+        for meta in metadata:
+            if isinstance(meta, FieldInfo) and (
+                meta.default is not PydanticUndefined or meta.default_factory is not None
+            ):
+                return True
+    return False
+
+
 def _apply_v1_optional_semantics(namespace: dict, parent_namespace: t.Optional[dict] = None) -> None:
     """v1: ``Optional[X]`` without default → ``= None``; ``x: T = None`` → ``Optional[T]``.
 
@@ -120,7 +133,7 @@ def _apply_v1_optional_semantics(namespace: dict, parent_namespace: t.Optional[d
         if _is_classvar(resolved, raw):
             continue
         if name not in namespace:
-            if is_optional_annotation(resolved, raw):
+            if is_optional_annotation(resolved, raw) and not _annotated_has_default(resolved):
                 namespace[name] = None
             continue
         default = namespace[name]
@@ -205,6 +218,10 @@ def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> cor
             # exact type, or not a model at all (e.g. after `model_construct`):
             # pydantic's own path, which warns on unexpected values instead of failing
             return nxt(value)
+        extra_flags = {}
+        exclude_computed_fields = getattr(info, "exclude_computed_fields", None)
+        if exclude_computed_fields is not None:  # pydantic >= 2.12
+            extra_flags["exclude_computed_fields"] = exclude_computed_fields
         return serializer.to_python(
             value,
             mode=info.mode,
@@ -217,6 +234,7 @@ def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> cor
             round_trip=info.round_trip,
             serialize_as_any=info.serialize_as_any,
             context=info.context,
+            **extra_flags,
         )
 
     schema["serialization"] = core_schema.wrap_serializer_function_ser_schema(
@@ -256,6 +274,10 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
                 f"{type(self).__name__} takes a single root value, "
                 f"got unexpected keyword arguments: {sorted(data)}"
             )
+        if isinstance(root, type(self)):
+            # `_validate_root` would return that instance untouched (identity
+            # pass-through), leaving *this* one uninitialised: re-wrap its value
+            root = root.root
         super().__init__(root)
 
     @classmethod
@@ -296,10 +318,19 @@ PipelimeRootModel.__root__ = property(lambda self: self.root)  # type: ignore[at
 # --------------------------------------------------------------------------- #
 # Field wrapper
 # --------------------------------------------------------------------------- #
-_PYDANTIC_FIELD_PARAMS = frozenset(
-    name
-    for name, prm in inspect.signature(pydantic.Field).parameters.items()
-    if prm.kind not in (prm.VAR_KEYWORD, prm.VAR_POSITIONAL)
+# v1-era keywords that `pydantic.Field` still consumes out of its `**extra` (converting
+# `min_items`/`max_items`/`allow_mutation` with a deprecation warning, raising for
+# `const`/`unique_items`/`regex`, ignoring `include`): they must reach pydantic.
+_PYDANTIC_LEGACY_FIELD_KWARGS = frozenset(
+    {"const", "min_items", "max_items", "unique_items", "allow_mutation", "regex", "include"}
+)
+_PYDANTIC_FIELD_PARAMS = (
+    frozenset(
+        name
+        for name, prm in inspect.signature(pydantic.Field).parameters.items()
+        if prm.kind not in (prm.VAR_KEYWORD, prm.VAR_POSITIONAL)
+    )
+    | _PYDANTIC_LEGACY_FIELD_KWARGS
 )
 
 
@@ -310,7 +341,9 @@ def Field(default: t.Any = PydanticUndefined, **kwargs: t.Any) -> t.Any:  # noqa
     other keyword unknown to ``pydantic.Field`` are stored in
     ``json_schema_extra`` (read back with :func:`field_extra`), which is where
     pydantic v2 puts extra ``Field`` kwargs — but without the deprecation
-    warning pydantic emits for them.
+    warning pydantic emits for them. The v1-era keywords pydantic still handles
+    itself (``min_items``, ``regex``, ... see ``_PYDANTIC_LEGACY_FIELD_KWARGS``)
+    are forwarded, so pydantic's own conversion, warning or error applies.
     """
     extra = {k: kwargs.pop(k) for k in list(kwargs) if k not in _PYDANTIC_FIELD_PARAMS}
     if extra:
