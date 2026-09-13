@@ -2,7 +2,7 @@
 
 | Subtask | Task | Status | Gate command | Result | Commit | Notes |
 |---|---|---|---|---|---|---|
-| S0 | S0-T1 (xdist + tiers, + M1 ledger) | todo | | | | |
+| S0 | S0-T1 (xdist + tiers, + M1 ledger) | done | `make test-full` | 2401 passed, 5 skipped in 118.22s (0:01:58) | 84e5a1a | |
 | S0 | S0-T2 (TEST_CHANGES ledger) | todo | | | | |
 | S0 | S0-T3 (contract module skeleton) | todo | | | | |
 | S0 | S0-T4 (contracts: compact forms) | todo | | | | |
@@ -47,4 +47,7 @@
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
-- (none yet)
+- S0-T1: per-file xdist grouping was dropped in favour of a per-worker
+  isolated pipelime user dir (see the plan's S0-T1 Step 2) — per-file groups
+  serialised the two largest test files onto one worker each and made the
+  parallel run slower than serial.
