@@ -683,16 +683,30 @@ class TestStagesAndEntities:
 
 
 # --- sequences (spec §4.4) ------------------------------------------------------
-@pls.piped_sequence
-class ContractPipe(PipedSequenceBase, title="contract_pipe"):
-    keys: t.Sequence[str] = Field(default_factory=list)
-    stage: StageInput = Field(default_factory=lambda: StageInput.validate("identity"))
+# `test_callable_def` above (`THIS_FILE:contract_identity`) reimports this whole file
+# a second time as a bare-stem module (see the `ContractItem` comment above); letting
+# `@pls.piped_sequence` re-run would re-register "contract_pipe" and rebind
+# `SamplesSequence.contract_pipe` to that second-generation class, whose `__module__`
+# is the bare stem rather than the dotted package path. A spawned multiprocessing
+# worker (fresh interpreter) can no longer `import` that bare module to reconstruct
+# pickled instances, so `seq.run(num_workers=...)` hangs waiting for results that
+# never come back. Reuse the already-registered class, exactly like `ContractItem`.
+if "contract_pipe" in SamplesSequence._pipes:
+    ContractPipe = SamplesSequence._pipes["contract_pipe"]
+else:
 
-    def size(self) -> int:
-        return self.source.size()
+    @pls.piped_sequence
+    class ContractPipe(PipedSequenceBase, title="contract_pipe"):
+        keys: t.Sequence[str] = Field(default_factory=list)
+        stage: StageInput = Field(
+            default_factory=lambda: StageInput.validate("identity")
+        )
 
-    def get_sample(self, idx: int) -> pls.Sample:
-        return self.stage(self.source.get_sample(idx))
+        def size(self) -> int:
+            return self.source.size()
+
+        def get_sample(self, idx: int) -> pls.Sample:
+            return self.stage(self.source.get_sample(idx))
 
 
 class TestSequences:
