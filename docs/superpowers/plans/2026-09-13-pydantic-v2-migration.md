@@ -28,7 +28,7 @@
 
 | File | Responsibility | Subtask |
 |---|---|---|
-| `tests/conftest.py` | xdist per-file grouping, `zmq` group, tier aliases | S0 |
+| `tests/conftest.py` | per-worker pipelime user dir, `zmq` xdist group | S0 |
 | `tests/pipelime/test_pydantic_contract.py` | contract tests (dual v1/v2 imports until S5) | S0 |
 | `tests/TEST_CHANGES.md` | ledger of test edits with justification | S0 |
 | `pipelime/utils/pydantic_compat.py` | the toolkit (§3 of the spec) | S1 |

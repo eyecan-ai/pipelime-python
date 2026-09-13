@@ -383,7 +383,7 @@ the two bug fixes (§4.2, §4.4) as *expected-failure-on-v1* tests.
 |---|---|---|---|
 | 0 | `tests/pipelime/{utils,stages,piper,sequences,choixe}` minus grabber/TUI/ZMQ + contract tests | after every change | ~15 s |
 | 1 | the subtask's module tests + Tier 0 + a curated `commands` slice (one `nproc`) | subtask gate | 1–3 min |
-| 2 | full suite with `pytest-xdist` (`-n auto --dist loadgroup`, tests grouped per file, the two ZMQ tests in one group), tox on 3.10–3.13 | end of subtasks 3/4/5, pre-merge | minutes |
+| 2 | full suite with `pytest-xdist` (`-n auto --dist loadgroup`; the pipelime user dir is isolated per worker, the two ZMQ tests share one group), tox on 3.10–3.13 | end of subtasks 3/4/5, pre-merge | ~2–3 min |
 
 The final Tier 0 run adds `-W error::pydantic.PydanticDeprecatedSince20` to prove
 pipelime itself is warning-free.

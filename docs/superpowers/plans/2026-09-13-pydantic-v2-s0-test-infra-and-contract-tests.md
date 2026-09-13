@@ -4,7 +4,7 @@
 
 **Goal:** Before touching any source file, add `pytest-xdist`, the test tiers, the test-changes ledger, and a contract-test module that pins every hidden v1 behaviour pipelime relies on — green on today's `pydantic.v1` code.
 
-**Architecture:** `tests/pipelime/test_pydantic_contract.py` imports pydantic through a small dual block (`pydantic.v1` today, `pydantic` + `pipelime.piper.Field` once subtask 1 lands) so the same tests run unchanged before and after the migration. Behaviours that are *new* (modern hints in the TUI, the two bug fixes) are `xfail(strict=True)` on v1. `tests/conftest.py` groups tests per file for xdist and puts the two ZMQ tests in one group.
+**Architecture:** `tests/pipelime/test_pydantic_contract.py` imports pydantic through a small dual block (`pydantic.v1` today, `pydantic` + `pipelime.piper.Field` once subtask 1 lands) so the same tests run unchanged before and after the migration. Behaviours that are *new* (modern hints in the TUI, the two bug fixes) are `xfail(strict=True)` on v1. `tests/conftest.py` isolates the pipelime user dir per xdist worker and puts the two ZMQ tests in one group.
 
 **Tech Stack:** pytest 9, pytest-xdist, pytest-cov, pydantic 2.12 (`pydantic.v1` shim).
 
@@ -27,7 +27,7 @@
 - Modify: `Makefile`
 
 **Interfaces:**
-- Produces: `make test-tier0`, `make test-tier1`, `make test-full` targets; the pytest marker `xdist_group` auto-assigned per file; explicit group `zmq`.
+- Produces: `make test-tier0`, `make test-tier1`, `make test-full`, `make test-warnfree` targets; a per-worker isolated pipelime user dir (autouse session fixture); the `xdist_group` marker with the explicit group `zmq`.
 
 - [ ] **Step 1: Install pytest-xdist into the venv and add it to the `tests` extra**
 
@@ -39,24 +39,40 @@ Edit `pyproject.toml`:
 tests = ["pytest", "pytest-cov", "pytest-asyncio", "pytest-xdist", "tox"]
 ```
 
-- [ ] **Step 2: Add per-file xdist grouping to `tests/conftest.py`** (append at the end of the file)
+- [ ] **Step 2: Isolate the pipelime user dir per worker and register the `xdist_group` marker in `tests/conftest.py`** (append at the end of the file)
+
+Every CLI run stores its default checkpoint under `PipelimeUserAppDir.base_path()`
+(`~/.pipelime`) and `resume` reads the *last* one there, so two xdist workers
+running CLI tests concurrently corrupt each other's checkpoints. Grouping tests
+per file would avoid that but serialises the two largest files
+(`test_interfaces.py`, `test_split.py`) on one worker each and makes the full
+run slower than the serial one. Instead, give each pytest process its own user
+dir and group only the ZMQ tests (fixed TCP port):
 
 ```python
-def pytest_collection_modifyitems(config, items):
-    """Group tests per file for `pytest -n auto --dist loadgroup`.
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_pipelime_user_dir(tmp_path_factory):
+    """Give every pytest process (each xdist worker) its own `~/.pipelime`.
 
-    Tests that already carry an explicit `xdist_group` marker (e.g. the ZMQ tests,
-    which share a fixed TCP port) keep it; every other test is grouped by its file
-    so that file-level ordering assumptions keep holding under xdist.
+    CLI runs store their default checkpoint there and `resume` reads the last
+    one, so concurrent workers would otherwise see each other's checkpoints.
+    `tmp_path_factory` is per worker, hence the isolation. Also keeps the tests
+    away from the developer's real `~/.pipelime`.
     """
-    for item in items:
-        if item.get_closest_marker("xdist_group") is None:
-            item.add_marker(pytest.mark.xdist_group(name=str(item.fspath)))
+    from pipelime.cli.utils import PipelimeUserAppDir
+
+    base = tmp_path_factory.mktemp("pipelime_user_dir")
+    mp = pytest.MonkeyPatch()
+    mp.setattr(PipelimeUserAppDir, "base_path", classmethod(lambda cls: base))
+    yield
+    mp.undo()
 
 
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers", "xdist_group(name): group tests on the same xdist worker"
+        "markers",
+        "xdist_group(name): run the marked tests on the same xdist worker "
+        "(`--dist loadgroup`); used by tests that share a fixed TCP port",
     )
 ```
 
@@ -97,7 +113,7 @@ test-warnfree: ## tier0 with pydantic deprecation warnings as errors (final chec
 - [ ] **Step 5: Run the full suite in parallel and record the baseline**
 
 Run: `make test-full 2>&1 | tail -5`
-Expected: `2406 passed, N skipped` (same counts as serial), wall time recorded in the ledger. If the two ZMQ tests fail only under xdist, check that both carry the `zmq` group marker.
+Expected: `2406 passed, N skipped` (same counts as serial) in roughly 2–3 minutes; wall time recorded in the ledger. If the two ZMQ tests fail only under xdist, check that both carry the `zmq` group marker; if a `tests/pipelime/cli/test_base.py` test fails with `~/.pipelime/ckpts/...` in the traceback, the autouse fixture is not active (it must live in `tests/conftest.py`).
 
 - [ ] **Step 6: Commit**
 
@@ -124,7 +140,7 @@ listed here.
 
 | Subtask | File | Change | Why (v1 form replaced) |
 |---|---|---|---|
-| S0 | `tests/conftest.py` | xdist grouping hook | new infrastructure, no behaviour |
+| S0 | `tests/conftest.py` | per-worker pipelime user dir fixture, `xdist_group` marker | new infrastructure, no behaviour |
 | S0 | `test_receiver_zmq.py`, `test_tracker_zmq.py` | `xdist_group("zmq")` marker | new infrastructure, no behaviour |
 ```
 
