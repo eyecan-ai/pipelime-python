@@ -571,22 +571,20 @@ def _identity_fn_helper(x):
     return x
 
 
-class ItemValidationModel(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
-):
+class ItemValidationModel(PipelimeModel, extra="forbid"):
     """Item schema validation."""
 
-    class_path: ItemType = pyd.Field(
+    class_path: ItemType = Field(
         ...,
         description=(
             "The item class path. The default package `pipelime.item` can be omitted"
         ),
     )
-    is_optional: bool = pyd.Field(
+    is_optional: bool = Field(
         True, description="Whether the item is required or optional."
     )
-    is_shared: bool = pyd.Field(False, description="Whether the item is shared or not.")
-    validator_: t.Optional[str] = pyd.Field(
+    is_shared: bool = Field(False, description="Whether the item is shared or not.")
+    validator_: t.Optional[str] = Field(
         None,
         description=(
             "A class path to a callable accepting the item value and either returning "
@@ -595,7 +593,7 @@ class ItemValidationModel(
         alias="validator",
     )
 
-    _validator_callable = pyd.PrivateAttr()
+    _validator_callable = PrivateAttr()
 
     def __init__(self, **data):
         from pipelime.choixe.utils.imports import import_symbol
@@ -609,9 +607,9 @@ class ItemValidationModel(
         return (
             self.class_path.value,
             (
-                pyd.Field(default_factory=self.class_path.value, alias=key_name)
+                pydantic.Field(default_factory=self.class_path.value, alias=key_name)
                 if self.is_optional
-                else pyd.Field(..., alias=key_name)
+                else pydantic.Field(..., alias=key_name)
             ),
         )
 
@@ -640,17 +638,15 @@ class ItemValidationModel(
         }
         exec(_validator_wrapper, local_scope)
         fn_helper = local_scope[f"validate_{rnd_name}_fn"]
-        return pyd.validator(field_name)(fn_helper)
+        return pydantic.field_validator(field_name)(fn_helper)
 
 
-class SampleValidationInterface(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
-):
+class SampleValidationInterface(PipelimeModel, extra="forbid"):
     """Sample schema validation."""
 
     sample_schema: t.Union[
-        t.Type[pyd.BaseModel], str, t.Mapping[str, ItemValidationModel]
-    ] = pyd.Field(
+        t.Type[pydantic.BaseModel], str, t.Mapping[str, ItemValidationModel]
+    ] = Field(
         ...,
         description=(
             "The sample schema to validate, ie, a mapping from sample keys to expected "
@@ -660,17 +656,17 @@ class SampleValidationInterface(
             "`key-name: ItemValidationModel` mapping must be provided."
         ),
     )
-    ignore_extra_keys: bool = pyd.Field(
+    ignore_extra_keys: bool = Field(
         True,
         description=(
             "When `sample_schema` is an explicit mapping, if `ignore_extra_keys` is "
             "True, unexpected keys are ignored. Otherwise an error is raised."
         ),
     )
-    lazy: bool = pyd.Field(
+    lazy: bool = Field(
         True, description="If True, samples will be validated only when accessed."
     )
-    max_samples: int = pyd.Field(
+    max_samples: int = Field(
         1,
         description=(
             "When the validation is NOT lazy, "
@@ -679,7 +675,7 @@ class SampleValidationInterface(
         ),
     )
 
-    _schema_model: t.Optional[t.Type[pyd.BaseModel]] = pyd.PrivateAttr(None)
+    _schema_model: t.Optional[t.Type[pydantic.BaseModel]] = PrivateAttr(None)
 
     def _import_schema(self, schema_path: str):
         from pipelime.choixe.utils.imports import import_symbol
@@ -688,10 +684,6 @@ class SampleValidationInterface(
         return imported_schema
 
     def _make_schema(self, schema_def: t.Mapping[str, ItemValidationModel]):
-        class Config(pyd.BaseConfig):
-            arbitrary_types_allowed = True
-            extra = pyd.Extra.ignore if self.ignore_extra_keys else pyd.Extra.forbid
-
         def _safe_name(k):
             return f"{k}___"
 
@@ -701,15 +693,18 @@ class SampleValidationInterface(
             for k, v in schema_def.items()
         }
 
-        return pyd.create_model(
+        return pydantic.create_model(
             "SampleSchema",
-            __config__=Config,
+            __config__=ConfigDict(
+                arbitrary_types_allowed=True,
+                extra="ignore" if self.ignore_extra_keys else "forbid",
+            ),
             __validators__=_validators,
             **_item_map,
         )
 
     @property
-    def schema_model(self) -> t.Type[pyd.BaseModel]:
+    def schema_model(self) -> t.Type[pydantic.BaseModel]:
         sm = self._schema_model
         if sm is None:
             if isinstance(self.sample_schema, str):
@@ -719,7 +714,7 @@ class SampleValidationInterface(
             else:
                 sm = self.sample_schema
 
-            if not issubclass(sm, pyd.BaseModel):
+            if not issubclass(sm, pydantic.BaseModel):
                 raise ValueError(f"`{self.sample_schema}` is not a pydantic model.")
 
             # cache the model for later use
@@ -731,4 +726,4 @@ class SampleValidationInterface(
         return sequence.validate_samples(sample_schema=self)
 
     def as_pipe(self):
-        return {"validate_samples": {"sample_schema": self.dict(by_alias=True)}}
+        return {"validate_samples": {"sample_schema": self.model_dump(by_alias=True)}}
