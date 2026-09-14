@@ -1,10 +1,11 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
 from pipelime.stages import StageInput
+from pipelime.utils.pydantic_compat import PipelimeModel
 from pipelime.utils.pydantic_types import CallableDef
 
 
@@ -96,7 +97,7 @@ class ConditionallyMappedSequence(PipedSequenceBase, title="map_if"):
         return x
 
 
-class MappingConditionProbability(pyd.BaseModel):
+class MappingConditionProbability(PipelimeModel):
     """A condition that returns True with a given probability."""
 
     probability: float = pyd.Field(
@@ -119,7 +120,7 @@ class MappingConditionProbability(pyd.BaseModel):
         return self._generator.random() < self.probability
 
 
-class MappingConditionIndexRange(pyd.BaseModel):
+class MappingConditionIndexRange(PipelimeModel):
     """A condition that returns True if the sample index is in a given range.
     Negative indices are supported.
     """

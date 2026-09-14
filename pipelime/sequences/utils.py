@@ -3,9 +3,10 @@ from __future__ import annotations
 import typing as t
 from pathlib import Path
 
-from pydantic.v1 import BaseModel, Field, PrivateAttr
+from pydantic import Field, PrivateAttr
 
 from pipelime.sequences import Sample, SamplesSequence
+from pipelime.utils.pydantic_compat import PipelimeModel
 
 if t.TYPE_CHECKING:
     from pipelime.commands.interfaces import OutputDatasetInterface
@@ -97,13 +98,7 @@ def build_pipe(
     return source
 
 
-class DataStream(
-    t.Sequence[Sample],
-    BaseModel,
-    extra="forbid",
-    copy_on_model_validation="none",
-    underscore_attrs_are_private=True,
-):
+class DataStream(t.Sequence[Sample], PipelimeModel, extra="forbid"):
     """A stream of samples, comprising an input sequence to the data and an output
     pipe to further process the samples when ready.
     """

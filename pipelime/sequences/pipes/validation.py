@@ -1,4 +1,4 @@
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.sequences as pls
 from pipelime.sequences.pipes import PipedSequenceBase
@@ -37,14 +37,12 @@ class ValidatedSequence(
         return sample
 
     def _check_sample(self, sample: pls.Sample):
-        from pydantic.v1 import ValidationError
-        from pydantic.v1.error_wrappers import display_errors
+        from pydantic import ValidationError
 
         try:
             _ = self.sample_schema.schema_model(**sample)
         except ValidationError as e:
-            errs = e.errors()
             raise ValueError(
                 f"Sample schema validation failed for:\n{str(sample)}\n\n"
-                f"Errors:\n{display_errors(errs)}"
+                f"Errors:\n{e}"
             ) from e
