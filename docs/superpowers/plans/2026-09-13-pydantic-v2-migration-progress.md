@@ -16,10 +16,10 @@
 | S1 | S1-T2 (PipelimeRootModel) | todo | | | | |
 | S1 | S1-T3 (Field wrapper) | todo | | | | |
 | S1 | S1-T4 (introspection) | todo | | | | |
-| S1 | S1-T5 (pydantic_types: NewPath) | todo | | | | |
-| S1 | S1-T6 (NumpyType/YamlInput) | todo | | | | |
-| S1 | S1-T7 (TypeDef/CallableDef) | todo | | | | |
-| S1 | S1-T8 (validation interfaces) | todo | | | | |
+| S1 | S1-T5 (pydantic_types: NewPath) | done | `-k NewPath` (deferred to T8, module didn't import until then) | 43 passed (combined w/ T6-T8) | 600f3ca | |
+| S1 | S1-T6 (NumpyType/YamlInput) | done | `-k "NumpyType or YamlInput or NewPath"` (deferred to T8) | 43 passed (combined w/ T5,T7,T8) | 0c8bcff | |
+| S1 | S1-T7 (TypeDef/ItemType/CallableDef) | done | `-k "ItemType or CallableDef"` (deferred to T8, module didn't import until then) | 43 passed (combined w/ T8) | 1267c71 | `wrapped_type()` probed directly against the compat base; string-annotation regression test added |
+| S1 | S1-T8 (validation interfaces) | done | `pytest tests/pipelime/utils tests/pipelime/items tests/pipelime/choixe` | 551 passed, 1 failed | 7d710e5 | `test_items.py::test_disabled_serialization_modes` fails (transitively imports `pipelime.sequences`, which does not import until S2a/S2b convert its v1 models off the now-v2 `ItemType`/`CallableDef`/`YamlInput`); left failing per "do not fix those packages" — see task-S1-T7-8-report.md |
 | S2a | S2a-T1 (stages/base) | todo | | | | |
 | S2a | S2a-T2 (stages/entities) | todo | | | | |
 | S2a | S2a-T3 (other stages) | todo | | | | |
@@ -53,3 +53,15 @@
   isolated pipelime user dir (see the plan's S0-T1 Step 2) — per-file groups
   serialised the two largest test files onto one worker each and made the
   parallel run slower than serial.
+- (S1-T8) The S1-T5..T8 brief's "gates are tests/pipelime/utils, items,
+  choixe only" and "all must be green" collide with its own documented
+  expected breakage: `tests/pipelime/items/test_items.py::TestItems::
+  test_disabled_serialization_modes` imports `pipelime.sequences` inline,
+  which (as predicted) fails to import once `ItemType`/`CallableDef` are
+  v2 — so this one test in an in-scope gate directory fails until S2a/S2b
+  convert `pipelime.sequences`. Left failing rather than "fixed" by editing
+  the sequences package (explicitly out of scope) or the test (not a v1-API
+  edit). Verified this test passed at 4f830bf (pre-S1-T5) and fails the same
+  way with only S1-T5/T6 applied, i.e. it is not a regression introduced by
+  T7/T8 specifically — it is inherent to converting `pydantic_types.py`
+  ahead of its downstream consumers.
