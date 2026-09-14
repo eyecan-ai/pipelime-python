@@ -1,15 +1,16 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 from pipelime.items import Item
 from pipelime.stages import SampleStage
+from pipelime.utils.pydantic_compat import PipelimeModel
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-class ItemInfo(pyd.BaseModel):
+class ItemInfo(PipelimeModel):
     """Item infos estracted from samples."""
 
     item_type: t.Type[Item] = pyd.Field(..., description="The item type.")
