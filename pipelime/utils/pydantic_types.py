@@ -255,13 +255,7 @@ class YamlInput(PipelimeRootModel[yaml_any_type]):
 TRoot = t.TypeVar("TRoot")
 
 
-class TypeDef(
-    pydg.GenericModel,
-    t.Generic[TRoot],
-    extra="forbid",
-    copy_on_model_validation="none",
-    allow_mutation=False,
-):
+class TypeDef(PipelimeRootModel[t.Type[TRoot]], t.Generic[TRoot], frozen=True):
     """Generic type definition. It accepts both type names and string.
     You should derive from this class to define your own type definitions and,
     possibly, re-implement the `default_class_path` class method
@@ -289,13 +283,14 @@ class TypeDef(
 
         Serialize to dict or json::
 
-            it_dict = it.dict()
-            it_json_str = it.json()
+            it_dict = it.model_dump()       # the class path string
+            it_json_str = it.model_dump_json()
+            it.dict()                       # {"__root__": "..."} (pipelime 2.x shape)
 
         Get the object back from dict or json::
 
-            it_again = pydantic.parse_obj_as(FooType, it_dict["__root__"])
-            it_again = pydantic.parse_raw_as(FooType, it_json_str)
+            it_again = FooType.model_validate(it_dict)
+            it_again = FooType.model_validate_json(it_json_str)
 
         Use this type within another model::
 
@@ -307,12 +302,10 @@ class TypeDef(
         Everything still works::
 
             mm = MyModel()
-            mm = MyModel.parse_obj({"foo_type": a.class.path.DerivedFromFoo})
-            mm = MyModel.parse_obj({"foo_type": "FooSubclassInMyPackage"})
-            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+            mm = MyModel.model_validate({"foo_type": a.class.path.DerivedFromFoo})
+            mm = MyModel.model_validate({"foo_type": "FooSubclassInMyPackage"})
+            mm_again = MyModel.model_validate(mm.model_dump())
     """
-
-    __root__: t.Type[TRoot]
 
     @classmethod
     def default_class_path(cls) -> str:
@@ -320,21 +313,23 @@ class TypeDef(
 
     @classmethod
     def wrapped_type(cls) -> t.Type[TRoot]:
-        return t.get_args(cls.__fields__["__root__"].outer_type_)[0]
+        return t.get_args(cls.model_fields["root"].annotation)[0]
 
     @classmethod
     def create(cls, value: t.Union[TypeDef, t.Type[TRoot], str]) -> TypeDef:
-        return cls.validate(value)
+        return cls.model_validate(value)
 
-    @property
-    def value(self) -> t.Type[TRoot]:
-        return self.__root__
+    @classmethod
+    def _coerce(cls, value):
+        if isinstance(value, str):
+            value = cls._string_to_type(value)
+        if inspect.isclass(value) and issubclass(value, cls.wrapped_type()):
+            return value
+        raise ValueError(f"Type `{value}` is not a subclass of `{cls.wrapped_type()}`")
 
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # assert k == "__root__"
-            # assert issubclass(v, self.wrapped_type())
-            yield k, self._type_to_string(v)
+    @pydantic.model_serializer(mode="plain")
+    def _serialize(self) -> str:
+        return self._type_to_string(self.root)
 
     @classmethod
     def _type_to_string(cls, type_: t.Type[TRoot]) -> str:
@@ -356,35 +351,19 @@ class TypeDef(
         return import_symbol(type_str)
 
     def __call__(self, *args, **kwargs) -> TRoot:
-        return self.__root__(*args, **kwargs)
+        return self.root(*args, **kwargs)
 
     def __hash__(self) -> int:
-        return hash(self.__root__)
+        return hash(self.root)
 
     def __str__(self) -> str:
-        return self._type_to_string(self.__root__)
+        return self._type_to_string(self.root)
 
     def __repr__(self) -> str:
         return self.__piper_repr__()
 
     def __piper_repr__(self) -> str:
-        return repr(self.__root__)
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value: t.Union[TypeDef, t.Type[TRoot], str]) -> TypeDef:
-        import inspect
-
-        if isinstance(value, cls):
-            return value
-        if isinstance(value, str):
-            value = cls._string_to_type(value)
-        if inspect.isclass(value) and issubclass(value, cls.wrapped_type()):
-            return cls(__root__=value)
-        raise ValueError(f"Type `{value}` is not a subclass of `{cls.wrapped_type()}`")
+        return repr(self.root)
 
 
 class ItemType(TypeDef[Item]):
@@ -397,9 +376,7 @@ class ItemType(TypeDef[Item]):
         return "pipelime.items."
 
 
-class CallableDef(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none", allow_mutation=False
-):
+class CallableDef(PipelimeRootModel[t.Callable], frozen=True):
     """Generic callable definition. It accepts functions and callable classes.
     You may derive from this class to re-implement the `default_class_path` class method
     (NB: it must end with `.`).
@@ -433,13 +410,14 @@ class CallableDef(
 
         Serialize to dict or json::
 
-            cdef_dict = cdef.dict()
-            cdef_json_str = cdef.json()
+            cdef_dict = cdef.model_dump()       # the symbol path string
+            cdef_json_str = cdef.model_dump_json()
+            cdef.dict()                         # {"__root__": "..."} (pipelime 2.x shape)
 
         Get the object back from dict or json::
 
-            cdef_again = pydantic.parse_obj_as(CallableDef, cdef_dict["__root__"])
-            cdef_again = pydantic.parse_raw_as(CallableDef, cdef_json_str)
+            cdef_again = CallableDef.model_validate(cdef_dict)
+            cdef_again = CallableDef.model_validate_json(cdef_json_str)
 
         Use this type within another model::
 
@@ -451,12 +429,10 @@ class CallableDef(
         Everything still works::
 
             mm = MyModel()
-            mm = MyModel.parse_obj({"fn": a.class.path.to.callable})
-            mm = MyModel.parse_obj({"fn": "CallableInMain"})
-            mm_again = pydantic.parse_obj_as(MyModel, mm.dict())
+            mm = MyModel.model_validate({"fn": a.class.path.to.callable})
+            mm = MyModel.model_validate({"fn": "CallableInMain"})
+            mm_again = MyModel.model_validate(mm.model_dump())
     """
-
-    __root__: t.Callable
 
     @classmethod
     def default_class_path(cls) -> str:
@@ -464,24 +440,32 @@ class CallableDef(
 
     @classmethod
     def create(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
-        return cls.validate(value)
-
-    @property
-    def value(self) -> t.Callable:
-        return self.__root__
+        return cls.model_validate(value)
 
     @property
     def full_signature(self) -> inspect.Signature:
-        return inspect.signature(self.__root__)
+        return inspect.signature(self.root)
 
     @property
     def args(self) -> t.Sequence[inspect.Parameter]:
         return list(self.full_signature.parameters.values())
 
+    def _resolved_annotations(self) -> t.Dict[str, t.Any]:
+        """String (forward-reference) annotations resolved to types, e.g. from
+        modules using `from __future__ import annotations`; empty when they
+        cannot be resolved (the raw annotations are used then)."""
+        try:
+            return t.get_type_hints(self.root)
+        except Exception:  # unresolvable forward refs: fall back to raw annotations
+            return {}
+
     @property
     def args_type(self) -> t.Sequence[t.Optional[t.Type]]:
+        hints = self._resolved_annotations()
         return [
-            None if p.annotation is inspect.Signature.empty else p.annotation
+            None
+            if p.annotation is inspect.Signature.empty
+            else hints.get(p.name, p.annotation)
             for p in self.full_signature.parameters.values()
         ]
 
@@ -500,12 +484,13 @@ class CallableDef(
     @property
     def return_type(self) -> t.Optional[t.Type]:
         rt = self.full_signature.return_annotation
-        return None if rt is inspect.Signature.empty else rt
+        if rt is inspect.Signature.empty:
+            return None
+        return self._resolved_annotations().get("return", rt)
 
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # assert k == "__root__"
-            yield k, self._callable_to_string(v)
+    @pydantic.model_serializer(mode="plain")
+    def _serialize(self) -> str:
+        return self._callable_to_string(self.root)
 
     @classmethod
     def _callable_to_string(cls, clb: t.Callable) -> str:
@@ -534,34 +519,8 @@ class CallableDef(
 
         return import_symbol(clb_str)
 
-    def __call__(self, *args, **kwargs):
-        return self.__root__(*args, **kwargs)
-
-    def __hash__(self) -> int:
-        return hash(self.__root__)
-
-    def __str__(self) -> str:
-        return self._callable_to_string(self.__root__)
-
-    def __repr__(self) -> str:
-        return self.__piper_repr__()
-
-    def __piper_repr__(self) -> str:
-        return repr(self.__root__)
-
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(
-        cls,
-        value: t.Union[
-            CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
-        ],
-    ):
-        if isinstance(value, cls):
-            return value
+    def _coerce(cls, value):
         try:
             if isinstance(value, str):
                 value = cls._string_to_callable(value)
@@ -588,8 +547,23 @@ class CallableDef(
             raise ValueError(f"Invalid callable: {value}") from e
 
         if isinstance(value, t.Callable):
-            return cls(__root__=value)
+            return value
         raise ValueError(f"Invalid callable: {value}")
+
+    def __call__(self, *args, **kwargs):
+        return self.root(*args, **kwargs)
+
+    def __hash__(self) -> int:
+        return hash(self.root)
+
+    def __str__(self) -> str:
+        return self._callable_to_string(self.root)
+
+    def __repr__(self) -> str:
+        return self.__piper_repr__()
+
+    def __piper_repr__(self) -> str:
+        return repr(self.root)
 
 
 # This is defined here to make it picklable

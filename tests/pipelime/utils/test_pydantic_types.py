@@ -1,3 +1,4 @@
+import typing as t
 from pathlib import Path
 
 import numpy as np
@@ -256,3 +257,11 @@ class TestCallableDef:
 
         d = {cd: 42}
         assert d[cd] == 42
+
+    def test_string_annotations_resolved(self):
+        def fn(x: "int", y: "t.Optional[str]" = None) -> "float":
+            return 1.0
+
+        cd = plt.CallableDef.create(fn)
+        assert cd.args_type == [int, t.Optional[str]]
+        assert cd.return_type is float
