@@ -244,6 +244,87 @@ class TestPolymorphicSerialization:
         with pytest.warns(UserWarning, match="PydanticSerializationUnexpectedValue"):
             assert h.model_dump()["one"] == {"a": 1}
 
+    def test_model_serializer_kept(self):
+        # a `@model_serializer` shares the schema slot the polymorphic hook uses:
+        # it must still run (exact type, subclasses, nested, python and json modes)
+        class Wrapped(pc.PipelimeModel):
+            a: int = 1
+
+            @pydantic.model_serializer(mode="wrap")
+            def _ser(self, handler):
+                return {"wrapped": handler(self)}
+
+        class WrappedSub(Wrapped):
+            b: int = 2
+
+        class JsonOnly(pc.PipelimeModel):
+            a: int = 1
+
+            @pydantic.model_serializer(mode="plain", when_used="json")
+            def _ser(self) -> str:
+                return "json!"
+
+        class JsonOnlySub(JsonOnly):
+            b: int = 2
+
+        class Host(pc.PipelimeModel):
+            w: Wrapped
+            j: JsonOnly
+            ws: list[Wrapped] = []
+
+        assert Wrapped().model_dump() == {"wrapped": {"a": 1}}
+        assert WrappedSub().model_dump() == {"wrapped": {"a": 1, "b": 2}}
+        h = Host(w=WrappedSub(), j=JsonOnlySub(), ws=[Wrapped(), WrappedSub()])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert h.model_dump() == {
+                "w": {"wrapped": {"a": 1, "b": 2}},
+                "j": {"a": 1, "b": 2},
+                "ws": [{"wrapped": {"a": 1}}, {"wrapped": {"a": 1, "b": 2}}],
+            }
+            assert h.model_dump(mode="json")["j"] == "json!"
+            assert '"j":"json!"' in h.model_dump_json()
+
+
+class TestGenericBaseBeforeModel:
+    """`SamplesSequence(SamplesSequenceBase, PipelimeModel)` with
+    `SamplesSequenceBase(t.Sequence[Sample])`: `typing.Generic` precedes `BaseModel`
+    in the MRO (the non-pydantic `__iter__` must win). pydantic's warning about it
+    only matters for classes that can still be parametrized."""
+
+    def test_fully_parametrized_base_is_silent(self):
+        class SeqBase(t.Sequence[int]):
+            def __getitem__(self, idx):
+                if idx >= 3:
+                    raise IndexError(idx)
+                return idx
+
+            def __len__(self):
+                return 3
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            class Seq(SeqBase, pc.PipelimeModel):
+                x: int = 0
+
+            class SubSeq(Seq):
+                y: int = 1
+
+        assert list(SubSeq()) == [0, 1, 2]  # `Sequence.__iter__`, not `BaseModel.__iter__`
+        assert SubSeq().model_dump() == {"x": 0, "y": 1}
+
+    def test_parametrizable_class_still_warns(self):
+        T = t.TypeVar("T")
+
+        class GenBase(t.Generic[T]):
+            pass
+
+        with pytest.warns(pydantic.warnings.GenericBeforeBaseModelWarning):
+
+            class Gen(GenBase[T], pc.PipelimeModel):
+                x: int = 0
+
 
 class _Upper(pc.PipelimeRootModel[str]):
     @classmethod
@@ -449,3 +530,42 @@ class TestIntrospection:
             pass
 
         assert pc.model_title(A) == "the-title" and pc.model_title(B) == "B"
+
+
+class TestS2aToolkitFixes:
+    """Regression tests for the two toolkit fixes S2a needed: a `@model_serializer`
+    composes with polymorphic dispatch on `PipelimeRootModel` too (not just
+    `PipelimeModel`), and a non-pydantic `Generic` base with no free type parameters
+    (`SamplesSequenceBase(t.Sequence[Sample])` before `PipelimeModel`) creates
+    silently and keeps its own `__iter__`."""
+
+    def test_root_model_plain_serializer_composes_with_polymorphic_dispatch(self):
+        class CustomRoot(pc.PipelimeRootModel[dict]):
+            @pydantic.model_serializer(mode="plain")
+            def _ser(self):
+                return {"custom": self.root}
+
+        class Host(pydantic.BaseModel):
+            r: pc.PipelimeRootModel[dict]
+
+        h = Host(r=CustomRoot({"a": 1}))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert h.model_dump() == {"r": {"custom": {"a": 1}}}
+
+    def test_sequence_before_model_creates_silently_and_keeps_iter(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+
+            class Seq(t.Sequence[int], pc.PipelimeModel):
+                def __len__(self):
+                    return 2
+
+                def __getitem__(self, idx):
+                    if idx >= 2:
+                        raise IndexError(idx)
+                    return idx * 10
+
+        # `Sequence.__iter__`, not `BaseModel.__iter__` (which would yield `(field,
+        # value)` pairs from `self.__dict__` and, since `Seq` has none, give `[]`)
+        assert list(Seq()) == [0, 10]

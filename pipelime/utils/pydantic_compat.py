@@ -29,8 +29,10 @@ import re
 import sys
 import types
 import typing as t
+import warnings
 
 import pydantic
+import pydantic.warnings
 from pydantic import BaseModel, ConfigDict, RootModel
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined, core_schema
@@ -190,6 +192,15 @@ def _class_statement_namespace(mcs: type) -> t.Optional[dict]:
     return _parent_frame_namespace(parent_depth=depth + 1)  # +1: its own frame
 
 
+def _has_type_parameters(bases: tuple, namespace: dict) -> bool:
+    """Whether the class being created will have free type variables
+    (``__parameters__``), computed as ``typing.Generic.__init_subclass__`` does:
+    from the subscripted bases of the class statement when there are any, else
+    inherited from the bases."""
+    orig_bases = namespace.get("__orig_bases__", bases)
+    return any(getattr(base, "__parameters__", ()) for base in orig_bases)
+
+
 class PipelimeModelMeta(_ModelMetaclass):  # type: ignore[misc,valid-type]
     """pydantic's metaclass plus the v1-compat rules of the design spec §3.1."""
 
@@ -203,21 +214,55 @@ class PipelimeModelMeta(_ModelMetaclass):  # type: ignore[misc,valid-type]
             namespace["__pydantic_parent_namespace__"] = _weak_valued(parent_namespace)
             kwargs["__pydantic_reset_parent_namespace__"] = False
         _apply_v1_optional_semantics(namespace, parent_namespace)
-        return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
+        if _has_type_parameters(bases, namespace):
+            return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
+        # A non-pydantic generic base (`SamplesSequence(SamplesSequenceBase, ...)`
+        # with `SamplesSequenceBase(t.Sequence[Sample])`) puts `typing.Generic`
+        # before `BaseModel` in the MRO: pydantic warns because *its*
+        # `__class_getitem__` would be shadowed, which only matters for a class
+        # that can be parametrized. Without type parameters the warning is moot.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", pydantic.warnings.GenericBeforeBaseModelWarning)
+            return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
 
 
 # --------------------------------------------------------------------------- #
 # base models
 # --------------------------------------------------------------------------- #
+def _custom_serializer_applies(custom: dict, value: t.Any, info: core_schema.SerializationInfo) -> bool:
+    """pydantic's ``when_used`` rule for a ``function-plain``/``function-wrap`` ser schema."""
+    when_used = custom.get("when_used", "always")
+    if when_used == "always":
+        return True
+    if when_used == "unless-none":
+        return value is not None
+    if when_used == "json":
+        return info.mode == "json"
+    return info.mode == "json" and value is not None  # "json-unless-none"
+
+
 def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> core_schema.CoreSchema:
-    """Serialize instances of subclasses with *their* serializer (v1 behaviour)."""
+    """Serialize instances of subclasses with *their* serializer (v1 behaviour).
+
+    A ``@model_serializer`` declared on the model (or inherited) lands in the
+    same ``serialization`` slot of the schema: it is kept and called on the
+    exact-type path, so that custom dumps and polymorphism compose.
+    """
+    custom = schema.get("serialization")
+    if custom is not None and custom.get("type") not in ("function-wrap", "function-plain"):
+        return schema  # not a user serializer: nothing pipelime knows how to compose with
 
     def _serialize(value: t.Any, nxt: t.Callable[[t.Any], t.Any], info: core_schema.SerializationInfo):
         serializer = getattr(type(value), "__pydantic_serializer__", None)
         if type(value) is cls or serializer is None:
             # exact type, or not a model at all (e.g. after `model_construct`):
             # pydantic's own path, which warns on unexpected values instead of failing
-            return nxt(value)
+            if custom is None or not _custom_serializer_applies(custom, value, info):
+                return nxt(value)
+            fn, with_info = custom["function"], custom.get("info_arg", False)
+            if custom["type"] == "function-wrap":
+                return fn(value, nxt, info) if with_info else fn(value, nxt)
+            return fn(value, info) if with_info else fn(value)
         extra_flags = {}
         exclude_computed_fields = getattr(info, "exclude_computed_fields", None)
         if exclude_computed_fields is not None:  # pydantic >= 2.12
@@ -237,8 +282,20 @@ def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> cor
             **extra_flags,
         )
 
+    # `return_schema` binds the *whole* wrapping function's output, but `_serialize`
+    # only funnels every call through the custom serializer when it is unconditional
+    # (`when_used="always"`, pydantic's default): otherwise some calls take the
+    # `nxt(value)`/default-dump branch above, whose shape does not match a narrower
+    # declared return type (e.g. a `when_used="json"` serializer returning `str`),
+    # which would make pydantic warn (or, under `-W error`, raise) on every dump that
+    # does not use the custom path.
+    return_schema = None
+    if custom is not None and custom.get("when_used", "always") == "always":
+        return_schema = custom.get("return_schema")
     schema["serialization"] = core_schema.wrap_serializer_function_ser_schema(
-        _serialize, info_arg=True
+        _serialize,
+        info_arg=True,
+        return_schema=return_schema,
     )
     return schema
 
@@ -263,6 +320,14 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
     v1 surface (``cls(__root__=x)``, ``.__root__``, ``.value``, ``create``,
     ``validate``, ``.dict()`` envelope) is provided here.
     """
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):
+        # same polymorphic dispatch as `PipelimeModel` (e.g. `StageInput.root:
+        # SampleStage` or `NumpyType`/`TypeDef` referenced through a base-typed
+        # field): keeps a subclass's own `@model_serializer` instead of always
+        # dumping the declared (base) root type.
+        return _polymorphic_serialization(cls, handler(source))
 
     def __init__(self, root: t.Any = PydanticUndefined, /, **data: t.Any) -> None:
         if "__root__" in data:
