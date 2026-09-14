@@ -12,10 +12,10 @@
 | S0 | S0-T8 (contracts: stages/entities/sequences) | done | `-k "StagesAndEntities or TestSequences"` | 7 passed, 1 xfailed | e5d7e35 + 32497f5 | NpyNumpyItem; annotations un-stringified; ContractPipe reimport guard |
 | S0 | S0-T9 (contracts: validation interfaces, errors, help snapshot) | done | `-k "ValidationInterfaces or HelpRendering"` | 8 passed | 015c34b | help snapshot committed (regen opt-in via PIPELIME_CONTRACT_REGEN=1) |
 | S0 | S0-T10 (contracts: modern type hints) | done | `make test-full` | 2447 passed, 5 skipped, 4 xfailed, 114 s | 7df2b04 + 443b101 | S0 gate; 4 expected xfails on v1: var-keyword expansion, unannotated None default, to_pipe str recursion, TUI on UnionType |
-| S1 | S1-T1 (PipelimeModel) | todo | | | | |
-| S1 | S1-T2 (PipelimeRootModel) | todo | | | | |
-| S1 | S1-T3 (Field wrapper) | todo | | | | |
-| S1 | S1-T4 (introspection) | todo | | | | |
+| S1 | S1-T1 (PipelimeModel) | done | `pytest tests/pipelime/utils/test_pydantic_compat.py -W error` | 32 passed | 9685aa6, 7e30c38, 733621d, 4f830bf | metaclass captures the class-statement frame at the right depth (guarded use of two pydantic private helpers) — re-verify on the pydantic 2.10 floor in S5-T1 |
+| S1 | S1-T2 (PipelimeRootModel) | done | same | 32 passed | 1f4ef35, 4f830bf, 0c8bcff | `__pydantic_base_init__` needed for mapping roots; `__init__` unwraps an instance of its own type |
+| S1 | S1-T3 (Field wrapper) | done | same | 32 passed | e1c7b67, 4f830bf, 600f3ca | legacy v1 `Field` kwargs forwarded to pydantic; `regex=` translated to `pattern=` |
+| S1 | S1-T4 (introspection) | done | same | 32 passed | 33f96e4 | `FieldView` carries `owner`/`populate_by_name`; `type_info` handles both union spellings |
 | S1 | S1-T5 (pydantic_types: NewPath) | done | `-k NewPath` (deferred to T8, module didn't import until then) | 43 passed (combined w/ T6-T8) | 600f3ca | |
 | S1 | S1-T6 (NumpyType/YamlInput) | done | `-k "NumpyType or YamlInput or NewPath"` (deferred to T8) | 43 passed (combined w/ T5,T7,T8) | 0c8bcff | |
 | S1 | S1-T7 (TypeDef/ItemType/CallableDef) | done | `-k "ItemType or CallableDef"` (deferred to T8, module didn't import until then) | 43 passed (combined w/ T8) | 1267c71 | `wrapped_type()` probed directly against the compat base; string-annotation regression test added |
