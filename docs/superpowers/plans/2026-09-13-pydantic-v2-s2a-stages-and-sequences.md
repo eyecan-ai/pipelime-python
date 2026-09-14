@@ -574,23 +574,44 @@ class StageEntity(SampleStage, title="entity"):
 
     entity_action: EntityAction = Field(..., description="The entity action to run.")
 
+    @staticmethod
+    def _normalize(value: t.Any) -> t.Any:
+        """Any pipelime 2.x input shape -> the EntityAction spec.
+
+        Shapes: a bare spec (callable / str / `{action: ..., input_type: ...}`),
+        the `{"__root__": spec}` envelope written by 2.x `to_pipe()`, and the
+        `{"entity_action": spec}` field mapping.
+        """
+        if isinstance(value, t.Mapping):
+            keys = set(value.keys())
+            if keys == {"__root__"}:
+                return value["__root__"]
+            if keys == {"entity_action"}:
+                return value["entity_action"]
+        return value
+
     def __init__(self, __root__: t.Any = _MISSING, /, **data):
-        # every pipelime 2.x call shape: positional spec, `__root__=` keyword,
-        # the `{"__root__": ...}` envelope written by 2.x `to_pipe()`, and
-        # the bare `{action: ..., input_type: ...}` kwargs form
+        # positional spec, `__root__=` keyword, the 2.x envelope, or the bare
+        # `{action: ..., input_type: ...}` kwargs form
         if __root__ is not _MISSING:
+            if data:
+                raise TypeError(
+                    "StageEntity takes a single entity action, "
+                    f"got extra arguments {sorted(data)}"
+                )
             spec = __root__
-        elif "__root__" in data:
-            spec = data.pop("__root__")
-        elif set(data.keys()) == {"entity_action"}:
-            spec = data.pop("entity_action")
         else:
-            spec, data = data, {}
-        if data:
-            raise TypeError(
-                f"StageEntity takes a single entity action, got extra arguments {sorted(data)}"
-            )
+            spec = self._normalize(data)
         super().__init__(entity_action=spec)  # type: ignore
+
+    @pydantic.model_validator(mode="wrap")
+    @classmethod
+    def _validate_input(cls, value, handler):
+        # `model_validate(spec)` / `TypeAdapter(StageEntity)` / nested validation
+        # receive the raw spec (v1 accepted it through `_enforce_dict_if_root`)
+        if isinstance(value, cls):
+            return value
+        return handler({"entity_action": cls._normalize(value)})
 
     @pydantic.model_serializer(mode="wrap")
     def _serialize(self, handler) -> t.Dict[str, t.Any]:
@@ -624,11 +645,11 @@ class In(BaseEntity):
 def act(x: In):
     return In.merge(x, meta=Meta(name=x.meta().name + "!"))
 x = Sample({"image": pli.PngImageItem(np.zeros((2, 2, 3), np.uint8)), "meta": pli.JsonMetadataItem({"name": "n"})})
-for st in (StageEntity(EntityAction(action=act)), StageEntity(__root__={"action": act}), StageEntity(action=act), StageEntity({"__root__": {"action": act}})):
+for st in (StageEntity(EntityAction(action=act)), StageEntity(__root__={"action": act}), StageEntity(action=act), StageEntity({"__root__": {"action": act}}), pydantic.TypeAdapter(StageEntity).validate_python(act), StageEntity.model_validate({"action": act})):
     print(st(x)["meta"](), st.model_dump()["action"], st.__root__.input_type.value is In)
 EOF
 ```
-Expected: four lines `{'name': 'n!'} <module>.act True`.
+Expected: six lines `{'name': 'n!'} <module>.act True`.
 
 - [ ] **Step 3: Commit**
 
