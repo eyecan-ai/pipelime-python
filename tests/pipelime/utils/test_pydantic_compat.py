@@ -84,6 +84,37 @@ class TestOptionalSemantics:
 
         assert M(s=5).s == "5"
 
+    def test_bools_coerced_to_str(self):
+        # v1 `str_validator` took the `int` path for bools: `True` -> "True"
+        class M(pc.PipelimeModel):
+            s: str
+            opt: t.Optional[str] = None
+            seq: tuple[str, ...] = ()
+            kw: dict[str, str] = {}
+            either: t.Union[bool, str] = False
+
+        m = M(s=True, opt=False, seq=("a", 1, True), kw={"k": False}, either=True)
+        assert m.s == "True" and m.opt == "False"
+        assert m.seq == ("a", "1", "True") and m.kw == {"k": "False"}
+        assert m.either is True  # the bool member of a union still wins
+        assert M.model_json_schema()["properties"]["s"] == {"title": "S", "type": "string"}
+
+        class R(pc.PipelimeRootModel[str]):
+            pass
+
+        assert R(True).root == "True"
+
+    def test_bools_coerced_to_str_is_per_model(self):
+        # nested plain pydantic models keep pydantic's rules, like `coerce_numbers_to_str`
+        class Plain(pydantic.BaseModel):
+            s: str
+
+        class M(pc.PipelimeModel):
+            inner: Plain
+
+        with pytest.raises(pydantic.ValidationError):
+            M(inner={"s": True})
+
 
 class TestV1Guard:
     def test_v1_field_rejected(self):

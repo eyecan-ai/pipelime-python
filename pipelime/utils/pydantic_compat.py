@@ -9,8 +9,9 @@ lives here:
   polymorphic nested serialization (a field typed as a base class is dumped
   using the runtime subclass), v1 ``Optional`` semantics (``x: Optional[int]``
   without a default is optional; ``x: int = None`` accepts ``None``), coerces
-  numbers to ``str`` fields (CLI values are parsed before validation) and
-  refuses ``pydantic.v1`` objects in subclasses with an actionable error.
+  numbers — ``bool`` included — to ``str`` fields (CLI values are parsed before
+  validation) and refuses ``pydantic.v1`` objects in subclasses with an
+  actionable error.
 * :class:`PipelimeRootModel` — base of the "value wrapper" types; accepts the
   v1 ``__root__=`` construction, exposes ``.__root__``/``.value`` and keeps the
   ``{"__root__": ...}`` envelope on ``.dict()``.
@@ -300,6 +301,35 @@ def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> cor
     return schema
 
 
+def _bool_to_str(value: t.Any) -> t.Any:
+    return str(value) if isinstance(value, bool) else value
+
+
+def _coerce_bools_to_str(cls: type, schema: t.Any) -> None:
+    """v1 coerced ``bool`` into ``str`` fields like any other number (``True`` →
+    ``"True"``; CLI values such as ``+name true`` are YAML-parsed before validation);
+    ``coerce_numbers_to_str`` leaves bools out, so every ``str`` schema among the
+    fields of ``cls`` gets a before-validator (in place). Nested models are left
+    to their own hook: as for ``coerce_numbers_to_str``, the rule is per model.
+    """
+    if isinstance(schema, dict):
+        stype = schema.get("type")
+        if stype == "model":
+            if schema.get("cls") is cls:
+                _coerce_bools_to_str(cls, schema.get("schema"))
+            return
+        if stype == "str":
+            inner = dict(schema)
+            schema.clear()
+            schema.update(core_schema.no_info_before_validator_function(_bool_to_str, inner))
+            return
+        for value in schema.values():
+            _coerce_bools_to_str(cls, value)
+    elif isinstance(schema, list):
+        for value in schema:
+            _coerce_bools_to_str(cls, value)
+
+
 class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
     """Base class of every pipelime model (see the module docstring)."""
 
@@ -307,7 +337,9 @@ class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):
-        return _polymorphic_serialization(cls, handler(source))
+        schema = handler(source)
+        _coerce_bools_to_str(cls, schema)
+        return _polymorphic_serialization(cls, schema)
 
 
 RootT = t.TypeVar("RootT")
@@ -327,7 +359,9 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
         # SampleStage` or `NumpyType`/`TypeDef` referenced through a base-typed
         # field): keeps a subclass's own `@model_serializer` instead of always
         # dumping the declared (base) root type.
-        return _polymorphic_serialization(cls, handler(source))
+        schema = handler(source)
+        _coerce_bools_to_str(cls, schema)
+        return _polymorphic_serialization(cls, schema)
 
     def __init__(self, root: t.Any = PydanticUndefined, /, **data: t.Any) -> None:
         if "__root__" in data:
