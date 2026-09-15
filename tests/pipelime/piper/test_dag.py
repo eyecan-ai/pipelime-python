@@ -2,11 +2,11 @@ import typing as t
 from pathlib import Path
 
 import pytest
-from pydantic.v1 import Field, ValidationError
+from pydantic import ValidationError
 
 import pipelime.commands.interfaces as pl_interfaces
 from pipelime.commands.piper import T_NODES, DagBaseCommand, PiperDAG, piper_dag
-from pipelime.piper import PiperPortType
+from pipelime.piper import Field, PiperPortType
 from pipelime.sequences import SamplesSequence
 
 

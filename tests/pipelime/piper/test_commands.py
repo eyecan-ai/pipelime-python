@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class _GraphArgs(BaseModel):
@@ -20,8 +20,8 @@ class _DotOpts(BaseModel):
     dot: str
 
 
-class _DotsTestData(BaseModel):
-    __root__: t.Sequence[_DotOpts]
+class _DotsTestData(RootModel[t.Sequence[_DotOpts]]):
+    pass
 
 
 def _try_import_graphviz():
@@ -63,8 +63,8 @@ class TestCommands:
         for dag in all_dags:
             if "dot" in dag:
                 with open(dag["dot"]) as f:
-                    dots_test_data = _DotsTestData.parse_obj(yaml.safe_load(f))
-                for idx, test_data in enumerate(dots_test_data.__root__):
+                    dots_test_data = _DotsTestData.model_validate(yaml.safe_load(f))
+                for idx, test_data in enumerate(dots_test_data.root):
                     target_dot = test_data.dot
                     outdot = tmp_path / str(idx) / "out.dot"
                     outdot.parent.mkdir(parents=True, exist_ok=True)

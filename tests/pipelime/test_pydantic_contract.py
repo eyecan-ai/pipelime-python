@@ -718,8 +718,10 @@ class TestSequences:
     def test_to_pipe_roundtrip(self):
         seq = SamplesSequence.toy_dataset(3).contract_pipe(keys=["image"])
         pipe = seq.to_pipe()
+        # an operator defined outside `pipelime` is serialized with its module path
+        # (`_add_operator_path`, unchanged since 2.x) so that `build_pipe` can import it
         assert pipe[-1] == {
-            "contract_pipe": {"keys": ["image"], "stage": {"identity": {}}}
+            f"{__name__}:contract_pipe": {"keys": ["image"], "stage": {"identity": {}}}
         }
         assert len(build_pipe(pipe)) == 3
         assert SamplesSequence.toy_dataset(2).to_pipe()[0]["toy_dataset"]["length"] == 2
@@ -918,7 +920,10 @@ class ModernEntity(BaseEntity):
 class TestModernTypeHints:
     def test_validation(self):
         c = ModernCommand(a=["3"], f="5", e=[StageIdentity()], h="identity")
-        assert c.a == [3] and c.f == 5 and c.g is None
+        # `int | str` given "5": v2 smart unions keep the exact type (an accepted
+        # change, see the design spec's risks and the migration guide); v1 went
+        # left-to-right and coerced to `int`
+        assert c.a == [3] and c.f == (5 if V1 else "5") and c.g is None
         assert isinstance(c.h.__root__, StageIdentity)
         assert ModernStage(keys=("a",)).keys == ["a"]
         e = ModernEntity(**_sample())

@@ -34,13 +34,11 @@ class TestSample:
     def test_to_schema(self):
         from typing import Optional
 
-        from pydantic.v1 import BaseConfig, Extra, create_model
+        from pydantic import ConfigDict, create_model
 
         import pipelime.items as pli
 
-        class SampleConfig(BaseConfig):
-            arbitrary_types_allowed = True
-            extra = Extra.forbid
+        SampleConfig = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
         sample, _ = self._mixed_sample()
         sample_schema = create_model(
@@ -78,8 +76,7 @@ class TestSample:
         with pytest.raises(Exception):
             sample_schema(**sample)
 
-        class SampleConfig2(BaseConfig):
-            arbitrary_types_allowed = True
+        SampleConfig2 = ConfigDict(arbitrary_types_allowed=True)
 
         sample_schema = create_model(
             "SampleSchema",

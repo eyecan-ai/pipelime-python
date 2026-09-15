@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 from pipelime.piper.model import DAGModel
 from pipelime.piper.parsers.base import DAGParser
@@ -37,7 +37,7 @@ class TestDAGParserFactory:
         for dag in all_dags:
             if dag["ctx_path"].exists():
                 # direct model parsing
-                dag_model_ref = DAGModel.parse_obj(dag["config"])
+                dag_model_ref = DAGModel.model_validate(dag["config"])
                 dag_model_ref = self._purge_paths(dag_model_ref)
 
                 # file parsing + choixe processing
@@ -61,7 +61,7 @@ class TestDAGParserFactory:
         for dag in all_dags:
             if dag["ctx_path"].exists():
                 # direct model parsing
-                dag_model_ref = DAGModel.parse_obj(dag["config"])
+                dag_model_ref = DAGModel.model_validate(dag["config"])
                 dag_model_ref = self._purge_paths(dag_model_ref)
 
                 with open(dag["cfg_path"], "r") as fcfg, open(

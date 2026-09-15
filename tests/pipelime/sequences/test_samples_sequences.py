@@ -9,11 +9,11 @@ class TestSamplesSequences:
         from pipelime.sequences.pipes import PipedSequenceBase
         from pipelime.sequences.pipes.mapping import MappedSequence
 
-        assert not PipedSequenceBase.__config__.title
+        assert not PipedSequenceBase.model_config.get("title")
         assert PipedSequenceBase.name() == PipedSequenceBase.__name__
 
-        assert bool(MappedSequence.__config__.title)
-        assert MappedSequence.name() == MappedSequence.__config__.title
+        assert bool(MappedSequence.model_config.get("title"))
+        assert MappedSequence.name() == MappedSequence.model_config.get("title")
 
     def test_is_normalized(self, minimnist_dataset: dict):
         import pipelime.items as pli

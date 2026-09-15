@@ -66,7 +66,7 @@ class TestBaseStages:
         )
 
     def test_stage_input(self):
-        from pydantic.v1 import BaseModel
+        from pydantic import BaseModel
 
         from pipelime.stages import StageInput, StageKeyFormat
 
