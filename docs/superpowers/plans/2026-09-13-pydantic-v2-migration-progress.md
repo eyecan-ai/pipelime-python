@@ -20,11 +20,11 @@
 | S1 | S1-T6 (NumpyType/YamlInput) | done | `-k "NumpyType or YamlInput or NewPath"` (deferred to T8) | 43 passed (combined w/ T5,T7,T8) | 0c8bcff | |
 | S1 | S1-T7 (TypeDef/ItemType/CallableDef) | done | `-k "ItemType or CallableDef"` (deferred to T8, module didn't import until then) | 43 passed (combined w/ T8) | 1267c71 | `wrapped_type()` probed directly against the compat base; string-annotation regression test added |
 | S1 | S1-T8 (validation interfaces) | done | `pytest tests/pipelime/utils tests/pipelime/items tests/pipelime/choixe` | 551 passed, 1 failed | 7d710e5 | `test_items.py::test_disabled_serialization_modes` fails (transitively imports `pipelime.sequences`, which does not import until S2a/S2b convert its v1 models off the now-v2 `ItemType`/`CallableDef`/`YamlInput`); left failing per "do not fix those packages" — see task-S1-T7-8-report.md |
-| S2a | S2a-T1 (stages/base) | todo | | | | |
-| S2a | S2a-T2 (stages/entities) | todo | | | | |
-| S2a | S2a-T3 (other stages) | todo | | | | |
-| S2a | S2a-T4 (samples_sequence) | todo | | | | |
-| S2a | S2a-T5 (pipes/sources/utils/grabber) | todo | | | | |
+| S2a | S2a-T1 (stages/base) | done | import smoke + `StageInput` snippet | ok | 8c894d4 | `SampleStage`/`StageInput` on v2; `StageInput.dict()` == `model_dump()` (`{title: args}`) |
+| S2a | S2a-T2 (stages/entities) | done | T2 smoke snippet (six `StageEntity` call shapes) | ok | 8c894d4 | `StageEntity` = regular stage + compat `__init__` + wrap validator/serializer + `__root__` property; `_normalize` peels envelopes in a loop |
+| S2a | S2a-T3 (other stages) | done | `pytest tests/pipelime/stages` | see S2a-T5 (categorised) | 8c894d4 | `Transformation` as `PipelimeRootModel`; `Color` from pydantic_extra_types; `root_validator` → `model_validator(after)` |
+| S2a | S2a-T4 (samples_sequence) | done | `list(toy_dataset(2))` yields Samples; `to_pipe()` on str fields | ok | 3d42045 | MRO preserved; `to_pipe` no longer recurses into `str` (bug fix) |
+| S2a | S2a-T5 (pipes/sources/utils/grabber) | done | `pytest tests/pipelime/stages tests/pipelime/sequences --deselect test_grabber.py` | 332 passed, 31 failed — all expected mid-migration (2 by-name registry lookups → S2b-T7; 29 test modules on `pydantic.v1` forms → S2b-T9) | e8de53a (+ toolkit 5a453ec) | `test_grabber.py` with workers crash-loops until S2b (spawned workers import the v1 registry) — part of the S2b gate |
 | S2b | S2b-T1 (progress models) | todo | | | | |
 | S2b | S2b-T2 (checkpoint) | todo | | | | |
 | S2b | S2b-T3 (piper/model) | todo | | | | |
@@ -47,6 +47,8 @@
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
+- (S2a) Toolkit additions in 5a453ec: the polymorphic serializer now composes with a declared/inherited `@model_serializer` (the S1 version overwrote the schema's `serialization` slot, which would have dropped `StageInput._serialize`/`BaseEntity._serialize`; `return_schema` is forwarded only for `when_used="always"`); `PipelimeRootModel` gets the same polymorphic hook as `PipelimeModel`; `GenericBeforeBaseModelWarning` is suppressed for classes without free type parameters (`SamplesSequence(SamplesSequenceBase(t.Sequence[Sample]), PipelimeModel)` keeps its MRO).
+- (S2a) `test_grabber.py` with `num_workers>0` crash-loops instead of erroring while the registry is still v1: `_GrabContext.wrk_init` runs `PipelimeSymbolsHelper.import_everything()` in every spawned worker and `multiprocessing.Pool` respawns crashing workers forever. Resolves in S2b; the swallowed worker-init error is a pre-existing weakness worth a follow-up.
 - (S1) `PipelimeRootModel.__init__` is flagged `__pydantic_base_init__ = True` (as `RootModel.__init__` is): without it pydantic treats the custom `__init__` as validation-relevant and turns `model_validate(<dict>)` into `cls(**dict)`, breaking every wrapper whose root is a mapping (`YamlInput`, later `NodesDefinition`/`Transformation`). Toolkit change made during S1-T6, signed off by the controller.
 - (S0) Contract fixtures must not define `Item` subclasses (global item registry) nor rely on v1 mapping unannotated `None` defaults to `Any`; the contract module isolates the pipelime symbol registry per test (`_clean_registry()` + autouse fixture) because `import_symbol` registers every loaded module as an extra module and re-exported stages then count as duplicates (pre-existing quirk, parked).
 - (S0) `CallableDef.args_type` will resolve string annotations in S1-T7 (modules with `from __future__ import annotations` crashed `EntityAction` inference on v1).
