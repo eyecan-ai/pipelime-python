@@ -68,3 +68,33 @@
   way with only S1-T5/T6 applied, i.e. it is not a regression introduced by
   T7/T8 specifically — it is inherent to converting `pydantic_types.py`
   ahead of its downstream consumers.
+
+## Resuming in a new session (written 2026-09-15 after S2a)
+
+Everything needed to continue lives in git; nothing depends on the old chat session.
+
+1. **State:** S0, S1, S2a complete (see the rows above). HEAD = `4d8145d`, tree clean,
+   branch `pydantic_v2`. Expected at rest: `pytest tests/pipelime/utils tests/pipelime/choixe`
+   green; `tests/pipelime/stages tests/pipelime/sequences` = 332 passed / 31 failed
+   (all mid-migration: by-name registry lookups and test modules still on `pydantic.v1`
+   forms); `pipelime.commands`/`piper`/`cli` and the contract module do not import yet.
+2. **Next:** S2b — `docs/superpowers/plans/2026-09-13-pydantic-v2-s2b-piper-and-commands.md`.
+   Execute its tasks in this order (dependency ruling): T1, T2, **T7** (cli/utils minimal
+   compat — `piper/model.py` imports `resolve_pipelime_command`/`format_validation_error`
+   from it), T3, T4, T5, T6, T8, T9. Diff base for reviews: `4d8145d`.
+3. **S2b gate additions (hand-offs from S2a):** the gate must include
+   `tests/pipelime/sequences/test_grabber.py` (workers crash-loop while the registry is v1)
+   and the contract `TestSequences::test_to_pipe_roundtrip` must pass (by-name lookup).
+4. **How:** invoke `superpowers:subagent-driven-development` on
+   `docs/superpowers/plans/2026-09-13-pydantic-v2-migration.md`. Its git-ignored workspace
+   `.superpowers/sdd/2026-09-13-pydantic-v2-migration/` (if still on disk) holds the SDD
+   ledger `progress.md` with every ruling, the briefs (`task-S2b-brief.md` is already
+   assembled in the order above; `brief.sh PLAN LABEL` extracts one task by its `S<k>-T<n>`
+   label since the stock `task-brief` script only matches numeric task headings), reports and
+   review packages. If that directory is gone, recreate the ledger from this file — the
+   rulings that matter for S2b are recorded in the "Surprises / deviations" section above and
+   in the plan amendments already committed.
+5. **Process facts learned:** subagents died on API session limits three times (opus resets
+   ~02:50, sonnet ~20:20 Europe/Rome) — the ledger + per-task commits recovered every time;
+   prefer dispatching the large S2b batch early in a limit window and commit per task.
+   Reviewers found real gaps in every subtask so far; never skip the task review.
