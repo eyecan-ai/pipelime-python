@@ -9,7 +9,7 @@ from types import ModuleType
 
 import yaml
 from loguru import logger
-from pydantic.v1 import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 from rich import get_console
 from rich.prompt import Prompt
 from yaml.error import YAMLError
@@ -108,13 +108,15 @@ class PipelimeSymbolsHelper:
 
     @classmethod
     def _symbol_name(cls, symbol):
-        from pydantic.v1 import BaseModel
+        import inspect
 
-        return (
-            symbol.__config__.title
-            if issubclass(symbol, BaseModel) and symbol.__config__.title
-            else symbol.__name__
-        )
+        from pydantic import BaseModel
+
+        from pipelime.utils.pydantic_compat import model_title
+
+        if inspect.isclass(symbol) and issubclass(symbol, BaseModel):
+            return model_title(symbol)
+        return symbol.__name__
 
     @classmethod
     def _warn_double_def(cls, type_, name, first, second):
@@ -631,7 +633,7 @@ def pl_print(
     """
     import inspect
 
-    from pydantic.v1 import BaseModel
+    from pydantic import BaseModel
     from rich import print as rprint
 
     from pipelime.cli.pretty_print import print_model_info
@@ -720,9 +722,11 @@ def get_pipelime_command_cls(
     return cmd_cls[1]
 
 
-def get_pipelime_command(
+def resolve_pipelime_command(
     cmd: "T_DAG_NODE", checkpoint: t.Optional["CheckpointNamespace"] = None
-) -> "PipelimeCommand":
+):
+    """Splits a DAG node definition into the command class (None when `cmd` is
+    already an instance) and a zero-arg builder returning the command."""
     from pipelime.piper.model import LazyCommand, PipelimeCommand
 
     cmd_cls, cmd_args = None, {}
@@ -734,19 +738,28 @@ def get_pipelime_command(
     elif isinstance(cmd, LazyCommand):
         cmd_cls = cmd
 
-    if cmd_cls is not None:
-        cmd = (
-            cmd_cls(**cmd_args)
-            if checkpoint is None
-            else cmd_cls.init_from_checkpoint(checkpoint, **cmd_args)
-        )
+    def _build() -> "PipelimeCommand":
+        obj = cmd
+        if cmd_cls is not None:
+            obj = (
+                cmd_cls(**cmd_args)
+                if checkpoint is None
+                else cmd_cls.init_from_checkpoint(checkpoint, **cmd_args)
+            )
+        if not isinstance(obj, PipelimeCommand):
+            raise ValueError(f"{obj} is not a pipelime command.")
+        if checkpoint is not None:
+            obj._checkpoint = checkpoint
+        return obj
 
-    if not isinstance(cmd, PipelimeCommand):
-        raise ValueError(f"{cmd} is not a pipelime command.")
+    real_cls = cmd_cls.command_class if isinstance(cmd_cls, LazyCommand) else cmd_cls
+    return real_cls, _build
 
-    if checkpoint is not None:
-        cmd._checkpoint = checkpoint
-    return cmd
+
+def get_pipelime_command(
+    cmd: "T_DAG_NODE", checkpoint: t.Optional["CheckpointNamespace"] = None
+) -> "PipelimeCommand":
+    return resolve_pipelime_command(cmd, checkpoint)[1]()
 
 
 def time_to_str(nanosec: int) -> str:
@@ -761,21 +774,26 @@ def time_to_str(nanosec: int) -> str:
     return str(timedelta(microseconds=nanosec / 1000))
 
 
-def show_field_alias_valerr(e: ValidationError):
-    def _replace_alias(val):
-        if isinstance(val, str):
-            for field in e.model.__fields__.values():  # type: ignore
-                if (
-                    field.model_config.allow_population_by_field_name
-                    and field.has_alias
-                    and field.alias == val
-                ):
-                    return f"{field.name} / {field.alias}"
-        return val
+def format_validation_error(e: ValidationError, model_cls=None) -> str:
+    """The error text with `name / alias` locations, as pipelime 2.x printed them.
+    `model_cls` is the class that raised (v2 errors do not carry it)."""
+    from pipelime.utils.pydantic_compat import iter_fields
 
+    alias_to_name = {}
+    if model_cls is not None and model_cls.model_config.get("populate_by_name"):
+        alias_to_name = {
+            f.alias: f"{f.name} / {f.alias}" for f in iter_fields(model_cls) if f.has_alias
+        }
+
+    lines = [f"{e.error_count()} validation error(s) for {e.title}"]
     for err in e.errors():
-        if "loc" in err:
-            err["loc"] = tuple(_replace_alias(pos) for pos in err["loc"])
+        loc = " -> ".join(str(alias_to_name.get(p, p)) for p in err.get("loc", ()))
+        lines.append(f"{loc or '(root)'}\n  {err['msg']} [type={err['type']}]")
+    return "\n".join(lines)
+
+
+def show_field_alias_valerr(e: ValidationError, model_cls=None) -> str:  # pipelime 2.x name
+    return format_validation_error(e, model_cls)
 
 
 def parse_user_input(s: str) -> t.Any:
