@@ -1,14 +1,15 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
 import pipelime.utils.pydantic_types as pl_types
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 from pipelime.stages import StageInput
+from pipelime.utils.pydantic_compat import PipelimeModel, model_title
 
 
-class OutputTime(pyd.BaseModel):
+class OutputTime(PipelimeModel):
     nanosec: int
 
     def __repr__(self) -> str:
@@ -20,7 +21,7 @@ class OutputTime(pyd.BaseModel):
         return time_to_str(self.nanosec)
 
 
-class OutputStageTime(pyd.BaseModel):
+class OutputStageTime(PipelimeModel):
     stages: t.Mapping[str, OutputTime]
 
     def __repr__(self) -> str:
@@ -55,7 +56,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         )
     )
 
-    operations: t.Optional[pl_types.YamlInput] = pyd.Field(
+    operations: t.Optional[pl_types.YamlInput] = Field(
         None,
         alias="op",
         description=(
@@ -68,29 +69,29 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
         ),
     )
 
-    skip_first: pyd.NonNegativeInt = pyd.Field(
+    skip_first: pyd.NonNegativeInt = Field(
         1, alias="s", description="Skip the first n samples, then start the timer."
     )
-    max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
+    max_samples: t.Optional[pyd.PositiveInt] = Field(
         None,
         alias="m",
         description="Grab at most `max_samples` and take the average time.",
     )
-    repeat: pyd.PositiveInt = pyd.Field(
+    repeat: pyd.PositiveInt = Field(
         1, alias="r", description="Repeat the measurement `repeat` times."
     )
-    process: bool = pyd.Field(
+    process: bool = Field(
         False,
         alias="p",
         description=(
             "Measure process time instead of using a performance counter clock."
         ),
     )
-    clear_output_folder: bool = pyd.Field(
+    clear_output_folder: bool = Field(
         True, alias="c", description="Remove the output folder before each run."
     )
 
-    average_time: t.Optional[OutputTime] = pyd.Field(
+    average_time: t.Optional[OutputTime] = Field(
         None,
         description="The average time to get a sample from the sequence.",
         exclude=True,
@@ -150,7 +151,7 @@ class TimeItCommand(PipelimeCommand, title="timeit"):
 class StageTimingCommand(PipelimeCommand, title="stage-time"):
     """Measures the average time to get a sample through some stages."""
 
-    stages: t.Union[StageInput, t.Sequence[StageInput]] = pyd.Field(
+    stages: t.Union[StageInput, t.Sequence[StageInput]] = Field(
         ...,
         alias="s",
         description=(
@@ -170,14 +171,14 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
         alias="g"
     )
 
-    skip_first: pyd.NonNegativeInt = pyd.Field(
+    skip_first: pyd.NonNegativeInt = Field(
         1,
         alias="s",
         description=(
             "Skip the first n samples in EACH EXECUTION PROCESS, then start the timer."
         ),
     )
-    max_samples: t.Optional[pyd.PositiveInt] = pyd.Field(
+    max_samples: t.Optional[pyd.PositiveInt] = Field(
         None,
         alias="m",
         description=(
@@ -185,10 +186,10 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
             "and take the average time."
         ),
     )
-    repeat: pyd.PositiveInt = pyd.Field(
+    repeat: pyd.PositiveInt = Field(
         1, alias="r", description="Repeat the measurement `repeat` times."
     )
-    process: bool = pyd.Field(
+    process: bool = Field(
         False,
         alias="p",
         description=(
@@ -196,7 +197,7 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
         ),
     )
 
-    average_time: t.Optional[OutputStageTime] = pyd.Field(
+    average_time: t.Optional[OutputStageTime] = Field(
         None,
         description="The average time to get a sample through the stages.",
         exclude=True,
@@ -211,12 +212,8 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
         stages = self.stages if isinstance(self.stages, t.Sequence) else [self.stages]
         names = []
         for st in stages:
-            stage_cls = st.__root__.__class__
-            stage_name = (
-                stage_cls.__config__.title
-                if stage_cls.__config__.title
-                else stage_cls.__name__
-            )
+            stage_cls = type(st.root)
+            stage_name = model_title(stage_cls)
             names.append(stage_name)
         for i, n in enumerate(names[::-1]):
             names[-i - 1] = f"{n}-{names.count(n)}"
@@ -274,7 +271,7 @@ class StageTimingCommand(PipelimeCommand, title="stage-time"):
 class PipeCommand(PipelimeCommand, title="pipe"):
     """A general-purpose command to build up linear pipelines."""
 
-    operations: pl_types.YamlInput = pyd.Field(
+    operations: pl_types.YamlInput = Field(
         ...,
         alias="op",
         description=(
@@ -309,7 +306,8 @@ class PipeCommand(PipelimeCommand, title="pipe"):
         alias="g"
     )
 
-    @pyd.validator("operations")
+    @pyd.field_validator("operations")
+    @classmethod
     def _validate_operations(cls, v: pl_types.YamlInput) -> pl_types.YamlInput:
         if not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
             raise ValueError(f"Invalid pipeline: {v.value}")
@@ -382,7 +380,7 @@ class ConcatCommand(PipelimeCommand, title="cat"):
         alias="g"
     )
 
-    interleave: bool = pyd.Field(False, description="If TRUE, interleaves samples.")
+    interleave: bool = Field(False, description="If TRUE, interleaves samples.")
 
     def run(self):
         inputs = self.inputs if isinstance(self.inputs, t.Sequence) else [self.inputs]
@@ -424,7 +422,7 @@ class ZipCommand(PipelimeCommand, title="zip"):
         )
     )
 
-    key_format: t.Union[str, t.Sequence[str]] = pyd.Field(
+    key_format: t.Union[str, t.Sequence[str]] = Field(
         "*",
         description=(
             "The zipped samples' key format FOR EACH INPUT SEQUENCE EXCEPT THE FIRST "
@@ -469,7 +467,7 @@ class ZipCommand(PipelimeCommand, title="zip"):
 class ValidateCommand(PipelimeCommand, title="validate"):
     """Outputs a minimal schema which will validate the given input."""
 
-    class OutputSchemaDefinition(pyd.BaseModel):
+    class OutputSchemaDefinition(PipelimeModel):
         schema_def: t.Any
 
         def __repr__(self) -> str:
@@ -480,7 +478,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 
             return yaml.safe_dump(self.schema_def, sort_keys=False)
 
-    class OutputCmdLineSchema(pyd.BaseModel):
+    class OutputCmdLineSchema(PipelimeModel):
         schema_def: t.Any
 
         def __repr__(self) -> str:
@@ -537,7 +535,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         )
     )
 
-    max_samples: int = pyd.Field(
+    max_samples: int = Field(
         0,
         alias="m",
         description=(
@@ -545,7 +543,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             "Negative values count from the end, while if 0 all samples are checked."
         ),
     )
-    root_key_path: str = pyd.Field(
+    root_key_path: str = Field(
         "input.schema", alias="r", description="Root key path for the output schema."
     )
 
@@ -553,14 +551,14 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         alias="g"
     )
 
-    output_schema_def: t.Optional[OutputSchemaDefinition] = pyd.Field(
+    output_schema_def: t.Optional[OutputSchemaDefinition] = Field(
         None,
         description="yaml schema definition",
         exclude=True,
         repr=False,
         piper_port=PiperPortType.OUTPUT,
     )
-    output_cmd_line_schema: t.Optional[OutputCmdLineSchema] = pyd.Field(
+    output_cmd_line_schema: t.Optional[OutputCmdLineSchema] = Field(
         None,
         description="Schema definition on command line",
         exclude=True,
@@ -598,7 +596,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
             ignore_extra_keys=False,
             lazy=(self.max_samples == 0),
             max_samples=self.max_samples,
-        ).dict(by_alias=True)
+        ).model_dump(by_alias=True)
 
         if self.root_key_path:  # pragma: no branch
             import pydash as py_
@@ -618,7 +616,7 @@ class ValidateCommand(PipelimeCommand, title="validate"):
 class MapCommand(PipelimeCommand, title="map"):
     """Apply a stage on a dataset."""
 
-    stage: StageInput = pyd.Field(
+    stage: StageInput = Field(
         ...,
         alias="s",
         description=(
@@ -659,7 +657,7 @@ class MapCommand(PipelimeCommand, title="map"):
 class MapIfCommand(PipelimeCommand, title="map-if"):
     """Apply a stage on a dataset if a condition is met."""
 
-    stage: StageInput = pyd.Field(
+    stage: StageInput = Field(
         ...,
         alias="s",
         description=(
@@ -685,7 +683,7 @@ class MapIfCommand(PipelimeCommand, title="map-if"):
         alias="g"
     )
 
-    condition: pl_types.CallableDef = pyd.Field(
+    condition: pl_types.CallableDef = Field(
         ...,
         alias="c",
         description=(
@@ -714,7 +712,7 @@ class MapIfCommand(PipelimeCommand, title="map-if"):
 class SortCommand(PipelimeCommand, title="sort"):
     """Sort a dataset by metadata values or according to a custom sorting function."""
 
-    sort_key: t.Optional[str] = pyd.Field(
+    sort_key: t.Optional[str] = Field(
         None,
         alias="k",
         description=(
@@ -723,7 +721,7 @@ class SortCommand(PipelimeCommand, title="sort"):
             "Use `\\` to escape the `.` character."
         ),
     )
-    sort_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
+    sort_fn: t.Optional[pl_types.CallableDef] = Field(
         None,
         alias="f",
         description=(
@@ -777,14 +775,15 @@ class SortCommand(PipelimeCommand, title="sort"):
 class FilterCommand(PipelimeCommand, title="filter"):
     """Filter samples by metadata values or according to a custom sorting function."""
 
-    filter_query: t.Optional[str] = pyd.Field(
+    filter_query: t.Optional[str] = Field(
         None,
         alias="q",
         description=("A dictquery (cfr. https://github.com/cyberlis/dictquery)."),
     )
-    filter_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
+    filter_fn: t.Optional[pl_types.CallableDef] = Field(
         None,
         alias="f",
+        validate_default=True,
         description=(
             "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
             "of a callable `(Sample) -> bool` returning True for any valid sample."
@@ -807,11 +806,12 @@ class FilterCommand(PipelimeCommand, title="filter"):
         alias="g"
     )
 
-    @pyd.validator("filter_fn", always=True)
+    @pyd.field_validator("filter_fn")
+    @classmethod
     def _check_filters(
-        cls, v: t.Optional[pl_types.CallableDef], values: t.Mapping[str, t.Any]
+        cls, v: t.Optional[pl_types.CallableDef], info: pyd.ValidationInfo
     ) -> t.Optional[pl_types.CallableDef]:
-        fquery = values.get("filter_query", None)
+        fquery = info.data.get("filter_query", None)
         if (v is None) == (fquery is None):
             raise ValueError("You should define either `filter_query` or `filter_fn`")
         return v
@@ -872,7 +872,7 @@ class SliceCommand(PipelimeCommand, title="slice"):
         alias="s"
     )
 
-    shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
+    shuffle: t.Union[bool, pyd.PositiveInt] = Field(
         False,
         alias="shf",
         description=(
@@ -909,9 +909,10 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
     The metadata is set only on samples selected by a dictquery or a filter function.
     """
 
-    filter_fn: t.Optional[pl_types.CallableDef] = pyd.Field(
+    filter_fn: t.Optional[pl_types.CallableDef] = Field(
         None,
         alias="f",
+        validate_default=True,
         description=(
             "A `class.path.func`, `file.py:func`, `lambda...` or `func:::def func...` "
             "of a callable returning True for any valid sample.\n"
@@ -923,10 +924,10 @@ class SetMetadataCommand(FilterCommand, title="set-meta"):
         ),
     )
 
-    key_path: str = pyd.Field(
+    key_path: str = Field(
         ..., alias="k", description="The metadata key in pydash dot notation."
     )
-    value: pl_types.YamlInput = pyd.Field(
+    value: pl_types.YamlInput = Field(
         None, alias="v", description="The value to set, ie, any valid yaml/json value."
     )
 
@@ -968,7 +969,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         )
     )
 
-    algorithm: str = pyd.Field(
+    algorithm: str = Field(
         "sha256",
         description=(
             "The hashing algorithm from `hashlib` to use. Only algorithms that"
@@ -976,7 +977,7 @@ class FilterDuplicatesCommand(PipelimeCommand, title="filter-duplicates"):
         ),
     )
 
-    keys: t.Union[str, t.Sequence[str]] = pyd.Field(
+    keys: t.Union[str, t.Sequence[str]] = Field(
         ...,
         alias="k",
         description=(
@@ -1078,12 +1079,12 @@ class CopySharedItemsCommand(PipelimeCommand, title="copy-shared-items"):
     grabber: pl_interfaces.GrabberInterface = pl_interfaces.GrabberInterface.pyd_field(
         alias="g"
     )
-    key_list: t.Sequence[str] = pyd.Field(
+    key_list: t.Sequence[str] = Field(
         ...,
         alias="k",
         description="The keys to copy. Must be present in source dataset.",
     )
-    force_shared: bool = pyd.Field(
+    force_shared: bool = Field(
         False,
         alias="f",
         description="If True, the items will be copied as shared items",
