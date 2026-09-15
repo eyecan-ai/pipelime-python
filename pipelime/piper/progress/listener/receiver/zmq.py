@@ -41,7 +41,7 @@ class ZMQProgressReceiver(ProgressReceiver):
             # NB: sadly, subscribing to "topic" will receive any "topic*" message
             # so we need to check and filter them out
             return (
-                ProgressUpdate.parse_raw(messagedata.decode())
+                ProgressUpdate.model_validate_json(messagedata.decode())
                 if self._token is None or token.decode() == self._token
                 else None
             )

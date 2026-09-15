@@ -74,7 +74,7 @@ class ZmqTrackCallback(TrackCallback):
 
     def update(self, prog: ProgressUpdate):
         topic = prog.op_info.token
-        self._socket.send_multipart([topic.encode(), prog.json().encode()])
+        self._socket.send_multipart([topic.encode(), prog.model_dump_json().encode()])
 
     @staticmethod
     def clean_up(socket: zmq.Socket):
