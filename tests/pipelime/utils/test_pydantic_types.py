@@ -64,8 +64,11 @@ class TestNumpyType:
         target = np.arange(12).reshape(2, 3, 2)
         src_list = [[[0, 1], [2, 3], [4, 5]], [[6, 7], [8, 9], [10, 11]]]
 
-        nt = plt.NumpyType(__root__=np.array(src_list))
+        src_arr = np.array(src_list)
+        nt = plt.NumpyType(__root__=src_arr)
         assert TestUtils.numpy_eq(nt.value, target)
+        assert nt.value is src_arr  # an array is kept as is, not copied
+        assert plt.NumpyType.create(src_arr).value is src_arr
 
         nt = plt.NumpyType.create(src_list)  # type: ignore
         assert TestUtils.numpy_eq(nt.value, target)

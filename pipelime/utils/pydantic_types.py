@@ -127,6 +127,8 @@ class NumpyType(PipelimeRootModel, arbitrary_types_allowed=True):
 
     @classmethod
     def _coerce(cls, value):
+        if isinstance(value, np.ndarray):
+            return value  # v1 kept the array given to `NumpyType(__root__=arr)`
         try:
             return np.array(**value) if isinstance(value, t.Mapping) else np.array(value)
         except Exception as e:
