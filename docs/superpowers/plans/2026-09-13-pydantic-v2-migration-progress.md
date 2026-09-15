@@ -25,15 +25,15 @@
 | S2a | S2a-T3 (other stages) | done | `pytest tests/pipelime/stages` | see S2a-T5 (categorised) | 8c894d4 | `Transformation` as `PipelimeRootModel`; `Color` from pydantic_extra_types; `root_validator` → `model_validator(after)` |
 | S2a | S2a-T4 (samples_sequence) | done | `list(toy_dataset(2))` yields Samples; `to_pipe()` on str fields | ok | 3d42045 | MRO preserved; `to_pipe` no longer recurses into `str` (bug fix) |
 | S2a | S2a-T5 (pipes/sources/utils/grabber) | done | `pytest tests/pipelime/stages tests/pipelime/sequences --deselect test_grabber.py` | 332 passed, 31 failed — all expected mid-migration (2 by-name registry lookups → S2b-T7; 29 test modules on `pydantic.v1` forms → S2b-T9) | e8de53a (+ toolkit 5a453ec) | `test_grabber.py` with workers crash-loops until S2b (spawned workers import the v1 registry) — part of the S2b gate |
-| S2b | S2b-T1 (progress models) | todo | | | | |
-| S2b | S2b-T2 (checkpoint) | todo | | | | |
-| S2b | S2b-T3 (piper/model) | todo | | | | |
-| S2b | S2b-T4 (interfaces) | todo | | | | |
-| S2b | S2b-T5 (split_ops) | todo | | | | |
-| S2b | S2b-T6 (other commands) | todo | | | | |
-| S2b | S2b-T7 (cli/utils minimal) | todo | | | | |
-| S2b | S2b-T8 (choixe decode/$model) | todo | | | | |
-| S2b | S2b-T9 (test edits + S2 gate) | todo | | | | |
+| S2b | S2b-T1 (progress models) | done | `pytest tests/pipelime/piper/progress` | 46 passed | feeccd2 | `OperationInfo`/`ProgressUpdate` on `PipelimeModel`; ZMQ wire on `model_dump_json`/`model_validate_json` |
+| S2b | S2b-T2 (checkpoint) | done | import smoke (`LocalCheckpoint(folder=...)`, existing and new folder) | ok | 3474703 | |
+| S2b | S2b-T3 (piper/model) | done | smoke snippet (command w/ alias + ports, `lazy()`, `@command` with `*args`/`**kwargs`, `NodesDefinition`/`DAGModel` round trip); gate at T9 | ok | 5beb53b | `field_extra` dropped from the brief's import list (unused); `pipelime.piper.Field` re-export placed after the model imports (isort) |
+| S2b | S2b-T4 (interfaces) | done | standalone-module smoke (every compact form, `pyd_field` flags, origin instance for `OutputValueInterface[int]`); gate at T9 | ok | a4e6c6f | `CompactFormModel._validate_compact` has the 3-branch form of the dispatch decision (any `BaseModel` instance → `handler(value)`) |
+| S2b | S2b-T5 (split_ops) | done | gate at T9 (`tests/pipelime/commands/test_split.py`) | passed | 2928a63 | every `pyd.Field(` → pipelime `Field(` (none carried `piper_port` directly; keeps the brief's `Field` import used) |
+| S2b | S2b-T6 (other commands) | done | `import pipelime.commands` + registry smoke; DAG/`piper_dag`/`FilterCommand` smoke; gate at T9 | ok | befd146 | `SetMetadataCommand.filter_fn` (re-declared) also gets `validate_default=True` (the inherited `always=True` validator applied to it in v1); `choixe_parser.py` `parse_obj` → `model_validate` |
+| S2b | S2b-T7 (cli/utils minimal) | done | import smoke; gate at T9 | ok | cdb9e55 (+ 5ce9b94) | `resolve_pipelime_command`/`format_validation_error`; 5ce9b94: `_load_symbols` no longer flags the *same class* seen from two modules as a duplicate (pre-existing, reproduced on `main`; made every grabber worker crash-loop after `tests/pipelime/stages` registered `test_entities.py`) |
+| S2b | S2b-T8 (choixe decode/$model) | done | `pytest tests/pipelime/choixe` | 442 passed | e7246c4 | `test_processor.py::test_model` compares `model_dump()` + class name: `$model` imports the test *file* as a second module, so v2's type-aware `__eq__` no longer equates the two `MyModel` classes (v1 compared dicts) |
+| S2b | S2b-T9 (test edits + S2 gate) | done | (1) `pytest tests/pipelime/{stages,sequences,piper,utils,choixe,items}` (2) `pytest -n auto --dist loadgroup tests/pipelime/commands` (3) `pytest tests/pipelime/test_pydantic_contract.py -k "not HelpRendering and not test_help and not test_tui"` | (1) 1041 passed, 4 skipped, **8 failed** — all `test_command_decorator.py::test_is_command[*]`, which call `pretty_print.print_models_short_help`/`print_model_info` (`__config__`, S3-T1 scope) (2) 1302 passed, 1 skipped (3) 47 passed; `-W error tests/pipelime/utils/test_pydantic_compat.py` 41 passed | e2753b5 (+ f383470, f943809, e938a7a) | `test_grabber.py` runs and passes inside gate (1) (43 s, no crash-loop); both contract xfails now pass. Toolkit: f383470 bool→str coercion for `str` fields (v1 parity: `varpos("a", 1, True)`); f943809 `NumpyType._coerce` keeps an ndarray as is. Two contract pins corrected (see TEST_CHANGES.md). Warnings are only test-side `parse_obj`/`dict`/`json` deprecations (S5) |
 | S3 | S3-T1 (pretty_print) | todo | | | | |
 | S3 | S3-T2 (TUI) | todo | | | | |
 | S3 | S3-T3 (main.py) | todo | | | | |
@@ -47,6 +47,43 @@
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
+- (S2b) **`test_is_command` ×8 fail at the S2 gate and cannot pass before S3-T1:**
+  `tests/pipelime/piper/test_command_decorator.py::test_is_command` calls
+  `pipelime.cli.pretty_print.print_models_short_help`/`print_model_info`, which still read
+  `model_cls.__config__` (v1). `pretty_print.py` is S3 scope and was not touched; the 8
+  failures are the only red in gate (1). Same shape as the S1-T8 precedent.
+- (S2b) **The `test_grabber.py` crash-loop was not (only) the v1 registry:** it reproduces
+  byte-for-byte on `main` when `tests/pipelime/stages` runs first in the same process.
+  `test_entities.py` imports a symbol from its own file path, which registers the test file
+  as an extra module; the file re-exports `StageEntity`, and `_load_symbols` flagged the same
+  class object seen from `pipelime.stages` and from the extra module as `Duplicate stage
+  'entity'` in every spawned worker (the S0 ledger had parked this quirk with a per-test
+  registry isolation in the contract module). Fixed at the source (5ce9b94: identity check
+  in both duplicate checks, regression test `tests/pipelime/cli/test_symbols_helper.py`).
+  The `_classpath` overwrite of a re-exported class (cosmetic, pre-existing) is untouched.
+- (S2b) **Toolkit addition f383470 — bools coerced to `str` fields:** v1's `str_validator`
+  took the `int` path for bools (`True` → `"True"`); v2's `coerce_numbers_to_str` leaves
+  bools out. `test_command_decorator.py::test_varpos/test_varkw` (`*a: str` given `True`)
+  and CLI values such as `+name true` (YAML-parsed before validation) rely on it. Every
+  `str` core schema among a pipelime model's *own* fields gets a before-validator; nested
+  models keep their own rule (as with `coerce_numbers_to_str`). Unit tests added (incl.
+  `Union[bool, str]` keeping the bool member, JSON schema unchanged, per-model scope).
+- (S2b) **`NumpyType._coerce` copied an ndarray input** (`np.array(arr)`), failing the
+  contract pin `NumpyType(__root__=arr).__root__ is arr` (v1 kept identity through the
+  `arbitrary_types_allowed` isinstance check). Fixed in f943809 (S1 module touched).
+- (S2b) **Two contract pins corrected to verified facts** (rows in `tests/TEST_CHANGES.md`):
+  `TestSequences::test_to_pipe_roundtrip` expected the bare key `"contract_pipe"`, but
+  `_add_operator_path` (byte-identical to 2.x) serializes operators defined outside
+  `pipelime` with their module path — the pin was never exercised on v1 (strict xfail on the
+  `to_pipe` str-recursion bug); `TestModernTypeHints::test_validation` pinned v1
+  left-to-right resolution for `int | str` given `"5"`, whereas the design spec's risks
+  section accepts v2 smart unions (`c.f == (5 if V1 else "5")`).
+- (S2b) `test_processor.py::test_model` (choixe) compares `model_dump()` and the class name
+  instead of `==`: `$model` loads the test *file* as a second module, so the two `MyModel`
+  classes differ and v2's `__eq__` (type-aware) no longer equates them as v1's dict
+  comparison did. Recorded in `tests/TEST_CHANGES.md`.
+- (S2b) `SetMetadataCommand` re-declares `filter_fn`; on v1 the inherited `always=True`
+  validator still ran on it, so on v2 both declarations carry `validate_default=True`.
 - (S2a) Toolkit additions in 5a453ec: the polymorphic serializer now composes with a declared/inherited `@model_serializer` (the S1 version overwrote the schema's `serialization` slot, which would have dropped `StageInput._serialize`/`BaseEntity._serialize`; `return_schema` is forwarded only for `when_used="always"`); `PipelimeRootModel` gets the same polymorphic hook as `PipelimeModel`; `GenericBeforeBaseModelWarning` is suppressed for classes without free type parameters (`SamplesSequence(SamplesSequenceBase(t.Sequence[Sample]), PipelimeModel)` keeps its MRO).
 - (S2a) `test_grabber.py` with `num_workers>0` crash-loops instead of erroring while the registry is still v1: `_GrabContext.wrk_init` runs `PipelimeSymbolsHelper.import_everything()` in every spawned worker and `multiprocessing.Pool` respawns crashing workers forever. Resolves in S2b; the swallowed worker-init error is a pre-existing weakness worth a follow-up.
 - (S1) `PipelimeRootModel.__init__` is flagged `__pydantic_base_init__ = True` (as `RootModel.__init__` is): without it pydantic treats the custom `__init__` as validation-relevant and turns `model_validate(<dict>)` into `cls(**dict)`, breaking every wrapper whose root is a mapping (`YamlInput`, later `NodesDefinition`/`Transformation`). Toolkit change made during S1-T6, signed off by the controller.
