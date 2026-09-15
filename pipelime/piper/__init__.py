@@ -7,3 +7,4 @@ from pipelime.piper.model import (
     command,
     self_,
 )
+from pipelime.utils.pydantic_compat import Field  # noqa: F401  (pydantic.Field + piper flags)
