@@ -214,7 +214,17 @@ class Processor(ast.NodeVisitor):
         symbol_branches = node.symbol.accept(self)
         args_branches = node.args.accept(self)
         branches = self._branches(symbol_branches, args_branches)
-        return [import_symbol(s, cwd=self._cwd).parse_obj(a) for s, a in branches]
+        models = []
+        for s, a in branches:
+            model_cls = import_symbol(s, cwd=self._cwd)
+            if not hasattr(model_cls, "model_validate"):
+                raise TypeError(
+                    f"`$model` needs a pydantic v2 model, got {model_cls!r}: "
+                    "pipelime 3 no longer supports pydantic.v1 models "
+                    "(see docs/migration/pydantic_v2.md)"
+                )
+            models.append(model_cls.model_validate(a))
+        return models
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
         if isinstance(node.iterable.data, str):
