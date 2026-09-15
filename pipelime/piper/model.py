@@ -259,9 +259,12 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
                 self_arg = (self,) if is_bound else tuple()
                 pos_args = [getattr(self, n) for n in posonly_names + poskw_names]
                 var_args = getattr(self, varpos_name) if varpos_name else tuple()
-                kw_args = {n: getattr(self, n) for n in kwonly_names if hasattr(self, n)}
+                kw_args = {
+                    n: getattr(self, n) for n in kwonly_names if hasattr(self, n)
+                }
                 if varkw_name and hasattr(self, varkw_name):
-                    kw_args.update(getattr(self, varkw_name))  # expand **kwargs (bug fix)
+                    # expand **kwargs into keyword arguments (bug fix)
+                    kw_args.update(getattr(self, varkw_name))
                 func(*self_arg, *pos_args, *var_args, **kw_args)
 
         # override base docstring with a custom description
@@ -554,7 +557,9 @@ class NodesDefinition(PipelimeRootModel[t.Mapping[str, PipelimeCommand]]):
     ):
         if isinstance(value, NodesDefinition):
             return value
-        return cls(cls._build_nodes(value, checkpoint=checkpoint, skip_on_error=skip_on_error))
+        return cls(
+            cls._build_nodes(value, checkpoint=checkpoint, skip_on_error=skip_on_error)
+        )
 
     @classmethod
     def _coerce(cls, value):
@@ -566,7 +571,7 @@ class NodesDefinition(PipelimeRootModel[t.Mapping[str, PipelimeCommand]]):
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler) -> t.Dict[str, t.Any]:
-        # NB: `handler` gives `{node_name: <command args>}` with the caller's flags applied
+        # NB: `handler` gives `{node_name: <command args>}` (caller's flags applied)
         return {
             node_name: {self.root[node_name].command_title(): cmd_args}
             for node_name, cmd_args in handler(self).items()

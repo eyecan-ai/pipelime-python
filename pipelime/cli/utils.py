@@ -785,7 +785,9 @@ def format_validation_error(e: ValidationError, model_cls=None) -> str:
     alias_to_name = {}
     if model_cls is not None and model_cls.model_config.get("populate_by_name"):
         alias_to_name = {
-            f.alias: f"{f.name} / {f.alias}" for f in iter_fields(model_cls) if f.has_alias
+            f.alias: f"{f.name} / {f.alias}"
+            for f in iter_fields(model_cls)
+            if f.has_alias
         }
 
     lines = [f"{e.error_count()} validation error(s) for {e.title}"]
@@ -795,7 +797,8 @@ def format_validation_error(e: ValidationError, model_cls=None) -> str:
     return "\n".join(lines)
 
 
-def show_field_alias_valerr(e: ValidationError, model_cls=None) -> str:  # pipelime 2.x name
+def show_field_alias_valerr(e: ValidationError, model_cls=None) -> str:
+    """The pipelime 2.x name of `format_validation_error`."""
     return format_validation_error(e, model_cls)
 
 
