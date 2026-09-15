@@ -155,17 +155,20 @@ class PipelimeSymbolsHelper:
                     sym_cls._classpath = f"{module_name}:{sym_cls.__name__}"
 
             # check for double symbols in the same module
+            # NB: the same class re-exported under another name is not a duplicate
             for idx, (sym_name, sym_cls) in enumerate(module_symbols):
                 for other_sym_name, other_sym_cls in module_symbols[idx + 1 :]:  # noqa
-                    if sym_name == other_sym_name:
+                    if sym_name == other_sym_name and sym_cls is not other_sym_cls:
                         cls._warn_double_def(
                             symbol_type, sym_name, sym_cls, other_sym_cls
                         )
 
             # check for double commands across modules
+            # NB: a module importing a symbol from another one (eg, a user file
+            # with `from pipelime.stages import StageEntity`) is not a duplicate
             module_symbols = dict(module_symbols)
             for sym_name, sym_cls in module_symbols.items():
-                if sym_name in all_syms:
+                if sym_name in all_syms and all_syms[sym_name] is not sym_cls:
                     cls._warn_double_def(
                         symbol_type, sym_name, sym_cls, all_syms[sym_name]
                     )
