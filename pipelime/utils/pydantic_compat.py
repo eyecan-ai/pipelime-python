@@ -305,29 +305,82 @@ def _bool_to_str(value: t.Any) -> t.Any:
     return str(value) if isinstance(value, bool) else value
 
 
+# the keys of a core schema holding other schemas (a schema, a list of schemas or a
+# name → schema mapping): the walk below follows these only, never the plain values
+# (`default`, `expected`, `metadata`, `serialization`, ...)
+_NESTED_SCHEMA_KEYS = (
+    "schema",
+    "fields",
+    "items_schema",
+    "keys_schema",
+    "values_schema",
+    "choices",
+    "lax_schema",
+    "strict_schema",
+    "json_schema",
+    "python_schema",
+    "definitions",
+    "steps",
+)
+
+
 def _coerce_bools_to_str(cls: type, schema: t.Any) -> None:
     """v1 coerced ``bool`` into ``str`` fields like any other number (``True`` →
     ``"True"``; CLI values such as ``+name true`` are YAML-parsed before validation);
     ``coerce_numbers_to_str`` leaves bools out, so every ``str`` schema among the
     fields of ``cls`` gets a before-validator (in place). Nested models are left
     to their own hook: as for ``coerce_numbers_to_str``, the rule is per model.
+    Strict ``str`` schemas (``StrictStr``) are skipped: v1's strict str rejected
+    bools too. A ``str`` already wrapped is left alone.
     """
-    if isinstance(schema, dict):
-        stype = schema.get("type")
-        if stype == "model":
-            if schema.get("cls") is cls:
-                _coerce_bools_to_str(cls, schema.get("schema"))
-            return
-        if stype == "str":
+    if isinstance(schema, (list, tuple)):  # a union choice may be a `(schema, label)` pair
+        for item in schema:
+            _coerce_bools_to_str(cls, item)
+        return
+    if not isinstance(schema, dict):
+        return
+    stype = schema.get("type")
+    if not isinstance(stype, str):  # a name → schema mapping (`fields`, tagged-union `choices`)
+        for value in schema.values():
+            _coerce_bools_to_str(cls, value)
+        return
+    if stype == "model":
+        if schema.get("cls") is cls:
+            _coerce_bools_to_str(cls, schema.get("schema"))
+        return
+    if stype == "str":
+        if not schema.get("strict"):
             inner = dict(schema)
             schema.clear()
             schema.update(core_schema.no_info_before_validator_function(_bool_to_str, inner))
-            return
-        for value in schema.values():
-            _coerce_bools_to_str(cls, value)
-    elif isinstance(schema, list):
-        for value in schema:
-            _coerce_bools_to_str(cls, value)
+        return
+    if stype == "function-before" and schema["function"]["function"] is _bool_to_str:
+        return
+    for key in _NESTED_SCHEMA_KEYS:
+        _coerce_bools_to_str(cls, schema.get(key))
+
+
+# `metadata` key marking a schema whose hooks were applied, valued with the class
+_HOOKS_MARKER = "pipelime_hooks_applied_for"
+
+
+def _apply_v1_hooks(cls: type, schema: core_schema.CoreSchema) -> core_schema.CoreSchema:
+    """Both schema hooks, applied once per class.
+
+    pydantic hands back the *stored* schema of an already-built class every time
+    the class is referenced as a field type, and the hooks mutate it in place: a
+    marker in ``metadata`` keeps a re-reference from stacking another layer. The
+    marker holds the class itself because a subclass gets its own, freshly
+    generated schema (and its own hooks).
+    """
+    metadata = schema.get("metadata")
+    if metadata is None:
+        metadata = schema["metadata"] = {}
+    if metadata.get(_HOOKS_MARKER) is cls:
+        return schema
+    metadata[_HOOKS_MARKER] = cls
+    _coerce_bools_to_str(cls, schema)
+    return _polymorphic_serialization(cls, schema)
 
 
 class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
@@ -337,9 +390,7 @@ class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):
-        schema = handler(source)
-        _coerce_bools_to_str(cls, schema)
-        return _polymorphic_serialization(cls, schema)
+        return _apply_v1_hooks(cls, handler(source))
 
 
 RootT = t.TypeVar("RootT")
@@ -359,9 +410,7 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
         # SampleStage` or `NumpyType`/`TypeDef` referenced through a base-typed
         # field): keeps a subclass's own `@model_serializer` instead of always
         # dumping the declared (base) root type.
-        schema = handler(source)
-        _coerce_bools_to_str(cls, schema)
-        return _polymorphic_serialization(cls, schema)
+        return _apply_v1_hooks(cls, handler(source))
 
     def __init__(self, root: t.Any = PydanticUndefined, /, **data: t.Any) -> None:
         if "__root__" in data:

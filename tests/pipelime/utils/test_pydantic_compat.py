@@ -115,6 +115,29 @@ class TestOptionalSemantics:
         with pytest.raises(pydantic.ValidationError):
             M(inner={"s": True})
 
+    def test_bools_coerced_to_str_skips_strict(self):
+        # v1's strict str rejected bools as well
+        class M(pc.PipelimeModel):
+            s: pydantic.StrictStr
+            c: t.Annotated[str, pydantic.StringConstraints(strict=True)] = ""
+
+        with pytest.raises(pydantic.ValidationError):
+            M(s=True)
+        with pytest.raises(pydantic.ValidationError):
+            M(s="ok", c=False)
+        assert M(s="ok", c="x").c == "x"
+
+    def test_bools_coerced_to_str_leaves_plain_values_alone(self):
+        # only nested *schemas* are walked: a default that looks like a core
+        # schema fragment is a plain value
+        class M(pc.PipelimeModel):
+            cfg: dict = {"type": "str", "name": "x"}
+            which: t.Literal["str", "int"] = "str"
+
+        assert M().cfg == {"type": "str", "name": "x"}
+        assert M.model_fields["cfg"].default == {"type": "str", "name": "x"}
+        assert M().which == "str"
+
 
 class TestV1Guard:
     def test_v1_field_rejected(self):
@@ -315,6 +338,98 @@ class TestPolymorphicSerialization:
             }
             assert h.model_dump(mode="json")["j"] == "json!"
             assert '"j":"json!"' in h.model_dump_json()
+
+
+def _bool_to_str_layers(schema) -> list[int]:
+    """Bool→str layers stacked on each non-strict ``str`` schema of a stored core schema."""
+    layers = []
+
+    def walk(node, depth):
+        if isinstance(node, dict):
+            if node.get("type") == "function-before" and node["function"]["function"] is pc._bool_to_str:
+                walk(node["schema"], depth + 1)
+            elif node.get("type") == "str":
+                if not node.get("strict"):
+                    layers.append(depth)
+            else:
+                for key, value in node.items():
+                    if key not in ("metadata", "serialization"):
+                        walk(value, 0)
+        elif isinstance(node, (list, tuple)):
+            for value in node:
+                walk(value, 0)
+
+    walk(schema, 0)
+    return layers
+
+
+def _pipelime_wrap_serializers(schema) -> int:
+    """Length of the chain of pipelime polymorphic wrap serializers on a stored core schema."""
+    if schema["type"] == "definitions":
+        schema = schema["schema"]
+    count, ser = 0, schema.get("serialization")
+    while ser is not None and ser.get("type") == "function-wrap":
+        fn = ser["function"]
+        if not fn.__qualname__.startswith("_polymorphic_serialization."):
+            break
+        count += 1
+        ser = inspect.getclosurevars(fn).nonlocals["custom"]
+    return count
+
+
+class TestHooksAppliedOncePerClass:
+    """pydantic hands back the *stored* core schema of a built class on every
+    reference from another model: the hooks must not stack on it."""
+
+    def _references(self, tp, count):
+        for i in range(count):
+            base = pc.PipelimeModel if i % 2 else pydantic.BaseModel
+            pydantic.create_model(
+                f"Ref{i}", __base__=base, x=(tp, ...), y=(t.Optional[tp], None), z=(list[tp], [])
+            )
+
+    def test_model_referenced_by_several_models_keeps_one_layer(self):
+        class Inner(pc.PipelimeModel):
+            s: str
+            d: dict[str, str] = {}
+
+        class Wrapper(pc.PipelimeRootModel[str]):
+            pass
+
+        self._references(Inner, 250)
+        self._references(Wrapper, 250)
+
+        for cls, n_str in ((Inner, 3), (Wrapper, 1)):
+            schema = cls.__pydantic_core_schema__
+            assert schema["metadata"][pc._HOOKS_MARKER] is cls
+            assert _bool_to_str_layers(schema) == [1] * n_str
+            assert _pipelime_wrap_serializers(schema) == 1
+        assert Inner.model_json_schema()["properties"]["s"] == {"title": "S", "type": "string"}
+        assert Wrapper.model_json_schema() == {"title": "Wrapper", "type": "string"}
+        last = pydantic.create_model("Last", x=(Inner, ...)).model_json_schema()
+        assert last["$defs"]["Inner"]["properties"]["s"] == {"title": "S", "type": "string"}
+        assert Inner(s=True, d={"k": False}).model_dump() == {"s": "True", "d": {"k": "False"}}
+        assert Wrapper(True).root == "True"
+
+    def test_subclass_gets_its_own_hooks(self):
+        class Inner(pc.PipelimeModel):
+            s: str
+
+        self._references(Inner, 3)
+
+        class Sub(Inner):
+            more: str = "x"
+
+        class Host(pydantic.BaseModel):
+            one: Inner
+
+        schema = Sub.__pydantic_core_schema__
+        assert schema is not Inner.__pydantic_core_schema__
+        assert schema["metadata"][pc._HOOKS_MARKER] is Sub
+        assert _bool_to_str_layers(schema) == [1, 1]
+        assert _pipelime_wrap_serializers(schema) == 1
+        assert Sub(s=True, more=False).more == "False"
+        assert Host(one=Sub(s="a")).model_dump() == {"one": {"s": "a", "more": "x"}}
 
 
 class TestGenericBaseBeforeModel:
