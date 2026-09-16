@@ -28,7 +28,7 @@
 | S2b | S2b-T1 (progress models) | done | `pytest tests/pipelime/piper/progress` | 46 passed | feeccd2 | `OperationInfo`/`ProgressUpdate` on `PipelimeModel`; ZMQ wire on `model_dump_json`/`model_validate_json` |
 | S2b | S2b-T2 (checkpoint) | done | import smoke (`LocalCheckpoint(folder=...)`, existing and new folder) | ok | 3474703 | |
 | S2b | S2b-T3 (piper/model) | done | smoke snippet (command w/ alias + ports, `lazy()`, `@command` with `*args`/`**kwargs`, `NodesDefinition`/`DAGModel` round trip); gate at T9 | ok | 5beb53b | `field_extra` dropped from the brief's import list (unused); `pipelime.piper.Field` re-export placed after the model imports (isort) |
-| S2b | S2b-T4 (interfaces) | done | standalone-module smoke (every compact form, `pyd_field` flags, origin instance for `OutputValueInterface[int]`); gate at T9 | ok | a4e6c6f | `CompactFormModel._validate_compact` has the 3-branch form of the dispatch decision (any `BaseModel` instance → `handler(value)`) |
+| S2b | S2b-T4 (interfaces) | done | standalone-module smoke (every compact form, `pyd_field` flags, origin instance for `OutputValueInterface[int]`); gate at T9 | ok | a4e6c6f + 26a45b3 | `CompactFormModel._validate_compact` has the 3-branch form of the dispatch decision (any `BaseModel` instance → `handler(value)`); fix round 1 (26a45b3): an instance of the generic *origin* (`OutputValueInterface(...)` into `OutputValueInterface[int]`) is kept by identity, as v1 did |
 | S2b | S2b-T5 (split_ops) | done | gate at T9 (`tests/pipelime/commands/test_split.py`) | passed | 2928a63 | every `pyd.Field(` → pipelime `Field(` (none carried `piper_port` directly; keeps the brief's `Field` import used) |
 | S2b | S2b-T6 (other commands) | done | `import pipelime.commands` + registry smoke; DAG/`piper_dag`/`FilterCommand` smoke; gate at T9 | ok | befd146 | `SetMetadataCommand.filter_fn` (re-declared) also gets `validate_default=True` (the inherited `always=True` validator applied to it in v1); `choixe_parser.py` `parse_obj` → `model_validate` |
 | S2b | S2b-T7 (cli/utils minimal) | done | import smoke; gate at T9 | ok | cdb9e55 (+ 5ce9b94) | `resolve_pipelime_command`/`format_validation_error`; 5ce9b94: `_load_symbols` no longer flags the *same class* seen from two modules as a duplicate (pre-existing, reproduced on `main`; made every grabber worker crash-loop after `tests/pipelime/stages` registered `test_entities.py`) |
@@ -114,32 +114,59 @@
   T7/T8 specifically — it is inherent to converting `pydantic_types.py`
   ahead of its downstream consumers.
 
-## Resuming in a new session (written 2026-09-15 after S2a)
+## Resuming in a new session (written 2026-09-16 after S2b)
 
 Everything needed to continue lives in git; nothing depends on the old chat session.
 
-1. **State:** S0, S1, S2a complete (see the rows above). HEAD = `4d8145d`, tree clean,
-   branch `pydantic_v2`. Expected at rest: `pytest tests/pipelime/utils tests/pipelime/choixe`
-   green; `tests/pipelime/stages tests/pipelime/sequences` = 332 passed / 31 failed
-   (all mid-migration: by-name registry lookups and test modules still on `pydantic.v1`
-   forms); `pipelime.commands`/`piper`/`cli` and the contract module do not import yet.
-2. **Next:** S2b — `docs/superpowers/plans/2026-09-13-pydantic-v2-s2b-piper-and-commands.md`.
-   Execute its tasks in this order (dependency ruling): T1, T2, **T7** (cli/utils minimal
-   compat — `piper/model.py` imports `resolve_pipelime_command`/`format_validation_error`
-   from it), T3, T4, T5, T6, T8, T9. Diff base for reviews: `4d8145d`.
-3. **S2b gate additions (hand-offs from S2a):** the gate must include
-   `tests/pipelime/sequences/test_grabber.py` (workers crash-loop while the registry is v1)
-   and the contract `TestSequences::test_to_pipe_roundtrip` must pass (by-name lookup).
-4. **How:** invoke `superpowers:subagent-driven-development` on
+1. **State:** S0, S1, S2a, S2b complete (see the rows above). Tree clean on branch `pydantic_v2`
+   (HEAD = the commit of this ledger update). Expected at rest — the S2 gate:
+   `pytest tests/pipelime/{stages,sequences,piper,utils,choixe,items}` = 1045 passed / 4 skipped /
+   **8 failed** (all `tests/pipelime/piper/test_command_decorator.py::test_is_command[*]`, which
+   call `cli/pretty_print.py::get_model_title` → `__config__`; they pass once S3-T1 converts
+   `pretty_print.py`); `pytest -n auto --dist loadgroup tests/pipelime/commands` = 1304 passed /
+   1 skipped; `pytest tests/pipelime/test_pydantic_contract.py -k "not HelpRendering and not
+   test_help and not test_tui"` = 47 passed; `pytest -W error tests/pipelime/utils/test_pydantic_compat.py`
+   = 45 passed. `pipelime.cli.main`, `cli/pretty_print.py`, `cli/tui/*` and `choixe/ast/nodes.py`
+   are still on `pydantic.v1` (S3 / S4); `tests/pipelime/cli/*` cannot pass until S3.
+2. **Next:** S3 — `docs/superpowers/plans/2026-09-13-pydantic-v2-s3-cli.md` (T1 pretty_print,
+   T2 TUI, T3 main.py + rest of cli/utils, T4 full-suite gate). Diff base for its review: the
+   HEAD of this ledger update.
+3. **Hand-offs from S2b to fold into the S3 dispatch (deferred review minors, all small):**
+   - `LazyCommand.__getattr__` (`pipelime/piper/model.py`) returns `PydanticUndefined` for a
+     required field that was never set; v1's `ModelField.get_default()` returned `None` — map it to
+     `None` (downstream `if lc.x is None` checks).
+   - `PipelimeSymbolsHelper._load_symbols` (`pipelime/cli/utils.py`): now that a re-exported
+     class is no longer a duplicate, the `sym_cls._classpath = f"{module_name}:..."` overwrite of a
+     *pipelime* class is reachable, so `get_model_classpath` shows e.g. `StageEntity`/`CloneCommand`
+     as defined in the user file; `tests/pipelime/cli/test_symbols_helper.py` leaves that pollution
+     for the rest of the session. Guard the overwrite with `sym_cls.__module__ == module.__name__`.
+     S3-T3 touches `cli/utils.py` anyway; the help snapshot test (S3) may otherwise see polluted paths.
+   - `cli/main.py:975` calls `show_field_alias_valerr(e)` and discards its (now string) result:
+     S3-T3 must switch it to `format_validation_error(e, cmd_cls)` and print/raise with that text
+     (the S2b `format_validation_error` in `cli/utils.py` is the replacement; `show_field_alias_valerr`
+     is a thin alias kept for the transition).
+   - `pipelime/commands/piper.py::ClassicPiperGraphCommand` still derives from plain
+     `pydantic.BaseModel` (works because the combined classes' metaclass is `PipelimeModelMeta`);
+     switch to `PipelimeModel` for uniformity when convenient (S3 or S5).
+   - `pretty_print.py` renderer: keep the v1 fallback that shows `inspect.getdoc(outer_type_)`
+     for undocumented fields (the committed help snapshot embeds `int.__doc__`); see the S0 notes.
+4. **Items for S5 (migration guide / cleanup):** `int | str` given `"5"` keeps `"5"` under v2
+   smart unions (spec-accepted; document); `NumpyType.create(arr)` keeps the ndarray by identity on
+   every path (v1 copied on the `validate` path); bools are coerced to `str` fields (`"True"`) as
+   v1 did — but a model-level `ConfigDict(strict=True)` is not honoured by that hook (only the `str`
+   schema's own `strict`; no pipelime model uses it — docstring wording, S5-T4); `Path` fields
+   given a bool are rejected (v1 parity). Deprecated-but-working forms in tests (`parse_obj`,
+   `X(__root__=...)`, `.__root__`) are left for the S5-T4 warn-free pass.
+5. **How:** invoke `superpowers:subagent-driven-development` on
    `docs/superpowers/plans/2026-09-13-pydantic-v2-migration.md`. Its git-ignored workspace
-   `.superpowers/sdd/2026-09-13-pydantic-v2-migration/` (if still on disk) holds the SDD
-   ledger `progress.md` with every ruling, the briefs (`task-S2b-brief.md` is already
-   assembled in the order above; `brief.sh PLAN LABEL` extracts one task by its `S<k>-T<n>`
-   label since the stock `task-brief` script only matches numeric task headings), reports and
-   review packages. If that directory is gone, recreate the ledger from this file — the
-   rulings that matter for S2b are recorded in the "Surprises / deviations" section above and
-   in the plan amendments already committed.
-5. **Process facts learned:** subagents died on API session limits three times (opus resets
-   ~02:50, sonnet ~20:20 Europe/Rome) — the ledger + per-task commits recovered every time;
-   prefer dispatching the large S2b batch early in a limit window and commit per task.
-   Reviewers found real gaps in every subtask so far; never skip the task review.
+   `.superpowers/sdd/2026-09-13-pydantic-v2-migration/` (if still on disk) holds the SDD ledger
+   `progress.md` with every ruling, the briefs (`task-S3-brief.md` is already assembled, T1..T4 in
+   order; `brief.sh PLAN LABEL` extracts one task by its `S<k>-T<n>` label), reports and review
+   packages. If that directory is gone, recreate the ledger from this file — the rulings that matter
+   for S3 are the hand-offs above and the "Surprises / deviations" section.
+6. **Process facts learned:** subagents died on API session limits four times so far (opus resets
+   ~19:00 or ~02:50, sonnet ~20:20 Europe/Rome); the ledger + per-task commits recovered every time
+   — dispatch large batches early in a limit window, commit per task, write the report incrementally.
+   Reviewers found real gaps in every subtask so far (S2b: a non-idempotent toolkit hook that grew
+   every referenced model's stored core schema); never skip the task review, and dispatch reviews of
+   toolkit changes on the most capable model.
