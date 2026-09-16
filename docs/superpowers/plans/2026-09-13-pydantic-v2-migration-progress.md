@@ -68,6 +68,14 @@
   `str` core schema among a pipelime model's *own* fields gets a before-validator; nested
   models keep their own rule (as with `coerce_numbers_to_str`). Unit tests added (incl.
   `Union[bool, str]` keeping the bool member, JSON schema unchanged, per-model scope).
+  Fix round 1 (de622f8): pydantic hands back the *stored* schema of a built class on every
+  reference from another model, so both hooks (this one and the S2a polymorphic
+  serializer) stacked a new layer per reference (38–40 on the dataset interfaces,
+  `RecursionError` from `model_json_schema()` past ~200 references). `_apply_v1_hooks`
+  now marks the schema's `metadata` with the class and is idempotent per class (a
+  subclass's fresh schema gets its own hooks); the walk follows only schema-bearing keys
+  (a dict default `{"type": "str"}` was rewritten), skips strict `str` schemas
+  (`StrictStr` rejects bools, as on v1) and already wrapped ones. Unit tests added.
 - (S2b) **`NumpyType._coerce` copied an ndarray input** (`np.array(arr)`), failing the
   contract pin `NumpyType(__root__=arr).__root__ is arr` (v1 kept identity through the
   `arbitrary_types_allowed` isinstance check). Fixed in f943809 (S1 module touched).
