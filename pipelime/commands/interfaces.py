@@ -26,13 +26,15 @@ class CompactFormModel(PipelimeModel):
     @pyd.model_validator(mode="wrap")
     @classmethod
     def _validate_compact(cls, value, handler):
-        if isinstance(value, cls):
+        # an instance of `cls` or of its generic origin (`OutputValueInterface`
+        # for `OutputValueInterface[int]`) is kept as is, as v1's
+        # `isinstance(value, OutputValueInterface)` did: the caller's own
+        # reference must be the object the command writes to
+        origin = cls.__pydantic_generic_metadata__["origin"] or cls
+        if isinstance(value, (cls, origin)):
             return value
         if isinstance(value, pyd.BaseModel):
-            # pydantic accepts origin instances of a parametrized generic
-            # (`OutputValueInterface` for `OutputValueInterface[int]`) and
-            # rejects unrelated models
-            return handler(value)
+            return handler(value)  # pydantic rejects unrelated models
         return handler(cls._compact_to_data(value))
 
     @classmethod

@@ -543,3 +543,32 @@ class TestOutputValue(TestInterface):
 
         with pytest.raises(ValueError):
             plint.OutputValueInterface.validate([1, 2, 3])
+
+    @pytest.mark.parametrize("parametrized", [False, True])
+    def test_instance_kept_as_is(self, tmp_path: Path, parametrized: bool):
+        # an instance of the generic origin or of the parametrized class is the
+        # very object the command writes to (v1 `isinstance` semantics)
+        from pipelime.piper import PipelimeCommand
+
+        class WriteValue(PipelimeCommand, title="write-value"):
+            ov: plint.OutputValueInterface[int] = plint.OutputValueInterface.pyd_field()
+
+            def run(self):
+                self.ov.set(42)
+
+        interf_cls = (
+            plint.OutputValueInterface[int]
+            if parametrized
+            else plint.OutputValueInterface
+        )
+        interface = interf_cls(file=tmp_path / "out.json")
+        cmd = WriteValue(ov=interface)
+        assert cmd.ov is interface
+        cmd()
+        assert interface.get() == 42
+        assert json.loads((tmp_path / "out.json").read_text()) == 42
+        interface.set(43)
+        assert cmd.ov.get() == 43
+
+        with pytest.raises(ValidationError):
+            WriteValue(ov=plint.InputDatasetInterface(folder=tmp_path))
