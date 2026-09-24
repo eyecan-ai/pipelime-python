@@ -243,6 +243,35 @@
   T7/T8 specifically — it is inherent to converting `pydantic_types.py`
   ahead of its downstream consumers.
 
+## Resuming in a new session (written 2026-09-24 after S5-T1..T4 and the final review)
+
+Supersedes the "after S4" section below for state and next steps.
+
+1. **State:** S0–S4 and S5-T1..T4 complete; final whole-branch review run (With fixes) and its single fix
+   wave done and re-reviewed (15/15 findings addressed). HEAD = the commit of this update; expected at rest:
+   `make test-full` 2577 passed / 5 skipped; `make test-warnfree` 1099 passed / 4 skipped; tox py310–py313
+   2577/5 each; floor pydantic 2.10.6 green.
+2. **Open before merge (needs the maintainer):**
+   - **Residual R1 (Important, silent):** the restored v1 equality (86617e2, `pydantic_compat.py` `_v1_dict`)
+     builds the comparison dict with `model_dump()`, which runs custom serializers, where v1 `.dict()` kept raw
+     values → models holding *different* callables that serialize to the same string compare equal
+     (`StageLambda(func=lambda x: x) == StageLambda(func=lambda x: None)` → True;
+     `CallableDef.create(f) == CallableDef.create(g)` → True while their hashes differ). Smallest fix: build the
+     v1-shape dict without custom serializers (or compare `CallableDef`/`TypeDef` by `root`, consistent with
+     `hash(root)`), plus a regression test. Not fixed in-session: the SDD process allows one final fix wave.
+   - **S5-T5:** downstream smoke test on one real company project (checklist in the S5 sub-plan), then the PR
+     `pydantic_v2` → `develop`.
+3. **Parked, can ship (follow-up list):** lift the `pydash<8.1` pin after fixing choixe `visit_item` and
+   `Sample.deep_set` leading-`.` paths; `PydanticOmit` caught at the top level of `V1JsonSchema` can blank a
+   whole schema for a user `PipelimeRootModel[Callable]` field; aliased `ParsedItem` under
+   `serialize_by_alias=True` (pydantic ≥ 2.11) dumps unwrapped; `{"__root__": x}` envelope also peeled for
+   mapping-rooted wrappers (v1 did not); `Annotated[Optional[int], Field(...)]` optional in 3.0 (required in
+   v1, lenient direction); M8 v1 `Field` inside `Annotated[...]` not caught by the v1 guard; M9 CI job against
+   the latest pydantic 2.x (recommended); gate-output noise (albumentations warnings, test-side deprecations
+   outside tier0).
+4. Rulings and review verdicts of this session: `.superpowers/sdd/2026-09-13-pydantic-v2-migration/`
+   (`progress.md`, `review-*-verdict.md`, `final-fix-*.md`).
+
 ## Resuming in a new session (written 2026-09-24 after S4)
 
 Everything needed to continue lives in git; nothing depends on the old chat session.
