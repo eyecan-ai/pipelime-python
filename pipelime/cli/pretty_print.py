@@ -418,6 +418,9 @@ def _is_model(type_):
     return inspect.isclass(type_) and issubclass(type_, BaseModel)
 
 
+_TYPING_MODULES = ("typing", "typing_extensions")
+
+
 def _human_readable_type(field_outer_type):
     from enum import Enum
 
@@ -436,11 +439,15 @@ def _human_readable_type(field_outer_type):
 
     if inspect.isclass(v) and issubclass(v, Enum):
         v = v.__name__ + "{" + ", ".join(e.name.lower() for e in v) + "}"
-    elif ti.origin is not None or not inspect.isclass(v):
-        # generic aliases (`Sequence[int]`, `Literal[...]`) and typing objects
+    elif ti.origin is not None or t.get_origin(v) is not None:
+        # generic aliases (`Sequence[int]`, `Literal[...]`, `Annotated[...]`)
         v = str(v).replace("typing.", "")
     else:
-        v = v.__name__
+        if not inspect.isclass(v) and type(v).__module__ not in _TYPING_MODULES:
+            # a value among the type args, e.g. `...` in `Tuple[int, ...]`
+            v = type(v)
+        # classes and named typing objects (`TypeVar`) by name, the others as written
+        v = getattr(v, "__name__", None) or str(v).replace("typing.", "")
 
     return v.replace("NoneType", "None")
 

@@ -881,6 +881,16 @@ class TestHelpRendering:
         )
         assert text == HELP_SNAPSHOT.read_text()
 
+    def test_type_names(self):
+        from pipelime.cli.pretty_print import _human_readable_type as hrt
+
+        assert hrt(t.Tuple[int, ...]) == "(int, ellipsis)"  # a value arg: by its class
+        assert hrt(t.TypeVar("T")) == "T"
+        assert hrt(t.Callable[[int], str]) == "Callable[[int], str]"
+        assert hrt(t.Literal["a", 1]) == "Literal['a', 1]"
+        assert hrt(t.Optional[t.Sequence[int]]) == "[int, ...] | None"
+        assert hrt(t.Mapping[str, t.Any]) == "{str: Any}"
+
 
 # --- modern type hints (spec §4.8) ----------------------------------------------
 class ModernCommand(PipelimeCommand, title="contract-modern"):
