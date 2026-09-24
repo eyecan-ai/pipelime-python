@@ -1,0 +1,198 @@
+# Migrating to pipelime 3 (pydantic v2)
+
+pipelime 3.0 is built on the native **pydantic v2** API. pipelime 2.x used the
+`pydantic.v1` compatibility layer; pydantic 3 removes it, so every project that
+defines commands, stages, sequences or entities must move too. pipelime keeps the
+behaviour you rely on — for most projects the import changes of section 1 (and the
+validators of section 2, if you have any) are all that is needed.
+
+pipelime 3 requires `pydantic>=2.10,<3` and `pydantic-extra-types`.
+
+## 1. Change the imports (required)
+
+```python
+# before
+import pydantic.v1 as pyd
+from pydantic.v1 import Field, PrivateAttr, validator
+
+# after
+import pydantic as pyd
+from pydantic import PrivateAttr, field_validator
+from pipelime.piper import Field  # pydantic.Field + pipelime flags (piper_port, ...)
+```
+
+`pipelime.piper.Field` accepts everything `pydantic.Field` accepts plus the pipelime
+flags `piper_port=`, `pipe_source=`, `expand_help=`, `is_required=` (and the v1
+`regex=`, translated to `pattern=`). A plain `pydantic.Field(..., piper_port=...)`
+still works — pipelime finds the flag — but pydantic emits a
+`PydanticDeprecatedSince20` warning for every extra keyword, so prefer the pipelime
+`Field`.
+
+If a subclass of a pipelime model still contains a `pydantic.v1` `Field`,
+`PrivateAttr`, `@validator` or `@root_validator`, pipelime raises a `TypeError`
+naming the attribute when the class is defined (i.e. at import time):
+
+```text
+TypeError: `MyCommand.a` is a `pydantic.v1` object (FieldInfo). pipelime 3 is built on
+native pydantic v2: replace `import pydantic.v1` with `import pydantic`, ...
+```
+
+Without this check a v1 `Field` on a v2 model would silently become the field's
+default *value* (a `FieldInfo` object).
+
+Code that catches validation errors must catch `pydantic.ValidationError`: the errors
+raised by pipelime 3 are not `pydantic.v1.ValidationError` instances (both are
+`ValueError` subclasses).
+
+## 2. Validators
+
+| pipelime 2.x (`pydantic.v1`) | pipelime 3 (pydantic v2) |
+|---|---|
+| `@validator("x")` | `@field_validator("x")` + `@classmethod` |
+| `@validator("x", pre=True)` | `@field_validator("x", mode="before")` + `@classmethod` |
+| `@validator("x", always=True)` | `@field_validator("x")` and `x: T = Field(<default>, validate_default=True)` |
+| `@validator("*")` | `@field_validator("*")` + `@classmethod` |
+| `def check(cls, v, values)` | `def check(cls, v, info: pydantic.ValidationInfo)` and `info.data` |
+| `@root_validator` | `@model_validator(mode="after")` on an instance method returning `self` |
+| `@root_validator(pre=True)` | `@model_validator(mode="before")` + `@classmethod` (receives the raw input) |
+
+```python
+from pydantic import ValidationInfo, field_validator, model_validator
+
+from pipelime.piper import Field, PipelimeCommand
+
+
+class ScaleCommand(PipelimeCommand, title="scale-example"):
+    """Scale a value."""
+
+    factor: int = 1
+    value: int = Field(None, validate_default=True)  # 2.x: @validator(..., always=True)
+
+    @field_validator("value")
+    @classmethod
+    def _default_value(cls, v, info: ValidationInfo):
+        # `info.data` holds the fields validated so far (2.x: `values`)
+        return info.data["factor"] * 10 if v is None else v
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.value < 0:
+            raise ValueError("value must be non-negative")
+        return self
+
+    def run(self):
+        print(self.value * self.factor)
+```
+
+Without `validate_default=True` a `@field_validator` does not run on the default value
+(as `@validator` without `always=True` did not).
+
+pydantic v2 still ships `@validator` and `@root_validator` as deprecated aliases, so
+old validators keep working (including `values` and `always=True`) with a
+`PydanticDeprecatedSince20` warning; the deprecated `@root_validator` also requires
+`skip_on_failure=True` unless `pre=True`, otherwise pydantic raises a
+`PydanticUserError` when the class is defined. They must come from `pydantic`, not
+from `pydantic.v1` (see the check above).
+
+## 3. Other pydantic API renames
+
+These are pydantic's own renames. The old names keep working on pipelime models
+(pydantic marks them deprecated, with a `PydanticDeprecatedSince20` warning), so they
+can be migrated at your own pace:
+
+| pydantic v1 | pydantic v2 |
+|---|---|
+| `m.dict()`, `m.json()`, `m.copy()` | `m.model_dump()`, `m.model_dump_json()`, `m.model_copy()` |
+| `M.parse_obj(d)`, `M.parse_raw(s)` | `M.model_validate(d)`, `M.model_validate_json(s)` |
+| `M.schema()` | `M.model_json_schema()` |
+| `M.__fields__` (`ModelField`) | `M.model_fields` (`FieldInfo`: `.annotation`, `.alias`, `.is_required()`, ...) |
+| `class Config: ...` | `model_config = pydantic.ConfigDict(...)` (v2 key names, e.g. `populate_by_name`) |
+
+To read pipelime flags from a field, use the helpers in
+`pipelime.utils.pydantic_compat`: `iter_fields(M)` / `get_field(M, name)` return a
+`FieldView` (`.name`, `.alias`, `.annotation`, `.extra` with the pipelime flags, ...)
+and `field_extra(field_info, "piper_port")` reads one flag from a `FieldInfo`.
+
+## 4. What stays the same
+
+pipelime restores the pydantic v1 behaviour below on its own models — every subclass
+of `PipelimeCommand`, `SampleStage`, `SamplesSequence`, `BaseEntity`, `EntityAction`
+and of `pipelime.utils.pydantic_compat.PipelimeModel` (derive your own helper models from
+`PipelimeModel` to get the same rules; a plain `pydantic.BaseModel` follows plain
+pydantic v2 rules).
+
+- `Optional[X]` / `X | None` fields without a default are optional (default `None`);
+  `x: T = None` accepts an explicit `None` (the annotation becomes `Optional[T]`).
+- Numbers and bools are coerced into `str` fields (`1` → `"1"`, `True` → `"True"`,
+  e.g. for CLI values such as `+name true`). `StrictStr` and `Field(strict=True)` still
+  reject them. A model-level `ConfigDict(strict=True)` rejects numbers but — unlike
+  pydantic v2 — still turns a bool into `"True"`; use `StrictStr` to reject bools.
+- `Path` fields reject bools, as in 2.x.
+- Value wrappers (`NumpyType`, `YamlInput`, `TypeDef`/`ItemType`, `CallableDef`,
+  `StageInput`, ...): `NumpyType(__root__=...)`, `.__root__`, `.value`, `.create()`,
+  `.validate()` and the `{"__root__": ...}` shape of `.dict()` (`model_dump()` returns
+  the bare value, as in pydantic v2). `StageInput.dict()` keeps its 2.x
+  `{"<stage title>": {<args>}}` shape.
+- Compact forms (`"folder,true"`, `"4,2"`, `"0.3,out"`), `Field(piper_port=...)`
+  discovery, polymorphic dumps of stages/commands held by fields typed as their base
+  class, DAG and pipe configs written by pipelime 2.x (including
+  `entity: {__root__: ...}`).
+- `pipelime help` and DAG validation errors show `name / alias` for aliased fields.
+- `pipelime.cli.utils.show_field_alias_valerr` is kept as an alias of the new
+  `format_validation_error(e, model_cls=None)`. Note that it now *returns* the
+  formatted text (with `name / alias` locations when `model_cls` is given) and leaves
+  `e` untouched; in 2.x it rewrote the locations of `e` in place and returned `None`.
+
+## 5. New
+
+- Modern type hints (`list[int]`, `dict[str, X]`, `tuple[int, str]`, `X | None`,
+  `X | Y`) work everywhere in commands, stages, sequences and entities, including
+  `pipelime help` and the TUI (the 2.x TUI failed on `X | Y` fields and showed
+  `list[int]` as `list`).
+- `SamplesSequence.to_pipe()` works on pipes with string fields (2.x raised a
+  `RecursionError`, e.g. on `.enumerate(idx_key="i")`).
+- `@command` functions with `**kwargs` receive the extra keyword arguments expanded
+  (for `def f(a, **kw)`, 2.x called `f(a, kw={"x": 2})` instead of `f(a, x=2)`).
+- An unannotated `@command` parameter with a `None` default is accepted (typed
+  `Any`); 2.x raised a `ConfigError` ("unable to infer type") at decoration.
+
+## 6. Behaviour differences you may notice
+
+- **Validation is pydantic v2's.**
+  - Unions are resolved in "smart" mode instead of left-to-right: an input that
+    exactly matches a member keeps that member's type. `int | str` given `"5"` now
+    yields `"5"` (2.x: `5`); `Union[str, int]` given `5` yields `5` (2.x: `"5"`);
+    `Union[int, float]` given `1.5` yields `1.5` (2.x: `1`). Check the unions of your
+    models whose members overlap.
+  - A few lax v1 coercions are gone: an `int` field rejects a float with a fractional
+    part (`1.5`; 2.x truncated it to `1`), while `1.0` and `"1"` are still accepted.
+  - Error messages have the v2 format (`Input should be a valid integer ...
+    [type=int_parsing, ...]` instead of `value is not a valid integer
+    (type=type_error.integer)`), and `e.errors()` uses the v2 error types.
+- An explicit `None` passed to a *required* value-wrapper field (e.g.
+  `pipe: YamlInput = Field(...)` given `None`) was rejected by 2.x ("none is not an
+  allowed value"); it is now accepted as a wrapper holding `None` (the same result as
+  `YamlInput.create(None)`).
+- The dump of an `entity` stage has no `__root__` envelope any more:
+  `{"entity": {"action": ..., "input_type": ...}}` (2.x `.dict()`:
+  `{"entity": {"__root__": {...}}}`). Both shapes are accepted as input.
+- `NumpyType.create(arr)` and `NumpyType.validate(arr)` keep the given array by
+  identity (2.x copied it on these paths; `NumpyType(__root__=arr)` already kept it).
+- `pipelime help` and the TUI show constrained types by their base type:
+  `PositiveInt` → `int`, `bool | PositiveInt` → `bool | int` (the v2 constrained types
+  are `Annotated[int, Gt(gt=0)]`; the help's signature line prints them that way). The
+  TUI shows `x: T = None` as `Optional[T]` (2.x: `T`).
+- **Choixe**
+  - `$model` requires a pydantic v2 model; a `pydantic.v1` model raises a `TypeError`
+    pointing to this guide.
+  - A token directive given a wrong directive as argument (e.g.
+    `$import("$symbol(builtins.str)")`, `$var("$import('x.json')")`) now raises
+    `ChoixeParsingError` ("... does not validate against any of the available special
+    or extended forms"); 2.x leaked a raw `pydantic.v1.ValidationError` for these
+    token forms. Callers that caught `ValidationError` (or `ValueError`) around
+    `pipelime.choixe.ast.parser.parse` must catch `ChoixeParsingError`, which is not a
+    `ValueError`.
+  - AST nodes are standard dataclasses: constructing a node directly with a
+    wrong-typed argument raises `TypeError` (2.x: `pydantic.v1.ValidationError`), and
+    tuples/dicts are no longer converted into nodes (2.x:
+    `ForNode(iterable=("x",), ...)` built a `LiteralNode("x")`); pass node instances.
