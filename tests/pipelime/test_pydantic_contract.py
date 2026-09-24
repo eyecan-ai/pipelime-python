@@ -413,6 +413,21 @@ class PolyHost(pyd.BaseModel):
     cmd: t.Optional[PipelimeCommand] = None
 
 
+class TestV1Equality:
+    # v1 `BaseModel.__eq__` compared `.dict()`: pipelime restores it
+    def test_models_compare_by_dump(self):
+        from pipelime.stages import StageKeysFilter
+
+        s = StageKeysFilter(key_list=["a"])
+        assert s == {"key_list": ["a"], "negate": False} == s
+        assert s == StageKeysFilter(key_list=["a"]) and s != StageKeysFilter(key_list=["b"])
+        yi = plt.YamlInput.create([1, 2])
+        assert yi == {"__root__": [1, 2]} and yi != [1, 2]
+        assert hash(plt.CallableDef.create(contract_identity)) == hash(
+            plt.CallableDef.create(contract_identity)
+        )
+
+
 class TestPolymorphicDumps:
     def test_stage_in_plain_model(self):
         h = PolyHost(stage=StageCompose([StageIdentity()]), stages=[OptStage(a=3)])

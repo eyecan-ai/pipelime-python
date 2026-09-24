@@ -543,10 +543,34 @@ class V1JsonSchema(pydantic.json_schema.GenerateJsonSchema):
         return {}
 
 
+def _v1_dict(model: BaseModel) -> t.Any:
+    """What v1 ``model.dict()`` returns: an overridden ``dict()`` (the root wrappers'
+    ``{"__root__": ...}`` envelope, ``StageInput``'s shape, a downstream override),
+    else ``model_dump()`` (what pydantic's deprecated ``dict()`` returns, without
+    its warning)."""
+    if type(model).dict is BaseModel.dict:
+        return model.model_dump()
+    return model.dict()
+
+
+def _v1_eq(self: BaseModel, other: t.Any) -> bool:
+    """v1 ``BaseModel.__eq__``: the ``.dict()`` of both models, or of ``self``
+    against any other value (``model == {"x": 1}``). pydantic v2 compares the
+    type, the fields set and the private attributes as well. ``!=`` follows
+    (``object.__ne__`` inverts ``__eq__``). Defining ``__eq__`` sets ``__hash__``
+    to ``None`` in the class body, as ``BaseModel`` already has it: frozen
+    subclasses still get pydantic's generated ``__hash__``."""
+    if isinstance(other, BaseModel):
+        return _v1_dict(self) == _v1_dict(other)
+    return _v1_dict(self) == other
+
+
 class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
     """Base class of every pipelime model (see the module docstring)."""
 
     model_config = ConfigDict(coerce_numbers_to_str=True)
+
+    __eq__ = _v1_eq
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):
@@ -573,8 +597,10 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
 
     Subclasses implement :meth:`_coerce` (any accepted input → root value); the
     v1 surface (``cls(__root__=x)``, ``.__root__``, ``.value``, ``create``,
-    ``validate``, ``.dict()`` envelope) is provided here.
+    ``validate``, ``.dict()`` envelope, v1 equality) is provided here.
     """
+
+    __eq__ = _v1_eq
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):

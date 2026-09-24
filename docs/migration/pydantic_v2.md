@@ -188,6 +188,13 @@ pydantic v2 rules).
   reject them. A model-level `ConfigDict(strict=True)` rejects numbers but — unlike
   pydantic v2 — still turns a bool into `"True"`; use `StrictStr` to reject bools.
 - `Path` fields reject bools, as in 2.x.
+- Equality compares the v1 `.dict()` of the models, ignoring their class and private
+  attributes: `stage == {"key_list": ["a"], "negate": False}` is `True`, and two models
+  of different classes with the same dump are equal (pydantic v2 alone compares the
+  class, the fields set and the private attributes too). A value wrapper compares by
+  its `.dict()` envelope (`YamlInput.create([1]) == {"__root__": [1]}`). A plain
+  `pydantic.BaseModel` on the *left* of `==` keeps pydantic's own rule. Frozen models
+  stay hashable.
 - The v1 key names of a `class Config` (or of the class keywords) keep applying:
   pipelime translates them to the v2 names (see section 3).
 - Value wrappers (`NumpyType`, `YamlInput`, `TypeDef`/`ItemType`, `CallableDef`,

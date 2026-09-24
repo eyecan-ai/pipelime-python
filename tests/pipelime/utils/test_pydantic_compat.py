@@ -210,6 +210,76 @@ class TestJsonSchema:
             M.model_json_schema(schema_generator=pydantic.json_schema.GenerateJsonSchema)
 
 
+class TestV1Equality:
+    """v1 ``BaseModel.__eq__``: ``self.dict() == other.dict()`` for a model, else
+    ``self.dict() == other`` (v2 is type-aware and compares private attributes)."""
+
+    def test_model_vs_dict(self):
+        class M(pc.PipelimeModel):
+            x: int = 1
+            tags: t.List[str] = []
+
+        m = M(tags=["a"])
+        assert m == {"x": 1, "tags": ["a"]} and {"x": 1, "tags": ["a"]} == m
+        assert not (m != {"x": 1, "tags": ["a"]})
+        assert m != {"x": 2, "tags": ["a"]} and not (m == {"x": 2, "tags": ["a"]})
+        assert m != 1 and m != "x"
+
+    def test_same_dump_different_classes(self):
+        class A(pc.PipelimeModel):
+            x: int = 1
+
+        class B(pc.PipelimeModel):
+            x: int = 1
+
+        class Plain(pydantic.BaseModel):
+            x: int = 1
+
+        assert A() == B() and B() == A() and A() == Plain()
+        assert Plain() != A()  # a plain pydantic model keeps v2's type-aware `__eq__`
+        assert A(x=2) != B() and not (A(x=2) == B())
+
+    def test_nested_and_private(self):
+        class Inner(pc.PipelimeModel):
+            v: int = 0
+
+        class M(pc.PipelimeModel):
+            inner: Inner = Inner()
+            _cache: int = pydantic.PrivateAttr(0)
+
+        a, b = M(), M()
+        b._cache = 42  # v1 compared the `.dict()` only
+        assert a == b and a == {"inner": {"v": 0}}
+        assert M(inner=Inner(v=1)) != a
+
+    def test_root_model(self):
+        class R(pc.PipelimeRootModel[t.List[int]]):
+            pass
+
+        r = R([1, 2])
+        assert r == R([1, 2]) and r != R([3])
+        assert r == {"__root__": [1, 2]} and {"__root__": [1, 2]} == r  # its `.dict()`
+        assert r != [1, 2]  # v1: `{"__root__": [1, 2]} == [1, 2]`
+
+    def test_frozen_models_stay_hashable(self):
+        class F(pc.PipelimeModel, frozen=True):
+            x: int = 1
+
+        class FR(pc.PipelimeRootModel[int], frozen=True):
+            pass
+
+        class Mutable(pc.PipelimeModel):
+            x: int = 1
+
+        assert hash(F()) == hash(F()) and len({F(), F(), F(x=2)}) == 2
+        assert hash(FR(1)) == hash(FR(1)) and len({FR(1), FR(1)}) == 1
+        assert F() == {"x": 1} and FR(1) == {"__root__": 1}
+        with pytest.raises(TypeError, match="unhashable"):
+            hash(Mutable())
+        with pytest.raises(TypeError, match="unhashable"):
+            hash(pc.PipelimeModel())
+
+
 class TestV1Guard:
     def test_v1_field_rejected(self):
         v1 = pytest.importorskip("pydantic.v1")
