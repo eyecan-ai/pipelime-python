@@ -161,11 +161,15 @@ attribute: a `class Config(Parent.Config)` (or `Config(SomeBase)`) overrides wha
 inherits whichever spelling either uses; within the same class — or among the class
 keywords — the v2 key wins.
 
-The v1 keys removed in v2 have no equivalent: pydantic warns ("... has been removed") and they have no effect —
+The v1 keys removed in v2 have no equivalent and no effect —
 `fields` (use `Field(alias=...)` on the field), `error_msg_templates`, `getter_dict`,
 `json_loads`, `json_dumps`, `copy_on_model_validation`, `post_init_call`, and
 `smart_union` / `underscore_attrs_are_private` (v2 always behaves as if they were
-`True`).
+`True`). In a `class Config` pydantic warns about them ("... has been removed"); given
+as class keywords (e.g. `class S(SampleStage, copy_on_model_validation="none")`, the
+2.x idiom), pipelime drops them with a `UserWarning` naming the key (pydantic alone
+would raise `TypeError: S.__init_subclass__() takes no keyword arguments`). Remove
+them when convenient.
 
 ## 4. What stays the same
 

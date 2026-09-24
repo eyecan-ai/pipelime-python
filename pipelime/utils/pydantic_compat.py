@@ -188,7 +188,8 @@ def _check_v1_leftovers(cls_name: str, namespace: dict) -> None:
 # pydantic v1 config keys renamed in v2 (pipelime's own table: pydantic keeps its
 # list private). v1 `allow_mutation` is handled apart: it maps to the *inverse* of
 # `frozen`. The v1 keys removed in v2 without an equivalent (`fields`,
-# `smart_union`, `getter_dict`, ...) are left alone: pydantic warns about them.
+# `smart_union`, `getter_dict`, ...) are left alone in a `class Config` (pydantic
+# warns about them); as class keywords they are dropped with a warning (below).
 _V1_RENAMED_CONFIG_KEYS = {
     "allow_population_by_field_name": "populate_by_name",
     "anystr_lower": "str_to_lower",
@@ -232,14 +233,45 @@ def _translate_v1_config_keys(
     return out
 
 
+# pydantic v1 config keys removed in v2 without an equivalent. In a `class Config`
+# pydantic warns and ignores them; given as class keywords, pydantic would pass them
+# on to `__init_subclass__`, which raises a `TypeError` that does not name the key.
+_V1_REMOVED_CONFIG_KEYS = (
+    "copy_on_model_validation",
+    "error_msg_templates",
+    "fields",
+    "getter_dict",
+    "json_dumps",
+    "json_loads",
+    "post_init_call",
+    "smart_union",
+    "underscore_attrs_are_private",
+)
+
+
+def _drop_v1_removed_class_kwargs(cls_name: str, kwargs: dict) -> None:
+    for key in _V1_REMOVED_CONFIG_KEYS:
+        if key in kwargs:
+            del kwargs[key]
+            warnings.warn(
+                f"`{cls_name}`: the pydantic v1 config key `{key}` (given as a class "
+                "keyword) has been removed in pydantic v2 and is ignored; remove it "
+                "(see docs/migration/pydantic_v2.md).",
+                UserWarning,
+                stacklevel=4,  # the `class` statement, through the metaclass `__new__`
+            )
+
+
 def _has_v1_config_keys(config: t.Iterable[str]) -> bool:
     return any(k in _V1_CONFIG_TRANSLATIONS for k in config)
 
 
-def _translate_v1_config(namespace: dict, kwargs: dict) -> None:
+def _translate_v1_config(cls_name: str, namespace: dict, kwargs: dict) -> None:
     """Rename the v1 config keys of a ``class Config`` and of the class keyword
     arguments (in place) before pydantic reads them: pydantic v2 only warns about
-    a v1 key and does not apply it, silently changing the model's behaviour."""
+    a v1 key and does not apply it, silently changing the model's behaviour. The
+    v1 keys removed in v2 are dropped from the class keywords, with a warning."""
+    _drop_v1_removed_class_kwargs(cls_name, kwargs)
     config_cls = namespace.get("Config")
     if isinstance(config_cls, type):
         # pydantic reads a config class through `dir()` (inherited attributes included)
@@ -305,7 +337,7 @@ class PipelimeModelMeta(_ModelMetaclass):  # type: ignore[misc,valid-type]
 
     def __new__(mcs, cls_name: str, bases: tuple, namespace: dict, **kwargs: t.Any):
         _check_v1_leftovers(cls_name, namespace)
-        _translate_v1_config(namespace, kwargs)
+        _translate_v1_config(cls_name, namespace, kwargs)
         parent_namespace = None
         if _weak_valued is not None and kwargs.get("__pydantic_reset_parent_namespace__", True):
             # pydantic passes `False` when it parametrizes generics (the origin's

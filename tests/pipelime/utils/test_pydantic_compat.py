@@ -519,6 +519,52 @@ class TestV1ConfigKeys:
         assert others  # pydantic itself may emit it more than once
         assert all("'smart_union' has been removed" in str(w.message) for w in others)
 
+    @pytest.mark.parametrize(
+        "key,value",
+        [
+            ("copy_on_model_validation", "none"),
+            ("underscore_attrs_are_private", True),
+            ("smart_union", True),
+            ("post_init_call", "after_validation"),
+            ("error_msg_templates", {}),
+            ("fields", {}),
+            ("getter_dict", object),
+            ("json_loads", None),
+            ("json_dumps", None),
+        ],
+    )
+    def test_removed_key_as_class_kwarg(self, key, value):
+        # pipelime 2.x's own idiom (`copy_on_model_validation="none"`, ...): pydantic v2
+        # would pass the unknown keyword to `__init_subclass__` (TypeError); pipelime
+        # drops it with a warning naming the key
+        with pytest.warns(UserWarning, match=f"`{key}`") as record:
+
+            class M(pc.PipelimeModel, title="t", **{key: value}):
+                x: int = 1
+
+        assert len(record) == 1 and "M" in str(record[0].message)
+        assert M().x == 1 and M.model_config["title"] == "t"
+        assert key not in M.model_config
+
+    def test_removed_keys_as_class_kwargs_on_subclasses(self):
+        from pipelime.sequences.pipes import PipedSequenceBase
+        from pipelime.stages import SampleStage
+
+        with pytest.warns(UserWarning) as record:
+
+            class S(SampleStage, copy_on_model_validation="none"):
+                def __call__(self, x):
+                    return x
+
+            class Q(PipedSequenceBase, title="q", underscore_attrs_are_private=True):
+                def get_sample(self, idx):
+                    return self.source[idx]
+
+        messages = [str(w.message) for w in record]
+        assert any("`copy_on_model_validation`" in m for m in messages)
+        assert any("`underscore_attrs_are_private`" in m for m in messages)
+        assert S()(1) == 1 and Q.model_config["title"] == "q"
+
 
 class _DeeperMeta(pc.PipelimeModelMeta):
     """A further metaclass layer, as downstream code may add."""
