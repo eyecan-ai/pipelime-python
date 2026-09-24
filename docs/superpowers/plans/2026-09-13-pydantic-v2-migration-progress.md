@@ -45,8 +45,35 @@
 | S5 | S5-T3 (docs/examples) | done | 15 edited doc snippets `exec`ed under `warnings.simplefilter("error")` + behaviour checks; 5 example modules imported / run via `pipelime -m`; Sphinx 5.1.1 `-b dummy` (scratch venv) | all OK; no Sphinx warning from the guide or any edited page | 7f4f650 | `pipelime.piper.Field` where flags are passed, `@field_validator`, `validate_default`+`info.data`, `model_dump`, modern hints; pre-existing snippet bugs fixed (undefined `pyd`/`t`, `Optional[a, b]`, `MetaDataItem`, validators returning `None`, item-holding plain `BaseModel` schemas without `arbitrary_types_allowed`). R4: docstrings only (`@command` → `pipelime.piper.Field`; bool→str hook vs `ConfigDict(strict=True)` wording) |
 | S5 | S5-T4 (contract cleanup + warnfree + tox) | done | (1) `make test-warnfree` (2) `make test-full` (3) `PIP_CONSTRAINT=<pydash<8.1> .venv/bin/python -m tox -q -x "testenv.deps=.[tests]" -- -o addopts="" -n auto --dist loadgroup tests` (R7; interpreters via `PATH=~/.pyenv/versions/3.1x.y/bin:...`) | (1) 1035 passed, 4 skipped (baseline 20 failed); (2) 2513 passed, 5 skipped; (3) py310 3.10.19 / py311 3.11.14 / py312 3.12.12 / py313 3.13.9: **2513 passed, 5 skipped each**, tox resolved pydantic 2.13.5 / pydantic-core 2.46.5 / pydantic-extra-types 2.11.1 / pydash 8.0.6. Without the pydash pin: py311 138 failed (all pydash 8.1.0) | 64be08b + 9b41cd8 + 52a2543 + 652aa56 | contract module: `V1`, its branches and the 4 `xfail(V1)` markers gone, reasons kept as `# 2.x:` comments (R5); 19 `.dict()` + 6 `parse_obj` incidental test calls → `model_dump`/`model_validate` (R6); nothing to fix under `pipelime/`. 9b41cd8: help snapshot embedded CPython's `int` docstring (changed in 3.12) → placeholder. Raw `pydantic.Field(piper_port=)` warning: documented (guide), not suppressed Fix round 1 (R10, 52a2543): `PipelimeModelMeta` translates v1 `class Config`/class-keyword key names to v2 (19 new unit tests). Re-run at ea5f56b: `-W error test_pydantic_compat.py` 65 passed; test-warnfree 1054 passed, 4 skipped; test-full 2532 passed, 5 skipped; tox **without** `PIP_CONSTRAINT` (`-r`, R7 command): py310/py311/py312/py313 2532 passed, 5 skipped each (pydantic 2.13.5, pydash 8.0.6). Fix round 2 (N1, 652aa56): v1/v2 Config key precedence by nearest definition along the Config MRO (4 regression tests); `-W error test_pydantic_compat.py` 69 passed, test-warnfree 1058 passed, 4 skipped, test-full 2536 passed, 5 skipped. |
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
+| Final | Final-review fix wave (C1, I1–I4, frozen/allow_mutation, callable `json_schema_extra`, M1–M7) | done | (1) `.venv/bin/python -m pytest -q -o addopts="" -W error tests/pipelime/utils/test_pydantic_compat.py` (2) `make test-warnfree` (3) `make test-full` (4) floor venv (pydantic 2.10.6): `tests/pipelime/utils` + contract module `-n auto`, `-W error` compat module, tier0 set (5) `.venv/bin/python -m tox -q -r -e py310,py311,py312,py313 -x "testenv.deps=.[tests]" -- -o addopts="" -n auto --dist loadgroup tests` | (1) 96 passed (2) 1099 passed, 4 skipped, 6 deselected (3) 2577 passed, 5 skipped, 120 s (4) 210 passed, 1 skipped; 95 passed, 1 skipped; tier0 1098 passed, 5 skipped (5) `-r`, pyenv interpreters on `PATH`, `-e py310,py311,py312,py313`: py310 3.10.19 / py311 3.11.14 / py312 3.12.12 / py313 3.13.9 — **2577 passed, 5 skipped each**, "congratulations :)" (571 s); resolved pydantic 2.13.5 / pydantic-core 2.46.5 / pydash 8.0.6. (A first run without the pyenv `PATH` skipped py310 — interpreter not found — and passed py313 2577/5; discarded.) | b80d224 (C1), f3e2bd9 (I1), cd4c96a + 22cb3eb (I2), ac49630 (I3), 86617e2 (I4a), 91a1b13 (I4b, docs), 4948dba (frozen/allow_mutation), 95ce92a (callable extra), 5907846 (M2), 0f08ef7 (M1), 3e8d3f5 (M3), 2ba869e (M4), 734c1ab (M5), 613acc0 (M6), 0d83bfd (M7) | report: `.superpowers/sdd/2026-09-13-pydantic-v2-migration/final-fix-report.md`. M8/M9 parked (controller). 22cb3eb goes beyond the I2 ruling (operators; see Surprises). Restoring v1 equality broke no existing test. |
 
 ## Surprises / deviations from the plan
+
+- (Final fix wave) **C1 marker**: `FieldInfo` is slotted and not weak-referenceable, and a
+  `FieldInfo` subclass changes its repr, so "default omitted" is recorded in a module registry
+  (`_DEFAULT_OMITTED`, `id` → `(FieldInfo, kwargs)`, holding the object so the id is never
+  reused; entries are not popped, so one `Field` object shared by several fields/classes works).
+  The metaclass rebuilds such a field as `pydantic.Field(None, **kwargs)` for an optional
+  annotation. A raw `pydantic.Field(description=...)` stays required (guide §1).
+- (Final fix wave) **I2 extension**: after the ruled `CallableDef`/`NumpyType` schemas, the
+  operators `filter`, `sort`, `from_callable` (raw `t.Callable` fields) and `from_list` (arbitrary
+  type) still failed `model_json_schema()` where 2.x `.schema()` worked (probed on a `57ccd28`
+  worktree: 2.x fails only on `entity`). 22cb3eb adds `V1JsonSchema` (Callable omitted as v1
+  did; arbitrary type → `{}`) as the default `schema_generator` of the pipelime models; separate
+  commit, revertible alone.
+- (Final fix wave) **equality**: a *plain* `pydantic.BaseModel` on the left of `==` returns
+  `False` itself (v2 `__eq__` does not return `NotImplemented` for a model of another class), so
+  the v1 rule applies only with a pipelime model on the left (documented, pinned).
+- (Final fix wave) **frozen/allow_mutation**: resolved separately by nearest definition across
+  class keywords, the `Config` MRO (a rebuilt `Config` carries the original `allow_mutation`) and
+  the model bases (recorded as `__pipelime_v1_mutability__`), then OR-combined into the `frozen`
+  class keyword; expected values probed on `pydantic.v1` (v1 forbids `Config` + class keywords
+  together; v2 allows it, keywords first). Two S5 tests changed accordingly (TEST_CHANGES).
+- (Final fix wave) **I4b correction**: `pydantic.generics.GenericModel` still exists in pydantic
+  2.x as a deprecated alias of `BaseModel`; what breaks is `class X(GenericModel, PipelimeModel,
+  Generic[T])` (MRO error). The guide says that.
+- (Final fix wave) The pin `field_extra(...) is None  # callables are opaque` was a migration
+  test (S1), changed by the callable-`json_schema_extra` ruling (TEST_CHANGES).
 - (S5 fix round 2) **R10 precedence bug (review N1, 652aa56):** "v2 key wins" was applied to the
   flattened `dir()` view of a `Config` class, so a child `class Config(Parent.Config)` re-setting a
   v1 key lost to the v2 key inherited from the parent's *rebuilt* Config (child
