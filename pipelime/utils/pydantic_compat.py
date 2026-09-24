@@ -778,6 +778,10 @@ _PYDANTIC_FIELD_PARAMS = (
 )
 
 
+# attribute of the `json_schema_extra` callable built by `Field` holding the flags
+_FLAGS_ATTR = "__pipelime_field_flags__"
+
+
 # `Field()` calls that omitted both `default` and `default_factory`, for the v1
 # Optional rule of `PipelimeModelMeta`: id(FieldInfo) → (FieldInfo, kwargs to rebuild
 # it with `default=None`). `FieldInfo` is slotted and not weak-referenceable, so the
@@ -819,6 +823,8 @@ def Field(default: t.Any = _OMITTED, **kwargs: t.Any) -> t.Any:  # noqa: N802
                 _orig(schema)
                 schema.update(_extra)
 
+            # read back by `field_extra`/`FieldView.extra` (a callable is opaque)
+            setattr(_merged, _FLAGS_ATTR, extra)
             kwargs["json_schema_extra"] = _merged
     if default is not _OMITTED:
         return pydantic.Field(default, **kwargs)
@@ -828,13 +834,19 @@ def Field(default: t.Any = _OMITTED, **kwargs: t.Any) -> t.Any:  # noqa: N802
     return field_info
 
 
+def _extra_flags(field_info: FieldInfo) -> t.Dict[str, t.Any]:
+    """The pipelime flags of a field: its ``json_schema_extra`` mapping, or the flags
+    :func:`Field` merged into a callable ``json_schema_extra``."""
+    extra = field_info.json_schema_extra
+    if isinstance(extra, dict):
+        return extra
+    return getattr(extra, _FLAGS_ATTR, None) or {}
+
+
 def field_extra(field_info: FieldInfo, key: str, default: t.Any = None) -> t.Any:
     """Read a pipelime flag stored by :func:`Field` (or by a raw
     ``pydantic.Field(**flags)``) from ``json_schema_extra``."""
-    extra = field_info.json_schema_extra
-    if isinstance(extra, dict):
-        return extra.get(key, default)
-    return default
+    return _extra_flags(field_info).get(key, default)
 
 
 # --------------------------------------------------------------------------- #
@@ -944,7 +956,6 @@ class FieldView:
 
 
 def _field_view(owner: t.Type[BaseModel], name: str, field_info: FieldInfo) -> FieldView:
-    extra = field_info.json_schema_extra
     return FieldView(
         owner=owner,
         name=name,
@@ -955,7 +966,7 @@ def _field_view(owner: t.Type[BaseModel], name: str, field_info: FieldInfo) -> F
         required=field_info.is_required(),
         description=field_info.description,
         exclude=bool(field_info.exclude),
-        extra=dict(extra) if isinstance(extra, dict) else {},
+        extra=dict(_extra_flags(field_info)),
     )
 
 

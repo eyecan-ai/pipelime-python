@@ -469,10 +469,25 @@ class PortsCommand(PipelimeCommand, title="contract-ports"):
         pass
 
 
+class CallableExtraPortsCommand(PipelimeCommand, title="contract-callable-extra-ports"):
+    inp: int = Field(
+        1, piper_port=PiperPortType.INPUT, json_schema_extra=lambda s: s.update(ex=1)
+    )
+
+    def run(self) -> None:
+        pass
+
+
 class TestCommandFramework:
     def test_piper_ports(self):
         c = PortsCommand()
         assert c.get_inputs() == {"inp": 1} and c.get_outputs() == {"out": 2}
+
+    def test_piper_port_next_to_callable_json_schema_extra(self):
+        # the port must not be lost when `json_schema_extra` is a callable
+        assert CallableExtraPortsCommand().get_inputs() == {"inp": 1}
+        schema = CallableExtraPortsCommand.model_json_schema()["properties"]["inp"]
+        assert schema["ex"] == 1
         assert PortsCommand(i=5, o=6).inp == 5  # by alias
         assert PortsCommand(inp=5, out=6).out == 6  # by name (populate_by_name)
         assert PortsCommand.command_title() == "contract-ports"

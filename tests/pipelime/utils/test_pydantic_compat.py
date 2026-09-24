@@ -1238,7 +1238,16 @@ class TestFieldWrapper:
 
         schema = M.model_json_schema()["properties"]["a"]
         assert schema["x"] == 1 and schema["piper_port"] == "output"
-        assert pc.field_extra(M.model_fields["a"], "piper_port") is None  # callables are opaque
+        # the pipelime flags stay readable next to a callable `json_schema_extra`
+        assert pc.field_extra(M.model_fields["a"], "piper_port") == "output"
+        assert pc.get_field(M, "a").extra == {"piper_port": "output"}
+
+    def test_callable_json_schema_extra_without_flags_is_opaque(self):
+        class M(pydantic.BaseModel):
+            a: int = pc.Field(1, json_schema_extra=lambda schema: None)
+
+        assert pc.field_extra(M.model_fields["a"], "piper_port") is None
+        assert pc.get_field(M, "a").extra == {}
 
 
 class TestIntrospection:
