@@ -40,13 +40,37 @@
 | S3 | S3-T4 (full suite gate) | done | (1) `make test-full` (2) `make test-tier1` (3) `pytest -o addopts="" -W error tests/pipelime/utils/test_pydantic_compat.py` | (1) 2504 passed, 5 skipped (S0 baseline skips), **0 failed, 0 xfailed**, 123.44 s at d51f2ba (2503 passed at 2403b61) (2) 1992 passed, 4 skipped, 436 s at 2403b61; after fix round 1: 1995 passed, 4 skipped, 439 s at 9865e06 (3) 45 passed (46 after fix round 1) | d51f2ba (self-review fix), fix round 1: 8885c6b (I1), 9865e06 (I2) + docs commits | no failure to triage; pydantic deprecation warnings are all test-side (`parse_obj`/`dict`/`json`, raw `pyd.Field(piper_port=)` in `tests/sample_data/cli/ckpt_dag.py`) — S5 |
 | S4 | S4-T1 (choixe dataclasses) | done | `.venv/bin/python -m pytest -q -o addopts="" tests/pipelime/choixe` | 0a684a4: 442 passed in 1.24s; after 85a3558 (node type-check restoration, controller ruling): 449 passed (7 new regression tests) in 1.26s | 0a684a4 (+ 85a3558) | only the import lines changed at 0a684a4; `nodes.py` imports no `pydantic` at all now; no hash/equality literal broke, so no `tests/TEST_CHANGES.md` entry. Controller ruling on the probe concern (see Surprises): 85a3558 adds `Node.__post_init__` restoring construction-time type checks on `Node`-typed fields (mostly `HashNode`), so malformed input that used to raise now raises again (`ChoixeParsingError`, via `_parse_token`'s `except TypeError`, or via `_parse_dict`'s catch-all); container-typed fields, `Any`, and the 5 custom-`__init__` node types (`ListNode`, `DictBundleNode`, `StrBundleNode`, `SweepNode`, `RandNode`) stay unchecked, matching v1 |
 | S4 | S4-T2 (Tier 2 gate) | done | `make test-full` | 0a684a4: 2506 passed, 5 skipped, 0 failed, 119.79 s; after 85a3558: 2513 passed (+7 new tests), 5 skipped, 0 failed, 121.49 s (0:02:01) — matches the S3 gate counts plus the new regression tests | 99da1e5 (+ e8c898a) | before/after probe of 17 malformed choixe inputs — see Surprises below and `task-S4-report.md` |
-| S5 | S5-T1 (deps + version) | todo | | | | |
-| S5 | S5-T2 (migration guide) | todo | | | | |
-| S5 | S5-T3 (docs/examples) | todo | | | | |
-| S5 | S5-T4 (contract cleanup + warnfree + tox) | todo | | | | |
+| S5 | S5-T1 (deps + version) | done | `.venv/bin/python -m pip install -e ".[tests]"` (R1: no `draw`); floor venv (scratchpad, `pydantic==2.10.*`, other deps constrained to `.venv`'s versions): tier0 set `-n auto` (R2) + whole suite | `.venv`: `3.0.0 2.12.5`. Floor **pydantic 2.10.6 / pydantic-core 2.27.2 / pydantic-extra-types 2.11.1**: tier0 1034 passed, 5 skipped; whole suite 2512 passed, 6 skipped (+1 = the existing `pydantic < 2.12 has no exclude_computed_fields` skip) | 647f140 | pyproject `pydantic>=2.10,<3` + `pydantic-extra-types`, version 3.0.0. One floor failure, test-side: `test_non_model_value_falls_back_to_pydantic` pinned the 2.12 wording of a serializer warning (2.10: "Expected X but got dict") → match on the common header (TEST_CHANGES). No toolkit change; the S1 private-helper note is covered by the floor run. An unconstrained fresh venv also failed 24 tests on **pydash 8.1.0** — pre-existing, see Surprises |
+| S5 | S5-T2 (migration guide) | done | every claim run against `pydantic.v1`, pipelime 2.x (`git worktree` of `main` via `PYTHONPATH`) and pipelime 3; guide snippets executed under `-W error` | all claims verified (table in `task-S5-report.md`) | a93e7a6 | `docs/migration/pydantic_v2.md` + `docs/index.md` toctree ("Migration to 3.0") + README line. R3 corrections: deprecated `@validator` still supports `values`/`always=True`; lost coercion is float `1.5`→`int`; `{"__root__": ...}` DAG nodes were never accepted (claim dropped); added the carried resume-§3/S4 items plus entity-dump envelope, `show_field_alias_valerr` returning text, `ChoixeParsingError` not a `ValueError`, bare `@root_validator` → `PydanticUserError` |
+| S5 | S5-T3 (docs/examples) | done | 15 edited doc snippets `exec`ed under `warnings.simplefilter("error")` + behaviour checks; 5 example modules imported / run via `pipelime -m`; Sphinx 5.1.1 `-b dummy` (scratch venv) | all OK; no Sphinx warning from the guide or any edited page | 7f4f650 | `pipelime.piper.Field` where flags are passed, `@field_validator`, `validate_default`+`info.data`, `model_dump`, modern hints; pre-existing snippet bugs fixed (undefined `pyd`/`t`, `Optional[a, b]`, `MetaDataItem`, validators returning `None`, item-holding plain `BaseModel` schemas without `arbitrary_types_allowed`). R4: docstrings only (`@command` → `pipelime.piper.Field`; bool→str hook vs `ConfigDict(strict=True)` wording) |
+| S5 | S5-T4 (contract cleanup + warnfree + tox) | done | (1) `make test-warnfree` (2) `make test-full` (3) `PIP_CONSTRAINT=<pydash<8.1> .venv/bin/python -m tox -q -x "testenv.deps=.[tests]" -- -o addopts="" -n auto --dist loadgroup tests` (R7; interpreters via `PATH=~/.pyenv/versions/3.1x.y/bin:...`) | (1) 1035 passed, 4 skipped (baseline 20 failed); (2) 2513 passed, 5 skipped; (3) py310 3.10.19 / py311 3.11.14 / py312 3.12.12 / py313 3.13.9: **2513 passed, 5 skipped each**, tox resolved pydantic 2.13.5 / pydantic-core 2.46.5 / pydantic-extra-types 2.11.1 / pydash 8.0.6. Without the pydash pin: py311 138 failed (all pydash 8.1.0) | 64be08b + 9b41cd8 | contract module: `V1`, its branches and the 4 `xfail(V1)` markers gone, reasons kept as `# 2.x:` comments (R5); 19 `.dict()` + 6 `parse_obj` incidental test calls → `model_dump`/`model_validate` (R6); nothing to fix under `pipelime/`. 9b41cd8: help snapshot embedded CPython's `int` docstring (changed in 3.12) → placeholder. Raw `pydantic.Field(piper_port=)` warning: documented (guide), not suppressed |
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
+- (S5, 2026-09-24) **pydash 8.1.0 breaks pipelime — pre-existing, not pydantic:** a fresh install
+  (floor venv, tox) resolves pydash 8.1.0, under which 138 tests of the whole suite fail (choixe
+  `$for`/`$item`, `Sample.deep_set`, `SetMetadata`, DAG runs/parsers with choixe, `test_stage_timing`,
+  ...). Root cause (choixe part): `pydash.get(obj, ".")`/`get(d, ".a.b")` returned the object /
+  the nested value on 8.0.x and returns `None` on 8.1.0 (`processor.py::visit_item` builds a
+  leading-`.` path); `Sample.deep_set` changed too (`test_deep_set`: the source sample is mutated).
+  Reproduced byte-for-byte on `main` (pipelime 2.x, same 14 failures in `test_sample.py`,
+  `test_processor.py`, `test_item_keys_stages.py`). Not fixed in S5 (R4: no code changes); the tox
+  gate ran with `PIP_CONSTRAINT` pinning `pydash<8.1`. Needs a decision before release: pin
+  `pydash<8.1` in `pyproject.toml` or fix the two call sites. CI on the PR will hit it.
+- (S5) The contract help snapshot (S0) embedded CPython's `int` docstring through the help's
+  `inspect.getdoc(inner_type)` fallback; 3.12 reworded it ("floating-point"), so py312/py313 failed
+  under tox (2.x too). 9b41cd8 replaces the docstring body with a placeholder on both sides.
+- (S5) tox with pyenv: the shims do not resolve `python3.10` etc. unless the version is active, and
+  tox/virtualenv discovery does not see `PYENV_VERSION` — py310 was silently `SKIP`ped. Put the
+  version `bin` directories on `PATH` instead. tox resolved pydantic **2.13.5**: the suite is green
+  on 2.10.6 (floor), 2.12.5 (`.venv`) and 2.13.5.
+- (S5) The S5 plan's guide draft had two wrong claims (deprecated `@validator` "has no `values`";
+  `"1.5"` as the lost coercion) — corrected per R3; the full claim/verification table is in the SDD
+  `task-S5-report.md`. Raw `pydantic.Field(piper_port=...)` (resume §3): the guide documents
+  `pipelime.piper.Field`; pipelime does not suppress pydantic's warning (it fires inside
+  `pydantic.Field` at the user's call site).
+- (S5) Sphinx: the `sphinx_immaterial` theme downloads Google Fonts at build time (403 offline);
+  the docs were checked with the `dummy` builder and the stock extensions only.
 - (S4, 2026-09-24) **Controller ruling — construction-time node type checks restored
   (85a3558):** stdlib dataclasses dropped the field-type validation pydantic v1's
   dataclasses used to perform at construction; per the probe below and pipelime's
