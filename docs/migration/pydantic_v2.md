@@ -193,7 +193,9 @@ pydantic v2 rules).
 - Value wrappers (`NumpyType`, `YamlInput`, `TypeDef`/`ItemType`, `CallableDef`,
   `StageInput`, ...): `NumpyType(__root__=...)`, `.__root__`, `.value`, `.create()`,
   `.validate()` and the `{"__root__": ...}` shape of `.dict()` (`model_dump()` returns
-  the bare value, as in pydantic v2). `StageInput.dict()` keeps its 2.x
+  the bare value, as in pydantic v2); that envelope is accepted back as input
+  (`W.parse_obj(w.dict())`, `W.model_validate({"__root__": x})`, a field given
+  `{"__root__": x}`). `StageInput.dict()` keeps its 2.x
   `{"<stage title>": {<args>}}` shape.
 - Compact forms (`"folder,true"`, `"4,2"`, `"0.3,out"`), `Field(piper_port=...)`
   discovery, polymorphic dumps of stages/commands held by fields typed as their base

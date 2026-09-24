@@ -254,6 +254,26 @@ class TestRootWrappers:
         with pytest.raises(pyd.ValidationError):
             H(fn=42)
 
+    def test_root_envelope_input(self):
+        # v1 `_enforce_dict_if_root`: a mapping whose only key is `__root__` is the
+        # envelope of the root value, so `W.parse_obj(w.dict())` round-trips
+        import warnings
+
+        yi = plt.YamlInput.create([1, 2])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", pyd.PydanticDeprecatedSince20)
+            assert plt.YamlInput.parse_obj(yi.dict()).value == [1, 2]
+        assert plt.YamlInput.model_validate({"__root__": {"a": 1}}).value == {"a": 1}
+        assert plt.YamlInput.model_validate({"a": 1}).value == {"a": 1}  # not an envelope
+        cd = plt.CallableDef.model_validate({"__root__": f"{MODULE}.contract_identity"})
+        assert cd.value is contract_identity
+        it = plt.ItemType.model_validate(plt.ItemType.create("ImageItem").dict())
+        assert it.value is pli.ImageItem
+        nt = plt.NumpyType.model_validate(plt.NumpyType.create([[1, 2]]).dict())
+        assert nt.value.tolist() == [[1, 2]]
+        H = make_model("H", c=(plt.YamlInput, ...))
+        assert H(c={"__root__": [3]}).c.value == [3]  # nested validation too
+
 
 class ContractBase:
     """Base of a user-defined type hierarchy for the TypeDef contracts (not an Item:

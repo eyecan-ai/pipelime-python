@@ -924,6 +924,13 @@ class TestRootModel:
         with pytest.raises(pydantic.ValidationError):
             self.Upper()
 
+    def test_v1_root_envelope_is_unwrapped(self):
+        # v1 `_enforce_dict_if_root`: `{"__root__": x}` is the envelope of `x`
+        assert self.Upper.model_validate({"__root__": "f"}).root == "F"
+        assert _UpperHost.model_validate({"u": {"__root__": "g"}}).u.root == "G"
+        with pytest.raises(pydantic.ValidationError):
+            self.Upper.model_validate({"__root__": "f", "other": 1})  # not an envelope
+
     def test_instance_is_unwrapped(self):
         u = self.Upper("a")
         assert self.Upper(u).root == "A"

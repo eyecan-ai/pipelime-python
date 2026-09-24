@@ -631,6 +631,11 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
             return value
         if value is PydanticUndefined:  # missing root → let pydantic raise
             return handler(value)
+        if isinstance(value, t.Mapping) and value.keys() == {"__root__"}:
+            # the v1 envelope (`.dict()`, 2.x configs): v1 `_enforce_dict_if_root`
+            value = value["__root__"]
+            if isinstance(value, cls):
+                return value
         return handler(cls._coerce(value))
 
     @classmethod
