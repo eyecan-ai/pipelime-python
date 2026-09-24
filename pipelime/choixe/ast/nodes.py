@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
-
-from pydantic.v1.dataclasses import dataclass
 
 
 class NodeVisitor:  # pragma: no cover
