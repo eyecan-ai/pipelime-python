@@ -49,6 +49,12 @@ class TestPipelimeSymbolsHelper:
         assert stages["entity"] is StageEntity
         assert commands["clone"] is CloneCommand
 
+        # the re-exported classes keep their pipelime class path
+        from pipelime.cli.pretty_print import get_model_classpath
+
+        assert get_model_classpath(StageEntity) == "pipelime.stages.entities.StageEntity"
+        assert get_model_classpath(CloneCommand) == "pipelime.commands.general.CloneCommand"
+
     def test_different_classes_with_same_title_are_duplicates(
         self, clean_helper, tmp_path
     ):

@@ -150,9 +150,12 @@ class PipelimeSymbolsHelper:
             )
 
             # set module path when loading from file
+            # NB: only for the classes defined there, a class the file imports
+            # (eg, `from pipelime.stages import StageEntity`) keeps its own path
             if module_name.endswith(".py"):
                 for _, sym_cls in module_symbols:
-                    sym_cls._classpath = f"{module_name}:{sym_cls.__name__}"
+                    if sym_cls.__module__ == module_.__name__:
+                        sym_cls._classpath = f"{module_name}:{sym_cls.__name__}"
 
             # check for double symbols in the same module
             # NB: the same class re-exported under another name is not a duplicate
