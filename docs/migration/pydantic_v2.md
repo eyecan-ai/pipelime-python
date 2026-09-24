@@ -240,6 +240,23 @@ pydantic v2 rules).
 
 ## 6. Behaviour differences you may notice
 
+- **Errors when the class is defined** (pydantic v2 rules that pipelime does not relax;
+  each fails at import time with a clear message):
+  - An un-annotated class attribute was a v1 field with an inferred type (`n = 3` in a
+    command body). pydantic v2 raises ``PydanticUserError: A non-annotated attribute was
+    detected: `n = 3`. All model fields require a type annotation; ...``. Annotate it
+    (`n: int = 3`), or declare it `n: ClassVar[int] = 3` if it is not a field.
+  - A v1 custom-root model (`__root__: X` in the body) raises ``TypeError: To define root
+    models, use `pydantic.RootModel` rather than a field called '__root__'``. Derive from
+    `pipelime.utils.pydantic_compat.PipelimeRootModel[X]`, which keeps `M(__root__=...)`,
+    `.__root__`, the `{"__root__": ...}` `.dict()` and accepts that envelope as input
+    (or from `pydantic.RootModel[X]`, plain pydantic v2).
+  - `pydantic.generics.GenericModel` is now an alias of `pydantic.BaseModel` (pydantic
+    warns on import). `class Box(GenericModel, Generic[T])` still works, as a plain
+    pydantic model; placed before a pipelime base (`class Box(GenericModel,
+    PipelimeModel, Generic[T])`) it raises `TypeError: Cannot create a consistent method
+    resolution order (MRO)`. Drop it: `class Box(PipelimeModel, Generic[T])` (or
+    `class Box(pydantic.BaseModel, Generic[T])`).
 - `M.__fields__` holds v2 `FieldInfo` objects: v1 `ModelField` attributes
   (`.field_info`, `.type_`, `.outer_type_`, `.required`) raise `AttributeError` — use
   `model_fields` or `iter_fields`/`get_field` (section 3).
