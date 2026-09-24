@@ -25,8 +25,18 @@ from pipelime.piper import Field  # pydantic.Field + pipelime flags (piper_port,
 flags `piper_port=`, `pipe_source=`, `expand_help=`, `is_required=` (and the v1
 `regex=`, translated to `pattern=`). A plain `pydantic.Field(..., piper_port=...)`
 still works — pipelime finds the flag — but pydantic emits a
-`PydanticDeprecatedSince20` warning for every extra keyword, so prefer the pipelime
-`Field`.
+`PydanticDeprecatedSince20` warning for each `Field(...)` call using extra keywords, so
+prefer the pipelime `Field`.
+
+The v1 constraint names of `Field` are not all accepted by pydantic v2, with either
+`Field`:
+
+| v1 `Field(...)` keyword | pipelime 3 |
+|---|---|
+| `min_items=n`, `max_items=n` | converted by pydantic to `min_length=n`/`max_length=n`, with a `PydanticDeprecatedSince20` warning; write `min_length`/`max_length` |
+| `unique_items=True` | `PydanticUserError` when the class is defined; use a `set[X]` field (or a validator) |
+| `const=value` | `PydanticUserError` when the class is defined; annotate the field as `Literal[value]` |
+| `regex=...` | translated to `pattern=` by `pipelime.piper.Field` (pydantic's own `Field` rejects it) |
 
 If a subclass of a pipelime model still contains a `pydantic.v1` `Field`,
 `PrivateAttr`, `@validator` or `@root_validator`, pipelime raises a `TypeError`
@@ -52,6 +62,7 @@ raised by pipelime 3 are not `pydantic.v1.ValidationError` instances (both are
 | `@validator("x", pre=True)` | `@field_validator("x", mode="before")` + `@classmethod` |
 | `@validator("x", always=True)` | `@field_validator("x")` and `x: T = Field(<default>, validate_default=True)` |
 | `@validator("*")` | `@field_validator("*")` + `@classmethod` |
+| `@validator("x", each_item=True)` | no direct equivalent: validate the items through the item type, e.g. `x: list[Annotated[int, AfterValidator(f)]]`, or loop over the items inside a `@field_validator("x")` (the deprecated `pydantic.validator("x", each_item=True)` still works, with a warning) |
 | `def check(cls, v, values)` | `def check(cls, v, info: pydantic.ValidationInfo)` and `info.data` |
 | `@root_validator` | `@model_validator(mode="after")` on an instance method returning `self` |
 | `@root_validator(pre=True)` | `@model_validator(mode="before")` + `@classmethod` (receives the raw input) |
@@ -96,22 +107,54 @@ from `pydantic.v1` (see the check above).
 
 ## 3. Other pydantic API renames
 
-These are pydantic's own renames. The old names keep working on pipelime models
-(pydantic marks them deprecated, with a `PydanticDeprecatedSince20` warning), so they
-can be migrated at your own pace:
+These methods are pydantic's own renames. The old names keep working on pipelime
+models, each with a `PydanticDeprecatedSince20` warning, so they can be migrated at
+your own pace:
 
 | pydantic v1 | pydantic v2 |
 |---|---|
 | `m.dict()`, `m.json()`, `m.copy()` | `m.model_dump()`, `m.model_dump_json()`, `m.model_copy()` |
 | `M.parse_obj(d)`, `M.parse_raw(s)` | `M.model_validate(d)`, `M.model_validate_json(s)` |
 | `M.schema()` | `M.model_json_schema()` |
-| `M.__fields__` (`ModelField`) | `M.model_fields` (`FieldInfo`: `.annotation`, `.alias`, `.is_required()`, ...) |
-| `class Config: ...` | `model_config = pydantic.ConfigDict(...)` (v2 key names, e.g. `populate_by_name`) |
 
-To read pipelime flags from a field, use the helpers in
-`pipelime.utils.pydantic_compat`: `iter_fields(M)` / `get_field(M, name)` return a
-`FieldView` (`.name`, `.alias`, `.annotation`, `.extra` with the pipelime flags, ...)
-and `field_extra(field_info, "piper_port")` reads one flag from a `FieldInfo`.
+**`__fields__` must be migrated.** It still resolves (with a warning), but its values
+are v2 `FieldInfo` objects, not v1 `ModelField`s: `.field_info`, `.type_`,
+`.outer_type_` and `.required` raise `AttributeError`. Use instead:
+
+- `M.model_fields` — name → `FieldInfo` (`.annotation`, `.alias`, `.default`,
+  `.description`, `.is_required()`, `.json_schema_extra`, ...);
+- `pipelime.utils.pydantic_compat.iter_fields(M)` (an iterator) and
+  `get_field(M, name)` — they return a `FieldView` with `.name`, `.alias`,
+  `.annotation`, `.required`, `.description`, `.default` and `.extra` (the pipelime
+  flags, e.g. `.extra["piper_port"]`, which 2.x code read from
+  `__fields__[name].field_info.extra`);
+- `pipelime.utils.pydantic_compat.field_extra(M.model_fields[name], "piper_port")` to
+  read one flag from a `FieldInfo`.
+
+**`class Config`** is still accepted (pydantic warns that class-based config is
+deprecated; `model_config = pydantic.ConfigDict(...)` is the v2 spelling). pydantic v2
+renamed several keys and, on a plain `pydantic.BaseModel`, *ignores* the v1 names with
+just a warning. On pipelime models (and in the class keywords, e.g.
+`class M(PipelimeModel, anystr_strip_whitespace=True)`) pipelime translates them, so
+the setting keeps applying:
+
+| v1 key | v2 key |
+|---|---|
+| `allow_population_by_field_name` | `populate_by_name` |
+| `anystr_strip_whitespace`, `anystr_lower`, `anystr_upper` | `str_strip_whitespace`, `str_to_lower`, `str_to_upper` |
+| `min_anystr_length`, `max_anystr_length` | `str_min_length`, `str_max_length` |
+| `orm_mode` | `from_attributes` |
+| `schema_extra` | `json_schema_extra` |
+| `validate_all` | `validate_default` |
+| `keep_untouched` | `ignored_types` |
+| `allow_mutation = False` | `frozen = True` (inverted) |
+
+When both spellings are given, the v2 key wins. The v1 keys removed in v2 have no
+equivalent: pydantic warns ("... has been removed") and they have no effect —
+`fields` (use `Field(alias=...)` on the field), `error_msg_templates`, `getter_dict`,
+`json_loads`, `json_dumps`, `copy_on_model_validation`, `post_init_call`, and
+`smart_union` / `underscore_attrs_are_private` (v2 always behaves as if they were
+`True`).
 
 ## 4. What stays the same
 
@@ -128,6 +171,8 @@ pydantic v2 rules).
   reject them. A model-level `ConfigDict(strict=True)` rejects numbers but — unlike
   pydantic v2 — still turns a bool into `"True"`; use `StrictStr` to reject bools.
 - `Path` fields reject bools, as in 2.x.
+- The v1 key names of a `class Config` (or of the class keywords) keep applying:
+  pipelime translates them to the v2 names (see section 3).
 - Value wrappers (`NumpyType`, `YamlInput`, `TypeDef`/`ItemType`, `CallableDef`,
   `StageInput`, ...): `NumpyType(__root__=...)`, `.__root__`, `.value`, `.create()`,
   `.validate()` and the `{"__root__": ...}` shape of `.dict()` (`model_dump()` returns
@@ -158,6 +203,9 @@ pydantic v2 rules).
 
 ## 6. Behaviour differences you may notice
 
+- `M.__fields__` holds v2 `FieldInfo` objects: v1 `ModelField` attributes
+  (`.field_info`, `.type_`, `.outer_type_`, `.required`) raise `AttributeError` — use
+  `model_fields` or `iter_fields`/`get_field` (section 3).
 - **Validation is pydantic v2's.**
   - Unions are resolved in "smart" mode instead of left-to-right: an input that
     exactly matches a member keeps that member's type. `int | str` given `"5"` now
