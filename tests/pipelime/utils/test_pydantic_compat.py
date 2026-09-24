@@ -101,6 +101,18 @@ class TestOptionalSemantics:
         assert (m.a, m.b, m.d) == (None, None, None)
         assert M.model_fields["c"].is_required()
 
+    @pytest.mark.parametrize("key", ["__annotate_func__", "__annotate__"])
+    def test_lazy_annotations_refused(self, key):
+        # Python 3.14 (PEP 649) keeps the annotations out of the class namespace:
+        # the Optional rule would silently do nothing, so the metaclass refuses
+        namespace = {
+            "__module__": __name__,
+            "__qualname__": "Lazy",
+            key: lambda format: {"a": t.Optional[int]},
+        }
+        with pytest.raises(TypeError, match="3.14"):
+            pc.PipelimeModelMeta("Lazy", (pc.PipelimeModel,), namespace)
+
     def test_classvar_and_private_untouched(self):
         class M(pc.PipelimeModel):
             _priv: t.Optional[int] = pydantic.PrivateAttr(None)

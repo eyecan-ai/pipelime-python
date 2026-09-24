@@ -137,6 +137,18 @@ def _apply_v1_optional_semantics(namespace: dict, parent_namespace: t.Optional[d
     locals of the frame executing the ``class`` statement (``parent_namespace``,
     the same pydantic uses to resolve forward references) and the class body.
     """
+    if "__annotations__" not in namespace and (
+        "__annotate_func__" in namespace or "__annotate__" in namespace
+    ):
+        # Python 3.14 (PEP 649/749): the class body stores an annotate function
+        # instead of `__annotations__`, so this rule would silently do nothing.
+        # pipelime 3.0 caps `requires-python` at <3.14 (pyproject.toml) for this
+        # reason: port this function before lifting the cap.
+        raise TypeError(
+            f"`{namespace.get('__qualname__', '?')}`: lazily evaluated class annotations "
+            "(Python 3.14+, PEP 649) are not supported by pipelime 3.0, which requires "
+            "Python < 3.14"
+        )
     anns = namespace.get("__annotations__")
     if not anns:
         return
