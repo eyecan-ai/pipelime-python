@@ -713,6 +713,22 @@ class TestStagesAndEntities:
         assert set(d) == {"image", "meta", "other"}  # None skipped, ParsedItem -> raw item
         assert isinstance(d["meta"], pli.MetadataItem) and d["meta"]() == {"name": "n!"}
 
+    def test_entity_dump_detects_parsed_items_by_instance(self):
+        # spec §4.3: a `ParsedItem` field is unwrapped because it *is* one, not
+        # because its dump has `raw_item`/`parsed_value` keys
+        class WithMapping(BaseEntity):
+            meta: ParsedItem[pli.MetadataItem, ContractMeta]
+            info: t.Dict[str, t.Any] = {}
+
+        x = _sample()
+        info = {"raw_item": 1, "parsed_value": 2}
+        e = WithMapping(meta=x["meta"], info=info)
+        d = dump(e)
+        assert d["info"] == info  # a plain mapping is left alone
+        assert d["meta"] is e.meta.raw_item
+        d = dump(e, exclude={"meta": {"parsed_value"}})  # still the raw item
+        assert d["meta"] is e.meta.raw_item
+
     def test_entity_action_inference(self):
         ea = EntityAction(action=annotated_action)
         assert ea.input_type.value is ContractInput

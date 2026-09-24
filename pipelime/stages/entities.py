@@ -250,16 +250,25 @@ class BaseEntity(PipelimeModel, extra="allow", arbitrary_types_allowed=True):
                 v.owner = self
 
     @pydantic.model_serializer(mode="wrap")
-    def _serialize(self, handler) -> t.Dict[str, t.Any]:
-        # skip None fields and bypass ParsedItem (v1 `_iter` override)
+    def _serialize(self, handler, info: pydantic.SerializationInfo) -> t.Dict[str, t.Any]:
+        # skip None fields and bypass ParsedItem (v1 `_iter` override); a ParsedItem
+        # is recognised on the instance attribute, not by the keys of its dump
+        names = {}
+        if info.by_alias:
+            for name, field_info in type(self).model_fields.items():
+                alias = field_info.serialization_alias or field_info.alias
+                if alias:
+                    names[alias] = name
         out = {}
         for k, v in handler(self).items():
-            if v is not None:
-                if isinstance(v, t.Mapping) and "raw_item" in v and "parsed_value" in v:
-                    if v["raw_item"] is not None:
-                        out[k] = v["raw_item"]
-                else:
-                    out[k] = v
+            if v is None:
+                continue
+            if isinstance(getattr(self, names.get(k, k), None), ParsedItem):
+                raw_item = v.get("raw_item") if isinstance(v, t.Mapping) else None
+                if raw_item is not None:
+                    out[k] = raw_item
+            else:
+                out[k] = v
         return out
 
     @classmethod
