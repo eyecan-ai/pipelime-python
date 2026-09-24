@@ -4,6 +4,7 @@ from typing import Any, List
 
 import pytest
 import yaml
+from pydantic import field_validator
 
 from pipelime.piper import Field, PipelimeCommand
 import pipelime.items as pli
@@ -24,6 +25,20 @@ class SimpleCommand(PipelimeCommand, title="simple-command"):
                     if v is not None
                 }
                 json.dump(cache2str, f)
+
+
+class BracketErrorCommand(PipelimeCommand, title="bracket-error-command"):
+    """Its validation error text looks like Rich markup."""
+
+    path: str = Field(..., description="Always rejected.")
+
+    @field_validator("path")
+    @classmethod
+    def _reject(cls, v):
+        raise ValueError(f"cannot read [/data/in] from {v}")
+
+    def run(self) -> None:
+        pass
 
 
 class TestCliBase:
@@ -62,6 +77,24 @@ class TestCliBase:
                     ["-m", str(module_data["filepath"]), "help", cmd]
                 )
                 assert cmd in result.output
+
+    def test_validation_error_text_is_not_markup(self):
+        from pydantic import ValidationError
+
+        result = self._base_launch(
+            [
+                "-m",
+                f"{os.path.realpath(__file__)}",
+                "bracket-error-command",
+                "+path",
+                "x",
+            ],
+            exit_code=1,
+            exc=ValidationError,
+        )
+        output = " ".join(result.output.split())
+        assert "cannot read [/data/in] from x" in output
+        assert "[type=value_error]" in output
 
     def test_list(self):
         result = self._base_launch(["list"])

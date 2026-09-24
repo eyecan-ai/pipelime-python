@@ -919,6 +919,7 @@ def run_command(
     import time
 
     from pydantic import ValidationError
+    from rich.markup import escape
 
     from pipelime.choixe.utils.io import PipelimeTmp, dump
     from pipelime.cli.pretty_print import (
@@ -976,7 +977,8 @@ def run_command(
             # so let's show the tui again if it was needed in the first place
 
     except ValidationError as e:
-        print_error(format_validation_error(e, cmd_cls))
+        # plain text, not Rich markup: `[type=...]` and bracketed values must survive
+        print_error(escape(format_validation_error(e, cmd_cls)))
         raise e
 
     if verbose > 0:
