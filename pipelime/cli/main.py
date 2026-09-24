@@ -6,7 +6,6 @@ import typing as t
 from pathlib import Path
 
 import typer
-from pydantic import BaseModel
 
 from pipelime.choixe import XConfig
 from pipelime.choixe.visitors.processor_ui import ProcessorUi
@@ -18,12 +17,15 @@ from pipelime.cli.utils import (
     print_command_op_stage_info,
     print_commands_ops_stages_list,
 )
+from pipelime.utils.pydantic_compat import PipelimeModel
 
 if t.TYPE_CHECKING:
     from pipelime.piper.checkpoint import Checkpoint
 
 
-class PlCliOptions(BaseModel):
+class PlCliOptions(PipelimeModel):
+    # a `PipelimeModel` for the v1 Optional rule: the options saved in a checkpoint
+    # may lack an `Optional` key
     _namespace: t.ClassVar[str] = "__plmain"
 
     config: t.List[Path]

@@ -601,6 +601,26 @@ class TestCommandFramework:
         c = fn(1, "2", 3, x="1.5")
         assert c.args == (2, 3) and c.kw == {"x": 1.5}
 
+    def test_checkpoint_cli_options_missing_optional_key(self):
+        # `pipelime resume` validates the options saved in a checkpoint: an Optional
+        # key missing there (e.g. written by another pipelime version) is `None`
+        from pipelime.cli.main import PlCliOptions
+
+        saved = {
+            "config": [],
+            "context": [],
+            "keep_tmp": False,
+            "extra_modules": [],
+            "verbose": 0,
+            "dry_run": False,
+            "no_ui": False,
+            "command": "clone",
+            "command_args": [],
+        }
+        opts = PlCliOptions.model_validate(saved)
+        assert opts.run_all is None and opts.output is None and opts.pipelime_tmp is None
+        assert PlCliOptions.model_validate(opts.purged_dict()) == opts
+
     def test_lazy_command(self):
         lc = PortsCommand.lazy()(inp=9)
         assert isinstance(lc, LazyCommand)
