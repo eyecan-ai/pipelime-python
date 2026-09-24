@@ -584,6 +584,23 @@ class TestCommandFramework:
         fn(1, x=2, y=3)()
         assert seen == {"x": 2, "y": 3}
 
+    def test_command_decorator_var_args_string_annotations(self):
+        # this module uses `from __future__ import annotations`: `*args: int` must
+        # become `tuple[int, ...]`, not `tuple["int", ...]` (kept as is by py3.10,
+        # which then shows `[str, ...]` in the help)
+        @command
+        def fn(a: int, *args: int, **kw: float):
+            pass
+
+        assert type(fn(1)).__annotations__["args"] == tuple[int, ...]
+        assert type(fn(1)).__annotations__["kw"] == dict[str, float]
+        from pipelime.utils.pydantic_compat import get_field
+
+        assert get_field(fn, "args").annotation == tuple[int, ...]
+        assert get_field(fn, "kw").annotation == dict[str, float]
+        c = fn(1, "2", 3, x="1.5")
+        assert c.args == (2, 3) and c.kw == {"x": 1.5}
+
     def test_lazy_command(self):
         lc = PortsCommand.lazy()(inp=9)
         assert isinstance(lc, LazyCommand)

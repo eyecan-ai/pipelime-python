@@ -154,9 +154,9 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
             no_ann = p.annotation is inspect.Signature.empty
 
             if p.kind is p.VAR_POSITIONAL:
-                ann = tuple if no_ann else tuple[p.annotation, ...]
+                ann = tuple if no_ann else tuple[type_hints.get(p.name, p.annotation), ...]
             elif p.kind is p.VAR_KEYWORD:
-                ann = dict if no_ann else dict[str, p.annotation]
+                ann = dict if no_ann else dict[str, type_hints.get(p.name, p.annotation)]
             elif no_ann:
                 # pydantic v2 needs an annotation: infer it from the default as v1 did
                 raw = value
@@ -175,6 +175,14 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
                 ann = p.annotation
 
             return (ann, value)
+
+        # `*args`/`**kwargs` annotations end up *inside* `tuple[...]`/`dict[...]`: a
+        # string one (`from __future__ import annotations`) would stay a string there
+        # on py3.10 (pydantic still validates it, but the help shows `str`)
+        try:
+            type_hints = t.get_type_hints(func, include_extras=True)
+        except Exception:  # unresolvable (e.g. function-local) names: raw annotations
+            type_hints = {}
 
         # Translates signature to pydantic fields
         # and gathers positional arguments
