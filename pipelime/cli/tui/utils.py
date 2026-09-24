@@ -1,12 +1,13 @@
+import inspect
 from enum import Enum
 from typing import List, Mapping, Tuple, Type, cast
 
-from pydantic.v1 import BaseModel
-from pydantic.v1.fields import ModelField
+from pydantic import BaseModel
 
 from pipelime.cli.utils import PipelimeSymbolsHelper
 from pipelime.piper import PipelimeCommand
 from pipelime.stages import SampleStage, StageInput
+from pipelime.utils.pydantic_compat import FieldView, iter_fields
 
 
 class TuiField(BaseModel):
@@ -31,9 +32,9 @@ def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
     Returns:
         True if the TUI is needed, False otherwise.
     """
-    for field in cmd_cls.__fields__.values():
+    for field in iter_fields(cmd_cls):
         name = field.name
-        alias = field.alias
+        alias = field.effective_alias
         required = field.required
 
         if (name not in cmd_args) and (alias not in cmd_args) and required:
@@ -41,7 +42,7 @@ def is_tui_needed(cmd_cls: Type[PipelimeCommand], cmd_args: Mapping) -> bool:
             return True
 
         # if present, check if it's a StageInput
-        if field.type_ == StageInput:
+        if field.inner_type is StageInput:
             if name in cmd_args:
                 stage_input_args = cmd_args.get(name)
             else:
@@ -81,9 +82,9 @@ def are_stageinput_args_present(
     Returns:
         True if the StageInput required args are present, False otherwise.
     """
-    for field in stage_cls.__fields__.values():
+    for field in iter_fields(stage_cls):
         name = field.name
-        alias = field.alias
+        alias = field.effective_alias
         required = field.required
 
         if (name not in stage_args) and (alias not in stage_args) and required:
@@ -93,7 +94,7 @@ def are_stageinput_args_present(
     return True
 
 
-def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
+def init_tui_field(field: FieldView, args: Mapping) -> TuiField:
     """Initialize a TuiField.
 
     Args:
@@ -108,10 +109,10 @@ def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
 
     if field.name in args:
         default = str(args[field.name])
-    elif field.alias in args:
-        default = str(args[field.alias])
+    elif field.effective_alias in args:
+        default = str(args[field.effective_alias])
     else:
-        field_default = field.get_default()
+        field_default = None if field.required else field.default
 
         if field_default is not None:
             if isinstance(field_default, BaseModel):
@@ -124,7 +125,7 @@ def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
     tui_field = TuiField(
         simple=True,
         name=field.name,
-        description=str(field.field_info.description),
+        description=str(field.description),
         hint=hint,
         type_=get_field_type(field),
         value=default,
@@ -132,7 +133,7 @@ def init_tui_field(field: ModelField, args: Mapping) -> TuiField:
     return tui_field
 
 
-def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
+def init_stageinput_tui_field(field: FieldView, cmd_args: Mapping) -> TuiField:
     """Initialize a TuiField for a StageInput.
 
     Args:
@@ -142,11 +143,11 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     Returns:
         The initialized TuiField.
     """
-    if (field.name not in cmd_args) and (field.alias not in cmd_args):
+    if (field.name not in cmd_args) and (field.effective_alias not in cmd_args):
         tui_field = TuiField(
             simple=True,
             name=field.name,
-            description=str(field.field_info.description),
+            description=str(field.description),
             type_=get_field_type(field),
         )
         return tui_field
@@ -154,7 +155,7 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     if field.name in cmd_args:
         stage_input_args = cmd_args.get(field.name)
     else:
-        stage_input_args = cmd_args.get(field.alias)
+        stage_input_args = cmd_args.get(field.effective_alias)
 
     stage_name = ""
     stage_args = {}
@@ -170,8 +171,8 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     stage_cls = stage_info[-1]
 
     tui_fields = []
-    for field in stage_cls.__fields__.values():
-        tui_fields.append(init_tui_field(field, stage_args))
+    for f in iter_fields(stage_cls):
+        tui_fields.append(init_tui_field(f, stage_args))
 
     tui_field = TuiField(
         simple=False,
@@ -182,7 +183,7 @@ def init_stageinput_tui_field(field: ModelField, cmd_args: Mapping) -> TuiField:
     return tui_field
 
 
-def get_field_type(field: ModelField) -> str:
+def get_field_type(field: FieldView) -> str:
     """Get the type of a field.
 
     Args:
@@ -192,11 +193,12 @@ def get_field_type(field: ModelField) -> str:
         The type of the field.
     """
     type_ = field.annotation
-
-    if "typing." in str(type_):
-        type_ = str(type_).replace("typing.", "")
+    if inspect.isclass(type_) and not getattr(type_, "__args__", None):
+        type_ = type_.__name__
     else:
-        type_ = field.annotation.__name__
+        # `typing` aliases print as `typing.List[int]`, modern hints as written
+        # (`list[int]`, `int | None`); never rely on `__name__` (UnionType has none)
+        type_ = str(type_).replace("typing.", "")
 
     # replace common pipelime types
     common_pipelime_types = {
