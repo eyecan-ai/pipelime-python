@@ -12,6 +12,7 @@ from pipelime.utils.pydantic_compat import (
     Field,
     PipelimeModel,
     PipelimeRootModel,
+    get_field,
     iter_fields,
     model_title,
 )
@@ -494,9 +495,9 @@ class LazyCommand(PipelimeModel, t.Generic[CmdTp], extra="forbid"):
         if name in self.data:
             return self.data[name]
         if name in self.command_class.model_fields:
-            return self.command_class.model_fields[name].get_default(
-                call_default_factory=True
-            )
+            field = get_field(self.command_class, name)
+            # an unset required field reads as `None`, as v1 `ModelField.get_default()`
+            return None if field.required else field.default
         if hasattr(self.command_class, name):
             return getattr(self.command_class, name)
         raise AttributeError(f"{self.command_class.__name__} has no attribute '{name}'")

@@ -516,6 +516,20 @@ class TestCommandFramework:
         with pytest.raises(AttributeError):
             lc.nope
 
+    def test_lazy_command_unset_required_field(self):
+        """v1 `ModelField.get_default()` of a required field is `None` (not a sentinel)."""
+
+        class ReqCommand(PipelimeCommand, title="contract-req"):
+            x: int
+            y: t.List[int] = Field(default_factory=list)
+
+            def run(self) -> None:
+                pass
+
+        lc = ReqCommand.lazy()()
+        assert lc.x is None
+        assert lc.y == []
+
     def test_nodes_definition_dump_and_validate(self):
         # Resolving a `f"{MODULE}...."` node re-registers this module as an "extra
         # module" (see `_clean_registry`); reset before each lookup below, since the
