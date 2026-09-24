@@ -748,6 +748,28 @@ else:
             return self.stage(self.source.get_sample(idx))
 
 
+class TestJsonSchema:
+    # 2.x `.schema()` worked on every command and stage but `entity` (v1 skipped
+    # `Callable` fields); `M.schema()` → `M.model_json_schema()` must keep working
+    @pytest.mark.parametrize("kind", ["commands", "stages"])
+    def test_registered_symbols(self, kind):
+        from pipelime.cli.utils import PipelimeSymbolsHelper
+
+        getter = {
+            "commands": PipelimeSymbolsHelper.get_pipelime_commands,
+            "stages": PipelimeSymbolsHelper.get_sample_stages,
+        }[kind]
+        classes = [c for group in getter().values() for c in group.values()]
+        assert classes
+        failures = {}
+        for cls in classes:
+            try:
+                cls.model_json_schema()
+            except Exception as e:  # collect them all for the message
+                failures[cls.__name__] = f"{type(e).__name__}: {str(e)[:80]}"
+        assert failures == {}
+
+
 class TestSequences:
     def test_piped_sequence_registration_and_pickle(self):
         seq = SamplesSequence.toy_dataset(3).contract_pipe(keys=["image"], stage="identity")

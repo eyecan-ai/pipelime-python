@@ -57,6 +57,20 @@ class TestNewPath:
 
 
 class TestNumpyType:
+    def test_json_schema(self):
+        # 2.x failed too ("Value not declarable with JSON Schema"); the schema
+        # describes the serialized form, which is also a valid input
+        class M(pyd.BaseModel):
+            arr: plt.NumpyType
+
+        schema = plt.NumpyType.model_json_schema()
+        assert schema["type"] == "object" and schema["required"] == ["object", "dtype"]
+        assert schema["properties"]["dtype"] == {"type": "string"}
+        assert schema["properties"]["order"] == {"const": "F"}
+        dumped = plt.NumpyType.create(np.ones((2, 2), order="F")).model_dump()
+        assert set(dumped) <= set(schema["properties"])
+        assert "arr" in M.model_json_schema()["properties"]
+
     def test_create(self):
         with pytest.raises(pyd.ValidationError):
             _ = plt.NumpyType()  # type: ignore
@@ -207,6 +221,15 @@ def b_callable(a: int, b="c", *args) -> str:
 
 
 class TestCallableDef:
+    def test_json_schema(self):
+        # 2.x `.schema()` worked; the serialized form is the symbol string
+        class M(pyd.BaseModel):
+            fn: plt.CallableDef
+
+        assert plt.CallableDef.model_json_schema()["type"] == "string"
+        props = M.model_json_schema()
+        assert "fn" in props["properties"]
+
     def test_create(self):
         import pipelime.choixe.utils.io
 

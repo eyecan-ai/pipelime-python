@@ -217,6 +217,10 @@ pydantic v2 rules).
   (for `def f(a, **kw)`, 2.x called `f(a, kw={"x": 2})` instead of `f(a, x=2)`).
 - An unannotated `@command` parameter with a `None` default is accepted (typed
   `Any`); 2.x raised a `ConfigError` ("unable to infer type") at decoration.
+- `model_json_schema()` describes `NumpyType` by its serialized form
+  (`{"object": ..., "dtype": "...", "order": "F"}`); 2.x `.schema()` failed on models
+  with a `NumpyType` field. `CallableDef` fields are described as strings (their
+  serialized form; 2.x left them out).
 
 ## 6. Behaviour differences you may notice
 

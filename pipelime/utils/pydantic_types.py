@@ -140,6 +140,21 @@ class NumpyType(PipelimeRootModel, arbitrary_types_allowed=True):
         v_order = {} if v.flags["C_CONTIGUOUS"] else {"order": "F"}
         return {"object": v.tolist(), "dtype": v.dtype.name, **v_order}
 
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        # pydantic cannot describe `np.ndarray`: describe the serialized form (also a
+        # valid input); `object` is the `tolist()` value (nested lists or a scalar)
+        return {
+            "title": cls.__name__,
+            "type": "object",
+            "properties": {
+                "object": {},
+                "dtype": {"type": "string"},
+                "order": {"const": "F"},
+            },
+            "required": ["object", "dtype"],
+        }
+
     def __str__(self) -> str:
         return str(self.root)
 
@@ -443,6 +458,12 @@ class CallableDef(PipelimeRootModel[t.Callable], frozen=True):
     @classmethod
     def create(cls, value: t.Union[CallableDef, t.Callable, str]) -> CallableDef:
         return cls.model_validate(value)
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, schema, handler):
+        # pydantic cannot describe a `Callable` (2.x skipped it): describe the
+        # serialized form, the symbol string
+        return {"title": cls.__name__, "type": "string"}
 
     @property
     def full_signature(self) -> inspect.Signature:
