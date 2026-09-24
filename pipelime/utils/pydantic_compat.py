@@ -452,6 +452,13 @@ def _polymorphic_serialization(cls: type, schema: core_schema.CoreSchema) -> cor
     A ``@model_serializer`` declared on the model (or inherited) lands in the
     same ``serialization`` slot of the schema: it is kept and called on the
     exact-type path, so that custom dumps and polymorphism compose.
+
+    The subclass dump receives every option ``SerializationInfo`` exposes (mode,
+    include/exclude, by_alias, exclude_*, round_trip, serialize_as_any, context,
+    exclude_computed_fields). It does *not* receive ``warnings=`` nor
+    ``fallback=`` of the outer ``model_dump()``: pydantic does not expose them
+    to a serializer function, so a nested subclass dump warns and falls back
+    with pydantic's defaults.
     """
     custom = schema.get("serialization")
     if custom is not None and custom.get("type") not in ("function-wrap", "function-plain"):
