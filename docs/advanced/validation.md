@@ -93,15 +93,16 @@ Where the `class.path.to.check_image_channels` may be a `path/to/script.py:check
 If you feel comfortable with [pydantic](https://docs.pydantic.dev/) you can even write a custom sample validator as a pydantic model. To validate a sample, pipelime tries to instantiate the model with the sample's items as input keywords, so the previous example can be rewritten as:
 
 ```python
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import pipelime.items as pli
 
-class CustomSampleSchema(BaseModel, extra="forbid"):
+class CustomSampleSchema(BaseModel, extra="forbid", arbitrary_types_allowed=True):
     image: pli.ImageItem
     label: pli.TxtNumpyItem = Field(default_factory=pli.TxtNumpyItem)
-    camera: pli.MetaDataItem = Field(default_factory=pli.MetaDataItem)
+    camera: pli.YamlMetadataItem = Field(default_factory=pli.YamlMetadataItem)
 
-    @pyd.validator("image")
+    @field_validator("image")
+    @classmethod
     def validate_image(cls, image_item: pli.ImageItem) -> pli.ImageItem:
         if image_item.is_shared:
             raise ValueError('Image must not be shared.')
@@ -110,15 +111,19 @@ class CustomSampleSchema(BaseModel, extra="forbid"):
             raise ValueError(f'Image has {image.shape[2]} channels, but 3 are expected')
         return image_item
 
-    @pyd.validator("label")
+    @field_validator("label")
+    @classmethod
     def validate_label(cls, label_item: pli.TxtNumpyItem) -> pli.TxtNumpyItem:
         if label_item.is_shared:
             raise ValueError('Label must not be shared.')
+        return label_item
 
-    @pyd.validator("camera")
-    def validate_camera(cls, camera_item: pli.MetaDataItem) -> pli.MetaDataItem:
+    @field_validator("camera")
+    @classmethod
+    def validate_camera(cls, camera_item: pli.YamlMetadataItem) -> pli.YamlMetadataItem:
         if not camera_item.is_shared:
             raise ValueError('Camera must be shared.')
+        return camera_item
 ```
 
 Then, replace the `sample_schema` with the model's class path:
@@ -148,7 +153,7 @@ from pipelime.sequences import SamplesSequence
 from pipelime.items import ImageItem, NumpyItem
 from pipelime.utils.pydantic_types import SampleValidationInterface
 
-class MiniMNISTSampleValidator(BaseModel):
+class MiniMNISTSampleValidator(BaseModel, arbitrary_types_allowed=True):
     image: ImageItem
     label: NumpyItem
 

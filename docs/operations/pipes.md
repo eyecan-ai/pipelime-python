@@ -14,8 +14,6 @@ However, writing a new generator class is not too difficult. First, derive from 
 5. implement `def get_sample(self, idx: int) -> Sample` and `def size(self) -> int`
 
 ```python
-from typing import List
-from pathlib import Path
 from pydantic import Field, DirectoryPath, PrivateAttr
 from pipelime.sequences import SamplesSequence, Sample, source_sequence
 from pipelime.items.base import ItemFactory
@@ -27,7 +25,7 @@ class SequenceFromImageList(SamplesSequence, title="from_image_list"):
     folder: DirectoryPath = Field(..., description="The folder to read.")
     ext: str = Field(".png", description="The image file extension.")
 
-    _samples: List[Path] = PrivateAttr()
+    _samples: list[Sample] = PrivateAttr()
 
     def __init__(self, **data):
         super().__init__(**data)

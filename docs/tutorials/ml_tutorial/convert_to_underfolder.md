@@ -49,7 +49,6 @@ To write a samples sequence generator for the Iris dataset, we need to:
 Note that `SamplesSequence` is a pydantic model, so we must follow the [pydantic rules](https://docs.pydantic.dev/) when defining a class:
 
 ```python
-from typing import Mapping
 from pydantic import Field, PrivateAttr
 
 import numpy as np
@@ -69,7 +68,7 @@ class IridDataset(SamplesSequence, title="iris"):
     _shared_sample: Sample = PrivateAttr()
     _data_mtx: np.ndarray = PrivateAttr()
     _target_mtx: np.ndarray = PrivateAttr()
-    _feature_names: Sequence[str] = PrivateAttr()
+    _feature_names: list[str] = PrivateAttr()
 
     def __init__(self, **data):
         super().__init__(**data)

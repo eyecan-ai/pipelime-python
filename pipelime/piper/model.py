@@ -48,7 +48,8 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     variable positional, variable keyword parameters. Variable positional and keyword
     can be annotated to get type checking and validation.
 
-    You are encouraged to use pydantic.Field as default value to further specify any
+    You are encouraged to use `pipelime.piper.Field` (`pydantic.Field` plus the
+    pipelime flags, such as `piper_port`) as default value to further specify any
     field properties, such as `default_factory`, `alias`, `description`, etc, which
     are used to show meaningful help messages through `pipelime help`.
     Also, call it with extra `__config_kwargs` to add any pydantic config parameters,

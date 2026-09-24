@@ -10,8 +10,9 @@ lives here:
   using the runtime subclass), v1 ``Optional`` semantics (``x: Optional[int]``
   without a default is optional; ``x: int = None`` accepts ``None``), coerces
   numbers — ``bool`` included — to ``str`` fields (CLI values are parsed before
-  validation) and refuses ``pydantic.v1`` objects in subclasses with an
-  actionable error.
+  validation; ``StrictStr``/``Field(strict=True)`` reject both, a model-level
+  ``ConfigDict(strict=True)`` rejects numbers only) and refuses ``pydantic.v1``
+  objects in subclasses with an actionable error.
 * :class:`PipelimeRootModel` — base of the "value wrapper" types; accepts the
   v1 ``__root__=`` construction, exposes ``.__root__``/``.value`` and keeps the
   ``{"__root__": ...}`` envelope on ``.dict()``.
@@ -332,8 +333,12 @@ def _coerce_bools_to_str(cls: type, schema: t.Any) -> None:
     ``coerce_numbers_to_str`` leaves bools out, so every ``str`` schema among the
     fields of ``cls`` gets a before-validator (in place). Nested models are left
     to their own hook: as for ``coerce_numbers_to_str``, the rule is per model.
-    Strict ``str`` schemas (``StrictStr``) are skipped: v1's strict str rejected
-    bools too. A ``str`` already wrapped is left alone.
+    Strict ``str`` schemas (``StrictStr``, ``Field(strict=True)``) are skipped: v1's
+    strict str rejected bools too. A model-level ``ConfigDict(strict=True)`` is not
+    visible here (the ``str`` schema carries no ``strict`` flag, pydantic applies
+    the config at validation time), so such a model rejects numbers but still
+    turns a bool into ``"True"``; use ``StrictStr`` to reject bools as well.
+    A ``str`` already wrapped is left alone.
     """
     if isinstance(schema, (list, tuple)):  # a union choice may be a `(schema, label)` pair
         for item in schema:
