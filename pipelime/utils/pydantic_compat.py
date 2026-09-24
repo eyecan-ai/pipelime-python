@@ -125,6 +125,11 @@ def _annotated_has_default(resolved: t.Any) -> bool:
 def _apply_v1_optional_semantics(namespace: dict, parent_namespace: t.Optional[dict] = None) -> None:
     """v1: ``Optional[X]`` without default → ``= None``; ``x: T = None`` → ``Optional[T]``.
 
+    "Without default" includes a :func:`Field` call that omits ``default`` (and
+    ``default_factory``), e.g. ``x: Optional[int] = Field(description="...")``;
+    ``Field(...)`` stays required, as in v1. A raw ``pydantic.Field(description=...)``
+    cannot be told apart from ``pydantic.Field(...)`` and stays required.
+
     String annotations are evaluated against the defining module's globals, the
     locals of the frame executing the ``class`` statement (``parent_namespace``,
     the same pydantic uses to resolve forward references) and the class body.
@@ -146,6 +151,12 @@ def _apply_v1_optional_semantics(namespace: dict, parent_namespace: t.Optional[d
                 namespace[name] = None
             continue
         default = namespace[name]
+        omitted = _DEFAULT_OMITTED.get(id(default)) if isinstance(default, FieldInfo) else None
+        if omitted is not None and omitted[0] is default:
+            # `Optional[X] = Field(description=...)`: v1 gave the missing default `None`
+            if is_optional_annotation(resolved, raw):
+                namespace[name] = pydantic.Field(None, **omitted[1])
+            continue
         default_value = default.default if isinstance(default, FieldInfo) else default
         if default_value is None and not is_optional_annotation(resolved, raw):
             anns[name] = t.Optional[raw if resolved is _UNRESOLVED else resolved]
@@ -583,7 +594,16 @@ _PYDANTIC_FIELD_PARAMS = (
 )
 
 
-def Field(default: t.Any = PydanticUndefined, **kwargs: t.Any) -> t.Any:  # noqa: N802
+# `Field()` calls that omitted both `default` and `default_factory`, for the v1
+# Optional rule of `PipelimeModelMeta`: id(FieldInfo) → (FieldInfo, kwargs to rebuild
+# it with `default=None`). `FieldInfo` is slotted and not weak-referenceable, so the
+# marker cannot live on the object; holding it here also keeps its id from being
+# reused. Entries are few (one per such call, typically in class bodies).
+_DEFAULT_OMITTED: t.Dict[int, t.Tuple[FieldInfo, t.Dict[str, t.Any]]] = {}
+_OMITTED = object()
+
+
+def Field(default: t.Any = _OMITTED, **kwargs: t.Any) -> t.Any:  # noqa: N802
     """``pydantic.Field`` that also accepts pipelime flags.
 
     ``piper_port``, ``pipe_source``, ``expand_help``, ``is_required`` and any
@@ -595,6 +615,10 @@ def Field(default: t.Any = PydanticUndefined, **kwargs: t.Any) -> t.Any:  # noqa
     keywords pydantic still handles itself (``min_items``, ``const``, ... see
     ``_PYDANTIC_LEGACY_FIELD_KWARGS``) are forwarded, so pydantic's own
     conversion, warning or error applies.
+
+    Like v1, a field annotated ``Optional[X]`` whose ``Field`` gives no default (nor
+    ``default_factory``) defaults to ``None`` on pipelime models; ``Field(...)`` keeps
+    it required.
     """
     if "regex" in kwargs and "pattern" not in kwargs:
         kwargs["pattern"] = kwargs.pop("regex")
@@ -612,7 +636,12 @@ def Field(default: t.Any = PydanticUndefined, **kwargs: t.Any) -> t.Any:  # noqa
                 schema.update(_extra)
 
             kwargs["json_schema_extra"] = _merged
-    return pydantic.Field(default, **kwargs)
+    if default is not _OMITTED:
+        return pydantic.Field(default, **kwargs)
+    field_info = pydantic.Field(**kwargs)
+    if "default_factory" not in kwargs:
+        _DEFAULT_OMITTED[id(field_info)] = (field_info, kwargs)
+    return field_info
 
 
 def field_extra(field_info: FieldInfo, key: str, default: t.Any = None) -> t.Any:

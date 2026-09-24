@@ -317,7 +317,56 @@ class OptEntity(BaseEntity):
     image: pli.ImageItem = None  # type: ignore[assignment]
 
 
+# `Optional[X] = Field(<no default>, ...)`: optional in 2.x (pydantic.v1 gave it `None`)
+class OptFieldCommand(PipelimeCommand, title="contract-opt-field"):
+    a: t.Optional[int] = Field(description="a")
+    b: t.Optional[str] = Field(alias="bb", piper_port=PiperPortType.PARAMETER)
+    c: t.Optional[int] = Field(..., description="`...` is still required")
+
+    def run(self) -> None:
+        pass
+
+
+class OptFieldStage(SampleStage, title="contract-opt-field-stage"):
+    a: t.Optional[int] = Field(description="a")
+
+    def __call__(self, x):
+        return x
+
+
+class OptFieldPipe(PipedSequenceBase, title="contract_opt_field_pipe"):
+    # not registered as a pipe: built directly
+    a: t.Optional[int] = Field(description="a")
+
+    def size(self) -> int:
+        return self.source.size()
+
+    def get_sample(self, idx: int) -> pls.Sample:
+        return self.source.get_sample(idx)
+
+
 class TestV1OptionalSemantics:
+    def test_optional_field_without_default(self):
+        c = OptFieldCommand(c=None)
+        assert (c.a, c.b, c.c) == (None, None, None)
+        assert OptFieldCommand(a=1, bb="x", c=2).b == "x"
+        with pytest.raises(pyd.ValidationError):
+            OptFieldCommand()  # `c` is `Field(...)`: required, as in 2.x
+        assert OptFieldStage().a is None
+        seq = OptFieldPipe(source=SamplesSequence.toy_dataset(2))
+        assert seq.a is None and len(seq) == 2
+
+    def test_command_decorator_optional_field_without_default(self):
+        @command
+        def contract_opt_fn(
+            a: t.Optional[int] = Field(description="a"), b: t.Optional[int] = None
+        ):
+            pass
+
+        cmd = contract_opt_fn()
+        assert (cmd.a, cmd.b) == (None, None)
+        assert contract_opt_fn(a=2).a == 2
+
     def test_command(self):
         c = OptCommand()
         assert (c.a, c.b, c.c, c.d) == (None, None, None, None)

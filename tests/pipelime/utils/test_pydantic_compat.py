@@ -41,6 +41,46 @@ class TestOptionalSemantics:
         with pytest.raises(pydantic.ValidationError):
             M(a="x")
 
+    def test_optional_field_without_default_is_optional(self):
+        # v1: an `Optional` field whose `Field(...)` gives no default was optional
+        class M(pc.PipelimeModel):
+            a: t.Optional[int] = pc.Field(description="a")
+            b: int | None = pc.Field(alias="bb", piper_port="input")
+            c: t.Optional[int] = pc.Field(..., description="`...` stays required")
+            d: t.Optional[int] = pc.Field(default_factory=lambda: 4)
+            e: int = pc.Field(description="not optional: required")
+
+        fields = M.model_fields
+        assert not fields["a"].is_required() and fields["a"].description == "a"
+        assert not fields["b"].is_required() and fields["b"].alias == "bb"
+        assert pc.field_extra(fields["b"], "piper_port") == "input"
+        assert fields["c"].is_required() and fields["e"].is_required()
+        m = M(c=1, e=2)
+        assert (m.a, m.b, m.c, m.d, m.e) == (None, None, 1, 4, 2)
+        assert M(bb=3, c=None, e=2).b == 3
+
+    def test_optional_field_shared_field_info(self):
+        # the same `Field(...)` object reused by two fields and two classes
+        shared = pc.Field(description="shared")
+
+        class A(pc.PipelimeModel):
+            x: t.Optional[int] = shared
+            y: int = shared
+
+        class B(pc.PipelimeModel):
+            z: t.Optional[str] = shared
+
+        assert A(y=1).x is None and A.model_fields["y"].is_required()
+        assert B().z is None and B.model_fields["z"].description == "shared"
+
+    def test_optional_raw_pydantic_field_without_default_is_required(self):
+        # a raw `pydantic.Field(description=...)` cannot be told apart from
+        # `pydantic.Field(...)`: it stays required (documented in the migration guide)
+        class M(pc.PipelimeModel):
+            a: t.Optional[int] = pydantic.Field(description="a")
+
+        assert M.model_fields["a"].is_required()
+
     def test_annotated_default_is_kept(self):
         class M(pc.PipelimeModel):
             x: t.Annotated[t.Optional[int], pydantic.Field(default=3)]

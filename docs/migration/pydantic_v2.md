@@ -28,6 +28,13 @@ still works — pipelime finds the flag — but pydantic emits a
 `PydanticDeprecatedSince20` warning for each `Field(...)` call using extra keywords, so
 prefer the pipelime `Field`.
 
+An `Optional[X]` field whose `Field(...)` gives no default, e.g.
+`x: Optional[int] = Field(description="...")`, stays optional (default `None`) with
+`pipelime.piper.Field`, as in 2.x. With a raw `pydantic.Field`, pass `None` explicitly
+(`pydantic.Field(None, description="...")`) or use `pipelime.piper.Field`: pydantic
+cannot tell `pydantic.Field(description=...)` apart from `pydantic.Field(...)`, so the
+field would be required. `Field(...)` is required with either `Field`, as in 2.x.
+
 The v1 constraint names of `Field` are not all accepted by pydantic v2, with either
 `Field`:
 
@@ -168,8 +175,10 @@ and of `pipelime.utils.pydantic_compat.PipelimeModel` (derive your own helper mo
 `PipelimeModel` to get the same rules; a plain `pydantic.BaseModel` follows plain
 pydantic v2 rules).
 
-- `Optional[X]` / `X | None` fields without a default are optional (default `None`);
-  `x: T = None` accepts an explicit `None` (the annotation becomes `Optional[T]`).
+- `Optional[X]` / `X | None` fields without a default are optional (default `None`),
+  including `x: Optional[X] = Field(description=...)`; `x: T = None` accepts an explicit
+  `None` (the annotation becomes `Optional[T]`). With a raw `pydantic.Field`, pass `None`
+  explicitly or use `pipelime.piper.Field` (section 1).
 - Numbers and bools are coerced into `str` fields (`1` → `"1"`, `True` → `"True"`,
   e.g. for CLI values such as `+name true`). `StrictStr` and `Field(strict=True)` still
   reject them. A model-level `ConfigDict(strict=True)` rejects numbers but — unlike
