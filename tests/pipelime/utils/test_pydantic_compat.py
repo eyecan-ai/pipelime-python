@@ -485,8 +485,11 @@ class TestV1ConfigKeys:
         M, others = _collect_class_config_warnings(make_cls)
         assert others == []
         m = M(s=" a ")
-        assert m.s == "a" and M.model_config["frozen"] is False
-        m.s = "b"
+        # `frozen`/`allow_mutation` are not two spellings of one setting: v1 made the
+        # model immutable when either said so (see `TestV1Mutability`)
+        assert m.s == "a" and M.model_config["frozen"] is True
+        with pytest.raises(pydantic.ValidationError, match="frozen"):
+            m.s = "b"
 
     def test_child_config_overrides_parent_v1_keys(self):
         # the parent's `Config` is rebuilt with v2 keys; a child `Config(Parent.Config)`
@@ -538,7 +541,9 @@ class TestV1ConfigKeys:
         M, others = _collect_class_config_warnings(make_cls)
         assert others == []
         m = M(s=" a ")
-        assert m.s == " a " and M.model_config["frozen"] is False
+        # the inherited `frozen = True` still applies: v1 `allow_mutation = True` does
+        # not undo it (immutable when either says so, see `TestV1Mutability`)
+        assert m.s == " a " and M.model_config["frozen"] is True
 
     def test_child_v2_key_overrides_inherited_v1_key(self):
         class SharedConfig:
@@ -664,6 +669,121 @@ class TestV1ConfigKeys:
         assert any("`copy_on_model_validation`" in m for m in messages)
         assert any("`underscore_attrs_are_private`" in m for m in messages)
         assert S()(1) == 1 and Q.model_config["title"] == "q"
+
+
+def _set_attrs(obj, attrs: dict) -> None:
+    for k, v in attrs.items():
+        setattr(obj, k, v)
+
+
+def _is_mutable(cls) -> bool:
+    m = cls()
+    try:
+        m.x = 5
+    except pydantic.ValidationError as e:
+        assert "frozen" in str(e)
+        return False
+    return True
+
+
+class TestV1Mutability:
+    """v1: a model is immutable when the nearest ``frozen`` is true *or* the nearest
+    ``allow_mutation`` is false, each resolved on its own along the class keywords,
+    the ``Config`` MRO and the model bases (expected values probed on ``pydantic.v1``)."""
+
+    def test_class_keywords(self):
+        class A(pc.PipelimeModel, frozen=False, allow_mutation=False):
+            x: int = 1
+
+        class B(pc.PipelimeModel, frozen=True, allow_mutation=True):
+            x: int = 1
+
+        class C(pc.PipelimeModel, allow_mutation=True):
+            x: int = 1
+
+        assert not _is_mutable(A) and not _is_mutable(B) and _is_mutable(C)
+        assert "allow_mutation" not in A.model_config
+
+    def test_config_class(self):
+        class Shared:
+            frozen = True
+
+        def make_cls():
+            class M(pc.PipelimeModel):
+                x: int = 1
+
+                class Config(Shared):
+                    allow_mutation = True
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == [] and not _is_mutable(M)
+
+    def test_model_inheritance(self):
+        def make(parent, **attrs):
+            def make_cls():
+                class C(parent):
+                    class Config:
+                        pass
+
+                    _set_attrs(Config, attrs)  # `class Config: <attrs>`
+
+                return C
+
+            return _collect_class_config_warnings(make_cls)[0]
+
+        def make_parent():
+            class P(pc.PipelimeModel):
+                x: int = 1
+
+                class Config:
+                    allow_mutation = False
+
+            return P
+
+        P, _ = _collect_class_config_warnings(make_parent)
+
+        class PF(pc.PipelimeModel, frozen=True):
+            x: int = 1
+
+        assert not _is_mutable(P) and not _is_mutable(PF)
+        assert _is_mutable(make(P, allow_mutation=True))  # v1: nearest am=True
+        assert not _is_mutable(make(PF, allow_mutation=True))  # inherited frozen
+        assert not _is_mutable(make(P, frozen=False))  # inherited am=False
+
+        class C5(P, frozen=False):
+            pass
+
+        assert not _is_mutable(C5)
+        assert _is_mutable(make(C5, allow_mutation=True))  # grandchild
+
+        class C8(PF, allow_mutation=True, frozen=False):
+            pass
+
+        assert _is_mutable(C8)
+
+    def test_child_config_subclassing_parent_config(self):
+        def make_parent():
+            class P(pc.PipelimeModel):
+                x: int = 1
+
+                class Config:
+                    allow_mutation = False
+
+            return P
+
+        P, _ = _collect_class_config_warnings(make_parent)
+
+        def make_child():
+            class C(P):
+                class Config(P.Config):
+                    frozen = False
+
+            return C
+
+        C, others = _collect_class_config_warnings(make_child)
+        assert others == [] and not _is_mutable(C)  # P.Config's am=False still applies
 
 
 class _DeeperMeta(pc.PipelimeModelMeta):

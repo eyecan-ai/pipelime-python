@@ -161,6 +161,14 @@ attribute: a `class Config(Parent.Config)` (or `Config(SomeBase)`) overrides wha
 inherits whichever spelling either uses; within the same class — or among the class
 keywords — the v2 key wins.
 
+`allow_mutation` and `frozen` are an exception: in v1 they were two settings, and a
+model was immutable when the nearest `frozen` was true *or* the nearest
+`allow_mutation` was false. pipelime keeps that rule: each is resolved on its own
+(class keywords, then the `Config` class and what it inherits, then the parent
+models), then combined. E.g. `class Config: allow_mutation = False; frozen = False`
+is immutable, and a child `class Config: allow_mutation = True` does not make a model
+mutable whose parent set `frozen = True`.
+
 The v1 keys removed in v2 have no equivalent and no effect —
 `fields` (use `Field(alias=...)` on the field), `error_msg_templates`, `getter_dict`,
 `json_loads`, `json_dumps`, `copy_on_model_validation`, `post_init_call`, and

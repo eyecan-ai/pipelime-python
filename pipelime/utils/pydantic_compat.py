@@ -13,9 +13,11 @@ lives here:
   validation; ``StrictStr``/``Field(strict=True)`` reject both, a model-level
   ``ConfigDict(strict=True)`` rejects numbers only), translates the v1 config
   key names of a ``class Config`` or of the class keywords to their v2 names
-  (``anystr_strip_whitespace`` → ``str_strip_whitespace``, ``allow_mutation=False``
-  → ``frozen=True``, ...; pydantic v2 would only warn and ignore them) and refuses
-  ``pydantic.v1`` objects in subclasses with an actionable error.
+  (``anystr_strip_whitespace`` → ``str_strip_whitespace``, ...; ``allow_mutation``
+  combined with ``frozen`` as v1 did; pydantic v2 would only warn and ignore them),
+  compares models by their v1 ``.dict()``, gives JSON schemas that skip what v1
+  skipped (:class:`V1JsonSchema`) and refuses ``pydantic.v1`` objects in subclasses
+  with an actionable error.
 * :class:`PipelimeRootModel` — base of the "value wrapper" types; accepts the
   v1 ``__root__=`` construction, exposes ``.__root__``/``.value`` and keeps the
   ``{"__root__": ...}`` envelope on ``.dict()``.
@@ -187,10 +189,11 @@ def _check_v1_leftovers(cls_name: str, namespace: dict) -> None:
 
 
 # pydantic v1 config keys renamed in v2 (pipelime's own table: pydantic keeps its
-# list private). v1 `allow_mutation` is handled apart: it maps to the *inverse* of
-# `frozen`. The v1 keys removed in v2 without an equivalent (`fields`,
-# `smart_union`, `getter_dict`, ...) are left alone in a `class Config` (pydantic
-# warns about them); as class keywords they are dropped with a warning (below).
+# list private). v1 `allow_mutation` is handled apart (`_apply_v1_mutability`): it
+# combines with `frozen` rather than renaming it. The v1 keys removed in v2 without an
+# equivalent (`fields`, `smart_union`, `getter_dict`, ...) are left alone in a
+# `class Config` (pydantic warns about them); as class keywords they are dropped with
+# a warning (below).
 _V1_RENAMED_CONFIG_KEYS = {
     "allow_population_by_field_name": "populate_by_name",
     "anystr_lower": "str_to_lower",
@@ -205,18 +208,12 @@ _V1_RENAMED_CONFIG_KEYS = {
 }
 
 
-# every v1 key → (v2 key, value conversion)
-_V1_CONFIG_TRANSLATIONS: t.Dict[str, t.Tuple[str, t.Callable[[t.Any], t.Any]]] = {
-    **{v1: (v2, lambda value: value) for v1, v2 in _V1_RENAMED_CONFIG_KEYS.items()},
-    "allow_mutation": ("frozen", operator.not_),
-}
-
-
 def _translate_v1_config_keys(
     config: t.Mapping[str, t.Any], depth: t.Optional[t.Callable[[str], int]] = None
 ) -> t.Dict[str, t.Any]:
     """``config`` with the v1 key names replaced by their v2 names; the v1 key is
     dropped either way, so pydantic does not warn about a key that is applied.
+    ``allow_mutation`` is dropped too (see :func:`_apply_v1_mutability`).
 
     When both spellings of a setting are given, the one defined nearest wins:
     ``depth(key)`` is the position, along the config class MRO, of the class that
@@ -224,14 +221,82 @@ def _translate_v1_config_keys(
     spelling); within the same class — or in a plain mapping, where ``depth`` is
     ``None`` — the v2 key wins.
     """
-    out = {k: v for k, v in config.items() if k not in _V1_CONFIG_TRANSLATIONS}
-    for v1_key, (v2_key, convert) in _V1_CONFIG_TRANSLATIONS.items():
+    out = {
+        k: v
+        for k, v in config.items()
+        if k not in _V1_RENAMED_CONFIG_KEYS and k != "allow_mutation"
+    }
+    for v1_key, v2_key in _V1_RENAMED_CONFIG_KEYS.items():
         if v1_key not in config:
             continue
         if v2_key in config and (depth is None or depth(v2_key) <= depth(v1_key)):
             continue
-        out[v2_key] = convert(config[v1_key])
+        out[v2_key] = config[v1_key]
     return out
+
+
+# Class attribute of a pipelime model, and of a `Config` class rebuilt by
+# `_translate_v1_config`, holding the v1 mutability settings *as defined* (the
+# nearest `frozen` and `allow_mutation`, each only when defined somewhere), before
+# `_apply_v1_mutability` combined them into the single v2 `frozen`.
+_V1_MUTABILITY_ATTR = "__pipelime_v1_mutability__"
+_UNSET = object()
+
+
+def _config_class_lookup(config_cls: type, key: str) -> t.Any:
+    """The nearest definition of ``frozen``/``allow_mutation`` along the MRO of a
+    ``Config`` class (``_UNSET`` when none). A rebuilt ``Config`` stands for the
+    whole MRO of the class it was built from: its v1 settings are read from
+    :data:`_V1_MUTABILITY_ATTR` (it has no ``allow_mutation`` attribute)."""
+    for klass in config_cls.__mro__:
+        attrs = vars(klass)
+        stash = attrs.get(_V1_MUTABILITY_ATTR)
+        if stash is not None and key in stash:
+            return stash[key]
+        if key in attrs:
+            return attrs[key]
+    return _UNSET
+
+
+def _v1_mutability_of_bases(bases: tuple) -> t.Dict[str, t.Any]:
+    """The v1 mutability settings inherited from the model bases (pydantic merges
+    the configs of the bases in order: a later base wins)."""
+    out: t.Dict[str, t.Any] = {}
+    for base in bases:
+        stash = getattr(base, _V1_MUTABILITY_ATTR, None)
+        if stash is not None:
+            out.update(stash)
+        else:
+            config = getattr(base, "model_config", None)
+            if isinstance(config, dict) and "frozen" in config:
+                out["frozen"] = config["frozen"]
+    return out
+
+
+def _apply_v1_mutability(
+    bases: tuple, namespace: dict, kwargs: dict, config_cls: t.Optional[type]
+) -> None:
+    """v1: a model is immutable when the nearest ``frozen`` is true *or* the nearest
+    ``allow_mutation`` is false — two settings, not two spellings of one. Each is
+    resolved on its own (class keywords, then the ``Config`` MRO or the
+    ``model_config`` of the class body, then the model bases) and, when
+    ``allow_mutation`` is defined anywhere, the combination is passed to pydantic as
+    the ``frozen`` class keyword (which takes precedence over every other source).
+    The settings are recorded on the class for its subclasses."""
+    settings = _v1_mutability_of_bases(bases)
+    own_config = namespace.get("model_config")
+    for key in ("frozen", "allow_mutation"):
+        value = kwargs.pop(key, _UNSET) if key == "allow_mutation" else kwargs.get(key, _UNSET)
+        if value is _UNSET and config_cls is not None:
+            value = _config_class_lookup(config_cls, key)
+        if value is _UNSET and isinstance(own_config, dict):
+            value = own_config.get(key, _UNSET)
+        if value is not _UNSET:
+            settings[key] = value
+    if "allow_mutation" not in settings:
+        return  # `frozen` alone: pydantic's own resolution is the v1 one
+    kwargs["frozen"] = bool(settings.get("frozen", False)) or not settings["allow_mutation"]
+    namespace[_V1_MUTABILITY_ATTR] = settings
 
 
 # pydantic v1 config keys removed in v2 without an equivalent. In a `class Config`
@@ -264,17 +329,20 @@ def _drop_v1_removed_class_kwargs(cls_name: str, kwargs: dict) -> None:
 
 
 def _has_v1_config_keys(config: t.Iterable[str]) -> bool:
-    return any(k in _V1_CONFIG_TRANSLATIONS for k in config)
+    return any(k in _V1_RENAMED_CONFIG_KEYS or k == "allow_mutation" for k in config)
 
 
-def _translate_v1_config(cls_name: str, namespace: dict, kwargs: dict) -> None:
+def _translate_v1_config(cls_name: str, bases: tuple, namespace: dict, kwargs: dict) -> None:
     """Rename the v1 config keys of a ``class Config`` and of the class keyword
     arguments (in place) before pydantic reads them: pydantic v2 only warns about
     a v1 key and does not apply it, silently changing the model's behaviour. The
-    v1 keys removed in v2 are dropped from the class keywords, with a warning."""
+    v1 keys removed in v2 are dropped from the class keywords, with a warning;
+    ``frozen``/``allow_mutation`` are combined by :func:`_apply_v1_mutability`."""
     _drop_v1_removed_class_kwargs(cls_name, kwargs)
     config_cls = namespace.get("Config")
-    if isinstance(config_cls, type):
+    if not isinstance(config_cls, type):
+        config_cls = None
+    if config_cls is not None:
         # pydantic reads a config class through `dir()` (inherited attributes included)
         attrs = {k: getattr(config_cls, k) for k in dir(config_cls) if not k.startswith("__")}
         if _has_v1_config_keys(attrs):
@@ -283,20 +351,24 @@ def _translate_v1_config(cls_name: str, namespace: dict, kwargs: dict) -> None:
                 mro = config_cls.__mro__
                 return next((i for i, klass in enumerate(mro) if key in vars(klass)), len(mro))
 
-            namespace["Config"] = type(
-                config_cls.__name__,
-                (),
-                {
-                    # pydantic recognises a nested `Config` by its module and qualname
-                    "__module__": config_cls.__module__,
-                    "__qualname__": config_cls.__qualname__,
-                    **_translate_v1_config_keys(attrs, depth),
-                },
-            )
+            rebuilt_ns = {
+                # pydantic recognises a nested `Config` by its module and qualname
+                "__module__": config_cls.__module__,
+                "__qualname__": config_cls.__qualname__,
+                **_translate_v1_config_keys(attrs, depth),
+            }
+            allow_mutation = _config_class_lookup(config_cls, "allow_mutation")
+            if allow_mutation is not _UNSET:
+                rebuilt_ns[_V1_MUTABILITY_ATTR] = {"allow_mutation": allow_mutation}
+            namespace["Config"] = type(config_cls.__name__, (), rebuilt_ns)
     if _has_v1_config_keys(kwargs):
         translated = _translate_v1_config_keys(kwargs)
+        if "allow_mutation" in kwargs:  # combined below
+            translated["allow_mutation"] = kwargs["allow_mutation"]
         kwargs.clear()
         kwargs.update(translated)
+    # the original `Config` (the rebuilt one has no `allow_mutation` of its own)
+    _apply_v1_mutability(bases, namespace, kwargs, config_cls)
 
 
 def _class_statement_namespace(mcs: type) -> t.Optional[dict]:
@@ -338,7 +410,7 @@ class PipelimeModelMeta(_ModelMetaclass):  # type: ignore[misc,valid-type]
 
     def __new__(mcs, cls_name: str, bases: tuple, namespace: dict, **kwargs: t.Any):
         _check_v1_leftovers(cls_name, namespace)
-        _translate_v1_config(cls_name, namespace, kwargs)
+        _translate_v1_config(cls_name, bases, namespace, kwargs)
         parent_namespace = None
         if _weak_valued is not None and kwargs.get("__pydantic_reset_parent_namespace__", True):
             # pydantic passes `False` when it parametrizes generics (the origin's
