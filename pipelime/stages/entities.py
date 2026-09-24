@@ -462,7 +462,9 @@ class StageEntity(SampleStage, title="entity"):
 
     @pydantic.model_serializer(mode="wrap")
     def _serialize(self, handler) -> t.Dict[str, t.Any]:
-        return handler(self)["entity_action"]
+        # `{}` when `include`/`exclude` leave the action out (2.x: `.dict()` of a
+        # root model without its `__root__`)
+        return handler(self).get("entity_action", {})
 
     def __call__(self, x: "Sample") -> "Sample":
         from pipelime.sequences import Sample

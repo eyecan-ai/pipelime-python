@@ -729,6 +729,12 @@ class TestStagesAndEntities:
         d = dump(e, exclude={"meta": {"parsed_value"}})  # still the raw item
         assert d["meta"] is e.meta.raw_item
 
+    def test_stage_entity_dump_excluding_the_action(self):
+        st = StageEntity(annotated_action)
+        # 2.x `.dict(exclude={"__root__"})` → `{}`; a `KeyError` inside the serializer
+        assert dump(st, exclude={"entity_action"}) == {}
+        assert dump(st, include={"entity_action"}) == dump(st)
+
     def test_entity_action_inference(self):
         ea = EntityAction(action=annotated_action)
         assert ea.input_type.value is ContractInput
