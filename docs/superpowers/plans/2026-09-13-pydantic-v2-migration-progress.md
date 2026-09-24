@@ -37,7 +37,7 @@
 | S3 | S3-T1 (pretty_print) | done | `pytest -o addopts="" tests/pipelime/test_pydantic_contract.py -k "HelpRendering or test_help"` | 2 passed (snapshot byte-identical, unchanged); `tests/pipelime/piper/test_command_decorator.py` 17 passed (the 8 `test_is_command` failures fixed) | b08e333 | help on `FieldView`/`type_info`; modern hints render `[int, ...]`, `{str: float}`, `(int, str)`, `int \| str`, `X \| None` → `X`; `inspect.getdoc(inner_type)` fallback kept |
 | S3 | S3-T2 (TUI) | done | `pytest -o addopts="" tests/pipelime/cli/test_tui.py tests/pipelime/test_pydantic_contract.py -k "tui or TUI or ModernTypeHints"` | 48 passed (contract `test_tui` passes, no xfail) | 1cfe6ab | also `are_stageinput_args_present` (not in the brief, same v1 loop); `test_tui.py` v1 forms edited (TEST_CHANGES.md); `x: T = None` shows `Optional[T]` (ruling 2, no test pins `T`) |
 | S3 | S3-T3 (main.py) | done | `pytest -o addopts="" tests/pipelime/cli`; leftover `grep -rn "pydantic.v1" pipelime` | 94 passed; grep → only the error-message text in `choixe/visitors/processor.py:223` (outside the excluded `pydantic_compat.py`/`choixe/ast/nodes.py`) | 05d08f6 (+ ac52fa9, 93716fd, 2403b61) | run path prints `format_validation_error(e, cmd_cls)`; `show_field_alias_valerr` **kept** (see Surprises); extras: ac52fa9 `LazyCommand` unset required field → `None`, 93716fd `_classpath` of re-exported symbols kept, 2403b61 `ClassicPiperGraphCommand` on `PipelimeModel` (`-n auto tests/pipelime/commands` 1304 passed, 1 skipped) |
-| S3 | S3-T4 (full suite gate) | done | (1) `make test-full` (2) `make test-tier1` (3) `pytest -o addopts="" -W error tests/pipelime/utils/test_pydantic_compat.py` | (1) 2504 passed, 5 skipped (S0 baseline skips), **0 failed, 0 xfailed**, 123.44 s at d51f2ba (2503 passed at 2403b61) (2) 1992 passed, 4 skipped, 436 s at 2403b61 (3) 45 passed | d51f2ba (self-review fix) + this docs commit | no failure to triage; pydantic deprecation warnings are all test-side (`parse_obj`/`dict`/`json`, raw `pyd.Field(piper_port=)` in `tests/sample_data/cli/ckpt_dag.py`) — S5 |
+| S3 | S3-T4 (full suite gate) | done | (1) `make test-full` (2) `make test-tier1` (3) `pytest -o addopts="" -W error tests/pipelime/utils/test_pydantic_compat.py` | (1) 2504 passed, 5 skipped (S0 baseline skips), **0 failed, 0 xfailed**, 123.44 s at d51f2ba (2503 passed at 2403b61) (2) 1992 passed, 4 skipped, 436 s at 2403b61; after fix round 1: 1995 passed, 4 skipped, 439 s at 9865e06 (3) 45 passed (46 after fix round 1) | d51f2ba (self-review fix), fix round 1: 8885c6b (I1), 9865e06 (I2) + docs commits | no failure to triage; pydantic deprecation warnings are all test-side (`parse_obj`/`dict`/`json`, raw `pyd.Field(piper_port=)` in `tests/sample_data/cli/ckpt_dag.py`) — S5 |
 | S4 | S4-T1 (choixe dataclasses) | todo | | | | |
 | S4 | S4-T2 (Tier 2 gate) | todo | | | | |
 | S5 | S5-T1 (deps + version) | todo | | | | |
@@ -47,12 +47,10 @@
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
-- (S3) **`show_field_alias_valerr` kept (controller ruling 3 not applied):** the ruling assumed
-  nothing imports it, but `test_pydantic_contract.py::TestValidationInterfaces::test_alias_error_formatting`
-  imports it unconditionally (outside its `if V1:` branch), so removing it fails that contract test;
-  the brief's step is conditional on nothing importing it, and it is a pipelime 2.x public name.
-  Nothing under `pipelime/` calls it any more. Open for the controller: keep, or remove it and move
-  the contract import into the `if V1:` branch (a test edit).
+- (S3) **`show_field_alias_valerr` kept, by controller ruling** (it replaces ruling 3, which
+  assumed nothing imports it): `test_pydantic_contract.py::TestValidationInterfaces::test_alias_error_formatting`
+  imports it outside its `if V1:` branch, and it is a public `pipelime.cli.utils` name that
+  downstream code may import. Nothing under `pipelime/` calls it any more.
 - (S3) `cli/tui/utils.py::are_stageinput_args_present` (not listed in the brief) had the same
   `__fields__`/`.alias` loop as `is_tui_needed`; converted to `iter_fields`/`effective_alias`.
 - (S3) Ruling 1b supersedes the S2b note above: `_load_symbols` now sets `_classpath` only for
@@ -64,6 +62,18 @@
   its class, named typing objects by `__name__`); `Annotated[...]` still prints as written. The
   only remaining difference found is `NewType("N", int)`: 2.x printed the literal `NewType`, now `N`.
   Pinned by the new contract test `TestHelpRendering::test_type_names`.
+- (S3 fix round 1) **Validation errors printed as Rich markup (8885c6b):** the run path passed
+  `format_validation_error(...)` to `print_error` unescaped, so every `[type=...]` suffix was dropped
+  and a `[/x]`-like span in a message raised `rich.errors.MarkupError` in place of the
+  `ValidationError`. Now escaped; regression test `test_base.py::test_validation_error_text_is_not_markup`.
+- (S3 fix round 1) **Nested constrained types shown as `Annotated[...]` (9865e06):** v2 constrained
+  types (`PositiveInt`, `NonNegativeInt`, `DirectoryPath`, ...) are `Annotated[X, <constraints>]`;
+  top-level metadata is stripped by pydantic, nested metadata was printed raw in help and TUI
+  (`SplitCommand.shuffle` → `bool | Annotated[int, Gt(gt=0)]`). New toolkit helper
+  `strip_annotated` (recursive, returns the type itself when there is nothing to strip, so every
+  existing string is unchanged); help and TUI show `X`. v1's constrained-type names are not restored
+  (controller ruling). The help signature line (`inspect.formatannotation`) is unchanged and still
+  shows nested `Annotated[...]` as written.
 - (S3) `LazyCommand.__getattr__` of an unset required field returned `PydanticUndefined` since S2b;
   it returns `None` again as v1 `ModelField.get_default()` did (ac52fa9, contract regression test).
 - (S2b) **`test_is_command` ×8 fail at the S2 gate and cannot pass before S3-T1:**
