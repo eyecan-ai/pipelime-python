@@ -179,6 +179,218 @@ class TestV1Guard:
         assert M().x == 1
 
 
+def _collect_class_config_warnings(make_cls):
+    """Build a class with a `class Config` and return (the class, the other warnings).
+
+    pydantic's own `class Config` deprecation is expected (and left as is); anything
+    else — e.g. its "Valid config keys have changed in V2" UserWarning — is returned.
+    """
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        cls = make_cls()
+    others = [w for w in record if not issubclass(w.category, pydantic.PydanticDeprecatedSince20)]
+    assert len(others) < len(record), "pydantic's class-Config deprecation expected"
+    return cls, others
+
+
+class TestV1ConfigKeys:
+    """v1 config key names are translated to v2 (pydantic only warns and ignores them)."""
+
+    @pytest.mark.parametrize(
+        "v1_key,v2_key,value",
+        [
+            ("allow_population_by_field_name", "populate_by_name", True),
+            ("anystr_lower", "str_to_lower", True),
+            ("anystr_strip_whitespace", "str_strip_whitespace", True),
+            ("anystr_upper", "str_to_upper", True),
+            ("keep_untouched", "ignored_types", (property,)),
+            ("max_anystr_length", "str_max_length", 5),
+            ("min_anystr_length", "str_min_length", 2),
+            ("orm_mode", "from_attributes", True),
+            ("schema_extra", "json_schema_extra", {"examples": [1]}),
+            ("validate_all", "validate_default", True),
+        ],
+    )
+    def test_renamed_key_in_config_class(self, v1_key, v2_key, value):
+        def make_cls():
+            class M(pc.PipelimeModel):
+                x: int = 1
+
+                class Config:
+                    pass
+
+                setattr(Config, v1_key, value)  # `class Config: <v1_key> = <value>`
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == []  # no "has been renamed" warning: the key is applied
+        assert M.model_config[v2_key] == value
+        assert v1_key not in M.model_config
+
+    def test_renamed_key_as_class_kwarg(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no "renamed" UserWarning, no deprecation
+
+            class M(pc.PipelimeModel, anystr_strip_whitespace=True, allow_mutation=False):
+                s: str = ""
+
+        assert M(s="  a  ").s == "a"
+        assert M.model_config["frozen"] is True
+
+    def test_settings_are_applied(self):
+        def make_cls():
+            class M(pc.PipelimeModel):
+                s: str = ""
+                n: int = pc.Field(0, alias="nn")
+                d: int = 7
+
+                @pydantic.field_validator("d")
+                @classmethod
+                def _d(cls, v):
+                    return v * 2
+
+                class Config:
+                    anystr_strip_whitespace = True
+                    anystr_upper = True
+                    allow_population_by_field_name = True
+                    allow_mutation = False
+                    validate_all = True
+                    orm_mode = True
+                    schema_extra = {"examples": [{"s": "A"}]}
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == []
+        m = M(s="  ab  ", n=3)  # `n` by field name: populate_by_name
+        assert (m.s, m.n, m.d) == ("AB", 3, 14)  # stripped, upper-cased, default validated
+        with pytest.raises(pydantic.ValidationError, match="frozen"):
+            m.s = "x"
+
+        class Obj:
+            s, nn, d = "q", 5, 1
+
+        assert M.model_validate(Obj()).n == 5  # orm_mode → from_attributes
+        assert M.model_json_schema()["examples"] == [{"s": "A"}]
+
+        class Sub(M):  # the translated config is inherited
+            pass
+
+        assert Sub(s=" z ").s == "Z"
+
+    def test_string_length_limits(self):
+        def make_cls():
+            class M(pc.PipelimeModel):
+                s: str = "abc"
+
+                class Config:
+                    min_anystr_length = 2
+                    max_anystr_length = 3
+
+            return M
+
+        M, _ = _collect_class_config_warnings(make_cls)
+        for bad in ("a", "abcd"):
+            with pytest.raises(pydantic.ValidationError):
+                M(s=bad)
+
+    def test_keep_untouched(self):
+        class Untouched:
+            pass
+
+        def make_cls():
+            class M(pc.PipelimeModel):
+                x: int = 1
+                helper = Untouched()  # not a field: its type is ignored
+
+                class Config:
+                    keep_untouched = (Untouched,)
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == [] and "helper" not in M.model_fields
+        assert isinstance(M.helper, Untouched)
+
+    def test_allow_mutation_true_is_not_frozen(self):
+        def make_cls():
+            class M(pc.PipelimeModel):
+                x: int = 1
+
+                class Config:
+                    allow_mutation = True
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == [] and M.model_config["frozen"] is False
+        m = M()
+        m.x = 2
+        assert m.x == 2
+
+    def test_v2_key_wins(self):
+        def make_cls():
+            class M(pc.PipelimeModel):
+                s: str = ""
+
+                class Config:
+                    anystr_strip_whitespace = False
+                    str_strip_whitespace = True
+                    allow_mutation = False
+                    frozen = False
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == []
+        m = M(s=" a ")
+        assert m.s == "a" and M.model_config["frozen"] is False
+        m.s = "b"
+
+    def test_inherited_config_class(self):
+        class Base:
+            anystr_lower = True
+
+        def make_cls():
+            class M(pc.PipelimeModel):
+                s: str = ""
+
+                class Config(Base):
+                    pass
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == [] and M(s="AB").s == "ab"
+
+    def test_root_model(self):
+        def make_cls():
+            class R(pc.PipelimeRootModel[str]):
+                class Config:
+                    anystr_strip_whitespace = True
+
+            return R
+
+        R, others = _collect_class_config_warnings(make_cls)
+        assert others == [] and R("  a ").root == "a"
+
+    def test_removed_key_left_to_pydantic(self):
+        # no v2 equivalent: pydantic's warning stays and the key does nothing
+        def make_cls():
+            class M(pc.PipelimeModel):
+                x: int = 1
+
+                class Config:
+                    smart_union = True
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others  # pydantic itself may emit it more than once
+        assert all("'smart_union' has been removed" in str(w.message) for w in others)
+
+
 class _DeeperMeta(pc.PipelimeModelMeta):
     """A further metaclass layer, as downstream code may add."""
 

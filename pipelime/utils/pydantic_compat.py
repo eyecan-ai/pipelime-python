@@ -11,8 +11,11 @@ lives here:
   without a default is optional; ``x: int = None`` accepts ``None``), coerces
   numbers — ``bool`` included — to ``str`` fields (CLI values are parsed before
   validation; ``StrictStr``/``Field(strict=True)`` reject both, a model-level
-  ``ConfigDict(strict=True)`` rejects numbers only) and refuses ``pydantic.v1``
-  objects in subclasses with an actionable error.
+  ``ConfigDict(strict=True)`` rejects numbers only), translates the v1 config
+  key names of a ``class Config`` or of the class keywords to their v2 names
+  (``anystr_strip_whitespace`` → ``str_strip_whitespace``, ``allow_mutation=False``
+  → ``frozen=True``, ...; pydantic v2 would only warn and ignore them) and refuses
+  ``pydantic.v1`` objects in subclasses with an actionable error.
 * :class:`PipelimeRootModel` — base of the "value wrapper" types; accepts the
   v1 ``__root__=`` construction, exposes ``.__root__``/``.value`` and keeps the
   ``{"__root__": ...}`` envelope on ``.dict()``.
@@ -171,6 +174,66 @@ def _check_v1_leftovers(cls_name: str, namespace: dict) -> None:
             )
 
 
+# pydantic v1 config keys renamed in v2 (pipelime's own table: pydantic keeps its
+# list private). v1 `allow_mutation` is handled apart: it maps to the *inverse* of
+# `frozen`. The v1 keys removed in v2 without an equivalent (`fields`,
+# `smart_union`, `getter_dict`, ...) are left alone: pydantic warns about them.
+_V1_RENAMED_CONFIG_KEYS = {
+    "allow_population_by_field_name": "populate_by_name",
+    "anystr_lower": "str_to_lower",
+    "anystr_strip_whitespace": "str_strip_whitespace",
+    "anystr_upper": "str_to_upper",
+    "keep_untouched": "ignored_types",
+    "max_anystr_length": "str_max_length",
+    "min_anystr_length": "str_min_length",
+    "orm_mode": "from_attributes",
+    "schema_extra": "json_schema_extra",
+    "validate_all": "validate_default",
+}
+
+
+def _translate_v1_config_keys(config: t.Mapping[str, t.Any]) -> t.Dict[str, t.Any]:
+    """``config`` with the v1 key names replaced by their v2 names. When both
+    spellings are given, the v2 key wins (the v1 key is dropped either way, so
+    pydantic does not warn about a key that is applied)."""
+    out = {k: v for k, v in config.items() if k not in _V1_RENAMED_CONFIG_KEYS and k != "allow_mutation"}
+    for v1_key, v2_key in _V1_RENAMED_CONFIG_KEYS.items():
+        if v1_key in config and v2_key not in config:
+            out[v2_key] = config[v1_key]
+    if "allow_mutation" in config and "frozen" not in config:
+        out["frozen"] = not config["allow_mutation"]
+    return out
+
+
+def _has_v1_config_keys(config: t.Iterable[str]) -> bool:
+    return any(k in _V1_RENAMED_CONFIG_KEYS or k == "allow_mutation" for k in config)
+
+
+def _translate_v1_config(namespace: dict, kwargs: dict) -> None:
+    """Rename the v1 config keys of a ``class Config`` and of the class keyword
+    arguments (in place) before pydantic reads them: pydantic v2 only warns about
+    a v1 key and does not apply it, silently changing the model's behaviour."""
+    config_cls = namespace.get("Config")
+    if isinstance(config_cls, type):
+        # pydantic reads a config class through `dir()` (inherited attributes included)
+        attrs = {k: getattr(config_cls, k) for k in dir(config_cls) if not k.startswith("__")}
+        if _has_v1_config_keys(attrs):
+            namespace["Config"] = type(
+                config_cls.__name__,
+                (),
+                {
+                    # pydantic recognises a nested `Config` by its module and qualname
+                    "__module__": config_cls.__module__,
+                    "__qualname__": config_cls.__qualname__,
+                    **_translate_v1_config_keys(attrs),
+                },
+            )
+    if _has_v1_config_keys(kwargs):
+        translated = _translate_v1_config_keys(kwargs)
+        kwargs.clear()
+        kwargs.update(translated)
+
+
 def _class_statement_namespace(mcs: type) -> t.Optional[dict]:
     """Locals of the frame executing the ``class`` statement (``None`` at module level).
 
@@ -210,6 +273,7 @@ class PipelimeModelMeta(_ModelMetaclass):  # type: ignore[misc,valid-type]
 
     def __new__(mcs, cls_name: str, bases: tuple, namespace: dict, **kwargs: t.Any):
         _check_v1_leftovers(cls_name, namespace)
+        _translate_v1_config(namespace, kwargs)
         parent_namespace = None
         if _weak_valued is not None and kwargs.get("__pydantic_reset_parent_namespace__", True):
             # pydantic passes `False` when it parametrizes generics (the origin's
