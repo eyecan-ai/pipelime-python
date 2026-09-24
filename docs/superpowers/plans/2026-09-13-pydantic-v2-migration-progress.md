@@ -38,8 +38,8 @@
 | S3 | S3-T2 (TUI) | done | `pytest -o addopts="" tests/pipelime/cli/test_tui.py tests/pipelime/test_pydantic_contract.py -k "tui or TUI or ModernTypeHints"` | 48 passed (contract `test_tui` passes, no xfail) | 1cfe6ab | also `are_stageinput_args_present` (not in the brief, same v1 loop); `test_tui.py` v1 forms edited (TEST_CHANGES.md); `x: T = None` shows `Optional[T]` (ruling 2, no test pins `T`) |
 | S3 | S3-T3 (main.py) | done | `pytest -o addopts="" tests/pipelime/cli`; leftover `grep -rn "pydantic.v1" pipelime` | 94 passed; grep → only the error-message text in `choixe/visitors/processor.py:223` (outside the excluded `pydantic_compat.py`/`choixe/ast/nodes.py`) | 05d08f6 (+ ac52fa9, 93716fd, 2403b61) | run path prints `format_validation_error(e, cmd_cls)`; `show_field_alias_valerr` **kept** (see Surprises); extras: ac52fa9 `LazyCommand` unset required field → `None`, 93716fd `_classpath` of re-exported symbols kept, 2403b61 `ClassicPiperGraphCommand` on `PipelimeModel` (`-n auto tests/pipelime/commands` 1304 passed, 1 skipped) |
 | S3 | S3-T4 (full suite gate) | done | (1) `make test-full` (2) `make test-tier1` (3) `pytest -o addopts="" -W error tests/pipelime/utils/test_pydantic_compat.py` | (1) 2504 passed, 5 skipped (S0 baseline skips), **0 failed, 0 xfailed**, 123.44 s at d51f2ba (2503 passed at 2403b61) (2) 1992 passed, 4 skipped, 436 s at 2403b61; after fix round 1: 1995 passed, 4 skipped, 439 s at 9865e06 (3) 45 passed (46 after fix round 1) | d51f2ba (self-review fix), fix round 1: 8885c6b (I1), 9865e06 (I2) + docs commits | no failure to triage; pydantic deprecation warnings are all test-side (`parse_obj`/`dict`/`json`, raw `pyd.Field(piper_port=)` in `tests/sample_data/cli/ckpt_dag.py`) — S5 |
-| S4 | S4-T1 (choixe dataclasses) | done | `.venv/bin/python -m pytest -q -o addopts="" tests/pipelime/choixe` | 442 passed in 1.24s | 0a684a4 | only the import lines changed; `nodes.py` imports no `pydantic` at all now; no hash/equality literal broke, so no `tests/TEST_CHANGES.md` entry |
-| S4 | S4-T2 (Tier 2 gate) | done | `make test-full` | 2506 passed, 5 skipped, 0 failed, 119.79 s (0:01:59) — matches the S3 gate counts | — (this ledger commit) | before/after probe of 17 malformed choixe inputs — see Surprises below and `task-S4-report.md` |
+| S4 | S4-T1 (choixe dataclasses) | done | `.venv/bin/python -m pytest -q -o addopts="" tests/pipelime/choixe` | 0a684a4: 442 passed in 1.24s; after 85a3558 (node type-check restoration, controller ruling): 449 passed (7 new regression tests) in 1.26s | 0a684a4 (+ 85a3558) | only the import lines changed at 0a684a4; `nodes.py` imports no `pydantic` at all now; no hash/equality literal broke, so no `tests/TEST_CHANGES.md` entry. Controller ruling on the probe concern (see Surprises): 85a3558 adds `Node.__post_init__` restoring construction-time type checks on `Node`-typed fields (mostly `HashNode`), so malformed input that used to raise now raises again (`ChoixeParsingError`, via `_parse_token`'s `except TypeError`, or via `_parse_dict`'s catch-all); container-typed fields, `Any`, and the 5 custom-`__init__` node types (`ListNode`, `DictBundleNode`, `StrBundleNode`, `SweepNode`, `RandNode`) stay unchecked, matching v1 |
+| S4 | S4-T2 (Tier 2 gate) | done | `make test-full` | 0a684a4: 2506 passed, 5 skipped, 0 failed, 119.79 s; after 85a3558: 2513 passed (+7 new tests), 5 skipped, 0 failed, 121.49 s (0:02:01) — matches the S3 gate counts plus the new regression tests | — (this ledger commit) | before/after probe of 17 malformed choixe inputs — see Surprises below and `task-S4-report.md` |
 | S5 | S5-T1 (deps + version) | todo | | | | |
 | S5 | S5-T2 (migration guide) | todo | | | | |
 | S5 | S5-T3 (docs/examples) | todo | | | | |
@@ -47,15 +47,29 @@
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
-- (S4, 2026-09-24) Before/after probe (`nodes.py` off pydantic v1 dataclasses): of 17
-  deliberately malformed choixe inputs (wrong Node subtype injected into a typed field),
+- (S4, 2026-09-24) **Controller ruling — construction-time node type checks restored
+  (85a3558):** stdlib dataclasses dropped the field-type validation pydantic v1's
+  dataclasses used to perform at construction; per the probe below and pipelime's
+  backward-compat policy (absorb dependency-semantics changes inside pipelime rather than
+  changing behaviour silently), `Node.__post_init__` restores it for fields directly typed
+  to a `Node` subclass, `Optional[<Node subclass>]`, or a `Union` of `Node` subclasses
+  (container-typed fields, `Any`, and the 5 nodes with a custom `__init__` stay unchecked,
+  matching v1). Effect: the 9 token-form cases that used to leak an uncaught
+  `pydantic.v1.ValidationError` now raise `ChoixeParsingError` instead (an improvement —
+  same as the 3 dict-form cases, which already raised `ChoixeParsingError` both before and
+  after S4-T1). Document for the S5 migration guide: callers that used to catch a raw
+  pydantic `ValidationError` around `choixe.ast.parser.parse` for a handful of
+  token-directive shapes (`$var`, `$import`, `$symbol`, `$index`, `$item`, `$date`, `$tmp`,
+  `$cmd`) must now catch `ChoixeParsingError` instead — a strictly better contract, but a
+  visible one.
+- (S4, 2026-09-24) Before/after probe (`nodes.py` off pydantic v1 dataclasses, pre-fix): of
+  17 deliberately malformed choixe inputs (wrong Node subtype injected into a typed field),
   12 changed outcome — 9 that used to leak an uncaught pydantic `ValidationError` out of
   `_parse_token` (only `TypeError` is caught there) and 3 that used to raise a proper
-  `ChoixeParsingError` out of `_parse_dict`'s catch-all now all parse *silently*, with the
-  wrong-typed node embedded; the 442-test choixe suite does not exercise any of these
-  shapes, so it stays green. Reported DONE_WITH_CONCERNS for the controller to rule on;
-  no validation code was added to `nodes.py` (forbidden by the task). Full inputs/outcomes
-  in `task-S4-report.md`.
+  `ChoixeParsingError` out of `_parse_dict`'s catch-all parsed *silently*, with the
+  wrong-typed node embedded; the 442-test choixe suite did not exercise any of these
+  shapes, so it stayed green. Reported DONE_WITH_CONCERNS; resolved by 85a3558 above. Full
+  inputs/outcomes in `task-S4-report.md`.
 - (S3) **`show_field_alias_valerr` kept, by controller ruling** (it replaces ruling 3, which
   assumed nothing imports it): `test_pydantic_contract.py::TestValidationInterfaces::test_alias_error_formatting`
   imports it outside its `if V1:` branch, and it is a public `pipelime.cli.utils` name that
@@ -156,13 +170,15 @@
 
 Everything needed to continue lives in git; nothing depends on the old chat session.
 
-1. **State:** S0, S1, S2a, S2b, S3, S4 complete (see the rows above). Tree clean on branch `pydantic_v2`
-   (HEAD = the commit of this ledger update). Expected at rest — the S4 gate: `make test-full` =
-   2506 passed / 5 skipped / **0 failed, 0 xfailed** (~2 min); `.venv/bin/python -m pytest -q -o addopts=""
-   -W error tests/pipelime/utils/test_pydantic_compat.py` = 46 passed; `.venv/bin/python -m pytest -q -o
-   addopts="" tests/pipelime/choixe` = 442 passed; `grep -rn "pydantic.v1" pipelime` → only the guarded
-   import in `pydantic_compat.py` and the error-message text at `choixe/visitors/processor.py:223` (fine:
-   a string, not an import) — `choixe/ast/nodes.py` no longer imports pydantic at all.
+1. **State:** S0, S1, S2a, S2b, S3, S4 complete (see the rows above), including the controller-ruled
+   node type-check restoration (85a3558). Tree clean on branch `pydantic_v2` (HEAD = the commit of this
+   ledger update). Expected at rest — the S4 gate: `make test-full` = 2513 passed / 5 skipped /
+   **0 failed, 0 xfailed** (~2 min); `.venv/bin/python -m pytest -q -o addopts="" -W error
+   tests/pipelime/utils/test_pydantic_compat.py` = 46 passed; `.venv/bin/python -m pytest -q -o
+   addopts="" tests/pipelime/choixe` = 449 passed (442 + 7 new regression tests for
+   `Node.__post_init__`); `grep -rn "pydantic.v1" pipelime` → only the guarded import in
+   `pydantic_compat.py` and the error-message text at `choixe/visitors/processor.py:223` (fine: a
+   string, not an import) — `choixe/ast/nodes.py` no longer imports pydantic at all.
 2. **Next:** S5 — `docs/superpowers/plans/2026-09-13-pydantic-v2-s5-docs-deps-release.md`. Diff base
    for the S5 review: the HEAD of this ledger update.
 3. **Items for S5 (migration guide / cleanup), carried from S2b and S3:** `int | str` given `"5"` keeps
