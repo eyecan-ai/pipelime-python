@@ -39,10 +39,11 @@ import typing as t
 import warnings
 
 import pydantic
+import pydantic.json_schema
 import pydantic.warnings
 from pydantic import BaseModel, ConfigDict, RootModel
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticUndefined, core_schema
+from pydantic_core import PydanticOmit, PydanticUndefined, core_schema
 
 try:  # pydantic 3 drops the v1 shim: the guard then becomes a no-op
     from pydantic.v1.fields import FieldInfo as _V1FieldInfo
@@ -518,6 +519,30 @@ def _apply_v1_hooks(cls: type, schema: core_schema.CoreSchema) -> core_schema.Co
     return _polymorphic_serialization(cls, schema)
 
 
+class V1JsonSchema(pydantic.json_schema.GenerateJsonSchema):
+    """JSON schema generator used by default by the pipelime models.
+
+    pydantic.v1 left out of the schema what it could not describe (a ``Callable``
+    field) where pydantic v2 raises ``PydanticInvalidForJsonSchema``: a ``Callable``
+    is omitted (a field, or a union member; ``{}`` when it is the whole value), an
+    arbitrary type (``arbitrary_types_allowed``) is described as any value (``{}``).
+    A plain pydantic model or a ``TypeAdapter`` holding a pipelime model uses
+    pydantic's generator: pass ``schema_generator=V1JsonSchema`` there.
+    """
+
+    def generate(self, schema: t.Any, mode: t.Any = "validation") -> t.Any:
+        try:
+            return super().generate(schema, mode=mode)
+        except PydanticOmit:  # the whole value is a `Callable` (e.g. a root model)
+            return {}
+
+    def callable_schema(self, schema: core_schema.CallableSchema) -> t.Any:
+        raise PydanticOmit
+
+    def is_instance_schema(self, schema: core_schema.IsInstanceSchema) -> t.Any:
+        return {}
+
+
 class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
     """Base class of every pipelime model (see the module docstring)."""
 
@@ -526,6 +551,18 @@ class PipelimeModel(BaseModel, metaclass=PipelimeModelMeta):
     @classmethod
     def __get_pydantic_core_schema__(cls, source: t.Any, handler: pydantic.GetCoreSchemaHandler):
         return _apply_v1_hooks(cls, handler(source))
+
+    @classmethod
+    def model_json_schema(  # type: ignore[override]
+        cls,
+        by_alias: bool = True,
+        ref_template: str = pydantic.json_schema.DEFAULT_REF_TEMPLATE,
+        schema_generator: t.Type[pydantic.json_schema.GenerateJsonSchema] = V1JsonSchema,
+        mode: t.Literal["validation", "serialization"] = "validation",
+        **kwargs: t.Any,
+    ) -> t.Dict[str, t.Any]:
+        """pydantic's, with :class:`V1JsonSchema` as the default generator."""
+        return super().model_json_schema(by_alias, ref_template, schema_generator, mode, **kwargs)
 
 
 RootT = t.TypeVar("RootT")
@@ -574,6 +611,18 @@ class PipelimeRootModel(RootModel[RootT], t.Generic[RootT], metaclass=PipelimeMo
     def _coerce(cls, value: t.Any) -> t.Any:
         """Turn any accepted input into the root value. Override in subclasses."""
         return value
+
+    @classmethod
+    def model_json_schema(  # type: ignore[override]
+        cls,
+        by_alias: bool = True,
+        ref_template: str = pydantic.json_schema.DEFAULT_REF_TEMPLATE,
+        schema_generator: t.Type[pydantic.json_schema.GenerateJsonSchema] = V1JsonSchema,
+        mode: t.Literal["validation", "serialization"] = "validation",
+        **kwargs: t.Any,
+    ) -> t.Dict[str, t.Any]:
+        """pydantic's, with :class:`V1JsonSchema` as the default generator."""
+        return super().model_json_schema(by_alias, ref_template, schema_generator, mode, **kwargs)
 
     @pydantic.model_validator(mode="wrap")
     @classmethod

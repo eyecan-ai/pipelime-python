@@ -751,13 +751,14 @@ else:
 class TestJsonSchema:
     # 2.x `.schema()` worked on every command and stage but `entity` (v1 skipped
     # `Callable` fields); `M.schema()` → `M.model_json_schema()` must keep working
-    @pytest.mark.parametrize("kind", ["commands", "stages"])
+    @pytest.mark.parametrize("kind", ["commands", "stages", "operators"])
     def test_registered_symbols(self, kind):
         from pipelime.cli.utils import PipelimeSymbolsHelper
 
         getter = {
             "commands": PipelimeSymbolsHelper.get_pipelime_commands,
             "stages": PipelimeSymbolsHelper.get_sample_stages,
+            "operators": PipelimeSymbolsHelper.get_sequence_operators,
         }[kind]
         classes = [c for group in getter().values() for c in group.values()]
         assert classes

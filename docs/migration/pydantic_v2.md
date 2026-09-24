@@ -200,6 +200,13 @@ pydantic v2 rules).
   class, DAG and pipe configs written by pipelime 2.x (including
   `entity: {__root__: ...}`).
 - `pipelime help` and DAG validation errors show `name / alias` for aliased fields.
+- `M.schema()` / `M.model_json_schema()` work on models with fields pydantic cannot
+  describe: as in 2.x, a `Callable` field is left out of the schema, and an arbitrary
+  type (`arbitrary_types_allowed`) is described as any value (pydantic v2 alone raises
+  `PydanticInvalidForJsonSchema`). pipelime models use
+  `pipelime.utils.pydantic_compat.V1JsonSchema` as their default `schema_generator`;
+  pass it explicitly to `TypeAdapter(...).json_schema()` or to a plain
+  `pydantic.BaseModel` holding pipelime models.
 - `pipelime.cli.utils.show_field_alias_valerr` is kept as an alias of the new
   `format_validation_error(e, model_cls=None)`. Note that it now *returns* the
   formatted text (with `name / alias` locations when `model_cls` is given) and leaves

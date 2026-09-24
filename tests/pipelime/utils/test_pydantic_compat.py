@@ -180,6 +180,36 @@ class TestOptionalSemantics:
         assert M().which == "str"
 
 
+class TestJsonSchema:
+    def test_undescribable_fields(self):
+        # v1 left out what it could not describe (a `Callable` field); v2 raises
+        class Arbitrary:
+            pass
+
+        class M(pc.PipelimeModel, arbitrary_types_allowed=True):
+            fn: t.Callable[[int], int]
+            either: t.Union[int, t.Callable[[], int]] = 1
+            objs: t.List[Arbitrary] = []
+            n: int = 0
+
+        class R(pc.PipelimeRootModel[t.Callable]):
+            pass
+
+        schema = M.model_json_schema()
+        assert set(schema["properties"]) == {"either", "objs", "n"}
+        assert schema["properties"]["either"]["type"] == "integer"  # the other member
+        assert schema["properties"]["objs"]["items"] == {}
+        assert M.model_json_schema(mode="serialization")["properties"].keys() == {
+            "either",
+            "objs",
+            "n",
+        }
+        assert R.model_json_schema() == {}  # the whole value: any
+        with pytest.raises(pydantic.errors.PydanticInvalidForJsonSchema):
+            # an explicit generator is honoured
+            M.model_json_schema(schema_generator=pydantic.json_schema.GenerateJsonSchema)
+
+
 class TestV1Guard:
     def test_v1_field_rejected(self):
         v1 = pytest.importorskip("pydantic.v1")
