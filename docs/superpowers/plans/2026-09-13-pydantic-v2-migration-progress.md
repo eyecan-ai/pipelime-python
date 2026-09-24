@@ -143,59 +143,46 @@
   T7/T8 specifically — it is inherent to converting `pydantic_types.py`
   ahead of its downstream consumers.
 
-## Resuming in a new session (written 2026-09-16 after S2b)
+## Resuming in a new session (written 2026-09-24 after S3)
 
 Everything needed to continue lives in git; nothing depends on the old chat session.
 
-1. **State:** S0, S1, S2a, S2b complete (see the rows above). Tree clean on branch `pydantic_v2`
-   (HEAD = the commit of this ledger update). Expected at rest — the S2 gate:
-   `pytest tests/pipelime/{stages,sequences,piper,utils,choixe,items}` = 1045 passed / 4 skipped /
-   **8 failed** (all `tests/pipelime/piper/test_command_decorator.py::test_is_command[*]`, which
-   call `cli/pretty_print.py::get_model_title` → `__config__`; they pass once S3-T1 converts
-   `pretty_print.py`); `pytest -n auto --dist loadgroup tests/pipelime/commands` = 1304 passed /
-   1 skipped; `pytest tests/pipelime/test_pydantic_contract.py -k "not HelpRendering and not
-   test_help and not test_tui"` = 47 passed; `pytest -W error tests/pipelime/utils/test_pydantic_compat.py`
-   = 45 passed. `pipelime.cli.main`, `cli/pretty_print.py`, `cli/tui/*` and `choixe/ast/nodes.py`
-   are still on `pydantic.v1` (S3 / S4); `tests/pipelime/cli/*` cannot pass until S3.
-2. **Next:** S3 — `docs/superpowers/plans/2026-09-13-pydantic-v2-s3-cli.md` (T1 pretty_print,
-   T2 TUI, T3 main.py + rest of cli/utils, T4 full-suite gate). Diff base for its review: the
-   HEAD of this ledger update.
-3. **Hand-offs from S2b to fold into the S3 dispatch (deferred review minors, all small):**
-   - `LazyCommand.__getattr__` (`pipelime/piper/model.py`) returns `PydanticUndefined` for a
-     required field that was never set; v1's `ModelField.get_default()` returned `None` — map it to
-     `None` (downstream `if lc.x is None` checks).
-   - `PipelimeSymbolsHelper._load_symbols` (`pipelime/cli/utils.py`): now that a re-exported
-     class is no longer a duplicate, the `sym_cls._classpath = f"{module_name}:..."` overwrite of a
-     *pipelime* class is reachable, so `get_model_classpath` shows e.g. `StageEntity`/`CloneCommand`
-     as defined in the user file; `tests/pipelime/cli/test_symbols_helper.py` leaves that pollution
-     for the rest of the session. Guard the overwrite with `sym_cls.__module__ == module.__name__`.
-     S3-T3 touches `cli/utils.py` anyway; the help snapshot test (S3) may otherwise see polluted paths.
-   - `cli/main.py:975` calls `show_field_alias_valerr(e)` and discards its (now string) result:
-     S3-T3 must switch it to `format_validation_error(e, cmd_cls)` and print/raise with that text
-     (the S2b `format_validation_error` in `cli/utils.py` is the replacement; `show_field_alias_valerr`
-     is a thin alias kept for the transition).
-   - `pipelime/commands/piper.py::ClassicPiperGraphCommand` still derives from plain
-     `pydantic.BaseModel` (works because the combined classes' metaclass is `PipelimeModelMeta`);
-     switch to `PipelimeModel` for uniformity when convenient (S3 or S5).
-   - `pretty_print.py` renderer: keep the v1 fallback that shows `inspect.getdoc(outer_type_)`
-     for undocumented fields (the committed help snapshot embeds `int.__doc__`); see the S0 notes.
-4. **Items for S5 (migration guide / cleanup):** `int | str` given `"5"` keeps `"5"` under v2
-   smart unions (spec-accepted; document); `NumpyType.create(arr)` keeps the ndarray by identity on
-   every path (v1 copied on the `validate` path); bools are coerced to `str` fields (`"True"`) as
-   v1 did — but a model-level `ConfigDict(strict=True)` is not honoured by that hook (only the `str`
-   schema's own `strict`; no pipelime model uses it — docstring wording, S5-T4); `Path` fields
-   given a bool are rejected (v1 parity). Deprecated-but-working forms in tests (`parse_obj`,
-   `X(__root__=...)`, `.__root__`) are left for the S5-T4 warn-free pass.
+1. **State:** S0, S1, S2a, S2b, S3 complete (see the rows above). Tree clean on branch `pydantic_v2`
+   (HEAD = the commit of this ledger update). Expected at rest — the S3 gate: `make test-full` =
+   2506 passed / 5 skipped / **0 failed, 0 xfailed** (~2 min); `.venv/bin/python -m pytest -q -o addopts=""
+   -W error tests/pipelime/utils/test_pydantic_compat.py` = 46 passed; `grep -rn "pydantic.v1" pipelime`
+   → the guarded import in `pydantic_compat.py`, `choixe/ast/nodes.py` (S4) and the error-message text
+   at `choixe/visitors/processor.py:223` (fine: a string, not an import).
+2. **Next:** S4 — `docs/superpowers/plans/2026-09-13-pydantic-v2-s4-choixe.md` (T1 AST nodes on stdlib
+   dataclasses, T2 Tier 2 gate); then S5 — `2026-09-13-pydantic-v2-s5-docs-deps-release.md`. Diff base
+   for the S4 review: the HEAD of this ledger update.
+3. **Items for S5 (migration guide / cleanup), carried from S2b and S3:** `int | str` given `"5"` keeps
+   `"5"` under v2 smart unions (spec-accepted; document); `NumpyType.create(arr)` keeps the ndarray by
+   identity on every path (v1 copied on the `validate` path); bools are coerced to `str` fields
+   (`"True"`) as v1 did — a model-level `ConfigDict(strict=True)` is not honoured by that hook (docstring
+   wording, S5-T4); `Path` fields given a bool are rejected (v1 parity); help/TUI render constrained types
+   by their base type (`PositiveInt` → `int`, `Annotated[...]` metadata stripped) and TUI shows
+   `Optional[T]` for `x: T = None`; raw `pydantic.Field(piper_port=...)` (the compat-policy form, e.g.
+   `tests/sample_data/cli/ckpt_dag.py`) emits `PydanticDeprecatedSince20` — S5-T4 (warn-free) must decide
+   whether pipelime suppresses it or the guide documents `pipelime.piper.Field`. Deprecated-but-working
+   forms in tests (`parse_obj`, `X(__root__=...)`, `.__root__`) are left for the S5-T4 warn-free pass.
+   `show_field_alias_valerr` is kept as a public alias of `format_validation_error` (controller ruling).
+4. **Deferred minors for the final whole-branch review (after S5):** `FieldView.extra` is `{}` when
+   `json_schema_extra` is callable (pipelime `Field` merges flags into a callable when the user passes one)
+   → help shows such a port as PARAMETER; `FieldView.root_type` does not strip `Optional`;
+   `strip_annotated` rebuilds `collections.abc.Callable[[P], R]` as a plain `GenericAlias` (brackets lost,
+   display only) — return as is when `type(tp) is not types.GenericAlias`; the help *signature* line
+   (`inspect.formatannotation`) still prints nested `Annotated[...]`; pre-existing: bare `t.List` renders
+   `[, ...]`, a string forward-ref annotation renders `str`. The full list of rulings and deferred minors
+   of every subtask is in the SDD ledger (next item).
 5. **How:** invoke `superpowers:subagent-driven-development` on
    `docs/superpowers/plans/2026-09-13-pydantic-v2-migration.md`. Its git-ignored workspace
    `.superpowers/sdd/2026-09-13-pydantic-v2-migration/` (if still on disk) holds the SDD ledger
-   `progress.md` with every ruling, the briefs (`task-S3-brief.md` is already assembled, T1..T4 in
-   order; `brief.sh PLAN LABEL` extracts one task by its `S<k>-T<n>` label), reports and review
-   packages. If that directory is gone, recreate the ledger from this file — the rulings that matter
-   for S3 are the hand-offs above and the "Surprises / deviations" section.
-6. **Process facts learned:** subagents died on API session limits four times so far (opus resets
-   ~19:00 or ~02:50, sonnet ~20:20 Europe/Rome); the ledger + per-task commits recovered every time
-   — dispatch large batches early in a limit window, commit per task, write the report incrementally.
-   Reviewers found real gaps in every subtask so far (S2b: a non-idempotent toolkit hook that grew
-   every referenced model's stored core schema); never skip the task review, and dispatch reviews of
-   toolkit changes on the most capable model.
+   `progress.md` with every ruling, the briefs (`brief.sh PLAN LABEL` extracts one task by its `S<k>-T<n>`
+   label from the sub-plan), reports and review packages. If that directory is gone, recreate the ledger
+   from this file.
+6. **Process facts learned:** subagents died on API session limits four times (S0–S2b); the ledger +
+   per-task commits recovered every time — commit per task, write the report incrementally. Reviewers
+   found real gaps in every subtask so far (S3: Rich markup swallowing/replacing the `ValidationError`,
+   raw `Annotated[...]` in help — both inherited from the plan's own code); never skip the task review, and
+   dispatch reviews of toolkit changes on the most capable model.
