@@ -87,21 +87,21 @@ class TestBaseStages:
         _check_stage(ref_stage_input)
 
         # validation: another StageInput
-        stage_input = Dummy.parse_obj({"stg": ref_stage_input})
+        stage_input = Dummy.model_validate({"stg": ref_stage_input})
         _check_stage(stage_input.stg)
 
         # validation: a Stage
-        stage_input = Dummy.parse_obj({"stg": ref_stage})
+        stage_input = Dummy.model_validate({"stg": ref_stage})
         _check_stage(stage_input.stg)
 
         # validation: a Stage title
-        stage_input = Dummy.parse_obj({"stg": "format-key"})
+        stage_input = Dummy.model_validate({"stg": "format-key"})
         _check_stage(stage_input.stg)
 
         # validation: a Stage dict
-        stage_input = Dummy.parse_obj({"stg": {"format-key": {"key_format": "*"}}})
+        stage_input = Dummy.model_validate({"stg": {"format-key": {"key_format": "*"}}})
         _check_stage(stage_input.stg)
 
         with pytest.raises(ValueError):
-            Dummy.parse_obj({"stg": 42})
-            Dummy.parse_obj({"stg": "unknown-stage"})
+            Dummy.model_validate({"stg": 42})
+            Dummy.model_validate({"stg": "unknown-stage"})

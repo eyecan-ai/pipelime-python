@@ -112,7 +112,7 @@ class TestDAGParserFactory:
         elif isinstance(value, t.Sequence) and not isinstance(value, (str, bytes)):
             value = [self._purge_paths(x) for x in value]
         elif isinstance(value, BaseModel):
-            value = self._purge_paths(value.dict(by_alias=True))
+            value = self._purge_paths(value.model_dump(by_alias=True))
         elif isinstance(value, (str, Path)) and (
             "tmp" in str(value)
             or "Temp" in str(value)

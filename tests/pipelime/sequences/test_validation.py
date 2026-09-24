@@ -68,7 +68,7 @@ class TestValidation:
 
         assert schema_def.as_pipe() == {
             "validate_samples": {
-                "sample_schema": schema_def.dict(by_alias=True),
+                "sample_schema": schema_def.model_dump(by_alias=True),
             }
         }
 

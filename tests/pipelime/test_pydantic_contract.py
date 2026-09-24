@@ -1,12 +1,11 @@
 """Contract tests for the pydantic v1 → v2 migration (design spec §5.2).
 
 Every test here pins a behaviour that downstream code relies on and that the
-existing suite does not target directly. They must pass on the pydantic.v1 code
-(before the migration) AND on the native v2 code (after), so the pydantic API is
-imported through the dual block below. `V1` is True until subtask 1 lands.
-
-Tests marked `xfail(V1, strict=True)` pin *new* behaviour (modern type hints in
-the TUI, bug fixes) and are expected to fail before the migration.
+existing suite does not target directly. They were written against pipelime 2.x
+(the `pydantic.v1` code) and ran on both sides of the migration; the pydantic.v1
+branch was dropped in S5. Where pipelime 3 deliberately differs from 2.x, a
+comment starting with "2.x:" records the old behaviour (see
+docs/migration/pydantic_v2.md).
 """
 from __future__ import annotations
 
@@ -16,20 +15,12 @@ import typing as t
 from pathlib import Path
 
 import numpy as np
+import pydantic as pyd
 import pytest
 
 import pipelime.items as pli
 import pipelime.utils.pydantic_types as plt
-
-# --- dual pydantic import ----------------------------------------------------
-V1 = not hasattr(plt.NumpyType, "model_dump")
-if V1:  # before subtask 1
-    import pydantic.v1 as pyd
-
-    Field = pyd.Field
-else:  # after subtask 1
-    import pydantic as pyd
-    from pipelime.piper import Field  # type: ignore[no-redef]
+from pipelime.piper import Field
 
 THIS_FILE = Path(__file__).resolve().as_posix()
 MODULE = __name__  # `tests.pipelime.test_pydantic_contract` — use this for symbols whose
@@ -38,17 +29,13 @@ MODULE = __name__  # `tests.pipelime.test_pydantic_contract` — use this for sy
 
 
 def dump(model, **kwargs) -> t.Any:
-    """`model_dump` on v2, `.dict()` on v1 — same semantics except the top-level
-    root-model envelope, which has its own tests below."""
-    if hasattr(model, "model_dump"):
-        return model.model_dump(**kwargs)
-    return model.dict(**kwargs)
+    """`model_dump` (2.x: `.dict()` — same semantics except the top-level root-model
+    envelope, which has its own tests below)."""
+    return model.model_dump(**kwargs)
 
 
 def parse_as(tp, value):
-    """Validate `value` as type `tp` (v1 `parse_obj_as`, v2 `TypeAdapter`)."""
-    if V1:
-        return pyd.parse_obj_as(tp, value)
+    """Validate `value` as type `tp` (2.x: `parse_obj_as`)."""
     return pyd.TypeAdapter(tp).validate_python(value)
 
 
@@ -211,18 +198,11 @@ class TestRootWrappers:
         assert plt.YamlInput.create(str(f)).value == {"a": {"b": 3}}
         H = make_model("H", c=(plt.YamlInput, ...))
         assert dump(H(c=[1, True, "s"])) == {"c": [1, True, "s"]}
-        # a required, non-Optional field rejects an explicit None before the
-        # custom __root__ validator ever runs (pydantic v1 field-level None guard);
-        # only `YamlInput.create(None)`/`.validate(None)` (no enclosing field) can
-        # build the None-valued wrapper.
-        # v1 rejects an explicit None for a *required* wrapper field before the type's
-        # validators run; the v2 design accepts it as `YamlInput(None)` (documented
-        # difference, design ruling in the migration ledger)
-        if V1:
-            with pytest.raises(pyd.ValidationError):
-                H(c=None)
-        else:
-            assert H(c=None).c.value is None
+        # an explicit None for a *required* wrapper field is accepted as
+        # `YamlInput(None)` (documented difference, design ruling in the migration
+        # ledger). 2.x: rejected by the pydantic v1 field-level None guard before the
+        # type's validators ran; only `YamlInput.create(None)` built that wrapper.
+        assert H(c=None).c.value is None
 
     @pytest.mark.filterwarnings("ignore::DeprecationWarning")
     def test_type_def_and_item_type(self):
@@ -484,7 +464,7 @@ class TestCommandFramework:
         with pytest.raises(pyd.ValidationError):
             fn(a="x")  # v1 inferred `int` from the default
 
-    @pytest.mark.xfail(V1, reason="spec §4.2: unannotated param with None default → Any (v1 ConfigError)", strict=True)
+    # 2.x: unannotated param with None default raised a v1 ConfigError (spec §4.2 → Any)
     def test_command_decorator_unannotated_none_default(self):
         @command
         def fn(a=1, c=None):
@@ -493,7 +473,7 @@ class TestCommandFramework:
         assert (fn().a, fn().c) == (1, None)
         assert fn(c="anything").c == "anything"
 
-    @pytest.mark.xfail(V1, reason="spec §4.2 bug fix: **kwargs expanded with **", strict=True)
+    # 2.x: **kwargs passed as a single dict keyword (spec §4.2 bug fix: expanded with **)
     def test_command_decorator_var_keyword_expansion(self):
         seen = {}
 
@@ -546,7 +526,7 @@ class TestCommandFramework:
                 "n2": {"contract-ports": {"inp": 1, "out": 8, "prm": 3}},
             }
         }
-        assert dump(nodes, by_alias=True)["__root__" if V1 else "n1"] is not None
+        assert dump(nodes, by_alias=True)["n1"] is not None  # 2.x: `.dict()` → "__root__"
         H = make_model("H", nodes=(NodesDefinition, ...))
         _clean_registry()
         h = H(nodes={"n": {f"{MODULE}.PortsCommand": {}}})
@@ -616,7 +596,7 @@ class TestStagesAndEntities:
     def test_stage_titles(self):
         from pipelime.utils.pydantic_types import CallableDef  # noqa: F401
 
-        assert StageCompose.__config__.title == "compose" if V1 else StageCompose.model_config.get("title") == "compose"
+        assert StageCompose.model_config.get("title") == "compose"  # 2.x: `__config__.title`
         lam = StageLambda(contract_identity)
         assert lam.func.value is contract_identity
 
@@ -679,10 +659,9 @@ class TestStagesAndEntities:
         d = dump(si)
         assert list(d) == ["entity"]
         spec = d["entity"]
-        if V1:  # v1 top-level `.dict()` of the inner root model keeps the envelope
-            assert spec == {"__root__": {"action": f"{MODULE}.annotated_action", "input_type": f"{__name__}.ContractInput"}}
-        else:
-            assert spec == {"action": f"{MODULE}.annotated_action", "input_type": f"{__name__}.ContractInput"}
+        # 2.x: the v1 top-level `.dict()` of the inner root model kept the envelope,
+        # `{"__root__": {"action": ..., "input_type": ...}}`
+        assert spec == {"action": f"{MODULE}.annotated_action", "input_type": f"{__name__}.ContractInput"}
         # `si` resolved `f"{MODULE}.annotated_action"` above, registering this module;
         # clean up before the "entity" by-name lookup triggered by validating `d`.
         _clean_registry()
@@ -728,7 +707,7 @@ class TestSequences:
         # multiprocessing path
         seq.run(num_workers=2, prefetch=1, track_fn=False)
 
-    @pytest.mark.xfail(V1, reason="spec §4.4 bug fix: to_pipe recursion on str", strict=True)
+    # 2.x: `to_pipe` recursed into `str` values (RecursionError; spec §4.4 bug fix)
     def test_to_pipe_roundtrip(self):
         seq = SamplesSequence.toy_dataset(3).contract_pipe(keys=["image"])
         pipe = seq.to_pipe()
@@ -813,14 +792,13 @@ class TestValidationInterfaces:
 
         with pytest.raises(pyd.ValidationError) as ei:
             PortsCommand(i="notanint")
-        if V1:
-            show_field_alias_valerr(ei.value)
-            text = str(ei.value)
-        else:
-            from pipelime.cli.utils import format_validation_error
+        from pipelime.cli.utils import format_validation_error
 
-            text = format_validation_error(ei.value, PortsCommand)
+        text = format_validation_error(ei.value, PortsCommand)
         assert "inp / i" in text
+        # the 2.x name is kept as an alias (2.x: it rewrote `ei.value` in place and
+        # `str(ei.value)` showed the `name / alias` locations)
+        assert show_field_alias_valerr(ei.value, PortsCommand) == text
 
     def test_transformation(self):
         import albumentations as A
@@ -890,10 +868,11 @@ class TestHelpRendering:
         assert hrt(t.Literal["a", 1]) == "Literal['a', 1]"
         assert hrt(t.Optional[t.Sequence[int]]) == "[int, ...] | None"
         assert hrt(t.Mapping[str, t.Any]) == "{str: Any}"
-        if not V1:  # v2 constrained types are `Annotated[X, <constraints>]`: shown as `X`
-            assert hrt(t.Union[bool, pyd.PositiveInt]) == "bool | int"
-            assert hrt(t.Tuple[pyd.NonNegativeInt, pyd.NonNegativeInt]) == "(int, int)"
-            assert hrt(t.Optional[t.Union[pyd.PositiveInt, str]]) == "int | str | None"
+        # v2 constrained types are `Annotated[X, <constraints>]`: shown as `X`
+        # (2.x: by the v1 constrained type's name, e.g. `PositiveInt`)
+        assert hrt(t.Union[bool, pyd.PositiveInt]) == "bool | int"
+        assert hrt(t.Tuple[pyd.NonNegativeInt, pyd.NonNegativeInt]) == "(int, int)"
+        assert hrt(t.Optional[t.Union[pyd.PositiveInt, str]]) == "int | str | None"
 
 
 # --- modern type hints (spec §4.8) ----------------------------------------------
@@ -949,9 +928,9 @@ class TestModernTypeHints:
     def test_validation(self):
         c = ModernCommand(a=["3"], f="5", e=[StageIdentity()], h="identity")
         # `int | str` given "5": v2 smart unions keep the exact type (an accepted
-        # change, see the design spec's risks and the migration guide); v1 went
-        # left-to-right and coerced to `int`
-        assert c.a == [3] and c.f == (5 if V1 else "5") and c.g is None
+        # change, see the design spec's risks and the migration guide). 2.x: v1 went
+        # left-to-right and coerced to `int` (`5`)
+        assert c.a == [3] and c.f == "5" and c.g is None
         assert isinstance(c.h.__root__, StageIdentity)
         assert ModernStage(keys=("a",)).keys == ["a"]
         e = ModernEntity(**_sample())
@@ -964,17 +943,13 @@ class TestModernTypeHints:
         for token in ["[int, ...]", "{str: float}", "(int, str)", "int | str", "SampleStage"]:
             assert token in text, token
 
-    @pytest.mark.xfail(V1, reason="spec §4.8: TUI on types.UnionType", strict=True)
+    # 2.x: the TUI raised AttributeError on `types.UnionType` fields (spec §4.8)
     def test_tui(self):
         from pipelime.cli.tui.utils import get_field_type, init_tui_field, is_tui_needed
+        from pipelime.utils.pydantic_compat import iter_fields
 
         assert is_tui_needed(ModernCommand, {}) is False
-        if V1:
-            fields = list(ModernCommand.__fields__.values())
-        else:
-            from pipelime.utils.pydantic_compat import iter_fields
-
-            fields = list(iter_fields(ModernCommand))
+        fields = list(iter_fields(ModernCommand))
         types = [get_field_type(f) for f in fields]
         assert all(isinstance(x, str) and x for x in types)
         assert init_tui_field(fields[2], {}).type_  # `c: int | None`

@@ -131,7 +131,7 @@ class TestSamplesSequences:
             .data_cache("ImageItem", "MetadataItem")
         )
 
-        assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
+        assert pls.build_pipe(input_pipe).model_dump() == expected_seq.model_dump()
 
         input_pipe = {
             "from_underfolder": {
@@ -144,7 +144,7 @@ class TestSamplesSequences:
             "data_cache": ["ImageItem", "MetadataItem"],
         }
 
-        assert pls.build_pipe(input_pipe).dict() == expected_seq.dict()
+        assert pls.build_pipe(input_pipe).model_dump() == expected_seq.model_dump()
 
         with pytest.raises(pls.PipeBuildingError):
             pls.build_pipe("shuffle")
