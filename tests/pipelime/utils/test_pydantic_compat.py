@@ -296,7 +296,9 @@ class TestPolymorphicSerialization:
     def test_non_model_value_falls_back_to_pydantic(self):
         # e.g. after `model_construct`: pydantic warns and dumps the value as-is
         h = self.Host.model_construct(one={"a": 1})
-        with pytest.warns(UserWarning, match="PydanticSerializationUnexpectedValue"):
+        # the detail line changed across pydantic minors (2.10: "Expected `X` but got
+        # `dict`", 2.12: "PydanticSerializationUnexpectedValue(...)"); the header did not
+        with pytest.warns(UserWarning, match="Pydantic serializer warnings"):
             assert h.model_dump()["one"] == {"a": 1}
 
     def test_model_serializer_kept(self):
