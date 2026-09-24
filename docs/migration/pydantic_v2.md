@@ -149,8 +149,12 @@ the setting keeps applying:
 | `keep_untouched` | `ignored_types` |
 | `allow_mutation = False` | `frozen = True` (inverted) |
 
-When both spellings are given, the v2 key wins. The v1 keys removed in v2 have no
-equivalent: pydantic warns ("... has been removed") and they have no effect —
+When both spellings of a setting are given, the nearest definition wins, as for any
+attribute: a `class Config(Parent.Config)` (or `Config(SomeBase)`) overrides what it
+inherits whichever spelling either uses; within the same class — or among the class
+keywords — the v2 key wins.
+
+The v1 keys removed in v2 have no equivalent: pydantic warns ("... has been removed") and they have no effect —
 `fields` (use `Field(alias=...)` on the field), `error_msg_templates`, `getter_dict`,
 `json_loads`, `json_dumps`, `copy_on_model_validation`, `post_init_call`, and
 `smart_union` / `underscore_attrs_are_private` (v2 always behaves as if they were

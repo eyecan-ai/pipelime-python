@@ -192,21 +192,37 @@ _V1_RENAMED_CONFIG_KEYS = {
 }
 
 
-def _translate_v1_config_keys(config: t.Mapping[str, t.Any]) -> t.Dict[str, t.Any]:
-    """``config`` with the v1 key names replaced by their v2 names. When both
-    spellings are given, the v2 key wins (the v1 key is dropped either way, so
-    pydantic does not warn about a key that is applied)."""
-    out = {k: v for k, v in config.items() if k not in _V1_RENAMED_CONFIG_KEYS and k != "allow_mutation"}
-    for v1_key, v2_key in _V1_RENAMED_CONFIG_KEYS.items():
-        if v1_key in config and v2_key not in config:
-            out[v2_key] = config[v1_key]
-    if "allow_mutation" in config and "frozen" not in config:
-        out["frozen"] = not config["allow_mutation"]
+# every v1 key → (v2 key, value conversion)
+_V1_CONFIG_TRANSLATIONS: t.Dict[str, t.Tuple[str, t.Callable[[t.Any], t.Any]]] = {
+    **{v1: (v2, lambda value: value) for v1, v2 in _V1_RENAMED_CONFIG_KEYS.items()},
+    "allow_mutation": ("frozen", operator.not_),
+}
+
+
+def _translate_v1_config_keys(
+    config: t.Mapping[str, t.Any], depth: t.Optional[t.Callable[[str], int]] = None
+) -> t.Dict[str, t.Any]:
+    """``config`` with the v1 key names replaced by their v2 names; the v1 key is
+    dropped either way, so pydantic does not warn about a key that is applied.
+
+    When both spellings of a setting are given, the one defined nearest wins:
+    ``depth(key)`` is the position, along the config class MRO, of the class that
+    defines ``key`` (a child ``Config`` overrides what it inherits, whatever the
+    spelling); within the same class — or in a plain mapping, where ``depth`` is
+    ``None`` — the v2 key wins.
+    """
+    out = {k: v for k, v in config.items() if k not in _V1_CONFIG_TRANSLATIONS}
+    for v1_key, (v2_key, convert) in _V1_CONFIG_TRANSLATIONS.items():
+        if v1_key not in config:
+            continue
+        if v2_key in config and (depth is None or depth(v2_key) <= depth(v1_key)):
+            continue
+        out[v2_key] = convert(config[v1_key])
     return out
 
 
 def _has_v1_config_keys(config: t.Iterable[str]) -> bool:
-    return any(k in _V1_RENAMED_CONFIG_KEYS or k == "allow_mutation" for k in config)
+    return any(k in _V1_CONFIG_TRANSLATIONS for k in config)
 
 
 def _translate_v1_config(namespace: dict, kwargs: dict) -> None:
@@ -218,6 +234,11 @@ def _translate_v1_config(namespace: dict, kwargs: dict) -> None:
         # pydantic reads a config class through `dir()` (inherited attributes included)
         attrs = {k: getattr(config_cls, k) for k in dir(config_cls) if not k.startswith("__")}
         if _has_v1_config_keys(attrs):
+
+            def depth(key: str) -> int:
+                mro = config_cls.__mro__
+                return next((i for i, klass in enumerate(mro) if key in vars(klass)), len(mro))
+
             namespace["Config"] = type(
                 config_cls.__name__,
                 (),
@@ -225,7 +246,7 @@ def _translate_v1_config(namespace: dict, kwargs: dict) -> None:
                     # pydantic recognises a nested `Config` by its module and qualname
                     "__module__": config_cls.__module__,
                     "__qualname__": config_cls.__qualname__,
-                    **_translate_v1_config_keys(attrs),
+                    **_translate_v1_config_keys(attrs, depth),
                 },
             )
     if _has_v1_config_keys(kwargs):

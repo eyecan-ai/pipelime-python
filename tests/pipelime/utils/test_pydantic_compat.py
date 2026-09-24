@@ -348,6 +348,95 @@ class TestV1ConfigKeys:
         assert m.s == "a" and M.model_config["frozen"] is False
         m.s = "b"
 
+    def test_child_config_overrides_parent_v1_keys(self):
+        # the parent's `Config` is rebuilt with v2 keys; a child `Config(Parent.Config)`
+        # re-setting the v1 spelling must still override it (pydantic.v1 semantics)
+        def make_parent():
+            class P(pc.PipelimeModel):
+                s: str = ""
+
+                class Config:
+                    anystr_strip_whitespace = True
+                    allow_mutation = False
+
+            return P
+
+        P, _ = _collect_class_config_warnings(make_parent)
+
+        def make_child():
+            class C(P):
+                s: str = ""
+
+                class Config(P.Config):
+                    anystr_strip_whitespace = False
+                    allow_mutation = True
+
+            return C
+
+        C, others = _collect_class_config_warnings(make_child)
+        assert others == []
+        c = C(s=" a ")
+        assert c.s == " a " and C.model_config["frozen"] is False
+        c.s = "b"  # mutable again
+        assert P(s=" a ").s == "a" and P.model_config["frozen"] is True  # parent untouched
+
+    def test_child_v1_key_overrides_inherited_v2_key(self):
+        class SharedConfig:
+            str_strip_whitespace = True
+            frozen = True
+
+        def make_cls():
+            class M(pc.PipelimeModel):
+                s: str = ""
+
+                class Config(SharedConfig):
+                    anystr_strip_whitespace = False
+                    allow_mutation = True
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == []
+        m = M(s=" a ")
+        assert m.s == " a " and M.model_config["frozen"] is False
+
+    def test_child_v2_key_overrides_inherited_v1_key(self):
+        class SharedConfig:
+            anystr_strip_whitespace = True
+            allow_mutation = True
+
+        def make_cls():
+            class M(pc.PipelimeModel):
+                s: str = ""
+
+                class Config(SharedConfig):
+                    str_strip_whitespace = False
+                    frozen = True
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == []
+        assert M(s=" a ").s == " a " and M.model_config["frozen"] is True
+
+    def test_allow_mutation_inherited_through_config(self):
+        class SharedConfig:
+            allow_mutation = False
+
+        def make_cls():
+            class M(pc.PipelimeModel):
+                x: int = 1
+
+                class Config(SharedConfig):
+                    anystr_lower = True
+
+            return M
+
+        M, others = _collect_class_config_warnings(make_cls)
+        assert others == [] and M.model_config["frozen"] is True
+        with pytest.raises(pydantic.ValidationError, match="frozen"):
+            M().x = 2
+
     def test_inherited_config_class(self):
         class Base:
             anystr_lower = True
