@@ -250,3 +250,22 @@ class TestCommands:
         # force_gc = True
         cmd = _testcm_true()
         self._gc_run_and_check(cmd, True)
+
+    def test_classic_graph_commands_are_pipelime_models(self):
+        from pipelime.commands.piper import (
+            ClassicPiperGraphCommand,
+            DrawCommand,
+            PiperGraphCommandBase,
+            RunCommand,
+            RunCommandBase,
+        )
+        from pipelime.utils.pydantic_compat import PipelimeModel
+
+        assert issubclass(ClassicPiperGraphCommand, PipelimeModel)
+        assert type(ClassicPiperGraphCommand) is type(PipelimeModel)
+        # the mixin still comes first, right before the graph command base
+        assert RunCommand.__mro__[1:3] == (ClassicPiperGraphCommand, RunCommandBase)
+        assert DrawCommand.__mro__[1:3] == (
+            ClassicPiperGraphCommand,
+            PiperGraphCommandBase,
+        )

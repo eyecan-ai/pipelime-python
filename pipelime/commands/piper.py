@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel, PositiveInt, PrivateAttr, create_model, field_validator
+from pydantic import PositiveInt, PrivateAttr, create_model, field_validator
 
 from pipelime.piper import Field
 from pipelime.piper.model import T_NODES, LazyCommand, PipelimeCommand, PiperPortType
@@ -281,7 +281,7 @@ class RunCommandBase(GraphPortForwardingCommand):
             self.command_checkpoint.write_data("exclude", exc, lock)
 
 
-class ClassicPiperGraphCommand(BaseModel):
+class ClassicPiperGraphCommand(PipelimeModel):
     nodes: T_NODES = Field(
         ...,
         alias="n",
