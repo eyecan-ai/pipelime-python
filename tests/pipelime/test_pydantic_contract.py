@@ -9,6 +9,7 @@ docs/migration/pydantic_v2.md).
 """
 from __future__ import annotations
 
+import inspect
 import os
 import pickle
 import typing as t
@@ -846,11 +847,25 @@ def _render_help(model_cls) -> str:
     return " ".join(console.export_text().split())
 
 
+INT_DOC_PLACEHOLDER = "<inspect.getdoc(int) body>"
+
+
+def _interpreter_independent(text: str) -> str:
+    """The rows of the undocumented `int` fields fall back to `inspect.getdoc(int)`,
+    whose wording depends on the Python version (3.12: "floating-point"): replace
+    its body (every line after the first, which shares its row with the other
+    columns) with a placeholder."""
+    lines = inspect.getdoc(int).splitlines()
+    body = " ".join(" │ │ ".join(lines[1:]).split())
+    return text.replace(body, INT_DOC_PLACEHOLDER)
+
+
 class TestHelpRendering:
     def test_help_rows_snapshot(self):
-        text = _render_help(PortsCommand)
+        text = _interpreter_independent(_render_help(PortsCommand))
         for token in ["inp / i", "out / o", "prm", "INPUT", "OUTPUT", "PARAMETER", "int"]:
             assert token in text
+        assert text.count(INT_DOC_PLACEHOLDER) == 3  # the docstring fallback, once per field
         if os.environ.get("PIPELIME_CONTRACT_REGEN") == "1":  # opt-in (re)generation
             HELP_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
             HELP_SNAPSHOT.write_text(text)
