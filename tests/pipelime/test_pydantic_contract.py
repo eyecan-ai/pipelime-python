@@ -890,6 +890,10 @@ class TestHelpRendering:
         assert hrt(t.Literal["a", 1]) == "Literal['a', 1]"
         assert hrt(t.Optional[t.Sequence[int]]) == "[int, ...] | None"
         assert hrt(t.Mapping[str, t.Any]) == "{str: Any}"
+        if not V1:  # v2 constrained types are `Annotated[X, <constraints>]`: shown as `X`
+            assert hrt(t.Union[bool, pyd.PositiveInt]) == "bool | int"
+            assert hrt(t.Tuple[pyd.NonNegativeInt, pyd.NonNegativeInt]) == "(int, int)"
+            assert hrt(t.Optional[t.Union[pyd.PositiveInt, str]]) == "int | str | None"
 
 
 # --- modern type hints (spec §4.8) ----------------------------------------------

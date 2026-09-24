@@ -25,7 +25,9 @@ lives here:
 from __future__ import annotations
 
 import dataclasses
+import functools
 import inspect
+import operator
 import re
 import sys
 import types
@@ -563,6 +565,28 @@ def type_info(tp: t.Any) -> TypeInfo:
 
 def strip_optional(tp: t.Any) -> t.Any:
     return type_info(tp).inner
+
+
+def strip_annotated(tp: t.Any) -> t.Any:
+    """``tp`` without ``Annotated`` metadata at any depth (``Union[bool, PositiveInt]``
+    → ``Union[bool, int]``), for display. ``tp`` itself when there is nothing to
+    strip; a generic form it does not know how to rebuild is returned as is."""
+    tp = _unwrap_annotated(tp)
+    args = getattr(tp, "__args__", None)
+    if t.get_origin(tp) is None or not isinstance(args, tuple):
+        return tp
+    new_args = tuple(strip_annotated(a) for a in args)
+    if all(n is a for n, a in zip(new_args, args)):
+        return tp
+    origin = t.get_origin(tp)
+    if origin is t.Union:
+        return t.Union[new_args]
+    if origin is types.UnionType:
+        return functools.reduce(operator.or_, new_args)
+    if isinstance(tp, types.GenericAlias):  # `list[int]`, `tuple[int, ...]`
+        return types.GenericAlias(origin, new_args)
+    copy_with = getattr(tp, "copy_with", None)  # `typing` aliases, incl. `Callable`
+    return copy_with(new_args) if copy_with is not None else tp
 
 
 def model_title(cls: t.Type[BaseModel]) -> str:

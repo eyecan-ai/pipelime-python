@@ -9,7 +9,13 @@ from rich.panel import Panel
 from rich.pretty import Pretty
 from rich.table import Column, Table
 
-from pipelime.utils.pydantic_compat import FieldView, iter_fields, model_title, type_info
+from pipelime.utils.pydantic_compat import (
+    FieldView,
+    iter_fields,
+    model_title,
+    strip_annotated,
+    type_info,
+)
 
 if t.TYPE_CHECKING:
     from pipelime.cli.utils import ActionInfo
@@ -424,7 +430,8 @@ _TYPING_MODULES = ("typing", "typing_extensions")
 def _human_readable_type(field_outer_type):
     from enum import Enum
 
-    v = field_outer_type
+    # constrained types (`Annotated[int, Gt(gt=0)]`) are shown as their base type
+    v = strip_annotated(field_outer_type)
     ti = type_info(v)
 
     if ti.is_union:
@@ -439,8 +446,8 @@ def _human_readable_type(field_outer_type):
 
     if inspect.isclass(v) and issubclass(v, Enum):
         v = v.__name__ + "{" + ", ".join(e.name.lower() for e in v) + "}"
-    elif ti.origin is not None or t.get_origin(v) is not None:
-        # generic aliases (`Sequence[int]`, `Literal[...]`, `Annotated[...]`)
+    elif ti.origin is not None:
+        # generic aliases (`Sequence[int]`, `Literal[...]`)
         v = str(v).replace("typing.", "")
     else:
         if not inspect.isclass(v) and type(v).__module__ not in _TYPING_MODULES:

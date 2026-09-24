@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from pipelime.cli.utils import PipelimeSymbolsHelper
 from pipelime.piper import PipelimeCommand
 from pipelime.stages import SampleStage, StageInput
-from pipelime.utils.pydantic_compat import FieldView, iter_fields
+from pipelime.utils.pydantic_compat import FieldView, iter_fields, strip_annotated
 
 
 class TuiField(BaseModel):
@@ -192,7 +192,8 @@ def get_field_type(field: FieldView) -> str:
     Returns:
         The type of the field.
     """
-    type_ = field.annotation
+    # constrained types (`Annotated[int, Gt(gt=0)]`) are shown as their base type
+    type_ = strip_annotated(field.annotation)
     if inspect.isclass(type_) and not getattr(type_, "__args__", None):
         type_ = type_.__name__
     else:

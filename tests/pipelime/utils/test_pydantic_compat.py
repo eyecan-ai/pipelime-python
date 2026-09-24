@@ -5,6 +5,7 @@ import inspect
 import typing as t
 import warnings
 
+import annotated_types
 import pydantic
 import pytest
 
@@ -637,6 +638,22 @@ class TestIntrospection:
         assert pc.type_info(t.Annotated[t.Optional[int], "meta"]).inner is int
         assert pc.strip_optional(dict[str, int] | None) == dict[str, int]
         assert pc.type_info(int).inner is int and pc.type_info(int).args == ()
+
+    def test_strip_annotated(self):
+        pos = t.Annotated[int, annotated_types.Gt(0)]
+        assert pc.strip_annotated(pos) is int
+        assert pc.strip_annotated(t.Annotated[pos, "more"]) is int
+        assert pc.strip_annotated(t.Union[bool, pos]) == t.Union[bool, int]
+        assert pc.strip_annotated(bool | pos) == bool | int
+        assert pc.strip_annotated(t.Tuple[pos, pos]) == t.Tuple[int, int]
+        assert pc.strip_annotated(tuple[pos, ...]) == tuple[int, ...]
+        assert pc.strip_annotated(t.Optional[t.List[pos]]) == t.Optional[t.List[int]]
+        assert pc.strip_annotated(dict[str, list[pos]]) == dict[str, list[int]]
+        assert pc.strip_annotated(t.Callable[[pos], pos]) == t.Callable[[int], int]
+        # nothing to strip: the very same object (its printed form is unchanged)
+        for tp in (int, t.List[int], t.Optional[int], int | None, t.Literal["a", 1],
+                   t.Callable[..., int], t.Dict[str, t.Any], list[int]):
+            assert pc.strip_annotated(tp) is tp
 
     def test_field_view(self):
         class Inner(pc.PipelimeModel):
