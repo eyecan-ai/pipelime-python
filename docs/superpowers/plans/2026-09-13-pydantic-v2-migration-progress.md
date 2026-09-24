@@ -34,10 +34,10 @@
 | S2b | S2b-T7 (cli/utils minimal) | done | import smoke; gate at T9 | ok | cdb9e55 (+ 5ce9b94) | `resolve_pipelime_command`/`format_validation_error`; 5ce9b94: `_load_symbols` no longer flags the *same class* seen from two modules as a duplicate (pre-existing, reproduced on `main`; made every grabber worker crash-loop after `tests/pipelime/stages` registered `test_entities.py`) |
 | S2b | S2b-T8 (choixe decode/$model) | done | `pytest tests/pipelime/choixe` | 442 passed | e7246c4 | `test_processor.py::test_model` compares `model_dump()` + class name: `$model` imports the test *file* as a second module, so v2's type-aware `__eq__` no longer equates the two `MyModel` classes (v1 compared dicts) |
 | S2b | S2b-T9 (test edits + S2 gate) | done | (1) `pytest tests/pipelime/{stages,sequences,piper,utils,choixe,items}` (2) `pytest -n auto --dist loadgroup tests/pipelime/commands` (3) `pytest tests/pipelime/test_pydantic_contract.py -k "not HelpRendering and not test_help and not test_tui"` | (1) 1041 passed, 4 skipped, **8 failed** — all `test_command_decorator.py::test_is_command[*]`, which call `pretty_print.print_models_short_help`/`print_model_info` (`__config__`, S3-T1 scope) (2) 1302 passed, 1 skipped (3) 47 passed; `-W error tests/pipelime/utils/test_pydantic_compat.py` 41 passed | e2753b5 (+ f383470, f943809, e938a7a) | `test_grabber.py` runs and passes inside gate (1) (43 s, no crash-loop); both contract xfails now pass. Toolkit: f383470 bool→str coercion for `str` fields (v1 parity: `varpos("a", 1, True)`); f943809 `NumpyType._coerce` keeps an ndarray as is. Two contract pins corrected (see TEST_CHANGES.md). Warnings are only test-side `parse_obj`/`dict`/`json` deprecations (S5) |
-| S3 | S3-T1 (pretty_print) | todo | | | | |
-| S3 | S3-T2 (TUI) | todo | | | | |
-| S3 | S3-T3 (main.py) | todo | | | | |
-| S3 | S3-T4 (full suite gate) | todo | | | | |
+| S3 | S3-T1 (pretty_print) | done | `pytest -o addopts="" tests/pipelime/test_pydantic_contract.py -k "HelpRendering or test_help"` | 2 passed (snapshot byte-identical, unchanged); `tests/pipelime/piper/test_command_decorator.py` 17 passed (the 8 `test_is_command` failures fixed) | b08e333 | help on `FieldView`/`type_info`; modern hints render `[int, ...]`, `{str: float}`, `(int, str)`, `int \| str`, `X \| None` → `X`; `inspect.getdoc(inner_type)` fallback kept |
+| S3 | S3-T2 (TUI) | done | `pytest -o addopts="" tests/pipelime/cli/test_tui.py tests/pipelime/test_pydantic_contract.py -k "tui or TUI or ModernTypeHints"` | 48 passed (contract `test_tui` passes, no xfail) | 1cfe6ab | also `are_stageinput_args_present` (not in the brief, same v1 loop); `test_tui.py` v1 forms edited (TEST_CHANGES.md); `x: T = None` shows `Optional[T]` (ruling 2, no test pins `T`) |
+| S3 | S3-T3 (main.py) | done | `pytest -o addopts="" tests/pipelime/cli`; leftover `grep -rn "pydantic.v1" pipelime` | 94 passed; grep → only the error-message text in `choixe/visitors/processor.py:223` (outside the excluded `pydantic_compat.py`/`choixe/ast/nodes.py`) | 05d08f6 (+ ac52fa9, 93716fd, 2403b61) | run path prints `format_validation_error(e, cmd_cls)`; `show_field_alias_valerr` **kept** (see Surprises); extras: ac52fa9 `LazyCommand` unset required field → `None`, 93716fd `_classpath` of re-exported symbols kept, 2403b61 `ClassicPiperGraphCommand` on `PipelimeModel` (`-n auto tests/pipelime/commands` 1304 passed, 1 skipped) |
+| S3 | S3-T4 (full suite gate) | done | (1) `make test-full` (2) `make test-tier1` (3) `pytest -o addopts="" -W error tests/pipelime/utils/test_pydantic_compat.py` | (1) 2504 passed, 5 skipped (S0 baseline skips), **0 failed, 0 xfailed**, 123.44 s at d51f2ba (2503 passed at 2403b61) (2) 1992 passed, 4 skipped, 436 s at 2403b61 (3) 45 passed | d51f2ba (self-review fix) + this docs commit | no failure to triage; pydantic deprecation warnings are all test-side (`parse_obj`/`dict`/`json`, raw `pyd.Field(piper_port=)` in `tests/sample_data/cli/ckpt_dag.py`) — S5 |
 | S4 | S4-T1 (choixe dataclasses) | todo | | | | |
 | S4 | S4-T2 (Tier 2 gate) | todo | | | | |
 | S5 | S5-T1 (deps + version) | todo | | | | |
@@ -47,6 +47,25 @@
 | S5 | S5-T5 (downstream smoke + release checklist) | todo | | | | |
 
 ## Surprises / deviations from the plan
+- (S3) **`show_field_alias_valerr` kept (controller ruling 3 not applied):** the ruling assumed
+  nothing imports it, but `test_pydantic_contract.py::TestValidationInterfaces::test_alias_error_formatting`
+  imports it unconditionally (outside its `if V1:` branch), so removing it fails that contract test;
+  the brief's step is conditional on nothing importing it, and it is a pipelime 2.x public name.
+  Nothing under `pipelime/` calls it any more. Open for the controller: keep, or remove it and move
+  the contract import into the `if V1:` branch (a test edit).
+- (S3) `cli/tui/utils.py::are_stageinput_args_present` (not listed in the brief) had the same
+  `__fields__`/`.alias` loop as `is_tui_needed`; converted to `iter_fields`/`effective_alias`.
+- (S3) Ruling 1b supersedes the S2b note above: `_load_symbols` now sets `_classpath` only for
+  classes defined in the loaded file (`sym_cls.__module__ == module_.__name__`); a re-exported
+  pipelime class keeps its pipelime class path (regression assertions in `test_symbols_helper.py`).
+- (S3) **Help type names, self-review fix d51f2ba:** the brief's `_human_readable_type` rendered
+  a value among the type args via `str()` (`Tuple[int, ...]` → `(int, Ellipsis)`, 2.x:
+  `(int, ellipsis)`) and a `TypeVar` as `~T` (2.x: `T`). Restored the 2.x fallback (a value by
+  its class, named typing objects by `__name__`); `Annotated[...]` still prints as written. The
+  only remaining difference found is `NewType("N", int)`: 2.x printed the literal `NewType`, now `N`.
+  Pinned by the new contract test `TestHelpRendering::test_type_names`.
+- (S3) `LazyCommand.__getattr__` of an unset required field returned `PydanticUndefined` since S2b;
+  it returns `None` again as v1 `ModelField.get_default()` did (ac52fa9, contract regression test).
 - (S2b) **`test_is_command` ×8 fail at the S2 gate and cannot pass before S3-T1:**
   `tests/pipelime/piper/test_command_decorator.py::test_is_command` calls
   `pipelime.cli.pretty_print.print_models_short_help`/`print_model_info`, which still read
