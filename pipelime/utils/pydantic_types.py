@@ -243,10 +243,12 @@ class YamlInput(PipelimeRootModel[yaml_any_type]):
                 import pydash as py_
                 import yaml
 
+                from pipelime.choixe.utils.common import pydash_path
+
                 with filepath.open() as f:
                     value = yaml.safe_load(f)
                     if root_key:
-                        value = py_.get(value, root_key, default=None)
+                        value = py_.get(value, pydash_path(root_key), default=None)
             return value
         if cls._check_any_type(value):
             return value

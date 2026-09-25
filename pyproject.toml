@@ -41,11 +41,7 @@ dependencies = [
     "python-box",
     "deepdiff",
     "filelock",
-    # pydash 8.1 reads a leading `.` in a path as an empty first key, which breaks
-    # choixe `visitors/processor.py::visit_item` (its `.key` `py_.get` path now
-    # returns None) and `Sample.deep_set` (`py_.set_` writes the value under a new
-    # "" key instead of the target); lift this pin once a follow-up fixes both
-    "pydash<8.1",
+    "pydash",
     "pydantic>=2.10,<3",
     "pydantic-extra-types",
     "schema",

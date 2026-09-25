@@ -601,8 +601,10 @@ class ValidateCommand(PipelimeCommand, title="validate"):
         if self.root_key_path:  # pragma: no branch
             import pydash as py_
 
+            from pipelime.choixe.utils.common import pydash_path
+
             tmp_dict = {}
-            py_.set_(tmp_dict, self.root_key_path, sample_validation)
+            py_.set_(tmp_dict, pydash_path(self.root_key_path), sample_validation)
             sample_validation = tmp_dict
 
         self.output_schema_def = ValidateCommand.OutputSchemaDefinition(

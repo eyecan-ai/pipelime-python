@@ -209,6 +209,17 @@ class TestSample:
         assert sample.deep_get("not.there", "default") == "default"
         assert sample.deep_get("notthere", "default") == "default"
 
+    def test_deep_set_get_empty_path_keys(self):
+        # a leading, trailing or doubled `.` is not an empty key (pydash 8.0.x
+        # semantics, kept on pydash >= 8.1 which reads it as an empty key)
+        import pipelime.items as pli
+
+        sample = pls.Sample({"m": pli.JsonMetadataItem({"a": {"b": 1}})})
+        assert sample.deep_set("m.a.b", 2)["m"]() == {"a": {"b": 2}}
+        assert sample.deep_set("m.a..b.", 3)["m"]() == {"a": {"b": 3}}
+        assert sample.deep_get("m..a.b.") == 1
+        assert sample.deep_get("m.a..b") == 1
+
     def test_match(self):
         sample, data = self._mixed_sample()
         assert sample.match(f"`c.foo` == '{data['c']()['foo']}'")

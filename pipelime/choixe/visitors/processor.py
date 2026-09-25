@@ -11,6 +11,7 @@ import pydash as py_
 
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
+from pipelime.choixe.utils.common import pydash_path
 from pipelime.choixe.utils.imports import import_symbol
 from pipelime.choixe.utils.io import PipelimeTmp, load
 from pipelime.choixe.utils.rand import rand
@@ -148,8 +149,8 @@ class Processor(ast.NodeVisitor):
             var_value = None
             found = False
 
-            if py_.has(self._context, id_):
-                var_value = py_.get(self._context, id_)
+            if py_.has(self._context, pydash_path(id_)):
+                var_value = py_.get(self._context, pydash_path(id_))
                 found = True
             if not found and env:
                 value = os.getenv(id_)
@@ -228,10 +229,10 @@ class Processor(ast.NodeVisitor):
 
     def visit_for(self, node: ast.ForNode) -> List[Any]:
         if isinstance(node.iterable.data, str):
-            if not py_.has(self._context, node.iterable.data):
+            if not py_.has(self._context, pydash_path(node.iterable.data)):
                 iterable = self._handle_missing_for(node.iterable.data)
             else:
-                iterable = py_.get(self._context, node.iterable.data)
+                iterable = py_.get(self._context, pydash_path(node.iterable.data))
         else:
             iterable = node.iterable.data
 
@@ -288,10 +289,10 @@ class Processor(ast.NodeVisitor):
         for branch in all_branches:
             varname = branch[0]
 
-            if not py_.has(self._context, varname):
+            if not py_.has(self._context, pydash_path(varname)):
                 value = self._handle_missing_switch(varname)
             else:
-                value = py_.get(self._context, varname)
+                value = py_.get(self._context, pydash_path(varname))
 
             # Match the value to the correct case
             for i in range(len(node.cases)):
@@ -331,7 +332,7 @@ class Processor(ast.NodeVisitor):
         items = []
         for branch in branches:
             loop_id, _, key = str(branch).partition(sep)  # type: ignore
-            item = py_.get(self._loop_data[loop_id].item, f"{sep}{key}")
+            item = py_.get(self._loop_data[loop_id].item, pydash_path(f"{sep}{key}"))
             items.append(item)
         return items
 
