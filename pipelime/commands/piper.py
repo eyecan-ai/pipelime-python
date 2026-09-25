@@ -4,16 +4,11 @@ from enum import Enum
 from pathlib import Path
 
 from loguru import logger
-from pydantic.v1 import (
-    BaseModel,
-    Field,
-    PositiveInt,
-    PrivateAttr,
-    create_model,
-    validator,
-)
+from pydantic import PositiveInt, PrivateAttr, create_model, field_validator
 
+from pipelime.piper import Field
 from pipelime.piper.model import T_NODES, LazyCommand, PipelimeCommand, PiperPortType
+from pipelime.utils.pydantic_compat import PipelimeModel, model_title
 
 if t.TYPE_CHECKING:
     from pipelime.piper.checkpoint import CheckpointNamespace
@@ -286,7 +281,7 @@ class RunCommandBase(GraphPortForwardingCommand):
             self.command_checkpoint.write_data("exclude", exc, lock)
 
 
-class ClassicPiperGraphCommand(BaseModel):
+class ClassicPiperGraphCommand(PipelimeModel):
     nodes: T_NODES = Field(
         ...,
         alias="n",
@@ -489,7 +484,9 @@ class DagBaseCommand(RunCommandBase):
     a custom name for the input and output data keys.
     """
 
-    folder_debug: Path = Field(None, description="Path to Debug dir folder.")
+    folder_debug: Path = Field(
+        None, validate_default=True, description="Path to Debug dir folder."
+    )
     draw: t.Union[bool, Path, t.Mapping] = Field(
         False,
         description=(
@@ -502,7 +499,8 @@ class DagBaseCommand(RunCommandBase):
 
     _nodes: T_NODES = PrivateAttr(None)
 
-    @validator("folder_debug", always=True)
+    @field_validator("folder_debug")
+    @classmethod
     def _validate_folder_debug(cls, v):
         from pipelime.choixe.utils.io import PipelimeTmp
 
@@ -606,13 +604,7 @@ class DagBaseCommand(RunCommandBase):
         return super().run()
 
 
-class PiperDAG(
-    BaseModel,
-    ABC,
-    allow_population_by_field_name=True,
-    extra="forbid",
-    copy_on_model_validation="none",
-):
+class PiperDAG(PipelimeModel, ABC, populate_by_name=True, extra="forbid"):
     """Base class to ease the creation of Python DAG Object.
 
     Derived classes should add custom properties as pydantic fields and implement
@@ -686,7 +678,7 @@ def piper_dag(cls: t.Type[PiperDAG]):
         cls.__name__,
         __base__=_PiperDagCommandHelper,
         __module__=cls.__module__,
-        __cls_kwargs__={"title": cls.schema()["title"]},
+        __cls_kwargs__={"title": model_title(cls)},
     )
     dag_command.__doc__ = cls.__doc__
 

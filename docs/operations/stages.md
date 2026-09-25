@@ -115,11 +115,11 @@ class RemoveMaskinvInput(BaseEntity):
     maskinv: pli.ImageItem
 
 def remove_maskinv_action(x: RemoveMaskinvInput) -> BaseEntity:
-    out_dict = {k: v for k, v in x.dict().items() if k != "maskinv"}
+    out_dict = {k: v for k, v in x.model_dump().items() if k != "maskinv"}
     return BaseEntity(**out_dict)
 ```
 
-Here we used the `dict` method of the underlying pydantic model to get a dictionary
+Here we used the `model_dump` method of the underlying pydantic model to get a dictionary
 representation of the input entity.
 
 ## Parametrized Actions
@@ -191,13 +191,12 @@ class DebuggableAction:
 Besides high-level validation, item values can also be parsed and converted to a more convenient type. The most common use case is to parse a JSON/YAML metadata file into a pydantic model:
 
 ```python
-from typing import Sequence
 from pydantic import BaseModel
 
 from pipelime.stages.entities import ParsedItem
 
 class MetadataModel(BaseModel):
-    keypoints: t.Sequence[t.Tuple[float, float]]
+    keypoints: list[tuple[float, float]]
     label: int
     description: str
 
@@ -385,10 +384,13 @@ class StrictEntity(BaseEntity, extra="forbid"):
 Also, you can add custom validation logic to your entities:
 
 ```python
+from pydantic import field_validator
+
 class ColorImageEntity(BaseEntity):
     image: pli.ImageItem
 
-    @validator("image")
+    @field_validator("image")
+    @classmethod
     def check_color(cls, v):
         if v().shape[2] != 3:
             raise ValueError("The image must be a color image")
@@ -399,34 +401,42 @@ You can even perform advanced transformations on the input items,
 checkout [pydantic](https://docs.pydantic.dev/) for more details:
 
 ```python
+from pydantic import Field, ValidationInfo, field_validator
+
 class MaskedGrayImageEntity(BaseEntity):
     """A gray image with a mask.
     The grayscale image is computed from the RGB image if not provided.
     """
 
-    image: pli.ImageItem = None
-    grayscale: pli.ImageItem = None
+    image: pli.ImageItem | None = None
+    # `validate_default=True`: run the validator even when `grayscale` is not given
+    grayscale: pli.ImageItem | None = Field(None, validate_default=True)
     mask: pli.ImageItem
 
-    @validator("image")
+    @field_validator("image")
+    @classmethod
     def check_color_image(cls, v):
         if v is not None and v().shape[2] != 3:
             raise ValueError("The `image` must be a color image")
         return v
 
-    @validator("grayscale", always=True)
-    def check_gray_image(cls, v, values):
+    @field_validator("grayscale")
+    @classmethod
+    def check_gray_image(cls, v, info: ValidationInfo):
+        # `info.data` holds the fields validated so far
         if v is None:
-            if "image" not in values or values["image"] is None:
+            if info.data.get("image") is None:
                 raise ValueError("Either `image` or `grayscale` must be provided")
-            v = values["image"].make_new(values["image"]().mean(axis=2))
+            image = info.data["image"]
+            v = image.make_new(image().mean(axis=2))
         return v
 
-    @validator("mask")
-    def check_mask(cls, v, values):
+    @field_validator("mask")
+    @classmethod
+    def check_mask(cls, v, info: ValidationInfo):
         if v().shape[2] != 1:
             raise ValueError("The `mask` must be single channel")
-        if v().shape[:2] != values["grayscale"]().shape[:2]:
+        if "grayscale" in info.data and v().shape[:2] != info.data["grayscale"]().shape[:2]:
             raise ValueError("The `mask` and the `grayscale` image must have the same size")
         return v
 ```

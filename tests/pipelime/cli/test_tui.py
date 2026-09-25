@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import pytest
 import yaml
-from pydantic.v1 import BaseModel, Field
+from pydantic import BaseModel
 from textual.keys import Keys
 from textual.widgets import Input, Label
 
@@ -24,9 +24,10 @@ from pipelime.commands.interfaces import (
     InputDatasetInterface,
     OutputDatasetInterface,
 )
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 from pipelime.sequences import Sample
 from pipelime.stages import SampleStage, StageInput
+from pipelime.utils.pydantic_compat import get_field, iter_fields
 
 
 class FooCommand(PipelimeCommand, title="foo-command"):
@@ -207,11 +208,11 @@ def test_are_stageinput_args_present(stage_args: Dict[str, str], present: bool) 
 
 def test_init_tui_field() -> None:
     fields = [
-        FooCommand.__fields__["input_folder"],
-        FooCommand.__fields__["output_folder"],
-        FooCommand.__fields__["debug"],
-        FooCommand.__fields__["grabber"],
-        CommandWithEnum.__fields__["my_enum"],
+        get_field(FooCommand, "input_folder"),
+        get_field(FooCommand, "output_folder"),
+        get_field(FooCommand, "debug"),
+        get_field(FooCommand, "grabber"),
+        get_field(CommandWithEnum, "my_enum"),
     ]
 
     args = {"i": "foo"}
@@ -220,14 +221,14 @@ def test_init_tui_field() -> None:
         TuiField(
             simple=True,
             name="input_folder",
-            description=str(fields[0].field_info.description),
+            description=str(fields[0].description),
             type_="InputDatasetInterface",
             value="foo",
         ),
         TuiField(
             simple=True,
             name="output_folder",
-            description=str(fields[1].field_info.description),
+            description=str(fields[1].description),
             type_="OutputDatasetInterface",
             value="",
         ),
@@ -235,21 +236,21 @@ def test_init_tui_field() -> None:
             simple=True,
             name="debug",
             value="False",
-            description=str(fields[2].field_info.description),
+            description=str(fields[2].description),
             type_="bool",
         ),
         TuiField(
             simple=True,
             name="grabber",
-            description=str(fields[3].field_info.description),
-            hint=str(FooCommand.__fields__["grabber"].get_default()),
+            description=str(fields[3].description),
+            hint=str(get_field(FooCommand, "grabber").default),
             type_="GrabberInterface",
         ),
         TuiField(
             simple=True,
             name="my_enum",
             value=CommandWithEnum.MyEnum.FOO.value,
-            description=str(fields[4].field_info.description),
+            description=str(fields[4].description),
             type_="MyEnum",
         ),
     ]
@@ -261,11 +262,11 @@ def test_init_tui_field() -> None:
 def test_init_tui_stageinput_field() -> None:
     from pipelime.commands import MapCommand
 
-    field = MapCommand.__fields__["stage"]
+    field = get_field(MapCommand, "stage")
     expected_field = TuiField(
         simple=True,
         name="stage",
-        description=str(field.field_info.description),
+        description=str(field.description),
         type_="StageInput",
     )
     assert init_stageinput_tui_field(field, {}) == expected_field
@@ -280,8 +281,8 @@ def test_init_tui_stageinput_field() -> None:
         name="format-key",
         description=str(stage_cls.__doc__),
         values=[
-            init_tui_field(stage_cls.__fields__["key_format"], {}),
-            init_tui_field(stage_cls.__fields__["apply_to"], {}),
+            init_tui_field(get_field(stage_cls, "key_format"), {}),
+            init_tui_field(get_field(stage_cls, "apply_to"), {}),
         ],
     )
     assert init_stageinput_tui_field(field, args) == expected_field
@@ -293,8 +294,8 @@ def test_init_tui_stageinput_field() -> None:
         name="format-key",
         description=str(stage_cls.__doc__),
         values=[
-            init_tui_field(stage_cls.__fields__["key_format"], stage_args),
-            init_tui_field(stage_cls.__fields__["apply_to"], stage_args),
+            init_tui_field(get_field(stage_cls, "key_format"), stage_args),
+            init_tui_field(get_field(stage_cls, "apply_to"), stage_args),
         ],
     )
     assert init_stageinput_tui_field(field, args) == expected_field
@@ -306,8 +307,8 @@ def test_init_tui_stageinput_field() -> None:
         name="format-key",
         description=str(stage_cls.__doc__),
         values=[
-            init_tui_field(stage_cls.__fields__["key_format"], stage_args),
-            init_tui_field(stage_cls.__fields__["apply_to"], stage_args),
+            init_tui_field(get_field(stage_cls, "key_format"), stage_args),
+            init_tui_field(get_field(stage_cls, "apply_to"), stage_args),
         ],
     )
     assert init_stageinput_tui_field(field, args) == expected_field
@@ -340,7 +341,7 @@ def test_parse_user_input() -> None:
 
 
 def test_get_field_type() -> None:
-    fields = ModelWithComplexFieldsTypes.__fields__
+    fields = {f.name: f for f in iter_fields(ModelWithComplexFieldsTypes)}
 
     assert get_field_type(fields["input_folder"]) == "InputDatasetInterface"
     assert get_field_type(fields["output_folder"]) == "OutputDatasetInterface"
@@ -389,7 +390,7 @@ def test_tui_init_fields() -> None:
                     simple=True,
                     name="remap",
                     description=str(
-                        StageRemap.__fields__["remap"].field_info.description
+                        get_field(StageRemap, "remap").description
                     ),
                     type_="Mapping[str, str]",
                     value="",
@@ -398,7 +399,7 @@ def test_tui_init_fields() -> None:
                     simple=True,
                     name="remove_missing",
                     description=str(
-                        StageRemap.__fields__["remove_missing"].field_info.description
+                        get_field(StageRemap, "remove_missing").description
                     ),
                     type_="bool",
                     value="True",
@@ -408,22 +409,22 @@ def test_tui_init_fields() -> None:
         "input": TuiField(
             simple=True,
             name="input",
-            description=str(MapCommand.__fields__["input"].field_info.description),
+            description=str(get_field(MapCommand, "input").description),
             type_="InputDatasetInterface",
             value="foo",
         ),
         "output": TuiField(
             simple=True,
             name="output",
-            description=str(MapCommand.__fields__["output"].field_info.description),
+            description=str(get_field(MapCommand, "output").description),
             type_="OutputDatasetInterface",
             value="bar",
         ),
         "grabber": TuiField(
             simple=True,
             name="grabber",
-            description=str(MapCommand.__fields__["grabber"].field_info.description),
-            hint=str(MapCommand.__fields__["grabber"].get_default()),
+            description=str(get_field(MapCommand, "grabber").description),
+            hint=str(get_field(MapCommand, "grabber").default),
             type_="GrabberInterface",
         ),
     }

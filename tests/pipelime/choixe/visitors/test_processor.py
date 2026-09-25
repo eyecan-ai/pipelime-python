@@ -5,7 +5,7 @@ from typing import Tuple
 import numpy as np
 import pytest
 from deepdiff import DeepDiff
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 import pipelime.choixe.visitors.processor as processor_module
 from pipelime.choixe.ast.parser import parse
@@ -327,7 +327,11 @@ class TestProcessor:
                 d=(MyModel2(a=98, b="hello"), MyModel2(a=24, b="world")),
             )
         ]
-        assert process(parse(data)) == expected
+        # NB: `$model` imports this file as a separate module, so the result's class
+        # is not `MyModel` itself: pydantic v2 `__eq__` compares types, v1 compared dicts
+        result = process(parse(data))
+        assert [type(m).__name__ for m in result] == ["MyModel"]
+        assert [m.model_dump() for m in result] == [m.model_dump() for m in expected]
 
     def test_for_dict(self):
         data = {"$for(collection1, x)": {"Index=$index(x)": "Item=$item(x)"}}

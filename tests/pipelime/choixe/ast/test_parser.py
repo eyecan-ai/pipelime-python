@@ -502,3 +502,17 @@ class TestParserRaise:
         loaded = safe_load(StringIO(yaml_expr))
         with pytest.raises(ChoixeParsingError):
             parse(loaded)
+
+    def test_token_form_wrong_node_type_in_typed_field(self):
+        # VarNode.identifier is typed as HashNode, but the nested $import
+        # directive parses to an ImportNode, which is not a HashNode.
+        expr = "$var(\"$import('x.json')\", default=1)"
+        with pytest.raises(ChoixeParsingError):
+            parse(expr)
+
+    def test_dict_form_wrong_node_type_in_typed_field(self):
+        # InstanceNode.symbol is typed as HashNode, but the nested $import
+        # directive parses to an ImportNode, which is not a HashNode.
+        expr = {"$call": "$import('path.json')"}
+        with pytest.raises(ChoixeParsingError):
+            parse(expr)

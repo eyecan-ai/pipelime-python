@@ -92,13 +92,15 @@ class Sample(t.Mapping[str, Item]):
         """
         import pydash as py_
 
+        from pipelime.choixe.utils.common import pydash_path
+
         key, path = SamplePathRegex.split(key_path)
         x = self if key in self._data else self.set_item(key, default_item_type({}))
         if not path:
             return x.set_value(key, value)
 
         new_value = copy.deepcopy(x[key]())
-        py_.set_(new_value, path, value)
+        py_.set_(new_value, pydash_path(path), value)
         return x.set_value(key, new_value)
 
     def deep_get(self, key_path: str, default: t.Any = None) -> t.Any:
@@ -113,7 +115,9 @@ class Sample(t.Mapping[str, Item]):
         """
         import pydash as py_
 
-        return py_.get(self.direct_access(), key_path, default)
+        from pipelime.choixe.utils.common import pydash_path
+
+        return py_.get(self.direct_access(), pydash_path(key_path), default)
 
     def match(self, query: str) -> bool:
         """Match the Sample against a query

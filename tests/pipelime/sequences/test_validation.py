@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 import pytest
 
 import pipelime.items as pli
@@ -21,16 +21,17 @@ class TestValidation:
         points: pli.TxtNumpyItem
         invalid_key: Optional[pli.TxtNumpyItem] = None
 
-        @pyd.validator("cfg")
+        @pyd.field_validator("cfg")
+        @classmethod
         def validate_cfg(cls, v):
             if not v.is_shared:
                 raise ValueError("cfg must be shared")
             return v
 
-    class MyFullSchemaIgnoreExtra(MyFullSchemaBase, extra=pyd.Extra.ignore):
+    class MyFullSchemaIgnoreExtra(MyFullSchemaBase, extra="ignore"):
         pass
 
-    class MyFullSchemaForbidExtra(MyFullSchemaBase, extra=pyd.Extra.forbid):
+    class MyFullSchemaForbidExtra(MyFullSchemaBase, extra="forbid"):
         pass
 
     class MyInvalidSchema:
@@ -67,7 +68,7 @@ class TestValidation:
 
         assert schema_def.as_pipe() == {
             "validate_samples": {
-                "sample_schema": schema_def.dict(by_alias=True),
+                "sample_schema": schema_def.model_dump(by_alias=True),
             }
         }
 
@@ -112,7 +113,7 @@ class TestValidation:
     ):
         from typing import Optional
 
-        import pydantic.v1 as pyd
+        import pydantic as pyd
 
         import pipelime.items as pli
 
@@ -139,14 +140,14 @@ class TestValidation:
     ):
         from typing import Optional
 
-        import pydantic.v1 as pyd
+        import pydantic as pyd
 
         import pipelime.items as pli
 
         class MySchema(
             pyd.BaseModel,
             arbitrary_types_allowed=True,
-            extra=pyd.Extra.ignore if ignore_extra_keys else pyd.Extra.forbid,
+            extra="ignore" if ignore_extra_keys else "forbid",
         ):
             cfg: pli.MetadataItem
             numbers: pli.NumpyItem

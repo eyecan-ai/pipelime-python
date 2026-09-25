@@ -4,11 +4,18 @@ from enum import Enum
 
 import typing_extensions as te
 from loguru import logger
-from pydantic.v1 import BaseModel, Field, PrivateAttr
-from pydantic.v1.generics import GenericModel
+from pydantic import PrivateAttr, model_serializer
 
 from pipelime.piper.checkpoint import CheckpointNamespace
 from pipelime.piper.progress.tracker.base import TrackCallback, TrackedTask, Tracker
+from pipelime.utils.pydantic_compat import (
+    Field,
+    PipelimeModel,
+    PipelimeRootModel,
+    get_field,
+    iter_fields,
+    model_title,
+)
 
 
 # The return type is a hack to fool the type checker
@@ -41,7 +48,8 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     variable positional, variable keyword parameters. Variable positional and keyword
     can be annotated to get type checking and validation.
 
-    You are encouraged to use pydantic.Field as default value to further specify any
+    You are encouraged to use `pipelime.piper.Field` (`pydantic.Field` plus the
+    pipelime flags, such as `piper_port`) as default value to further specify any
     field properties, such as `default_factory`, `alias`, `description`, etc, which
     are used to show meaningful help messages through `pipelime help`.
     Also, call it with extra `__config_kwargs` to add any pydantic config parameters,
@@ -135,30 +143,46 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
     def _make_cmd(func):
         import inspect
 
-        from pydantic.v1.fields import FieldInfo, Undefined
+        from pydantic.fields import FieldInfo
+        from pydantic_core import PydanticUndefined
 
         def _make_field(p: inspect.Parameter):
             """Returns a tuple of (annotation, default) for a given parameter.
-            NB: *args translates to a Sequence and **kwargs translates to a Mapping.
+            NB: *args translates to a tuple and **kwargs translates to a dict.
             """
             value = Field(...) if p.default is inspect.Parameter.empty else p.default
+            no_ann = p.annotation is inspect.Signature.empty
 
             if p.kind is p.VAR_POSITIONAL:
-                ann = (
-                    t.Sequence
-                    if p.annotation is inspect.Signature.empty
-                    else t.Sequence[p.annotation]
-                )
+                ann = tuple if no_ann else tuple[type_hints.get(p.name, p.annotation), ...]
             elif p.kind is p.VAR_KEYWORD:
+                ann = dict if no_ann else dict[str, type_hints.get(p.name, p.annotation)]
+            elif no_ann:
+                # pydantic v2 needs an annotation: infer it from the default as v1 did
+                raw = value
+                if isinstance(value, FieldInfo):
+                    raw = (
+                        value.default_factory()
+                        if value.default_factory is not None
+                        else value.default
+                    )
                 ann = (
-                    t.Mapping
-                    if p.annotation is inspect.Signature.empty
-                    else t.Mapping[str, p.annotation]
+                    t.Any
+                    if raw is None or raw is PydanticUndefined or raw is Ellipsis
+                    else type(raw)
                 )
             else:
                 ann = p.annotation
 
             return (ann, value)
+
+        # `*args`/`**kwargs` annotations end up *inside* `tuple[...]`/`dict[...]`: a
+        # string one (`from __future__ import annotations`) would stay a string there
+        # on py3.10 (pydantic still validates it, but the help shows `str`)
+        try:
+            type_hints = t.get_type_hints(func, include_extras=True)
+        except Exception:  # unresolvable (e.g. function-local) names: raw annotations
+            type_hints = {}
 
         # Translates signature to pydantic fields
         # and gathers positional arguments
@@ -241,18 +265,17 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
 
             def run(self):
                 # get all arguments in the right order
-                # NB: do not use self.dict(), it returns sub-models as dict!
-                fargs = (
-                    (self,) if is_bound else tuple(),
-                    [getattr(self, n) for n in posonly_names + poskw_names],
-                    getattr(self, varpos_name, tuple()),
-                    {
-                        n: getattr(self, n)
-                        for n in set(kwonly_names + [varkw_name])
-                        if hasattr(self, n)
-                    },
-                )
-                func(*fargs[0], *fargs[1], *fargs[2], **fargs[3])
+                # NB: do not use self.model_dump(), it returns sub-models as dict!
+                self_arg = (self,) if is_bound else tuple()
+                pos_args = [getattr(self, n) for n in posonly_names + poskw_names]
+                var_args = getattr(self, varpos_name) if varpos_name else tuple()
+                kw_args = {
+                    n: getattr(self, n) for n in kwonly_names if hasattr(self, n)
+                }
+                if varkw_name and hasattr(self, varkw_name):
+                    # expand **kwargs into keyword arguments (bug fix)
+                    kw_args.update(getattr(self, varkw_name))
+                func(*self_arg, *pos_args, *var_args, **kw_args)
 
         # override base docstring with a custom description
         _FnModel.__doc__ = f"Autogenerated Pipelime command from `{func.__module__}.{func.__qualname__}`."
@@ -283,7 +306,7 @@ def command(__func=None, *, title: t.Optional[str] = None, **__config_kwargs):
                     if value.default_factory is None
                     else value.default_factory()
                 )
-                if value in (Ellipsis, Undefined):
+                if value is Ellipsis or value is PydanticUndefined:
                     return inspect.Parameter.empty
             return value
 
@@ -324,7 +347,7 @@ class PiperPortType(Enum):
     PARAMETER = "parameter"
 
 
-class PiperInfo(BaseModel, extra="forbid", copy_on_model_validation="none"):
+class PiperInfo(PipelimeModel, extra="forbid"):
     token: str = Field("", description="The piper execution token.")
     node: str = Field("", description="The piper dag's node name.")
 
@@ -333,13 +356,7 @@ class PiperInfo(BaseModel, extra="forbid", copy_on_model_validation="none"):
         return bool(self.token)
 
 
-class PipelimeCommand(
-    BaseModel,
-    ABC,
-    allow_population_by_field_name=True,
-    extra="forbid",
-    copy_on_model_validation="none",
-):
+class PipelimeCommand(PipelimeModel, ABC, populate_by_name=True, extra="forbid"):
     """Base class for all pipelime commands. Subclasses should implement the run method.
 
     Extra class definition kwargs:
@@ -393,9 +410,9 @@ class PipelimeCommand(
 
     @classmethod
     def _filter_fields_by_flag(cls, flag: str, value: t.Any) -> t.Iterable[str]:
-        for k, v in cls.__fields__.items():
-            if v.field_info.extra.get(flag, object()) == value:
-                yield k
+        for fview in iter_fields(cls):
+            if fview.extra.get(flag, object()) == value:
+                yield fview.name
 
     def _get_fields_by_flag(self, flag: str, value: t.Any) -> t.Dict[str, t.Any]:
         return {k: getattr(self, k) for k in self._filter_fields_by_flag(flag, value)}
@@ -418,9 +435,7 @@ class PipelimeCommand(
 
     @classmethod
     def command_title(cls) -> str:
-        if cls.__config__.title:
-            return cls.__config__.title
-        return cls.__name__
+        return model_title(cls)
 
     @property
     def command_name(self) -> str:
@@ -470,9 +485,7 @@ class PipelimeCommand(
 CmdTp = t.TypeVar("CmdTp", bound=PipelimeCommand)
 
 
-class LazyCommand(
-    GenericModel, t.Generic[CmdTp], extra="forbid", copy_on_model_validation="none"
-):
+class LazyCommand(PipelimeModel, t.Generic[CmdTp], extra="forbid"):
     command_class: t.Type[CmdTp]
     data: t.Dict[str, t.Any] = Field(default_factory=dict)
 
@@ -486,10 +499,14 @@ class LazyCommand(
         self.data[name] = value
 
     def __getattr__(self, name):
+        if name.startswith("__") or name == "data":  # never recurse into ourselves
+            raise AttributeError(name)
         if name in self.data:
             return self.data[name]
-        if name in self.command_class.__fields__:
-            return self.command_class.__fields__[name].get_default()
+        if name in self.command_class.model_fields:
+            field = get_field(self.command_class, name)
+            # an unset required field reads as `None`, as v1 `ModelField.get_default()`
+            return None if field.required else field.default
         if hasattr(self.command_class, name):
             return getattr(self.command_class, name)
         raise AttributeError(f"{self.command_class.__name__} has no attribute '{name}'")
@@ -501,25 +518,20 @@ T_DAG_NODE = t.Union[
 T_NODES = t.Mapping[str, T_DAG_NODE]
 
 
-class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"):
+class NodesDefinition(PipelimeRootModel[t.Mapping[str, PipelimeCommand]]):
     """A simple interface to parse a DAG node configuration."""
 
-    __root__: t.Mapping[str, PipelimeCommand]
-
     @classmethod
-    def create(
+    def _build_nodes(
         cls,
-        value: t.Union["NodesDefinition", T_NODES],
+        value: T_NODES,
         *,
         checkpoint: t.Optional[CheckpointNamespace] = None,
         skip_on_error: bool = False,
-    ):
-        from pydantic.v1 import ValidationError
+    ) -> t.Dict[str, PipelimeCommand]:
+        from pydantic import ValidationError
 
-        from pipelime.cli.utils import get_pipelime_command, show_field_alias_valerr
-
-        if isinstance(value, NodesDefinition):
-            return value
+        from pipelime.cli.utils import format_validation_error, resolve_pipelime_command
 
         plnodes = {}
         for name, cmd in value.items():
@@ -530,42 +542,53 @@ class NodesDefinition(BaseModel, extra="forbid", copy_on_model_validation="none"
             else:
                 ckpt = None
 
+            cmd_cls, build = resolve_pipelime_command(cmd, ckpt)
             try:
-                plcmd = get_pipelime_command(cmd, ckpt)
+                plcmd = build()
             except ValidationError as e:
                 if skip_on_error:
                     logger.warning(f"Skipping node `{name}` due to validation error.")
                 else:
-                    show_field_alias_valerr(e)
-                    raise ValueError(f"Invalid node definition `{name}`") from e
+                    raise ValueError(
+                        f"Invalid node definition `{name}`:\n"
+                        f"{format_validation_error(e, cmd_cls)}"
+                    ) from e
             else:
                 plnodes[name] = plcmd
-        return cls(__root__=plnodes)
-
-    @property
-    def value(self):
-        return self.__root__
-
-    def _iter(self, *args, **kwargs):
-        for k, v in super()._iter(*args, **kwargs):
-            # NB: `v` is the dict of params of the actual pipelime commands
-            assert k == "__root__"
-            assert isinstance(v, t.Mapping)
-            yield k, {
-                node_name: {self.__root__[node_name].command_title(): cmd_args}
-                for node_name, cmd_args in v.items()
-            }
+        return plnodes
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def create(
+        cls,
+        value: t.Union["NodesDefinition", T_NODES],
+        *,
+        checkpoint: t.Optional[CheckpointNamespace] = None,
+        skip_on_error: bool = False,
+    ):
+        if isinstance(value, NodesDefinition):
+            return value
+        return cls(
+            cls._build_nodes(value, checkpoint=checkpoint, skip_on_error=skip_on_error)
+        )
 
     @classmethod
-    def validate(cls, value: t.Union["NodesDefinition", T_NODES]):
-        return cls.create(value)
+    def _coerce(cls, value):
+        if isinstance(value, t.Mapping) and all(
+            isinstance(v, PipelimeCommand) for v in value.values()
+        ):
+            return value
+        return cls._build_nodes(value)
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler) -> t.Dict[str, t.Any]:
+        # NB: `handler` gives `{node_name: <command args>}` (caller's flags applied)
+        return {
+            node_name: {self.root[node_name].command_title(): cmd_args}
+            for node_name, cmd_args in handler(self).items()
+        }
 
 
-class DAGModel(BaseModel, extra="forbid", copy_on_model_validation="none"):
+class DAGModel(PipelimeModel, extra="forbid"):
     """A Piper DAG as a `<node>: <command>` mapping."""
 
     nodes: NodesDefinition

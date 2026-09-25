@@ -1,11 +1,12 @@
 import inspect
 import typing as t
 
-import pydantic.v1 as pyd
-from pydantic.v1.generics import GenericModel
+import pydantic
+from pydantic import ConfigDict
 
 from pipelime.items import Item
 from pipelime.stages import SampleStage
+from pipelime.utils.pydantic_compat import Field, PipelimeModel, get_field
 from pipelime.utils.pydantic_types import CallableDef, TypeDef
 
 if t.TYPE_CHECKING:
@@ -15,13 +16,13 @@ ActionTp = t.TypeVar("ActionTp", bound=t.Callable)
 
 
 @t.overload
-def register_action(
+def register_action(  # noqa: E704
     *, title: t.Optional[str] = None, description: t.Optional[str] = None
 ) -> t.Callable[[ActionTp], ActionTp]: ...
 
 
 @t.overload
-def register_action(__action: ActionTp) -> ActionTp: ...
+def register_action(__action: ActionTp) -> ActionTp: ...  # noqa: E704
 
 
 def register_action(
@@ -78,10 +79,9 @@ ValTp = t.TypeVar("ValTp")
 
 
 class ParsedItem(
-    GenericModel,
+    PipelimeModel,
     t.Generic[ItTp, ValTp],
     extra="forbid",
-    copy_on_model_validation="none",
     arbitrary_types_allowed=True,
 ):
     raw_item: ItTp
@@ -96,18 +96,18 @@ class ParsedItem(
 
     @classmethod
     def raw_item_type(cls) -> t.Type[ItTp]:
-        return cls.__fields__["raw_item"].outer_type_
+        return cls.model_fields["raw_item"].annotation  # type: ignore[return-value]
 
     @classmethod
     def parsed_value_type(cls) -> t.Type[ValTp]:
-        return cls.__fields__["parsed_value"].outer_type_
+        return cls.model_fields["parsed_value"].annotation  # type: ignore[return-value]
 
     @classmethod
     def value_to_item_data(cls, value) -> t.Any:
         if hasattr(value, "__to_item_data__"):
             return value.__to_item_data__()
-        elif isinstance(value, pyd.BaseModel):
-            return value.dict()
+        elif isinstance(value, pydantic.BaseModel):
+            return value.model_dump()
         return value
 
     @classmethod
@@ -117,48 +117,53 @@ class ParsedItem(
     @classmethod
     def make_parsed_value(cls, value) -> ValTp:
         pvtp = cls.parsed_value_type()
-        return (  # type: ignore
-            pyd.parse_obj_as(pvtp, value)
-            if issubclass(pvtp, pyd.BaseModel)
-            else pvtp(value)
-        )
+        if inspect.isclass(pvtp) and issubclass(pvtp, pydantic.BaseModel):
+            return pydantic.TypeAdapter(pvtp).validate_python(value)  # type: ignore
+        return pvtp(value)  # type: ignore
 
     @classmethod
     def make_new(cls, value) -> ItTp:
         return cls.make_raw_item(value)
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, cls):
-            return value
-        elif isinstance(value, Item):
+    def _coerce(cls, value) -> t.Dict[str, t.Any]:
+        """Any accepted input -> the `{"raw_item", "parsed_value"}` field mapping."""
+        if isinstance(value, Item):
             if isinstance(value, cls.raw_item_type()):
-                return cls(
-                    raw_item=value,
-                    parsed_value=cls.make_parsed_value(value()),
-                )
+                return {
+                    "raw_item": value,
+                    "parsed_value": cls.make_parsed_value(value()),
+                }
         elif isinstance(value, cls.parsed_value_type()):
-            return cls(
-                raw_item=cls.make_raw_item(value),
-                parsed_value=value,
-            )
+            return {"raw_item": cls.make_raw_item(value), "parsed_value": value}
         else:
             try:
                 value = cls.make_parsed_value(value)
             except Exception:
                 pass
             else:
-                return cls(
-                    raw_item=cls.make_raw_item(value),
-                    parsed_value=value,
-                )
-        raise TypeError(
+                return {"raw_item": cls.make_raw_item(value), "parsed_value": value}
+        # NB: v1 turned TypeError into a ValidationError, v2 only converts ValueError
+        raise ValueError(
             f"{value} is neither `{cls.raw_item_type()}` nor `{cls.parsed_value_type()}`"
         )
+
+    @pydantic.model_validator(mode="wrap")
+    @classmethod
+    def _validate_input(cls, value, handler):
+        if isinstance(value, cls):
+            return value
+        # direct construction `cls(raw_item=..., parsed_value=...)` passes the field mapping
+        if isinstance(value, t.Mapping) and set(value.keys()) == {
+            "raw_item",
+            "parsed_value",
+        }:
+            return handler(value)
+        return handler(cls._coerce(value))
+
+    @classmethod
+    def validate(cls, value):  # v1 name kept for downstream code
+        return cls.model_validate(value)
 
 
 class ParsedData(ParsedItem[Item, ValTp], t.Generic[ValTp]):
@@ -181,16 +186,13 @@ class ModelDynamicKey:
         self.extra_kwargs = extra_kwargs
 
     def validate(self, key) -> t.Union[t.Type[Item], t.Type[ParsedItem]]:
-        class Config(pyd.BaseConfig):
-            arbitrary_types_allowed = True
-
-        parser_model = pyd.create_model(
+        parser_model = pydantic.create_model(
             "DynamicKeyParser",
-            __config__=Config,
+            __config__=ConfigDict(arbitrary_types_allowed=True),
             **{
                 key: (
                     self.item_tp,
-                    pyd.Field(
+                    Field(
                         self.default,
                         default_factory=self.default_factory,
                         **self.extra_kwargs,
@@ -198,7 +200,7 @@ class ModelDynamicKey:
                 )
             },
         )
-        parsed_values = parser_model.parse_obj(
+        parsed_values = parser_model.model_validate(
             {key: getattr(self.owner, key)} if hasattr(self.owner, key) else {}
         )
         return getattr(parsed_values, key)
@@ -214,7 +216,7 @@ def DynamicKey(
     if default is not ... and default_factory is not None:
         raise ValueError("cannot specify both default and default_factory")
 
-    return pyd.PrivateAttr(
+    return pydantic.PrivateAttr(
         ModelDynamicKey(item_tp, default, default_factory, field_kwargs)
     )
 
@@ -222,24 +224,23 @@ def DynamicKey(
 DerivedEntityTp = t.TypeVar("DerivedEntityTp", bound="BaseEntity")
 
 
-class BaseEntity(
-    pyd.BaseModel,
-    extra="allow",
-    copy_on_model_validation="none",
-    arbitrary_types_allowed=True,
-):
+class BaseEntity(PipelimeModel, extra="allow", arbitrary_types_allowed=True):
     """The base class for all input/output entity models."""
 
     def __init__(self, **data):
         # create an item field from raw values
         # NB: if the field is optional, it can be None
+        cls = type(self)
         for k, v in data.items():
-            if k in self.__fields__ and not isinstance(v, Item):
-                k_field = self.__fields__[k]
-                if issubclass(k_field.outer_type_, Item) and (
-                    k_field.required or v is not None
+            if k in cls.model_fields and not isinstance(v, Item):
+                k_field = get_field(cls, k)
+                item_cls = k_field.inner_type
+                if (
+                    inspect.isclass(item_cls)
+                    and issubclass(item_cls, Item)
+                    and (k_field.required or v is not None)
                 ):
-                    data[k] = self.__fields__[k].outer_type_.make_new(v)
+                    data[k] = item_cls.make_new(v)
         super().__init__(**data)
 
         # assign self as the owner of dynamic key fields
@@ -248,26 +249,38 @@ class BaseEntity(
             if isinstance(v, ModelDynamicKey):
                 v.owner = self
 
-    def _iter(self, *args, **kwargs):
-        # skip None fields and bypass ParsedItem
-        for k, v in super()._iter(*args, **kwargs):
-            if v is not None:
-                if isinstance(v, t.Mapping) and "raw_item" in v:
-                    if v["raw_item"] is not None:
-                        yield k, v["raw_item"]
-                else:
-                    yield k, v
+    @pydantic.model_serializer(mode="wrap")
+    def _serialize(self, handler, info: pydantic.SerializationInfo) -> t.Dict[str, t.Any]:
+        # skip None fields and bypass ParsedItem (v1 `_iter` override); a ParsedItem
+        # is recognised on the instance attribute, not by the keys of its dump
+        names = {}
+        if info.by_alias:
+            for name, field_info in type(self).model_fields.items():
+                alias = field_info.serialization_alias or field_info.alias
+                if alias:
+                    names[alias] = name
+        out = {}
+        for k, v in handler(self).items():
+            if v is None:
+                continue
+            if isinstance(getattr(self, names.get(k, k), None), ParsedItem):
+                raw_item = v.get("raw_item") if isinstance(v, t.Mapping) else None
+                if raw_item is not None:
+                    out[k] = raw_item
+            else:
+                out[k] = v
+        return out
 
     @classmethod
     def merge(
         cls: t.Type[DerivedEntityTp], __other__: "BaseEntity", /, **kwargs
     ) -> DerivedEntityTp:
         """Creates a new entity by merging `other` entity with extra `kwargs` fields."""
-        other_dict = __other__.dict()
+        other_dict = __other__.model_dump()
         for k, v in kwargs.items():
             if not isinstance(v, Item):
                 # NB: None is a valid value for optional fields
-                my_k_field = cls.__fields__.get(k, None)
+                my_k_field = get_field(cls, k) if k in cls.model_fields else None
                 if not my_k_field or my_k_field.required or v is not None:
                     # user has no preference on the actual Item class,
                     # so keep the original item type if it is a subclass
@@ -277,8 +290,10 @@ class BaseEntity(
                         if other_item_obj is not None:
                             my_item_cls = Item
                             if my_k_field:
-                                my_item_cls = my_k_field.outer_type_
-                                if issubclass(my_item_cls, ParsedItem):
+                                my_item_cls = my_k_field.inner_type
+                                if inspect.isclass(my_item_cls) and issubclass(
+                                    my_item_cls, ParsedItem
+                                ):
                                     my_item_cls = my_item_cls.raw_item_type()
                             if isinstance(other_item_obj, my_item_cls):
                                 kwargs[k] = other_item_obj.make_new(
@@ -296,20 +311,9 @@ class ActionDef(CallableDef):
     """
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate_action
-
-    @classmethod
-    def validate_action(
-        cls,
-        value: t.Union[
-            CallableDef, t.Callable, str, t.Mapping[t.Union[str, t.Callable], t.Any]
-        ],
-    ) -> "ActionDef":
+    def _coerce(cls, value):
         from pipelime.cli.utils import PipelimeSymbolsHelper
 
-        if isinstance(value, cls):
-            return value
         if isinstance(value, str):
             # action is function
             act = PipelimeSymbolsHelper.get_action(value)
@@ -322,17 +326,21 @@ class ActionDef(CallableDef):
                 act = PipelimeSymbolsHelper.get_actions().get(name, None)
                 if act is not None:
                     value = {act.action: args}
-        return cls.validate(value)
+        return super()._coerce(value)
+
+    @classmethod
+    def validate_action(cls, value) -> "ActionDef":  # v1 name kept for downstream code
+        return cls.model_validate(value)
 
 
 class BaseEntityType(TypeDef[BaseEntity]):
     """An entity type. It accepts both type names and string."""
 
 
-class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class EntityAction(PipelimeModel, extra="forbid"):
     """An action and its associated input entity model."""
 
-    action: ActionDef = pyd.Field(
+    action: ActionDef = Field(
         ...,
         description=(
             "The action callable to run (can be a class path). The expected annotation "
@@ -340,15 +348,17 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
             "is not mandatory."
         ),
     )
-    input_type: BaseEntityType = pyd.Field(
+    input_type: BaseEntityType = Field(
         BaseEntity,
+        validate_default=True,
         description=(
             "The input type of the action (can be a string). If None, "
             "it is inferred from the callable's annotations or set to BaseEntity."
         ),
     )
 
-    @pyd.validator("action")
+    @pydantic.field_validator("action")
+    @classmethod
     def validate_action(cls, v):
         params = v.full_signature.parameters
         if not params:
@@ -366,10 +376,11 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
             )
         return v
 
-    @pyd.validator("input_type", always=True)
-    def validate_input_type(cls, v, values):
-        if "action" in values:  # if not True, an error should have been raised yet
-            action_t = values["action"].args_type[0]
+    @pydantic.field_validator("input_type")
+    @classmethod
+    def validate_input_type(cls, v, info: pydantic.ValidationInfo):
+        if "action" in info.data:  # if not True, an error should have been raised yet
+            action_t = info.data["action"].args_type[0]
             if v is None:
                 v = BaseEntityType.create(action_t or BaseEntity)
             else:
@@ -382,28 +393,85 @@ class EntityAction(pyd.BaseModel, extra="forbid", copy_on_model_validation="none
 
         return v
 
+    @pydantic.model_validator(mode="wrap")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
+    def _validate_input(cls, value, handler):
         if isinstance(value, cls):
             return value
         if not isinstance(value, t.Mapping):
             value = {"action": value}
         if "action" not in value:
             value = {"action": value}
-        return cls(**value)
+        return handler(value)
+
+    @classmethod
+    def validate(cls, value):  # v1 name kept for downstream code
+        return cls.model_validate(value)
+
+
+_MISSING = object()
 
 
 class StageEntity(SampleStage, title="entity"):
-    __root__: EntityAction = pyd.Field(..., description="The entity action to run.")
+    """Runs an entity action, ie, `(BaseEntitySubClass) -> BaseEntityLike`,
+    on each sample."""
 
-    def __init__(self, __root__: EntityAction, **data):
-        super().__init__(__root__=__root__, **data)  # type: ignore
+    entity_action: EntityAction = Field(..., description="The entity action to run.")
+
+    @staticmethod
+    def _normalize(value: t.Any) -> t.Any:
+        """Any pipelime 2.x input shape -> the EntityAction spec.
+
+        Shapes: a bare spec (callable / str / `{action: ..., input_type: ...}`),
+        the `{"__root__": spec}` envelope written by 2.x `to_pipe()`, and the
+        `{"entity_action": spec}` field mapping. Envelopes may be nested
+        (`{"entity_action": {"__root__": spec}}`), so they are peeled in turn.
+        """
+        while isinstance(value, t.Mapping):
+            keys = set(value.keys())
+            if keys == {"__root__"}:
+                value = value["__root__"]
+            elif keys == {"entity_action"}:
+                value = value["entity_action"]
+            else:
+                break
+        return value
+
+    def __init__(self, __root__: t.Any = _MISSING, /, **data):
+        # positional spec, `__root__=` keyword, the 2.x envelope, or the bare
+        # `{action: ..., input_type: ...}` kwargs form
+        if __root__ is not _MISSING:
+            if data:
+                raise TypeError(
+                    "StageEntity takes a single entity action, "
+                    f"got extra arguments {sorted(data)}"
+                )
+            spec = __root__
+        else:
+            spec = data
+        super().__init__(entity_action=self._normalize(spec))  # type: ignore
+
+    @pydantic.model_validator(mode="wrap")
+    @classmethod
+    def _validate_input(cls, value, handler):
+        # `model_validate(spec)` / `TypeAdapter(StageEntity)` / nested validation
+        # receive the raw spec (v1 accepted it through `_enforce_dict_if_root`)
+        if isinstance(value, cls):
+            return value
+        return handler({"entity_action": cls._normalize(value)})
+
+    @pydantic.model_serializer(mode="wrap")
+    def _serialize(self, handler) -> t.Dict[str, t.Any]:
+        # `{}` when `include`/`exclude` leave the action out (2.x: `.dict()` of a
+        # root model without its `__root__`)
+        return handler(self).get("entity_action", {})
 
     def __call__(self, x: "Sample") -> "Sample":
         from pipelime.sequences import Sample
 
-        return Sample(self.__root__.action(self.__root__.input_type.value(**x)).dict())
+        ea = self.entity_action
+        return Sample(ea.action(ea.input_type.value(**x)).model_dump())
+
+
+# v1 exposed the action as `__root__`; pydantic rejects the name inside a class body
+StageEntity.__root__ = property(lambda self: self.entity_action)  # type: ignore[attr-defined]

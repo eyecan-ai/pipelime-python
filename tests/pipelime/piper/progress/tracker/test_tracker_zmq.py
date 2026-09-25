@@ -18,6 +18,7 @@ def zmq_socket():
     socket.close()
 
 
+@pytest.mark.xdist_group(name="zmq")
 class TestZmqTrackCallback:
     def test_callback(self, zmq_socket: zmq.Socket):
         # Create callback

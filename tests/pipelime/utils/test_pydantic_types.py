@@ -1,7 +1,8 @@
+import typing as t
 from pathlib import Path
 
 import numpy as np
-import pydantic.v1 as pyd
+import pydantic as pyd
 import pytest
 
 import pipelime.utils.pydantic_types as plt
@@ -56,6 +57,20 @@ class TestNewPath:
 
 
 class TestNumpyType:
+    def test_json_schema(self):
+        # 2.x failed too ("Value not declarable with JSON Schema"); the schema
+        # describes the serialized form, which is also a valid input
+        class M(pyd.BaseModel):
+            arr: plt.NumpyType
+
+        schema = plt.NumpyType.model_json_schema()
+        assert schema["type"] == "object" and schema["required"] == ["object", "dtype"]
+        assert schema["properties"]["dtype"] == {"type": "string"}
+        assert schema["properties"]["order"] == {"const": "F"}
+        dumped = plt.NumpyType.create(np.ones((2, 2), order="F")).model_dump()
+        assert set(dumped) <= set(schema["properties"])
+        assert "arr" in M.model_json_schema()["properties"]
+
     def test_create(self):
         with pytest.raises(pyd.ValidationError):
             _ = plt.NumpyType()  # type: ignore
@@ -63,8 +78,11 @@ class TestNumpyType:
         target = np.arange(12).reshape(2, 3, 2)
         src_list = [[[0, 1], [2, 3], [4, 5]], [[6, 7], [8, 9], [10, 11]]]
 
-        nt = plt.NumpyType(__root__=np.array(src_list))
+        src_arr = np.array(src_list)
+        nt = plt.NumpyType(__root__=src_arr)
         assert TestUtils.numpy_eq(nt.value, target)
+        assert nt.value is src_arr  # an array is kept as is, not copied
+        assert plt.NumpyType.create(src_arr).value is src_arr
 
         nt = plt.NumpyType.create(src_list)  # type: ignore
         assert TestUtils.numpy_eq(nt.value, target)
@@ -92,11 +110,11 @@ class TestNumpyType:
         data = np.arange(12).reshape(2, 3, 2, order="F") * 3.1415 + 1.4142
         nt = plt.NumpyType(__root__=data.astype(np.float16))
 
-        nt_again = pyd.parse_raw_as(plt.NumpyType, nt.json())
+        nt_again = plt.NumpyType.model_validate_json(nt.model_dump_json())
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
-        nt_again = pyd.parse_obj_as(plt.NumpyType, nt.dict()["__root__"])
+        nt_again = plt.NumpyType.model_validate(nt.dict()["__root__"])
         assert nt.value.flags == nt_again.value.flags
         assert TestUtils.numpy_eq(nt.value, nt_again.value)
 
@@ -141,10 +159,10 @@ class TestYamlInput:
         data = {"a": 1, "b": "c"}
         yi = plt.YamlInput(__root__=data)
 
-        yi_again = pyd.parse_raw_as(plt.YamlInput, yi.json())
+        yi_again = plt.YamlInput.model_validate_json(yi.model_dump_json())
         assert yi.value == yi_again.value
 
-        yi_again = pyd.parse_obj_as(plt.YamlInput, yi.dict()["__root__"])
+        yi_again = plt.YamlInput.model_validate(yi.dict()["__root__"])
         assert yi.value == yi_again.value
 
 
@@ -178,10 +196,10 @@ class TestItemType:
 
         itp = plt.ItemType(__root__=MetadataItem)
 
-        itp_again = pyd.parse_raw_as(plt.ItemType, itp.json())
+        itp_again = plt.ItemType.model_validate_json(itp.model_dump_json())
         assert itp.value == itp_again.value
 
-        itp_again = pyd.parse_obj_as(plt.ItemType, itp.dict()["__root__"])
+        itp_again = plt.ItemType.model_validate(itp.dict()["__root__"])
         assert itp.value == itp_again.value
 
     def test_hash(self):
@@ -203,6 +221,15 @@ def b_callable(a: int, b="c", *args) -> str:
 
 
 class TestCallableDef:
+    def test_json_schema(self):
+        # 2.x `.schema()` worked; the serialized form is the symbol string
+        class M(pyd.BaseModel):
+            fn: plt.CallableDef
+
+        assert plt.CallableDef.model_json_schema()["type"] == "string"
+        props = M.model_json_schema()
+        assert "fn" in props["properties"]
+
     def test_create(self):
         import pipelime.choixe.utils.io
 
@@ -244,10 +271,10 @@ class TestCallableDef:
     def test_serialize(self):
         cd = plt.CallableDef(__root__=a_callable)
 
-        cd_again = pyd.parse_raw_as(plt.CallableDef, cd.json())
+        cd_again = plt.CallableDef.model_validate_json(cd.model_dump_json())
         assert cd.value == cd_again.value
 
-        cd_again = pyd.parse_obj_as(plt.CallableDef, cd.dict()["__root__"])
+        cd_again = plt.CallableDef.model_validate(cd.dict()["__root__"])
         assert cd.value == cd_again.value
 
     def test_hash(self):
@@ -256,3 +283,11 @@ class TestCallableDef:
 
         d = {cd: 42}
         assert d[cd] == 42
+
+    def test_string_annotations_resolved(self):
+        def fn(x: "int", y: "t.Optional[str]" = None) -> "float":
+            return 1.0
+
+        cd = plt.CallableDef.create(fn)
+        assert cd.args_type == [int, t.Optional[str]]
+        assert cd.return_type is float

@@ -34,13 +34,11 @@ class TestSample:
     def test_to_schema(self):
         from typing import Optional
 
-        from pydantic.v1 import BaseConfig, Extra, create_model
+        from pydantic import ConfigDict, create_model
 
         import pipelime.items as pli
 
-        class SampleConfig(BaseConfig):
-            arbitrary_types_allowed = True
-            extra = Extra.forbid
+        SampleConfig = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
         sample, _ = self._mixed_sample()
         sample_schema = create_model(
@@ -78,8 +76,7 @@ class TestSample:
         with pytest.raises(Exception):
             sample_schema(**sample)
 
-        class SampleConfig2(BaseConfig):
-            arbitrary_types_allowed = True
+        SampleConfig2 = ConfigDict(arbitrary_types_allowed=True)
 
         sample_schema = create_model(
             "SampleSchema",
@@ -211,6 +208,17 @@ class TestSample:
         assert sample.deep_get(r"sec\ond[2].c") == 36
         assert sample.deep_get("not.there", "default") == "default"
         assert sample.deep_get("notthere", "default") == "default"
+
+    def test_deep_set_get_empty_path_keys(self):
+        # a leading, trailing or doubled `.` is not an empty key (pydash 8.0.x
+        # semantics, kept on pydash >= 8.1 which reads it as an empty key)
+        import pipelime.items as pli
+
+        sample = pls.Sample({"m": pli.JsonMetadataItem({"a": {"b": 1}})})
+        assert sample.deep_set("m.a.b", 2)["m"]() == {"a": {"b": 2}}
+        assert sample.deep_set("m.a..b.", 3)["m"]() == {"a": {"b": 3}}
+        assert sample.deep_get("m..a.b.") == 1
+        assert sample.deep_get("m.a..b") == 1
 
     def test_match(self):
         sample, data = self._mixed_sample()

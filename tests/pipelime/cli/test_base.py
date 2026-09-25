@@ -4,9 +4,9 @@ from typing import Any, List
 
 import pytest
 import yaml
-from pydantic.v1 import Field
+from pydantic import field_validator
 
-from pipelime.piper import PipelimeCommand
+from pipelime.piper import Field, PipelimeCommand
 import pipelime.items as pli
 
 
@@ -25,6 +25,20 @@ class SimpleCommand(PipelimeCommand, title="simple-command"):
                     if v is not None
                 }
                 json.dump(cache2str, f)
+
+
+class BracketErrorCommand(PipelimeCommand, title="bracket-error-command"):
+    """Its validation error text looks like Rich markup."""
+
+    path: str = Field(..., description="Always rejected.")
+
+    @field_validator("path")
+    @classmethod
+    def _reject(cls, v):
+        raise ValueError(f"cannot read [/data/in] from {v}")
+
+    def run(self) -> None:
+        pass
 
 
 class TestCliBase:
@@ -63,6 +77,24 @@ class TestCliBase:
                     ["-m", str(module_data["filepath"]), "help", cmd]
                 )
                 assert cmd in result.output
+
+    def test_validation_error_text_is_not_markup(self):
+        from pydantic import ValidationError
+
+        result = self._base_launch(
+            [
+                "-m",
+                f"{os.path.realpath(__file__)}",
+                "bracket-error-command",
+                "+path",
+                "x",
+            ],
+            exit_code=1,
+            exc=ValidationError,
+        )
+        output = " ".join(result.output.split())
+        assert "cannot read [/data/in] from x" in output
+        assert "[type=value_error]" in output
 
     def test_list(self):
         result = self._base_launch(["list"])
@@ -402,7 +434,7 @@ class TestCliBase:
 
     @pytest.mark.parametrize("with_default_ckpt", [False, True, 2])
     def test_resume(self, ckpt_dag, minimnist_dataset, tmp_path, with_default_ckpt):
-        from pydantic.v1 import ValidationError
+        from pydantic import ValidationError
 
         from pipelime.sequences import SamplesSequence
 
@@ -456,7 +488,7 @@ class TestCliBase:
         assert len(SamplesSequence.from_underfolder(outpath)) == 5
 
     def test_resume_with_tui(self, minimnist_dataset, tmp_path, monkeypatch):
-        from pydantic.v1 import ValidationError
+        from pydantic import ValidationError
         from textual.keys import Keys
         from textual.pilot import Pilot
 
