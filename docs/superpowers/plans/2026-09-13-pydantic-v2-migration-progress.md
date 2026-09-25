@@ -264,17 +264,15 @@ Supersedes the "after S4" section below for state and next steps.
 
 1. **State:** S0–S4 and S5-T1..T4 complete; final whole-branch review run (With fixes) and its single fix
    wave done and re-reviewed (15/15 findings addressed). Post-final (2026-09-25): F2 done (cec6160, pydash
-   ≥ 8.1 supported, `pydash<8.1` pin lifted); F1 (R1) returned NEEDS_CONTEXT, see below. Expected at rest:
+   ≥ 8.1 supported, `pydash<8.1` pin lifted); F1 (R1) closed as 2.x parity (maintainer decision), see below; F2 review approved (`review-F2-verdict.md`). Expected at rest:
    `make test-full` 2598 passed / 5 skipped (pydash 8.0.5); tox `-r` py310–py313 2598/5 each (pydash 8.1.0,
    pydantic 2.13.5); `make test-warnfree` 1120 passed / 4 skipped; floor pydantic 2.10.6 green at 90a634a (not
    re-run post-final).
 2. **Open before merge (needs the maintainer):**
-   - **Residual R1 — decision needed (not a regression vs 2.x):** the reviewer's premise (pydantic.v1 gave
-     `False`) does not hold for pipelime 2.3.0: its `CallableDef`/`TypeDef`/`NumpyType` overrode `_iter`, so v1
-     `.dict()` — and v1 `==` — already compared the serialized strings; 2.3.0 gives `True` for all three repros
-     and 3.0 HEAD matches it (evidence: `post-final-fix-report.md`). Options: (a) keep 2.x parity and close R1,
-     optionally documenting it; (b) deliberately compare `CallableDef`/`TypeDef` by `root` (consistent with
-     `hash(root)`), a documented stricter-than-2.x change.
+   - ~~Residual R1~~ **closed by maintainer decision (2026-09-25): keep 2.x parity.** 3.0 equality of
+     `CallableDef`/`TypeDef`/`NumpyType` compares their serialized strings exactly as pipelime 2.3.0 did (its
+     `_iter` overrides), so different lambdas / closures from one factory compare equal and two equal
+     `CallableDef`s may hash differently — a known 2.x quirk, kept on purpose. No code change.
    - **S5-T5:** downstream smoke test on one real company project (checklist in the S5 sub-plan), then the PR
      `pydantic_v2` → `develop`.
 3. **Parked, can ship (follow-up list):** `PydanticOmit` caught at the top level of `V1JsonSchema` can blank a
@@ -283,7 +281,11 @@ Supersedes the "after S4" section below for state and next steps.
    mapping-rooted wrappers (v1 did not); `Annotated[Optional[int], Field(...)]` optional in 3.0 (required in
    v1, lenient direction); M8 v1 `Field` inside `Annotated[...]` not caught by the v1 guard; M9 CI job against
    the latest pydantic 2.x (recommended); gate-output noise (albumentations warnings, test-side deprecations
-   outside tier0).
+   outside tier0); F2 review minors: call sites are test-guarded only on pydash ≥ 8.1 (the dev `.venv` has
+   8.0.5 — upgrade it or add one odd-path test per call family), pydash 8.1's `__dunder__` attribute-key
+   restriction (`get({"a": 1}, "a.__class__")` raises `KeyError` even with a default) is not mentioned in the
+   guide, `pydash_path` would sit better under `pipelime/utils/` than `choixe/utils/common.py`, duplicate
+   `pydash_path` calls per `has`/`get` pair in `processor.py`.
 4. Rulings and review verdicts of this session: `.superpowers/sdd/2026-09-13-pydantic-v2-migration/`
    (`progress.md`, `review-*-verdict.md`, `final-fix-*.md`, `post-final-fix-*.md`).
 
