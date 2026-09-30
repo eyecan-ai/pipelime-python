@@ -1,9 +1,6 @@
 from pathlib import Path
-from typing import Sequence
 
-from pydantic.v1 import Field
-
-from pipelime.piper.model import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 
 
 class MyUselessCommand(PipelimeCommand):
@@ -23,7 +20,7 @@ class MyUselessCommand(PipelimeCommand):
 
 
 class FakeSum(PipelimeCommand):
-    input_folders: Sequence[Path] = Field(..., piper_port=PiperPortType.INPUT)
+    input_folders: list[Path] = Field(..., piper_port=PiperPortType.INPUT)
     output_folder: Path = Field(..., piper_port=PiperPortType.OUTPUT)
 
     def run(self) -> None:

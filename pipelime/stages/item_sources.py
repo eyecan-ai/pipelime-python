@@ -2,7 +2,7 @@ import typing as t
 from pathlib import Path
 from urllib.parse import ParseResult
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 from pipelime.items import Item
 from pipelime.stages import SampleStage

@@ -16,7 +16,6 @@ If you put all your code in a single module, Pipelime can create a CLI for you a
 A minimal example looks like this:
 
 ```python
-from typing import Optional
 from pydantic import Field
 
 import pipelime.cli
@@ -26,7 +25,7 @@ from pipelime.piper import PipelimeCommand
 class HelloWorldCommand(PipelimeCommand, title="hello"):
     """Greets the world and the user, if any."""
 
-    user_name: Optional[str] = Field(None, alias="u", description="The name of the user to greet.")
+    user_name: str | None = Field(None, alias="u", description="The name of the user to greet.")
 
     def run(self):
         print("Hello World!")

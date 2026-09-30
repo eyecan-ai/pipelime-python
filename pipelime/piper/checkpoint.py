@@ -5,11 +5,12 @@ import typing as t
 from contextlib import nullcontext
 from pathlib import Path
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 from filelock import FileLock
 from loguru import logger
 
 from pipelime.choixe.utils.io import PipelimeTmp
+from pipelime.utils.pydantic_compat import PipelimeModel
 from pipelime.utils.pydantic_types import NewPath
 
 
@@ -117,7 +118,7 @@ class CheckpointNamespace:
         return CheckpointNamespace(self._checkpoint, self._namespace + "_" + namespace)
 
 
-class LocalCheckpoint(Checkpoint, pyd.BaseModel):
+class LocalCheckpoint(Checkpoint, PipelimeModel):
     folder: t.Union[pyd.DirectoryPath, NewPath] = pyd.Field(
         ..., description="The folder where checkpoints are read/written"
     )
@@ -130,7 +131,8 @@ class LocalCheckpoint(Checkpoint, pyd.BaseModel):
     _assets_dir: t.ClassVar[str] = "__assets"
     _data_dir: t.ClassVar[str] = "__data"
 
-    @pyd.validator("folder")
+    @pyd.field_validator("folder")
+    @classmethod
     def _validate_folder(cls, v):
         return v.resolve().absolute()
 

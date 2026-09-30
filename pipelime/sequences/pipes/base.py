@@ -1,13 +1,12 @@
-import pydantic.v1 as pyd
-
 from pipelime.sequences import Sample, SamplesSequence
+from pipelime.utils.pydantic_compat import Field
 
 
 class PipedSequenceBase(SamplesSequence):
     """Reasonable base implementation of `size` and `get_sample`."""
 
     # subclasses may override and give a proper description
-    source: SamplesSequence = pyd.Field(
+    source: SamplesSequence = Field(
         ..., description="The source sample sequence.", exclude=True, pipe_source=True
     )
 

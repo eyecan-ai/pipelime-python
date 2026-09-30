@@ -31,9 +31,8 @@ Let's say we want to write a command that perform the following task:
 This might be a first attempt to implement it:
 
 ```python
-from pydantic import Field
 import numpy as np
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 from pipelime.sequences import SamplesSequence
 from pipelime.stages import StageLambda
 
@@ -102,7 +101,9 @@ class StandardizationCommand(PipelimeCommand, title="std-img"):
         seq.run()
 ```
 
-First, note that all parameters are defined as pydantic `Field`s with a `description` and, optionally, a default value. Moreover, the `input` and `output` fields are marked as `PiperPortType.INPUT` and `PiperPortType.OUTPUT`, respectively: this is needed to find dependencies between commands when building an [execution graph](../cli/piper.md).
+First, note that all parameters are defined as pydantic `Field`s with a `description` and, optionally, a default value. Here `Field` is imported from `pipelime.piper`: it is `pydantic.Field` plus the pipelime flags, such as `piper_port`. Moreover, the `input` and `output` fields are marked as `PiperPortType.INPUT` and `PiperPortType.OUTPUT`, respectively: this is needed to find dependencies between commands when building an [execution graph](../cli/piper.md).
+
+Any type supported by pydantic can be used for a parameter, including the modern type hint spellings, e.g., `list[int]`, `dict[str, float]`, `tuple[int, int]` or `Path | None` (a parameter annotated as `X | None` or `Optional[X]` is optional and defaults to `None`).
 
 Though this is a working implementation, it has some drawbacks, namely:
 - there is no option to run the command in parallel
@@ -117,9 +118,8 @@ Common options, such as the input and output datasets, can be easily deployed in
 For example, the previous command can be rewritten as follows:
 
 ```python
-from pydantic import Field
 import numpy as np
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 from pipelime.sequences import SamplesSequence
 from pipelime.stages import StageLambda
 import pipelime.commands.interfaces as plint

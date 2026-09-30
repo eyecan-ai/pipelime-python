@@ -10,6 +10,7 @@ import pydash as py_
 
 import pipelime.choixe.ast.nodes as ast
 from pipelime.choixe.ast.parser import parse
+from pipelime.choixe.utils.common import pydash_path
 from pipelime.choixe.utils.io import load
 
 
@@ -87,11 +88,11 @@ class Inspector(ast.NodeVisitor):
 
             id_ = node.identifier.data  # type: ignore
             default = None if node.default is None else unparse(node.default)
-            variables = py_.set_({}, id_, default)
+            variables = py_.set_({}, pydash_path(id_), default)
 
             help_strings = {}
             if node.help is not None:
-                help_strings = py_.set_({}, id_, node.help.data)
+                help_strings = py_.set_({}, pydash_path(id_), node.help.data)
 
             environ = {}
             if node.env is not None and node.env.data:  # type: ignore
@@ -150,7 +151,7 @@ class Inspector(ast.NodeVisitor):
         if node.identifier is not None:  # pragma: no branch
             self._named_for_loops[node.identifier.data] = node.iterable.data
         iterable_insp = (
-            Inspection(variables=py_.set_({}, node.iterable.data, None))
+            Inspection(variables=py_.set_({}, pydash_path(node.iterable.data), None))
             if isinstance(node.iterable.data, str)
             else Inspection(processed=True)
         )
@@ -160,7 +161,9 @@ class Inspector(ast.NodeVisitor):
     def visit_switch(self, node: ast.SwitchNode) -> Inspection:
         insp = node.value.accept(self)
         if insp.processed:  # pragma: no branch
-            insp = Inspection(variables=py_.set_({}, node.value.data, None))  # type: ignore
+            insp = Inspection(
+                variables=py_.set_({}, pydash_path(node.value.data), None)  # type: ignore
+            )
         cases_insp = sum(
             [x.accept(self) + y.accept(self) for x, y in node.cases],
             start=Inspection(processed=True),
@@ -186,7 +189,7 @@ class Inspector(ast.NodeVisitor):
                 if key:
                     iterable_name = self._named_for_loops[loop_id]
                     full_path = f"{iterable_name}.{key}"
-                    py_.set_(variables, full_path, None)
+                    py_.set_(variables, pydash_path(full_path), None)
             insp = insp + sub_insp + Inspection(variables=variables)
         return insp
 

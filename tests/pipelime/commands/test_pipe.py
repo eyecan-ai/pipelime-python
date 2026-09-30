@@ -1,5 +1,5 @@
 import pytest
-from pydantic.v1 import ValidationError
+from pydantic import ValidationError
 
 from ... import TestAssert
 from .test_general_base import TestGeneralCommandsBase
@@ -29,7 +29,7 @@ class TestPipe(TestGeneralCommandsBase):
             },
         }
 
-        cmd = PipeCommand.parse_obj(params)
+        cmd = PipeCommand.model_validate(params)
         cmd()
 
         src = SamplesSequence.from_underfolder(minimnist_dataset["path"])
@@ -42,4 +42,4 @@ class TestPipe(TestGeneralCommandsBase):
 
         params["operations"] = {}
         with pytest.raises(ValidationError):
-            cmd = PipeCommand.parse_obj(params)
+            cmd = PipeCommand.model_validate(params)

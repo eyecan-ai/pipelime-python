@@ -37,6 +37,13 @@ get_started/underfolder.md
 
 ```{toctree}
 :maxdepth: 4
+:caption: "Migration to 3.0"
+
+migration/pydantic_v2.md
+```
+
+```{toctree}
+:maxdepth: 4
 :caption: "Cocktail Recipes"
 
 tutorials/overview.md

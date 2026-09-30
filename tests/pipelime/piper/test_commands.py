@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class _GraphArgs(BaseModel):
@@ -20,8 +20,8 @@ class _DotOpts(BaseModel):
     dot: str
 
 
-class _DotsTestData(BaseModel):
-    __root__: t.Sequence[_DotOpts]
+class _DotsTestData(RootModel[t.Sequence[_DotOpts]]):
+    pass
 
 
 def _try_import_graphviz():
@@ -63,8 +63,8 @@ class TestCommands:
         for dag in all_dags:
             if "dot" in dag:
                 with open(dag["dot"]) as f:
-                    dots_test_data = _DotsTestData.parse_obj(yaml.safe_load(f))
-                for idx, test_data in enumerate(dots_test_data.__root__):
+                    dots_test_data = _DotsTestData.model_validate(yaml.safe_load(f))
+                for idx, test_data in enumerate(dots_test_data.root):
                     target_dot = test_data.dot
                     outdot = tmp_path / str(idx) / "out.dot"
                     outdot.parent.mkdir(parents=True, exist_ok=True)
@@ -250,3 +250,22 @@ class TestCommands:
         # force_gc = True
         cmd = _testcm_true()
         self._gc_run_and_check(cmd, True)
+
+    def test_classic_graph_commands_are_pipelime_models(self):
+        from pipelime.commands.piper import (
+            ClassicPiperGraphCommand,
+            DrawCommand,
+            PiperGraphCommandBase,
+            RunCommand,
+            RunCommandBase,
+        )
+        from pipelime.utils.pydantic_compat import PipelimeModel
+
+        assert issubclass(ClassicPiperGraphCommand, PipelimeModel)
+        assert type(ClassicPiperGraphCommand) is type(PipelimeModel)
+        # the mixin still comes first, right before the graph command base
+        assert RunCommand.__mro__[1:3] == (ClassicPiperGraphCommand, RunCommandBase)
+        assert DrawCommand.__mro__[1:3] == (
+            ClassicPiperGraphCommand,
+            PiperGraphCommandBase,
+        )

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 from pipelime.choixe.ast.nodes import LiteralNode, Node
 from pipelime.choixe.visitors.unparser import Unparser
@@ -20,7 +20,10 @@ class Decoder(Unparser):
             return data.item()
         elif isinstance(data, BaseModel):
             symbol = f"{data.__module__}.{data.__class__.__qualname__}"
-            return {"$model": symbol, "$args": json.loads(data.json(by_alias=True))}
+            return {
+                "$model": symbol,
+                "$args": json.loads(data.model_dump_json(by_alias=True)),
+            }
         elif isinstance(data, Path):
             return str(data)
         else:

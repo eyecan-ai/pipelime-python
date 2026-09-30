@@ -20,6 +20,7 @@ from pipelime.cli.tui.utils import (
 from pipelime.cli.utils import parse_user_input
 from pipelime.piper import PipelimeCommand
 from pipelime.stages import StageInput
+from pipelime.utils.pydantic_compat import iter_fields
 
 
 @dataclass(frozen=True)
@@ -143,8 +144,8 @@ class TuiApp(App[Mapping]):
         """
         tui_fields = {}
 
-        for field in self.cmd_cls.__fields__.values():
-            if field.type_ == StageInput:
+        for field in iter_fields(self.cmd_cls):
+            if field.inner_type is StageInput:
                 tui_fields[field.name] = init_stageinput_tui_field(field, cmd_args)
             else:
                 tui_fields[field.name] = init_tui_field(field, cmd_args)

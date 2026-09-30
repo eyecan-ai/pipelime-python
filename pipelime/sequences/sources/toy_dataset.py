@@ -1,7 +1,7 @@
 import typing as t
 
 import numpy as np
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.sequences as pls
 
@@ -54,7 +54,8 @@ class ToyDataset(
     _sample_cache: t.Dict[int, pls.Sample] = pyd.PrivateAttr(default_factory=dict)
     _rnd_gen: np.random.Generator = pyd.PrivateAttr(None)
 
-    @pyd.validator("key_format")
+    @pyd.field_validator("key_format")
+    @classmethod
     def validate_key_format(cls, v):
         if "*" in v:
             return v

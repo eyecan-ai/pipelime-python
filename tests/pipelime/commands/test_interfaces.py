@@ -4,7 +4,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
-from pydantic.v1 import ValidationError, create_model
+from pydantic import ValidationError, create_model
 
 import pipelime.commands.interfaces as plint
 import pipelime.sequences.pipes.operations as plops
@@ -14,9 +14,9 @@ class TestInterface:
     def _check_description(
         self, model_cls, interf_class, no_desc_field, user_desc_field, user_desc, flags
     ):
-        nodesc = model_cls.__fields__[no_desc_field].field_info.description
-        udesc = model_cls.__fields__[user_desc_field].field_info.description
-        extra = model_cls.__fields__[user_desc_field].field_info.extra
+        nodesc = model_cls.model_fields[no_desc_field].description
+        udesc = model_cls.model_fields[user_desc_field].description
+        extra = model_cls.model_fields[user_desc_field].json_schema_extra or {}
 
         assert interf_class._default_type_description is not None
         assert interf_class._compact_form is not None
@@ -41,13 +41,13 @@ class TestInterface:
             value_check_fn(m, False)
         for opt in opt_parse_list:
             with ctxman(ValidationError):
-                m = model_cls.parse_obj(opt)
+                m = model_cls.model_validate(opt)
                 value_check_fn(m, True)
         with ctxman(ValidationError):
-            m = model_cls.parse_obj(opt_dict)
+            m = model_cls.model_validate(opt_dict)
             value_check_fn(m, False)
         try:
-            m = model_cls.parse_obj({k: getattr(m, k) for k in model_cls.__fields__})
+            m = model_cls.model_validate({k: getattr(m, k) for k in model_cls.model_fields})
             value_check_fn(m, False)
             assert not should_fail
         except NameError:
@@ -86,8 +86,8 @@ class TestInterface:
 
         # get default values
         default_values = {}
-        for k, v in interf_cls.__fields__.items():
-            default_values[k] = v.get_default()
+        for k, v in interf_cls.model_fields.items():
+            default_values[k] = v.get_default(call_default_factory=True)
         for k, v in kwargs.items():
             if v is None:
                 kwargs[k] = default_values[k]
@@ -543,3 +543,32 @@ class TestOutputValue(TestInterface):
 
         with pytest.raises(ValueError):
             plint.OutputValueInterface.validate([1, 2, 3])
+
+    @pytest.mark.parametrize("parametrized", [False, True])
+    def test_instance_kept_as_is(self, tmp_path: Path, parametrized: bool):
+        # an instance of the generic origin or of the parametrized class is the
+        # very object the command writes to (v1 `isinstance` semantics)
+        from pipelime.piper import PipelimeCommand
+
+        class WriteValue(PipelimeCommand, title="write-value"):
+            ov: plint.OutputValueInterface[int] = plint.OutputValueInterface.pyd_field()
+
+            def run(self):
+                self.ov.set(42)
+
+        interf_cls = (
+            plint.OutputValueInterface[int]
+            if parametrized
+            else plint.OutputValueInterface
+        )
+        interface = interf_cls(file=tmp_path / "out.json")
+        cmd = WriteValue(ov=interface)
+        assert cmd.ov is interface
+        cmd()
+        assert interface.get() == 42
+        assert json.loads((tmp_path / "out.json").read_text()) == 42
+        interface.set(43)
+        assert cmd.ov.get() == 43
+
+        with pytest.raises(ValidationError):
+            WriteValue(ov=plint.InputDatasetInterface(folder=tmp_path))

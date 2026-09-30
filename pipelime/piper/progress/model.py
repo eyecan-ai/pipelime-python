@@ -1,7 +1,7 @@
-from pydantic.v1 import BaseModel
+from pipelime.utils.pydantic_compat import PipelimeModel
 
 
-class OperationInfo(BaseModel, frozen=True):
+class OperationInfo(PipelimeModel, frozen=True):
     """Information on a running operation."""
 
     token: str
@@ -20,7 +20,7 @@ class OperationInfo(BaseModel, frozen=True):
     """The total number of steps in the current chunk"""
 
 
-class ProgressUpdate(BaseModel):
+class ProgressUpdate(PipelimeModel):
     """Advacncement of an operation."""
 
     op_info: OperationInfo

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from pydantic.v1 import ValidationError, parse_obj_as
+from pydantic import TypeAdapter, ValidationError
 
 from ... import TestAssert
 from .test_general_base import TestGeneralCommandsBase
@@ -14,7 +14,7 @@ class TestSplit(TestGeneralCommandsBase):
         from pipelime.commands.split_ops import PercSplit
 
         def _parse_and_check(data):
-            parsed = parse_obj_as(PercSplit, data)
+            parsed = TypeAdapter(PercSplit).validate_python(data)
             if fraction is not None:
                 assert parsed.fraction == fraction
                 assert parsed.split_size(100) == fraction * 100
@@ -50,10 +50,10 @@ class TestSplit(TestGeneralCommandsBase):
         from pipelime.commands.split_ops import PercSplit
 
         with pytest.raises(ValidationError):
-            parse_obj_as(PercSplit, 0.0)
+            TypeAdapter(PercSplit).validate_python(0.0)
 
         with pytest.raises(ValidationError):
-            parse_obj_as(PercSplit, 2)
+            TypeAdapter(PercSplit).validate_python(2)
 
     @pytest.mark.parametrize("length", [1, 8, 10, None])
     @pytest.mark.parametrize("folder", [None, "outf"])
@@ -61,7 +61,7 @@ class TestSplit(TestGeneralCommandsBase):
         from pipelime.commands.split_ops import AbsoluteSplit
 
         def _parse_and_check(data):
-            parsed = parse_obj_as(AbsoluteSplit, data)
+            parsed = TypeAdapter(AbsoluteSplit).validate_python(data)
             if length is not None:
                 assert parsed.length == length
                 assert parsed.split_size(100) == length
@@ -97,10 +97,10 @@ class TestSplit(TestGeneralCommandsBase):
         from pipelime.commands.split_ops import AbsoluteSplit
 
         with pytest.raises(ValidationError):
-            parse_obj_as(AbsoluteSplit, 0)
+            TypeAdapter(AbsoluteSplit).validate_python(0)
 
         with pytest.raises(ValidationError):
-            parse_obj_as(AbsoluteSplit, 2.3)
+            TypeAdapter(AbsoluteSplit).validate_python(2.3)
 
     @pytest.mark.parametrize("shuffle", [False, True, 1])
     @pytest.mark.parametrize(
@@ -139,7 +139,7 @@ class TestSplit(TestGeneralCommandsBase):
             "splits": outputs,
             "grabber": f"{nproc},{prefetch}",
         }
-        cmd = SplitCommand.parse_obj(params)
+        cmd = SplitCommand.model_validate(params)
         cmd()
 
         inseq = SamplesSequence.from_underfolder(params["input"])
@@ -202,7 +202,7 @@ class TestSplit(TestGeneralCommandsBase):
             "output_discarded": output_discarded,
             "grabber": f"{nproc},{prefetch}",
         }
-        cmd = SplitByQueryCommand.parse_obj(params)
+        cmd = SplitByQueryCommand.model_validate(params)
         cmd()
 
         inseq = SamplesSequence.from_underfolder(params["input"])
@@ -237,7 +237,7 @@ class TestSplit(TestGeneralCommandsBase):
             "output": base_out,
             "grabber": f"{nproc},{prefetch}",
         }
-        cmd = SplitByValueCommand.parse_obj(params)
+        cmd = SplitByValueCommand.model_validate(params)
         cmd()
 
         subpaths = list(Path(base_out).glob("*"))

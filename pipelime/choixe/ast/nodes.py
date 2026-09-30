@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import functools
+import types
+import typing
 from abc import ABC, abstractmethod
-from dataclasses import field
+from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
-
-from pydantic.v1.dataclasses import dataclass
 
 
 class NodeVisitor:  # pragma: no cover
@@ -87,9 +88,46 @@ class NodeVisitor:  # pragma: no cover
         return self._ignore(node)
 
 
+@functools.lru_cache(maxsize=None)
+def _node_typed_fields(cls: type) -> Tuple[Tuple[str, Tuple[type, ...], bool], ...]:
+    """For each dataclass field of `cls` whose resolved annotation is a `Node`
+    subclass, `Optional[<Node subclass>]`, or a `Union` of `Node` subclasses,
+    returns `(field_name, allowed_node_types, allow_none)`. Container-typed
+    fields (e.g. `Dict[...]`, `Sequence[...]`) and `Any` are left out. Cached
+    per class (outside any instance, since `HashNode.__hash__` hashes
+    `self.__dict__.values()`)."""
+    hints = typing.get_type_hints(cls)
+    specs = []
+    for f in fields(cls):
+        hint = hints.get(f.name)
+        is_union = typing.get_origin(hint) is Union or isinstance(hint, types.UnionType)
+        candidates = typing.get_args(hint) if is_union else (hint,)
+        node_types = tuple(
+            c for c in candidates if isinstance(c, type) and issubclass(c, Node)
+        )
+        if node_types:
+            specs.append((f.name, node_types, type(None) in candidates))
+    return tuple(specs)
+
+
 @dataclass
 class Node(ABC):
     """A generic element of the Choixe AST, all nodes must implement this interface."""
+
+    def __post_init__(self) -> None:
+        for name, node_types, allow_none in _node_typed_fields(type(self)):
+            value = getattr(self, name, None)
+            if value is None and allow_none:
+                continue
+            if isinstance(value, node_types):
+                continue
+            expected = " or ".join(t.__name__ for t in node_types)
+            if allow_none:
+                expected += " or None"
+            raise TypeError(
+                f"{type(self).__name__}.{name} expected {expected}, "
+                f"got {type(value).__name__}"
+            )
 
     @abstractmethod
     def accept(self, visitor: NodeVisitor) -> Any:

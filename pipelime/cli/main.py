@@ -6,7 +6,6 @@ import typing as t
 from pathlib import Path
 
 import typer
-from pydantic.v1 import BaseModel
 
 from pipelime.choixe import XConfig
 from pipelime.choixe.visitors.processor_ui import ProcessorUi
@@ -18,12 +17,15 @@ from pipelime.cli.utils import (
     print_command_op_stage_info,
     print_commands_ops_stages_list,
 )
+from pipelime.utils.pydantic_compat import PipelimeModel
 
 if t.TYPE_CHECKING:
     from pipelime.piper.checkpoint import Checkpoint
 
 
-class PlCliOptions(BaseModel):
+class PlCliOptions(PipelimeModel):
+    # a `PipelimeModel` for the v1 Optional rule: the options saved in a checkpoint
+    # may lack an `Optional` key
     _namespace: t.ClassVar[str] = "__plmain"
 
     config: t.List[Path]
@@ -43,7 +45,7 @@ class PlCliOptions(BaseModel):
     pipelime_tmp: t.Optional[str]
 
     def purged_dict(self):
-        return self._purge(self.dict())
+        return self._purge(self.model_dump())
 
     def _purge(self, data):
         if isinstance(data, Path):
@@ -918,14 +920,19 @@ def run_command(
 
     import time
 
-    from pydantic.v1.error_wrappers import ValidationError
+    from pydantic import ValidationError
+    from rich.markup import escape
 
     from pipelime.choixe.utils.io import PipelimeTmp, dump
-    from pipelime.cli.pretty_print import print_command_outputs, print_info
+    from pipelime.cli.pretty_print import (
+        print_command_outputs,
+        print_error,
+        print_info,
+    )
     from pipelime.cli.tui import TuiApp, is_tui_needed
     from pipelime.cli.utils import (
+        format_validation_error,
         get_pipelime_command_cls,
-        show_field_alias_valerr,
         time_to_str,
     )
     from pipelime.commands import TempCommand
@@ -972,12 +979,13 @@ def run_command(
             # so let's show the tui again if it was needed in the first place
 
     except ValidationError as e:
-        show_field_alias_valerr(e)
+        # plain text, not Rich markup: `[type=...]` and bracketed values must survive
+        print_error(escape(format_validation_error(e, cmd_cls)))
         raise e
 
     if verbose > 0:
         print_info(f"\nCreated command `{command}`:")
-        print_info(cmd_obj.dict(), pretty=True)
+        print_info(cmd_obj.model_dump(), pretty=True)
 
     if dry_run or verbose > 0:
         print_info(f"\nRunning `{command}`...")
