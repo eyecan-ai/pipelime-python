@@ -224,6 +224,13 @@ pydantic v2 rules).
   `pipelime.utils.pydantic_compat.V1JsonSchema` as their default `schema_generator`;
   pass it explicitly to `TypeAdapter(...).json_schema()` or to a plain
   `pydantic.BaseModel` holding pipelime models.
+- `piper_port` in a JSON schema: `M.model_json_schema()` holds the plain value
+  (`"output"`, pydantic v2 serializes the enum), where 2.x `.schema()` kept the
+  `PiperPortType` member. `PiperPortType` is now a `str` enum, so
+  `schema["properties"][name]["piper_port"] == PiperPortType.OUTPUT` is still `True`
+  (and so is the comparison with `"output"`).
+- `piper_dag`: the schema of the inner `PropertyModel` has the docstring of the DAG as
+  its `description`, as in 2.x.
 - `pipelime.cli.utils.show_field_alias_valerr` is kept as an alias of the new
   `format_validation_error(e, model_cls=None)`. Note that it now *returns* the
   formatted text (with `name / alias` locations when `model_cls` is given) and leaves

@@ -687,5 +687,7 @@ def piper_dag(cls: t.Type[PiperDAG]):
         f"{cls.__qualname__}.{dag_command.PropertyModel.__name__}"
     )
     dag_command.PropertyModel.__module__ = cls.__module__
+    # pydantic v2 does not inherit the docstring of the parent class in the schema
+    dag_command.PropertyModel.__doc__ = cls.__doc__
 
     return dag_command

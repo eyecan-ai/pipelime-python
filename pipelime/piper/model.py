@@ -341,7 +341,9 @@ def self_() -> "PipelimeCommand":
     return parent
 
 
-class PiperPortType(Enum):
+class PiperPortType(str, Enum):
+    # a `str` enum: the JSON schema holds the plain value (pydantic v2 serializes it),
+    # which must keep comparing equal to the member, as the raw enum did in 2.x
     INPUT = "input"
     OUTPUT = "output"
     PARAMETER = "parameter"

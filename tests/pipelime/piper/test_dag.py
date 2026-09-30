@@ -1,3 +1,4 @@
+import inspect
 import typing as t
 from pathlib import Path
 
@@ -410,3 +411,20 @@ class TestDAG:
         out = SamplesSequence.from_underfolder(output_path)
 
         assert len(out) == 2 * (size - slice)
+
+    def test_decorated_schema_descriptions(self):
+        # the schema of the inner `PropertyModel` inherits the docstring of the DAG
+        # (pydantic v1 used `inspect.getdoc`, pydantic v2 reads `__doc__` directly)
+        doc = inspect.cleandoc(DecoratedDAG.__doc__)
+        schema = DecoratedDAG.model_json_schema()
+        assert schema["description"] == doc
+        assert schema["$defs"]["PropertyModel"]["description"] == doc
+
+    def test_piper_port_in_schema(self):
+        # the JSON schema holds the plain value of `piper_port` (pydantic v2 serializes
+        # the enum), which still compares equal to `PiperPortType` as in 2.x
+        schema = DecoratedDAG.model_json_schema(by_alias=False)
+        props = schema["$defs"]["PropertyModel"]["properties"]
+        assert props["input"]["piper_port"] == PiperPortType.INPUT
+        assert PiperPortType.OUTPUT == props["output"]["piper_port"]
+        assert props["output"]["piper_port"] == PiperPortType.OUTPUT.value
