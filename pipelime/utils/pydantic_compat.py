@@ -34,11 +34,13 @@ import dataclasses
 import functools
 import inspect
 import operator
+import os
 import re
 import sys
 import types
 import typing as t
 import warnings
+from pathlib import PurePath
 
 import pydantic
 import pydantic.json_schema
@@ -587,12 +589,74 @@ def _coerce_bools_to_str(cls: type, schema: t.Any) -> None:
         _coerce_bools_to_str(cls, schema.get(key))
 
 
+def _path_schema_class(schema: dict) -> t.Optional[type]:
+    """The ``PurePath`` subclass validated by a pydantic path schema, else ``None``.
+
+    pydantic builds a path field as a ``lax-or-strict`` schema whose strict branch is
+    an ``is-instance`` check of the path class (in its ``python_schema``).
+    """
+    if schema.get("type") != "lax-or-strict":
+        return None
+    strict = schema.get("strict_schema") or {}
+    python = strict.get("python_schema", strict)
+    tp = python.get("cls") if python.get("type") == "is-instance" else None
+    return tp if inspect.isclass(tp) and issubclass(tp, PurePath) else None
+
+
+def _pathlike_to_path(path_cls: type) -> t.Callable[[t.Any], t.Any]:
+    def _convert(value: t.Any) -> t.Any:
+        if isinstance(value, os.PathLike) and not isinstance(value, PurePath):
+            return path_cls(os.fspath(value))
+        return value
+
+    _convert.__pipelime_pathlike__ = True  # type: ignore[attr-defined]
+    return _convert
+
+
+def _accept_pathlike(cls: type, schema: t.Any) -> None:
+    """v1 validated a path field as ``Path(value)``, so any ``os.PathLike`` was
+    accepted (e.g. pytest's ``tmpdir``, a ``py.path.local``); pydantic v2 takes only
+    ``str`` and ``PurePath``. Every path schema among the fields of ``cls`` gets a
+    before-validator turning another ``os.PathLike`` into the field's path class (in
+    place). As for :func:`_coerce_bools_to_str`, the rule is per model.
+    """
+    if isinstance(schema, (list, tuple)):  # a union choice may be a `(schema, label)` pair
+        for item in schema:
+            _accept_pathlike(cls, item)
+        return
+    if not isinstance(schema, dict):
+        return
+    stype = schema.get("type")
+    if not isinstance(stype, str):  # a name → schema mapping (`fields`, tagged-union `choices`)
+        for value in schema.values():
+            _accept_pathlike(cls, value)
+        return
+    if stype == "model":
+        if schema.get("cls") is cls:
+            _accept_pathlike(cls, schema.get("schema"))
+        return
+    path_cls = _path_schema_class(schema)
+    if path_cls is not None:
+        inner = dict(schema)
+        schema.clear()
+        schema.update(
+            core_schema.no_info_before_validator_function(_pathlike_to_path(path_cls), inner)
+        )
+        return
+    if stype == "function-before" and getattr(
+        schema["function"]["function"], "__pipelime_pathlike__", False
+    ):
+        return
+    for key in _NESTED_SCHEMA_KEYS:
+        _accept_pathlike(cls, schema.get(key))
+
+
 # `metadata` key marking a schema whose hooks were applied, valued with the class
 _HOOKS_MARKER = "pipelime_hooks_applied_for"
 
 
 def _apply_v1_hooks(cls: type, schema: core_schema.CoreSchema) -> core_schema.CoreSchema:
-    """Both schema hooks, applied once per class.
+    """The schema hooks, applied once per class.
 
     pydantic hands back the *stored* schema of an already-built class every time
     the class is referenced as a field type, and the hooks mutate it in place: a
@@ -607,6 +671,7 @@ def _apply_v1_hooks(cls: type, schema: core_schema.CoreSchema) -> core_schema.Co
         return schema
     metadata[_HOOKS_MARKER] = cls
     _coerce_bools_to_str(cls, schema)
+    _accept_pathlike(cls, schema)
     return _polymorphic_serialization(cls, schema)
 
 

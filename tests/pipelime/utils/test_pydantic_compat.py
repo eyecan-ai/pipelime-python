@@ -4,6 +4,7 @@ from __future__ import annotations
 import inspect
 import typing as t
 import warnings
+from pathlib import Path, PurePosixPath
 
 import annotated_types
 import pydantic
@@ -190,6 +191,65 @@ class TestOptionalSemantics:
         assert M().cfg == {"type": "str", "name": "x"}
         assert M.model_fields["cfg"].default == {"type": "str", "name": "x"}
         assert M().which == "str"
+
+
+class _PathLike:
+    """An `os.PathLike` that is not a `pathlib` path (like pytest's `py.path.local`)."""
+
+    def __init__(self, path: str):
+        self._path = path
+
+    def __fspath__(self) -> str:
+        return self._path
+
+
+class TestPathLikeInput:
+    # v1 `path_validator` returned `Path(value)` for any input, so every
+    # `os.PathLike` was accepted; pydantic v2 takes only `str` and `PurePath`
+
+    def test_pathlike_accepted(self):
+        class M(pc.PipelimeModel):
+            p: Path
+            opt: t.Optional[Path] = None
+            pure: PurePosixPath = PurePosixPath("x")
+            seq: list[Path] = []
+            either: t.Union[bool, Path] = False
+
+        m = M(
+            p=_PathLike("/a/b"),
+            opt=_PathLike("c"),
+            pure=_PathLike("d/e"),
+            seq=[_PathLike("f"), "g", Path("h")],
+            either=_PathLike("i"),
+        )
+        assert type(m.p) is type(Path()) and m.p == Path("/a/b")
+        assert m.opt == Path("c")
+        assert type(m.pure) is PurePosixPath and m.pure == PurePosixPath("d/e")
+        assert m.seq == [Path("f"), Path("g"), Path("h")]
+        assert m.either == Path("i")
+
+        class R(pc.PipelimeRootModel[Path]):
+            pass
+
+        assert R(_PathLike("r")).root == Path("r")
+
+    def test_path_still_rejects_bools(self):
+        class M(pc.PipelimeModel):
+            p: Path
+
+        with pytest.raises(pydantic.ValidationError):
+            M(p=True)
+
+    def test_pathlike_is_per_model(self):
+        # nested plain pydantic models keep pydantic's rules
+        class Plain(pydantic.BaseModel):
+            p: Path
+
+        class M(pc.PipelimeModel):
+            inner: Plain
+
+        with pytest.raises(pydantic.ValidationError):
+            M(inner={"p": _PathLike("x")})
 
 
 class TestJsonSchema:

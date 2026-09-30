@@ -195,7 +195,8 @@ pydantic v2 rules).
   e.g. for CLI values such as `+name true`). `StrictStr` and `Field(strict=True)` still
   reject them. A model-level `ConfigDict(strict=True)` rejects numbers but — unlike
   pydantic v2 — still turns a bool into `"True"`; use `StrictStr` to reject bools.
-- `Path` fields reject bools, as in 2.x.
+- `Path` fields accept any `os.PathLike` (e.g. pytest's `tmpdir`, a `py.path.local`) and
+  reject bools, as in 2.x (pydantic v2 alone accepts only `str` and `pathlib` paths).
 - Equality compares the v1 `.dict()` of the models, ignoring their class and private
   attributes: `stage == {"key_list": ["a"], "negate": False}` is `True`, and two models
   of different classes with the same dump are equal (pydantic v2 alone compares the
