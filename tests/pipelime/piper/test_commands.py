@@ -47,14 +47,22 @@ class TestCommands:
         return count_start, count_end
 
     def _gc_run_and_check(self, cmd, force_gc: bool):
-        count_start, count_end = self._gc_run(cmd)
+        import gc
 
-        if force_gc:
-            assert count_end[0] == count_start[0]
-        else:
-            assert count_end[0] > count_start[0]
-        assert count_end[1] == count_start[1]
-        assert count_end[2] == count_start[2]
+        # spy on gc.collect instead of comparing gc.get_count(): the counters are
+        # global, so threads and finalizers left by other tests can change them
+        collect_calls = []
+        gc_collect = gc.collect
+
+        def _spy_collect(*args, **kwargs):
+            collect_calls.append((args, kwargs))
+            return gc_collect(*args, **kwargs)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(gc, "collect", _spy_collect)
+            cmd()
+
+        assert len(collect_calls) == (1 if force_gc else 0)
 
     @pytest.mark.skipif(not _try_import_graphviz(), reason="PyGraphviz not installed")
     def test_draw(self, all_dags: t.Sequence[t.Mapping[str, t.Any]], tmp_path: Path):
