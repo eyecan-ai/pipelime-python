@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel, RootModel
 
 
 class _GraphArgs(BaseModel):
@@ -20,8 +20,8 @@ class _DotOpts(BaseModel):
     dot: str
 
 
-class _DotsTestData(BaseModel):
-    __root__: t.Sequence[_DotOpts]
+class _DotsTestData(RootModel[t.Sequence[_DotOpts]]):
+    pass
 
 
 def _try_import_graphviz():
@@ -47,14 +47,22 @@ class TestCommands:
         return count_start, count_end
 
     def _gc_run_and_check(self, cmd, force_gc: bool):
-        count_start, count_end = self._gc_run(cmd)
+        import gc
 
-        if force_gc:
-            assert count_end[0] == count_start[0]
-        else:
-            assert count_end[0] > count_start[0]
-        assert count_end[1] == count_start[1]
-        assert count_end[2] == count_start[2]
+        # spy on gc.collect instead of comparing gc.get_count(): the counters are
+        # global, so threads and finalizers left by other tests can change them
+        collect_calls = []
+        gc_collect = gc.collect
+
+        def _spy_collect(*args, **kwargs):
+            collect_calls.append((args, kwargs))
+            return gc_collect(*args, **kwargs)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(gc, "collect", _spy_collect)
+            cmd()
+
+        assert len(collect_calls) == (1 if force_gc else 0)
 
     @pytest.mark.skipif(not _try_import_graphviz(), reason="PyGraphviz not installed")
     def test_draw(self, all_dags: t.Sequence[t.Mapping[str, t.Any]], tmp_path: Path):
@@ -63,8 +71,8 @@ class TestCommands:
         for dag in all_dags:
             if "dot" in dag:
                 with open(dag["dot"]) as f:
-                    dots_test_data = _DotsTestData.parse_obj(yaml.safe_load(f))
-                for idx, test_data in enumerate(dots_test_data.__root__):
+                    dots_test_data = _DotsTestData.model_validate(yaml.safe_load(f))
+                for idx, test_data in enumerate(dots_test_data.root):
                     target_dot = test_data.dot
                     outdot = tmp_path / str(idx) / "out.dot"
                     outdot.parent.mkdir(parents=True, exist_ok=True)
@@ -250,3 +258,22 @@ class TestCommands:
         # force_gc = True
         cmd = _testcm_true()
         self._gc_run_and_check(cmd, True)
+
+    def test_classic_graph_commands_are_pipelime_models(self):
+        from pipelime.commands.piper import (
+            ClassicPiperGraphCommand,
+            DrawCommand,
+            PiperGraphCommandBase,
+            RunCommand,
+            RunCommandBase,
+        )
+        from pipelime.utils.pydantic_compat import PipelimeModel
+
+        assert issubclass(ClassicPiperGraphCommand, PipelimeModel)
+        assert type(ClassicPiperGraphCommand) is type(PipelimeModel)
+        # the mixin still comes first, right before the graph command base
+        assert RunCommand.__mro__[1:3] == (ClassicPiperGraphCommand, RunCommandBase)
+        assert DrawCommand.__mro__[1:3] == (
+            ClassicPiperGraphCommand,
+            PiperGraphCommandBase,
+        )

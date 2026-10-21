@@ -4,21 +4,21 @@ import inspect
 import typing as t
 from abc import ABC, abstractmethod
 
-import pydantic.v1 as pyd
+import pydantic
 
 import pipelime.utils.pydantic_types as pl_types
+from pipelime.utils.pydantic_compat import (
+    Field,
+    PipelimeModel,
+    PipelimeRootModel,
+    model_title,
+)
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-class SampleStage(
-    pyd.BaseModel,
-    ABC,
-    extra="forbid",
-    copy_on_model_validation="none",
-    allow_population_by_field_name=True,
-):
+class SampleStage(PipelimeModel, ABC, extra="forbid", populate_by_name=True):
     """Base class for all sample stages."""
 
     @abstractmethod
@@ -44,7 +44,7 @@ class StageIdentity(SampleStage, title="identity"):
 class StageLambda(SampleStage, title="lambda"):
     """Applies a callable to the sample."""
 
-    func: pl_types.CallableDef = pyd.Field(
+    func: pl_types.CallableDef = Field(
         ...,
         description="The callable to apply, accepting a Sample and returning a Sample.",
     )
@@ -56,50 +56,46 @@ class StageLambda(SampleStage, title="lambda"):
         return self.func(x)
 
 
-class StageInput(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class StageInput(PipelimeRootModel[SampleStage]):
     """A stage is SampleStage object, `<name>` or `<name>: <args>` mapping,
     where `<name>` is `compose`, `remap`, `albumentations` etc,
     while `<args>` is a mapping of its arguments."""
 
-    __root__: SampleStage
-
     def __call__(self, x: "Sample") -> "Sample":
-        return self.__root__(x)
+        return self.root(x)
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
+    def _coerce(cls, value):
         from pipelime.cli.utils import create_stage_from_config
 
-        if isinstance(value, StageInput):
-            return value
         if isinstance(value, SampleStage):
-            return StageInput(__root__=value)
+            return value
         if isinstance(value, (str, bytes)):
-            return StageInput(__root__=create_stage_from_config(str(value), None))
+            return create_stage_from_config(str(value), None)
         if isinstance(value, t.Mapping):
-            return StageInput(
-                __root__=create_stage_from_config(*next(iter(value.items())))
-            )
+            return create_stage_from_config(*next(iter(value.items())))
         raise ValueError(f"Invalid stage definition: {value}")
 
-    def dict(self, *args, **kwargs) -> t.Mapping:
-        return {self.__root__.__config__.title: self.__root__.dict(*args, **kwargs)}
+    @pydantic.model_serializer(mode="wrap")
+    def _serialize(self, handler) -> t.Dict[str, t.Any]:
+        # `{<stage title>: <stage args>}`, the shape accepted back by `_coerce`
+        return {model_title(type(self.root)): handler(self)}
+
+    def dict(self, *args, **kwargs) -> t.Mapping:  # type: ignore[override]
+        # v1 overrode `dict()` with the `{title: args}` shape (no `__root__` envelope)
+        return self.model_dump(*args, **kwargs)
 
 
 class StageCompose(SampleStage, title="compose"):
     """Applies a sequence of stages."""
 
-    stages: t.Sequence[StageInput] = pyd.Field(
+    stages: t.Sequence[StageInput] = Field(
         ...,
         description="The stages to apply. " + str(inspect.getdoc(StageInput)),
     )
@@ -122,27 +118,27 @@ class StageCompose(SampleStage, title="compose"):
 class StageTimer(SampleStage, title="timer"):
     """Times the stage execution and writes the nanoseconds to the sample metadata."""
 
-    stage: StageInput = pyd.Field(
+    stage: StageInput = Field(
         ..., description="The stage to time. " + str(inspect.getdoc(StageInput))
     )
-    skip_first: pyd.NonNegativeInt = pyd.Field(
+    skip_first: pydantic.NonNegativeInt = Field(
         1, description="Skip the first n samples, then start the timer."
     )
-    time_key_path: str = pyd.Field(
+    time_key_path: str = Field(
         "timings.*",
         description=(
             "The item metadata key path where the time will be written to. "
             "Any `*` will be replaced with the name of the stage."
         ),
     )
-    process: bool = pyd.Field(
+    process: bool = Field(
         False,
         description=(
             "Measure process time instead of using a performance counter clock."
         ),
     )
 
-    _skipped: int = pyd.PrivateAttr(0)
+    _skipped: int = pydantic.PrivateAttr(0)
 
     def __init__(
         self,
@@ -154,7 +150,7 @@ class StageTimer(SampleStage, title="timer"):
     def __call__(self, x: "Sample") -> "Sample":
         import time
 
-        stg = self.stage.__root__
+        stg = self.stage.root
 
         if self._skipped < self.skip_first:
             self._skipped += 1
@@ -166,12 +162,7 @@ class StageTimer(SampleStage, title="timer"):
         x = stg(x)
         end_time = clock_fn()
 
-        stage_cls = self.stage.__root__.__class__
-        stage_name = (
-            stage_cls.__config__.title
-            if stage_cls.__config__.title
-            else stage_cls.__name__
-        )
+        stage_name = model_title(type(stg))
 
         x = x.deep_set(
             self.time_key_path.replace("*", stage_name), end_time - start_time

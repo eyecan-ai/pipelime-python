@@ -3,9 +3,9 @@ import typing as t
 from enum import Enum
 
 from loguru import logger
-from pydantic.v1 import ByteSize, Field
+from pydantic import ByteSize
 
-from pipelime.piper import PipelimeCommand
+from pipelime.piper import Field, PipelimeCommand
 
 
 class SortBy(Enum):

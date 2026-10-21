@@ -5,11 +5,41 @@ import typing as t
 import uuid
 from pathlib import Path
 
-import pydantic.v1 as pyd
-from pydantic.v1.generics import GenericModel
+import pydantic as pyd
 
 from pipelime.piper import PiperPortType
+from pipelime.utils.pydantic_compat import Field, PipelimeModel
 from pipelime.utils.pydantic_types import ItemType, SampleValidationInterface, YamlInput
+
+
+class CompactFormModel(PipelimeModel):
+    """A model that also accepts a *compact form* (a string, a number, a list...)
+    when used as a field type or validated with `model_validate`.
+    Subclasses implement `_compact_to_data`, returning the field mapping."""
+
+    @classmethod
+    def _compact_to_data(cls, value: t.Any) -> t.Mapping[str, t.Any]:
+        if isinstance(value, t.Mapping):
+            return value
+        raise ValueError(f"Invalid {cls.__name__} definition: {value!r}")
+
+    @pyd.model_validator(mode="wrap")
+    @classmethod
+    def _validate_compact(cls, value, handler):
+        # an instance of `cls` or of its generic origin (`OutputValueInterface`
+        # for `OutputValueInterface[int]`) is kept as is, as v1's
+        # `isinstance(value, OutputValueInterface)` did: the caller's own
+        # reference must be the object the command writes to
+        origin = cls.__pydantic_generic_metadata__["origin"] or cls
+        if isinstance(value, (cls, origin)):
+            return value
+        if isinstance(value, pyd.BaseModel):
+            return handler(value)  # pydantic rejects unrelated models
+        return handler(cls._compact_to_data(value))
+
+    @classmethod
+    def validate(cls, value):  # v1 name kept for downstream code
+        return cls.model_validate(value)
 
 
 class PydanticFieldMixinBase:
@@ -43,7 +73,7 @@ class PydanticFieldWithDefaultMixin(PydanticFieldMixinBase):
         piper_port: t.Optional[PiperPortType] = None,
         **kwargs,
     ):
-        return pyd.Field(
+        return Field(
             default_factory=cls,  # type: ignore
             description=cls._description(description),  # type: ignore
             piper_port=piper_port or cls._default_port_type,
@@ -61,7 +91,7 @@ class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
         piper_port: t.Optional[PiperPortType] = None,
         **kwargs,
     ):
-        return pyd.Field(
+        return Field(
             ... if is_required else None,
             description=cls._description(description),  # type: ignore
             piper_port=piper_port or cls._default_port_type,
@@ -69,7 +99,7 @@ class PydanticFieldNoDefaultMixin(PydanticFieldMixinBase):
         )
 
 
-class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
+class GrabberInterface(PydanticFieldWithDefaultMixin, CompactFormModel, extra="forbid"):
     """Multiprocessing grabbing options.
 
     Examples:
@@ -112,14 +142,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
     )
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, GrabberInterface):
-            return value
-
+    def _compact_to_data(cls, value):
         if isinstance(value, (str, bytes, int)):
             data = {}
             if isinstance(value, int):
@@ -138,7 +161,7 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
             value = data
 
         if isinstance(value, t.Mapping):
-            return GrabberInterface(**value)
+            return value
 
         raise ValueError("Invalid grabber definition.")
 
@@ -264,10 +287,9 @@ class GrabberInterface(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forb
 
 class InputDatasetInterface(
     PydanticFieldNoDefaultMixin,
-    pyd.BaseModel,
+    CompactFormModel,
     extra="forbid",
-    copy_on_model_validation="none",
-    allow_population_by_field_name=True,
+    populate_by_name=True,
 ):
     """Input dataset options.
 
@@ -312,6 +334,7 @@ class InputDatasetInterface(
     skip_empty: bool = pyd.Field(False, description="Filter out empty samples.")
     pipe: t.Optional[YamlInput] = pyd.Field(
         None,
+        validate_default=True,
         description=(
             "The pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]. Either `folder` is not `None` or the "
@@ -328,33 +351,26 @@ class InputDatasetInterface(
         description="Sample schema validation, verified after all operations.",
     )
 
-    @pyd.validator("folder")
+    @pyd.field_validator("folder")
+    @classmethod
     def resolve_folder(cls, v: t.Optional[Path]):
         if v:
             # see https://bugs.python.org/issue38671
             return v.resolve().absolute()
         return v
 
-    @pyd.validator("pipe", always=True)
-    def check_pipe_and_folder(
-        cls, v: t.Optional[YamlInput], values: t.Mapping[str, t.Any]
-    ):
+    @pyd.field_validator("pipe")
+    @classmethod
+    def check_pipe_and_folder(cls, v: t.Optional[YamlInput], info: pyd.ValidationInfo):
         if v is None:
-            if values.get("folder", None) is None:
+            if info.data.get("folder", None) is None:
                 raise ValueError("Either `folder` or `pipe` (or both) must be defined.")
         elif not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
             raise ValueError(f"Invalid pipeline: {v.value}")
         return v
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, InputDatasetInterface):
-            return value
-
+    def _compact_to_data(cls, value):
         if isinstance(value, (str, bytes, Path)):
             fld, _, sk_emp = str(value).partition(",")
             data: t.Mapping[str, t.Any] = {"folder": fld}
@@ -369,7 +385,7 @@ class InputDatasetInterface(
             value = data
 
         if isinstance(value, t.Mapping):
-            return InputDatasetInterface(**value)
+            return value
         raise ValueError("Invalid input dataset definition.")
 
     @staticmethod
@@ -414,12 +430,7 @@ any_serialization_t = t.Literal["CREATE_NEW_FILE", "DEEP_COPY", "SYM_LINK", "HAR
 any_item_t = t.Union[None, t.Literal["_"], ItemType]
 
 
-class SerializationModeInterface(
-    pyd.BaseModel,
-    extra="forbid",
-    copy_on_model_validation="none",
-    underscore_attrs_are_private=True,
-):
+class SerializationModeInterface(PipelimeModel, extra="forbid"):
     """Serialization modes for items and keys."""
 
     override: t.Mapping[
@@ -485,10 +496,9 @@ class SerializationModeInterface(
 
 class OutputDatasetInterface(
     PydanticFieldNoDefaultMixin,
-    pyd.BaseModel,
+    CompactFormModel,
     extra="forbid",
-    copy_on_model_validation="none",
-    allow_population_by_field_name=True,
+    populate_by_name=True,
 ):
     """Output dataset options.
 
@@ -526,7 +536,9 @@ class OutputDatasetInterface(
         None, description="Custom index zero-filling."
     )
     exists_ok: bool = pyd.Field(
-        False, description="If False raises an error when `folder` exists."
+        False,
+        validate_default=True,
+        description="If False raises an error when `folder` exists.",
     )
     serialization: SerializationModeInterface = pyd.Field(
         default_factory=SerializationModeInterface,
@@ -534,6 +546,7 @@ class OutputDatasetInterface(
     )
     pipe: t.Optional[YamlInput] = pyd.Field(
         None,
+        validate_default=True,
         description=(
             "The pipeline to run or a path to a yaml/json file as "
             "<filepath>[:<key-path>]. It cannot start with a generator sequence. "
@@ -550,46 +563,40 @@ class OutputDatasetInterface(
         description="Sample schema validation, verified before any other operation.",
     )
 
-    @pyd.validator("folder")
+    @pyd.field_validator("folder")
+    @classmethod
     def resolve_folder(cls, v: t.Optional[Path]):
         if v:
             # see https://bugs.python.org/issue38671
             return v.resolve().absolute()
         return v
 
-    @pyd.validator("exists_ok", always=True)
-    def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
+    @pyd.field_validator("exists_ok")
+    @classmethod
+    def _check_folder_exists(cls, v: bool, info: pyd.ValidationInfo) -> bool:
         if (
             not v
-            and values.get("folder", None) is not None
-            and values["folder"].exists()
+            and info.data.get("folder", None) is not None
+            and info.data["folder"].exists()
         ):
             raise ValueError(
-                f"Trying to overwrite an existing dataset: `{values['folder']}`. "
+                f"Trying to overwrite an existing dataset: `{info.data['folder']}`. "
                 "Please use `exists_ok=True` to overwrite."
             )
         return v
 
-    @pyd.validator("pipe", always=True)
-    def check_pipe_and_folder(
-        cls, v: t.Optional[YamlInput], values: t.Mapping[str, t.Any]
-    ):
+    @pyd.field_validator("pipe")
+    @classmethod
+    def check_pipe_and_folder(cls, v: t.Optional[YamlInput], info: pyd.ValidationInfo):
         if v is None:
-            if values.get("folder", None) is None:
+            if info.data.get("folder", None) is None:
                 raise ValueError("Either `folder` or `pipe` (or both) must be defined.")
         elif not v.value or not isinstance(v.value, (t.Mapping, t.Sequence)):
             raise ValueError(f"Invalid pipeline: {v.value}")
         return v
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, OutputDatasetInterface):
-            return value
-
+    def _compact_to_data(cls, value):
         if isinstance(value, (str, bytes, Path)):
             data = {}
             raw_data = str(value).split(",")
@@ -610,7 +617,7 @@ class OutputDatasetInterface(
             value = data
 
         if isinstance(value, t.Mapping):
-            return OutputDatasetInterface(**value)
+            return value
         raise ValueError("Invalid output dataset definition.")
 
     def serialization_cm(self) -> t.ContextManager:
@@ -671,9 +678,7 @@ class OutputDatasetInterface(
 ODataset = OutputDatasetInterface
 
 
-class ToyDatasetInterface(
-    pyd.BaseModel, extra="forbid", copy_on_model_validation="none"
-):
+class ToyDatasetInterface(PipelimeModel, extra="forbid"):
     """Toy dataset creation options."""
 
     length: pyd.PositiveInt = pyd.Field(
@@ -714,7 +719,8 @@ class ToyDatasetInterface(
     )
     seed: t.Optional[int] = pyd.Field(None, description="The optional random seed.")
 
-    @pyd.validator("key_format")
+    @pyd.field_validator("key_format")
+    @classmethod
     def validate_key_format(cls, v):
         if "*" in v:
             return v
@@ -739,7 +745,7 @@ class ToyDatasetInterface(
         )
 
 
-class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
+class Interval(PydanticFieldWithDefaultMixin, CompactFormModel, extra="forbid"):
     """An interval of indexes, with optional start and stop indices.
 
     Accepts a single value as ``start`` index, a sequence as ``start`` and ``stop``
@@ -764,14 +770,7 @@ class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
     )
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value) -> Interval:
-        if isinstance(value, cls):
-            return value
-
+    def _compact_to_data(cls, value):
         if isinstance(value, str):
             value = value.split(":")
 
@@ -790,7 +789,7 @@ class Interval(PydanticFieldWithDefaultMixin, pyd.BaseModel, extra="forbid"):
         else:
             raise ValueError(f"Invalid interval: {value}")
 
-        return cls(**data)
+        return data
 
 
 class ExtendedInterval(Interval):
@@ -807,14 +806,7 @@ class ExtendedInterval(Interval):
     )
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value) -> Interval:
-        if isinstance(value, cls):
-            return value
-
+    def _compact_to_data(cls, value):
         if isinstance(value, str):
             value = value.split(":")
 
@@ -835,7 +827,7 @@ class ExtendedInterval(Interval):
         else:
             raise ValueError(f"Invalid interval: {value}")
 
-        return cls(**data)
+        return data
 
 
 ValueType = t.TypeVar("ValueType")
@@ -843,11 +835,9 @@ ValueType = t.TypeVar("ValueType")
 
 class OutputValueInterface(
     PydanticFieldNoDefaultMixin,
-    GenericModel,
+    CompactFormModel,
     t.Generic[ValueType],
     extra="forbid",
-    copy_on_model_validation="none",
-    underscore_attrs_are_private=True,
 ):
     """Interface that allows to store a value in a file.
 
@@ -875,22 +865,21 @@ class OutputValueInterface(
     )
     exists_ok: bool = pyd.Field(
         False,
+        validate_default=True,
         description=(
             "If `True`, the output file will be overwritten if it exists. "
             "If `False`, an error will be raised."
         ),
     )
 
-    @pyd.validator("file")
+    @pyd.field_validator("file")
+    @classmethod
     def resolve_file(cls, v: Path):
         # see https://bugs.python.org/issue38671
         return v.resolve().absolute()
 
     @classmethod
-    def validate(cls, value):
-        if isinstance(value, OutputValueInterface):
-            return value
-
+    def _compact_to_data(cls, value):
         if isinstance(value, (str, bytes, Path)):
             data = {}
             raw_data = str(value).split(",")
@@ -906,37 +895,34 @@ class OutputValueInterface(
             value = data
 
         if isinstance(value, t.Mapping):
-            return OutputValueInterface(**value)
+            return value
 
         raise ValueError("Invalid OutputValueInterface definition.")
 
+    @pyd.field_validator("exists_ok")
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @pyd.validator("exists_ok", always=True)
-    def _check_file_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
-        if "file" not in values:
+    def _check_file_exists(cls, v: bool, info: pyd.ValidationInfo) -> bool:
+        if "file" not in info.data:
             # the "file" validator already failed
             return v
 
         if v is True:
-            if values["file"].is_dir():
+            if info.data["file"].is_dir():
                 raise ValueError(
-                    f"Cannot overwrite the directory: `{values['file']}`. "
+                    f"Cannot overwrite the directory: `{info.data['file']}`. "
                     "Please provide a file path."
                 )
 
         if v is False:
-            if values["file"].is_dir():
+            if info.data["file"].is_dir():
                 raise ValueError(
-                    f"Trying to overwrite the directory: `{values['file']}`. "
+                    f"Trying to overwrite the directory: `{info.data['file']}`. "
                     "Please provide a file path and use `exists_ok=True` to overwrite."
                 )
 
-            if values["file"].exists():
+            if info.data["file"].exists():
                 raise ValueError(
-                    f"Trying to overwrite an existing file: `{values['file']}`. "
+                    f"Trying to overwrite an existing file: `{info.data['file']}`. "
                     "Please use `exists_ok=True` to overwrite."
                 )
 

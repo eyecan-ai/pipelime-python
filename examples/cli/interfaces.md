@@ -35,17 +35,18 @@ the dictionary above, a full-fledged pydantic model, eg:
 ```
 $ my_schema.py
 ----------------------------------------------------
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from pipelime.items import ImageItem, TxtNumpyItem
 from typing import Optional
 
-class MySchema(BaseModel):
+class MySchema(BaseModel, arbitrary_types_allowed=True):
     image: ImageItem
     label: Optional[TxtNumpyItem] = None
 
-    @validator("image")
+    @field_validator("image")
+    @classmethod
     def check_image_size(cls, v):
-        if v.shape[0] != 224 or v.shape[1] != 224:
+        if v().shape[0] != 224 or v().shape[1] != 224:
             raise ValueError("Image must be 224x224")
         return v
 ```

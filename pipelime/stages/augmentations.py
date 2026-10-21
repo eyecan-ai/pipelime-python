@@ -3,62 +3,55 @@ from pathlib import Path
 
 import albumentations as A
 import numpy as np
-import pydantic.v1 as pyd
-from pydantic.v1.color import Color
+import pydantic as pyd
+from pydantic_extra_types.color import Color
 
 from pipelime.stages import SampleStage
+from pipelime.utils.pydantic_compat import Field, PipelimeRootModel
 
 if t.TYPE_CHECKING:
     from pipelime.sequences import Sample
 
 
-class Transformation(pyd.BaseModel, extra="forbid", copy_on_model_validation="none"):
+class Transformation(PipelimeRootModel[t.Dict[str, t.Any]]):
     """The albumentations transformation defined as python object,
     serialized dict or yaml/json file.
     """
 
-    __root__: t.Dict[str, t.Any]
     _value: t.Union[A.BaseCompose, A.BasicTransform] = pyd.PrivateAttr(None)
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._value = A.from_dict(self.__root__)  # type: ignore
+    def model_post_init(self, _context: t.Any) -> None:
+        self._value = A.from_dict(self.root)  # type: ignore
 
     @property
-    def value(self):
+    def value(self):  # NB: overrides PipelimeRootModel.value on purpose (v1 API)
         return self._value
 
     def __str__(self) -> str:
-        return str(self.__root__)
+        return str(self.root)
 
     def __repr__(self) -> str:
-        return repr(self.__root__)
+        return repr(self.root)
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, Transformation):
-            return value
+    def _coerce(cls, value):
         if isinstance(value, (A.BaseCompose, A.BasicTransform)):
-            return Transformation(__root__=A.to_dict(value))
+            return A.to_dict(value)
         if isinstance(value, (str, Path)):
             import yaml
 
             with open(str(value)) as f:
                 value = yaml.safe_load(f)
         if isinstance(value, t.Mapping):
-            return Transformation(__root__=value)
+            return value
         raise ValueError(f"{value} is not a valid transformation")
 
 
 class StageAlbumentations(SampleStage, title="albumentations"):
     """Sample augmentation via Albumentations."""
 
-    transform: Transformation = pyd.Field(...)
-    keys_to_targets: t.Mapping[str, str] = pyd.Field(
+    transform: Transformation = Field(...)
+    keys_to_targets: t.Mapping[str, str] = Field(
         ...,
         description=(
             "A mapping from key names to albumentation targets' names. "
@@ -67,7 +60,7 @@ class StageAlbumentations(SampleStage, title="albumentations"):
             "`mask`, `mask_0`, `mask_1` etc."
         ),
     )
-    output_key_format: str = pyd.Field(
+    output_key_format: str = Field(
         "*",
         description=(
             "How to format the output keys. Any `*` will be replaced with the "
@@ -80,7 +73,8 @@ class StageAlbumentations(SampleStage, title="albumentations"):
 
     _target_to_keys: t.Dict[str, str] = pyd.PrivateAttr(default_factory=dict)
 
-    @pyd.validator("output_key_format")
+    @pyd.field_validator("output_key_format")
+    @classmethod
     def validate_output_key_format(cls, v):
         if "*" in v:
             return v
@@ -119,21 +113,21 @@ class StageResize(SampleStage, title="resize-images"):
         t.Tuple[t.Literal["max"], int],
         t.Tuple[t.Literal["min"], int],
         t.Tuple[int, int],
-    ] = pyd.Field(..., description=("The target size."))
-    interpolation: t.Literal["nearest", "bilinear", "bicubic"] = pyd.Field(
+    ] = Field(..., description=("The target size."))
+    interpolation: t.Literal["nearest", "bilinear", "bicubic"] = Field(
         "bilinear", description=("The interpolation method to use.")
     )
-    images: t.Union[str, t.Sequence[str]] = pyd.Field(
+    images: t.Union[str, t.Sequence[str]] = Field(
         [], description=("A list of image keys to resize.")
     )
-    masks: t.Union[str, t.Sequence[str]] = pyd.Field(
+    masks: t.Union[str, t.Sequence[str]] = Field(
         [],
         description=(
             "A list of mask keys to resize. No interpolation is used, regardless "
             "of the `interpolation` parameter."
         ),
     )
-    output_key_format: str = pyd.Field(
+    output_key_format: str = Field(
         "*", description=("How to format the output keys.")
     )
 
@@ -181,43 +175,43 @@ class StageCropAndPad(SampleStage, title="crop-and-pad-images"):
     """Helper stage to crop and pad images in a desired size without having to define
     a full albumentations transformation."""
 
-    x: int = pyd.Field(
+    x: int = Field(
         0,
         description=(
             "If positive image is cropped from the left, otherwise image is padded."
         ),
     )
-    y: int = pyd.Field(
+    y: int = Field(
         0,
         description=(
             "If positive image is cropped from the top, otherwise image is padded."
         ),
     )
-    width: pyd.NonNegativeInt = pyd.Field(
+    width: pyd.NonNegativeInt = Field(
         0,
         description=(
             "Width of the output image, cropped or padded from the right as needed. "
             "If 0 no cropping or padding is done."
         ),
     )
-    height: pyd.NonNegativeInt = pyd.Field(
+    height: pyd.NonNegativeInt = Field(
         0,
         description=(
             "Height of the output image, cropped or padded from the bottom as needed. "
             "If 0 no cropping or padding is done."
         ),
     )
-    border: t.Literal["constant", "reflect", "replicate", "circular"] = pyd.Field(
+    border: t.Literal["constant", "reflect", "replicate", "circular"] = Field(
         "constant", description="Padding mode."
     )
-    pad_colors: t.Union[Color, t.Sequence[Color]] = pyd.Field(
+    pad_colors: t.Union[Color, t.Sequence[Color]] = Field(
         Color("black"), description="Padding color for each image."
     )
 
-    images: t.Union[str, t.Sequence[str]] = pyd.Field(
+    images: t.Union[str, t.Sequence[str]] = Field(
         "image", description="Keys of the images to crop/pad."
     )
-    output_key_format: str = pyd.Field(
+    output_key_format: str = Field(
         "*", description="How to format the output keys."
     )
 

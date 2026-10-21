@@ -1,17 +1,16 @@
 import typing as t
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 
 import pipelime.commands.interfaces as pl_interfaces
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 
 
 class SplitBase(
     pl_interfaces.PydanticFieldNoDefaultMixin,
-    pyd.BaseModel,
-    allow_population_by_field_name=True,
+    pl_interfaces.CompactFormModel,
+    populate_by_name=True,
     extra="forbid",
-    copy_on_model_validation="none",
 ):
     output: t.Optional[pl_interfaces.OutputDatasetInterface] = (
         pl_interfaces.OutputDatasetInterface.pyd_field(
@@ -34,7 +33,7 @@ class PercSplit(SplitBase):
     )
     _compact_form: t.ClassVar[t.Optional[str]] = "<fraction>[,<folder>]"
 
-    fraction: t.Optional[float] = pyd.Field(
+    fraction: t.Optional[float] = Field(
         ...,
         gt=0.0,
         le=1.0,
@@ -48,13 +47,7 @@ class PercSplit(SplitBase):
         return int(n_samples * self.fraction) if self.fraction is not None else None
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, PercSplit):
-            return value
+    def _compact_to_data(cls, value):
         if isinstance(value, (str, bytes, float)):
             data = {}
             if isinstance(value, float):
@@ -74,7 +67,7 @@ class PercSplit(SplitBase):
                     )
             value = data
         if isinstance(value, t.Mapping):
-            return PercSplit(**value)
+            return value
         raise ValueError("Invalid perc split definition.")
 
 
@@ -84,7 +77,7 @@ class AbsoluteSplit(SplitBase):
     )
     _compact_form: t.ClassVar[t.Optional[str]] = "<length>[,<folder>]"
 
-    length: t.Optional[pyd.PositiveInt] = pyd.Field(
+    length: t.Optional[pyd.PositiveInt] = Field(
         ...,
         description=(
             "Number of elements to keep. "
@@ -96,13 +89,7 @@ class AbsoluteSplit(SplitBase):
         return self.length
 
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, value):
-        if isinstance(value, AbsoluteSplit):
-            return value
+    def _compact_to_data(cls, value):
         if isinstance(value, (str, bytes, int)):
             data = {}
             if isinstance(value, int):
@@ -123,7 +110,7 @@ class AbsoluteSplit(SplitBase):
                     )
             value = data
         if isinstance(value, t.Mapping):
-            return AbsoluteSplit(**value)
+            return value
         raise ValueError("Invalid absolute split definition.")
 
 
@@ -145,7 +132,7 @@ class SplitCommand(PipelimeCommand, title="split"):
         )
     )
 
-    shuffle: t.Union[bool, pyd.PositiveInt] = pyd.Field(
+    shuffle: t.Union[bool, pyd.PositiveInt] = Field(
         False,
         alias="shf",
         description=(
@@ -153,7 +140,7 @@ class SplitCommand(PipelimeCommand, title="split"):
             "Optionally specify the random seed."
         ),
     )
-    subsample: pyd.PositiveInt = pyd.Field(
+    subsample: pyd.PositiveInt = Field(
         1,
         alias="ss",
         description="Take 1-every-nth input sample. Applied after shuffling.",
@@ -239,7 +226,7 @@ class SplitByQueryCommand(PipelimeCommand, title="split-query"):
         )
     )
 
-    query: str = pyd.Field(
+    query: str = Field(
         ...,
         alias="q",
         description=("A query to match (cfr. https://github.com/cyberlis/dictquery)."),
@@ -312,7 +299,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
         )
     )
 
-    key: str = pyd.Field(
+    key: str = Field(
         ...,
         alias="k",
         description=(
@@ -396,7 +383,7 @@ class SplitByValueCommand(PipelimeCommand, title="split-value"):
 
         for idx, (group_val, group_idxs) in enumerate(worker._groups.items()):
             split_name = f"{self.key}={group_val}"
-            split_output = self.output.copy(
+            split_output = self.output.model_copy(
                 update={"folder": self.output.folder / split_name}
             )
 

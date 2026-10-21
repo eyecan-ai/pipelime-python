@@ -71,7 +71,7 @@ Though the parsing of the input sample into the `IrisInputEntity` ensures the ex
 
 ```python
 import numpy as np
-from pydantic import validator
+from pydantic import field_validator
 from pipelime.stages.entities import BaseEntity
 import pipelime.items as pli
 
@@ -81,7 +81,8 @@ class IrisInputEntity(BaseEntity):
     PetalLength: pli.NumpyItem
     PetalWidth: pli.NumpyItem
 
-    @validator("*")
+    @field_validator("*")
+    @classmethod
     def check_values(cls, value: pli.NumpyItem):
         raw = value()
         if raw is None or raw.size != 1:
@@ -95,7 +96,6 @@ However, for more complex scenarios, you might want to define your own custom cl
 for validation and parsing, eg:
 
 ```python
-from typing import Optional
 import numpy as np
 from pipelime.stages.entities import BaseEntity, ParsedItem
 import pipelime.items as pli
@@ -104,7 +104,7 @@ import pipelime.items as pli
 # Either way, it should be possible to make an instance from raw item data
 # NB: we want float scalar inputs when creating the output entity (see below)
 class IrisFeature:
-    def __init__(self, raw_data: Optional[np.ndarray, float]):
+    def __init__(self, raw_data: np.ndarray | float | None):
         if raw_data is None:
             raise ValueError("Missing value")
         if isinstance(raw_data, np.ndarray):

@@ -160,3 +160,29 @@ def minio(tmp_path: Path):
 
     # teardown
     minio_proc.terminate()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_pipelime_user_dir(tmp_path_factory):
+    """Give every pytest process (each xdist worker) its own `~/.pipelime`.
+
+    CLI runs store their default checkpoint there and `resume` reads the last
+    one, so concurrent workers would otherwise see each other's checkpoints.
+    `tmp_path_factory` is per worker, hence the isolation. Also keeps the tests
+    away from the developer's real `~/.pipelime`.
+    """
+    from pipelime.cli.utils import PipelimeUserAppDir
+
+    base = tmp_path_factory.mktemp("pipelime_user_dir")
+    mp = pytest.MonkeyPatch()
+    mp.setattr(PipelimeUserAppDir, "base_path", classmethod(lambda cls: base))
+    yield
+    mp.undo()
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "xdist_group(name): run the marked tests on the same xdist worker "
+        "(`--dist loadgroup`); used by tests that share a fixed TCP port",
+    )

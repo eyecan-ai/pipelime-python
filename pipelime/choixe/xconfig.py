@@ -9,7 +9,7 @@ from schema import Schema
 
 from pipelime.choixe.ast.nodes import Node
 from pipelime.choixe.ast.parser import parse
-from pipelime.choixe.utils.common import deep_set_
+from pipelime.choixe.utils.common import deep_set_, pydash_path
 from pipelime.choixe.utils.io import dump, load
 from pipelime.choixe.visitors import Inspection, decode, inspect, process, walk
 
@@ -139,7 +139,7 @@ class XConfig(Box):
         Returns:
             Any: The value at the specified path.
         """
-        return py_.get(self, full_key, default=default)
+        return py_.get(self, pydash_path(full_key), default=default)
 
     def deep_set(
         self,
@@ -159,7 +159,7 @@ class XConfig(Box):
                 Defaults to False.
         """
 
-        if not only_valid_keys or py_.has(self, full_key):
+        if not only_valid_keys or py_.has(self, pydash_path(full_key)):
             deep_set_(self, key_path=full_key, value=value, append=append_values)
 
     def deep_update(
