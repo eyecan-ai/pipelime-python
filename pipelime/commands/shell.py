@@ -2,9 +2,7 @@ import subprocess
 from string import Formatter
 from typing import Any, Dict, Mapping, Sequence
 
-from pydantic.v1 import Field
-
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 
 
 class ShellCommand(PipelimeCommand, title="shell"):

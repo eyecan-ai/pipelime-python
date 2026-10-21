@@ -32,6 +32,8 @@ Install `pipelime` using pip:
 pip install pipelime-python
 ```
 
+pipelime ≥ 3.0 requires pydantic v2 — see [`docs/migration/pydantic_v2.md`](docs/migration/pydantic_v2.md) if you upgrade from 2.x.
+
 To be able to *draw* the dataflow graphs, you need the `draw` variant:
 
 ```

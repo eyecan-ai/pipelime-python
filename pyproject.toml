@@ -42,7 +42,8 @@ dependencies = [
     "deepdiff",
     "filelock",
     "pydash",
-    "pydantic>=1.10.17,<3",         # this enables `import pydantic.v1`
+    "pydantic>=2.10,<3",
+    "pydantic-extra-types",
     "schema",
     "pyzmq",
     "dictquery",
@@ -54,7 +55,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 draw = ["pygraphviz"]
-tests = ["pytest", "pytest-cov", "pytest-asyncio", "tox"]
+tests = ["pytest", "pytest-cov", "pytest-asyncio", "pytest-xdist", "tox"]
 dev = ["pylama", "black", "flake8"]
 build = ["hatch", "build"]
 docs = [

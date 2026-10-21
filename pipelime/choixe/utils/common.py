@@ -1,4 +1,38 @@
+import re
 import typing as t
+
+# pydash's string path delimiter (the same in pydash 8.0 and 8.1): an unescaped `.`,
+# or a `[<int>]` list index (captured, so that it is kept as a path part)
+_PYDASH_PATH_DELIM = re.compile(r"(?<!\\)(?:\\\\)*\.|(\[-?\d+\])")
+
+
+def pydash_path(key_path: t.Any) -> t.Any:
+    r"""A key path for pydash (``get``, ``set_``, ``has``, ``to_path``) addressing the
+    same value on every pydash version.
+
+    pydash 8.1 reads the empty key of a leading, trailing or doubled ``.`` in a string
+    path (``".a"`` is ``["", "a"]``, ``"."`` is ``["", ""]``), where earlier versions
+    dropped it (``["a"]``, ``[]``: the whole object). pipelime keeps the pre-8.1 meaning:
+    the empty keys of a dotted or indexed string path are dropped here, and the other
+    parts, escapes included, are joined back into a canonical path (``"a.b[0].c"``) that
+    every pydash version splits the same way. A path left with a single key is returned
+    unescaped (pydash takes a plain key as is), with no key as ``[]``. Any other path (a
+    plain key without ``.`` or ``[``, a key list, an int) is returned unchanged.
+    """
+    if not (isinstance(key_path, str) and ("." in key_path or "[" in key_path)):
+        return key_path
+    # `re.split` alternates the text between two delimiters (a key, "" if empty) and
+    # the captured group (a `[<int>]` list index, None for a `.`)
+    parts = _PYDASH_PATH_DELIM.split(key_path)
+    path = ""
+    for i, part in enumerate(parts):
+        if part:
+            path += part if i % 2 or not path else "." + part
+    if not path:
+        return []
+    if "." in path or "[" in path:
+        return path
+    return path.replace("\\\\", "\\")  # pydash's unescape; no `\.` is left here
 
 
 class _RefItem:
@@ -73,7 +107,7 @@ def deep_set_(  # noqa: C901
     from pydash.utilities import to_path
 
     if key_path is not None:  # pragma: no branch
-        key_path_tokens = to_path(key_path)
+        key_path_tokens = to_path(pydash_path(key_path))
         parent_node = _RefItem(obj, None)
         for tk in key_path_tokens:
             if isinstance(tk, int):

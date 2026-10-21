@@ -2,7 +2,7 @@ import re
 import typing as t
 from pathlib import Path
 
-import pydantic.v1 as pyd
+import pydantic as pyd
 from filelock import FileLock, Timeout
 
 import pipelime.sequences as pls
@@ -28,9 +28,7 @@ class _serialization_mode_override:
 
 
 @pls.piped_sequence
-class UnderfolderWriter(
-    PipedSequenceBase, title="to_underfolder", underscore_attrs_are_private=True
-):
+class UnderfolderWriter(PipedSequenceBase, title="to_underfolder"):
     """Writes samples to an underfolder dataset while iterating over them."""
 
     folder: Path = pyd.Field(..., description="The output folder.")
@@ -41,15 +39,19 @@ class UnderfolderWriter(
         t.Mapping[str, t.Union[SerializationMode, str]]
     ] = pyd.Field(None, description="Forced serialization mode for each key.")
     exists_ok: bool = pyd.Field(
-        False, description="If False raises an error when `folder` exists."
+        False,
+        validate_default=True,
+        description="If False raises an error when `folder` exists.",
     )
 
     _data_folder: Path
     _effective_zfill: int
     _temp_folder: Path
 
-    @pyd.validator("exists_ok", always=True)
-    def _check_folder_exists(cls, v: bool, values: t.Mapping[str, t.Any]) -> bool:
+    @pyd.field_validator("exists_ok")
+    @classmethod
+    def _check_folder_exists(cls, v: bool, info: pyd.ValidationInfo) -> bool:
+        values = info.data
         if not v and "folder" in values and values["folder"].exists():
             raise ValueError(
                 f"Trying to overwrite an existing dataset: `{values['folder']}`. "

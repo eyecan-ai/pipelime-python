@@ -1,7 +1,5 @@
-from pydantic.v1 import Field
-
 from pipelime.commands.interfaces import InputDatasetInterface, OutputDatasetInterface
-from pipelime.piper import PipelimeCommand, PiperPortType
+from pipelime.piper import Field, PipelimeCommand, PiperPortType
 
 
 class RandomSlice(PipelimeCommand, title="rnd-range"):

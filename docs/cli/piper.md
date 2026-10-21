@@ -101,7 +101,7 @@ import pipelime.piper as piper
 from pipelime.commands.interfaces import GrabberInterface, InputDatasetInterface
 from pipelime.commands.piper import PiperDAG, piper_dag
 from pathlib import Path
-from pydantic import Field
+from pipelime.piper import Field
 
 
 @piper_dag

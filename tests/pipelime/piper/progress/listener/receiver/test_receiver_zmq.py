@@ -1,12 +1,14 @@
 import time
 from threading import Thread
 
+import pytest
 import zmq
 
 from pipelime.piper.progress.listener.receiver.zmq import ZMQProgressReceiver
 from pipelime.piper.progress.model import OperationInfo, ProgressUpdate
 
 
+@pytest.mark.xdist_group(name="zmq")
 class TestZMQProgressReceiver:
     N_PACKETS = 10
 

@@ -1,5 +1,5 @@
 import numpy as np
-from pydantic.v1 import Field
+from pydantic import Field
 
 import pipelime.sequences as pls
 import pipelime.stages as plst
