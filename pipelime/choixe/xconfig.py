@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
@@ -37,6 +38,11 @@ class XConfig(Box):
             schema (Optional[Schema], optional): Python schema object used for
                 validation. Defaults to None.
         """
+
+        # Initialize the box config. Nested containers must be plain `Box` objects:
+        # `XConfig.__init__` does not accept box options, and recent python-box
+        # versions would otherwise default `box_class` to the subclass itself.
+        super().__init__(box_class=Box)
 
         # options
         self._cwd = cwd
@@ -92,6 +98,15 @@ class XConfig(Box):
             XConfig: A deepcopy of this `XConfig`.
         """
         return XConfig(data=self.decode(), cwd=self.get_cwd(), schema=self.get_schema())
+
+    def __deepcopy__(self, memo: Optional[Dict[int, Any]] = None) -> XConfig:
+        # `Box.__deepcopy__` would build the copy passing box options to
+        # `XConfig.__init__` (or return a plain `Box`, on older python-box versions)
+        return XConfig(
+            data=deepcopy(self.to_dict(), memo),
+            cwd=self.get_cwd(),
+            schema=self.get_schema(),
+        )
 
     def validate(self, replace: bool = True):
         """Validate internal schema, if any
