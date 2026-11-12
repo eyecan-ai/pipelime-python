@@ -40,6 +40,61 @@ class TestXConfig:
         assert cfg.get_cwd() is None
         self._copy_test(cfg)
 
+    def test_nested_containers(self):
+        from box import Box, BoxList
+
+        data = {
+            "a": {"b": {"c": 1}},
+            "l": [{"x": 1}, [{"y": 2}], 3],
+        }
+        cfg = XConfig(data=data, cwd=Path("/tmp"))
+
+        # nested mappings are plain boxes, not XConfigs
+        assert type(cfg.a) is Box
+        assert type(cfg.a.b) is Box
+        assert isinstance(cfg.l, BoxList)
+        assert type(cfg.l[0]) is Box
+        assert type(cfg.l[1][0]) is Box
+
+        # attribute access on nested containers
+        assert cfg.a.b.c == 1
+        assert cfg.l[0].x == 1
+        assert cfg.l[1][0].y == 2
+
+        # setting new nested values
+        cfg.d = {"e": [{"f": 3}]}
+        cfg.a.b.g = {"h": 4}
+        assert cfg.d.e[0].f == 3
+        assert cfg.a.b.g.h == 4
+
+        assert cfg.to_dict() == {
+            "a": {"b": {"c": 1, "g": {"h": 4}}},
+            "l": [{"x": 1}, [{"y": 2}], 3],
+            "d": {"e": [{"f": 3}]},
+        }
+        assert cfg.get_cwd() == Path("/tmp")
+        self._copy_test(cfg)
+
+    def test_deepcopy_and_pickle(self):
+        import pickle
+
+        from box import Box
+
+        schema = Schema({str: object})
+        cfg = XConfig(data={"a": {"b": [{"c": 1}]}}, cwd=Path("/tmp"), schema=schema)
+
+        for other in (deepcopy(cfg), pickle.loads(pickle.dumps(cfg))):
+            assert type(other) is XConfig
+            assert type(other.a) is Box
+            assert other.a.b[0].c == 1
+            assert other.to_dict() == cfg.to_dict()
+            assert other.get_cwd() == cfg.get_cwd()
+
+        cp = deepcopy(cfg)
+        assert cp.get_schema() is schema
+        cp.a.b[0].c = 2
+        assert cfg.a.b[0].c == 1
+
     def test_file_io(self, tmp_path: Path, choixe_plain_cfg: Path):
         cfg = XConfig.from_file(choixe_plain_cfg)
         save_path = tmp_path / "config.yml"
